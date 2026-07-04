@@ -45,13 +45,15 @@ A skill varre o projeto, faz perguntas sobre o que não está evidente no códig
 
 Entre as perguntas está a **Arquitetura de Camadas**: se o projeto já segue um padrão (models, DTOs, handlers, repositories, services...), ela é documentada; se não segue, a skill propõe uma separação adequada à stack para você aprovar. O resultado vira uma tabela no `CLAUDE.md` dizendo, para cada camada, sua pasta, sua responsabilidade e o que é proibido nela — e todas as implementações futuras obedecem a essa tabela.
 
-### 2. Para mudanças diretas, use implement
+### 2. Para mudanças pontuais, use implement
 
 ```
 /centaur-driven-implement adicionar validação de email no cadastro
 ```
 
 A skill lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `CLAUDE.md` (regra de negócio em service, query em repository, handler fino), valida (testes, lint e revisão de violação de camadas) e documenta tudo em `.claude/implements/XXXX/README.md`: o que foi pedido, o que mudou, quais arquivos, quais decisões e como validar.
+
+O implement é para **updates básicos** — correções, ajustes, features pequenas. Se a demanda for grande demais (muitas camadas, mais de ~4 arquivos), ele mesmo recusa e orienta a usar spec + run.
 
 ### 3. Para demandas grandes, use spec
 
@@ -61,20 +63,22 @@ A skill lê o contexto, explora o código afetado, **tira todas as dúvidas ante
 
 A skill explora o código, resolve as ambiguidades com você **antes** de planejar e gera `.claude/specs/XXXX/README.md` com tasks atômicas e ordenadas. A decomposição segue as camadas do projeto, de dentro para fora — models → DTOs → repositories → services → handlers → testes de integração — e cada task declara quais camadas toca e proíbe tocar as demais, o que permite paralelizar tasks de camadas independentes. Cada instrução é autocontida, com todas as decisões já tomadas.
 
-Depois, execute cada task em um subagente:
+### 4. Para executar a spec, use run
 
 ```
-/centaur-driven-implement Spec 0001 — Task 01: [instrução da task]
+/centaur-driven-run 0001
 ```
 
-O prefixo `Spec XXXX — Task NN` ativa o **modo spec** do implement:
+O run é o orquestrador — e é **restrito a tasks de specs**: não implementa nada por conta própria e recusa qualquer pedido fora do que está planejado. Ele:
 
-- Não faz perguntas (as decisões já foram resolvidas na criação da spec)
-- Marca a task no checklist da spec ao concluir, com link para a implementação
-- Quando a última task fecha, muda a spec para `Concluída` automaticamente
-- Se algo impedir a implementação, para e registra o bloqueio em vez de adivinhar
+- Monta o plano em ondas — tasks com dependências satisfeitas rodam em paralelo, o resto aguarda — e apresenta o plano para você confirmar antes de iniciar
+- Lança um subagente por task, passando a instrução da spec **verbatim** com o prefixo `Spec XXXX — Task NN`
+- Esse prefixo ativa o **modo spec** do implement dentro do subagente: não faz perguntas (as decisões já foram tomadas na spec), marca a task no checklist ao concluir e, quando a última fecha, muda a spec para `Concluída`
+- Se uma task bloquear, pula as dependentes, continua as demais e reporta o que precisa da sua decisão
+- Execução paralela é segura: cada subagente reserva seu número de implementação atomicamente (via `mkdir`), e ao fim de cada onda o run confere o checklist da spec e o `status.md`, reparando registros que se perderam em escritas simultâneas
+- Execução é retomável: rodar `/centaur-driven-run 0001` de novo continua de onde parou
 
-### 4. Para consultar, use check
+### 5. Para consultar, use check
 
 ```
 /centaur-driven-check como funciona o fluxo de pagamento?
@@ -102,14 +106,16 @@ projeto/
 ```
 /centaur-driven-start-project          (uma vez por projeto)
         │
-        ├── mudança simples ──► /centaur-driven-implement ──► .claude/implements/XXXX/
+        ├── mudança pontual ──► /centaur-driven-implement ──► .claude/implements/XXXX/
         │
         └── demanda grande ──► /centaur-driven-spec ──► .claude/specs/XXXX/
                                         │
-                                        └── N subagentes ──► /centaur-driven-implement (modo spec)
-                                                                    │
-                                                                    ├── implementa e documenta
-                                                                    └── atualiza checklist da spec
+                                        └── /centaur-driven-run XXXX
+                                                │
+                                                └── N subagentes ──► /centaur-driven-implement (modo spec)
+                                                                            │
+                                                                            ├── implementa e documenta
+                                                                            └── atualiza checklist da spec
 ```
 
 Specs seguem os status `Pendente` → `Em andamento` → `Concluída`. Cada implementação referencia a spec/task de origem, e cada task concluída aponta para a implementação — trilha completa nos dois sentidos.

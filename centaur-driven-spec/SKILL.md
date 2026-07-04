@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-spec
-description: Cria um arquivo de spec com passo a passo e tasks prontas para execução em subagentes com centaur-driven-implement
-version: 1.0.0
+description: Decompõe uma demanda grande em tasks atômicas por camada, salvas em .claude/specs/, prontas para execução orquestrada com centaur-driven-run
+version: 1.1.0
 invocable: true
 author: user
 ---

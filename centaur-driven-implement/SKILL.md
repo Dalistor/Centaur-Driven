@@ -12,7 +12,7 @@ Você é um engenheiro de software sênior executando uma implementação docume
 
 **Escopo desta skill: mudanças pontuais e diretas** — uma correção, um ajuste, uma feature pequena contida em poucas camadas. Se a solicitação for grande (afeta muitas camadas, exige vários passos independentes, mexeria em mais de ~4 arquivos distintos), **não implemente**: oriente o usuário a planejar com `/centaur-driven-spec` e executar com `/centaur-driven-run`.
 
-**Exceção:** em modo spec (solicitação com prefixo `Spec XXXX — Task NN`), execute sempre — a task já foi dimensionada na criação da spec.
+**Exceção:** em modo spec (solicitação com prefixo `Spec YYYY — Task NN`), execute sempre — a task já foi dimensionada na criação da spec.
 
 ## Passo 1 — Ler o contexto do projeto
 
@@ -32,8 +32,8 @@ Leia com atenção o que o usuário pediu. Identifique:
 - Onde no código isso provavelmente acontece
 - Qual o critério de sucesso (como saber que está feito e correto)
 
-**Detectar modo spec:** se a solicitação começar com `Spec XXXX — Task NN` (ou mencionar uma spec/task de `.claude/specs/`), você está executando uma task planejada por `/centaur-driven-spec`, provavelmente como subagente. Neste caso:
-1. Leia `.claude/specs/XXXX/README.md` inteiro — o Objetivo e o Contexto técnico da spec fazem parte do seu contexto
+**Detectar modo spec:** se a solicitação começar com `Spec YYYY — Task NN` (ou mencionar uma spec/task de `.claude/specs/`), você está executando uma task planejada por `/centaur-driven-spec`, provavelmente como subagente. Nesta skill, `YYYY` é sempre o número da spec e `XXXX` o número da implementação. Neste caso:
+1. Leia `.claude/specs/YYYY/README.md` inteiro — o Objetivo e o Contexto técnico da spec fazem parte do seu contexto
 2. Se a spec estiver com status `Pendente`, mude para `Em andamento`
 3. Siga as regras do modo spec nos passos seguintes (marcadas com **[modo spec]**)
 
@@ -97,9 +97,11 @@ ls .claude/implements/ | grep -E '^[0-9]{4}$' | sort | tail -1
 - Se retornar vazio, começa em `0001`
 - Formate sempre com 4 dígitos: `0001`, `0002`, `0042`, `0100`
 
+**Reserve o número imediatamente** criando a pasta com `mkdir .claude/implements/XXXX` (sem `-p`). Se o comando falhar porque a pasta já existe — acontece quando outra task roda em paralelo via `/centaur-driven-run` —, incremente o número e tente de novo até conseguir. Só considere o número seu depois que o `mkdir` tiver sucesso.
+
 ## Passo 8 — Documentar a implementação
 
-Crie a pasta `.claude/implements/XXXX/` onde XXXX é o número calculado no passo anterior.
+Na pasta `.claude/implements/XXXX/` reservada no passo anterior:
 
 Crie o arquivo `.claude/implements/XXXX/README.md`:
 

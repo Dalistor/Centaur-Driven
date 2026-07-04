@@ -64,6 +64,8 @@ Ao fim de cada onda, releia `.claude/specs/XXXX/README.md` e verifique:
 3. **Task bloqueada** → registre o motivo no checklist, remova do plano as tasks que dependem dela e continue com as demais ondas que não são afetadas
 4. **Subagente falhou sem reportar** → trate como bloqueada; não relance automaticamente
 
+Verifique também `.claude/implements/status.md`: como os subagentes da onda escrevem nele em paralelo, uma linha pode ter sido sobrescrita pela edição de outro. Se faltar a linha de alguma implementação concluída, adicione-a com os dados do relatório do subagente.
+
 ## Passo 6 — Finalizar
 
 Após a última onda:

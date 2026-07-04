@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-start-project
-description: Documenta um projeto existente, cria CLAUDE.md na raiz e inicializa a estrutura de implementações em .claude/implements/
-version: 1.0.0
+description: Documenta um projeto existente, cria CLAUDE.md na raiz (incluindo a Arquitetura de Camadas) e inicializa .claude/implements/ e .claude/specs/
+version: 1.1.0
 invocable: true
 author: user
 ---
