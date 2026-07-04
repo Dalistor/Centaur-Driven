@@ -150,5 +150,6 @@ Informe ao usuário o que foi criado e o fluxo das skills centaur-driven:
 
 Fluxo de trabalho:
 - `/centaur-driven-check` — perguntar sobre o projeto sem alterar nada
-- `/centaur-driven-implement` — implementação direta, documentada em `.claude/implements/`
-- `/centaur-driven-spec` — para demandas grandes: decompõe em tasks que subagentes executam com `/centaur-driven-implement`
+- `/centaur-driven-implement` — mudanças pontuais e diretas, documentadas em `.claude/implements/`
+- `/centaur-driven-spec` — para demandas grandes: decompõe em tasks atômicas por camada
+- `/centaur-driven-run` — executa uma spec: lança subagentes por task, paraleliza e consolida

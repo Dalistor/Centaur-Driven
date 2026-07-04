@@ -128,7 +128,15 @@ Crie a pasta `.claude/specs/XXXX/` e o arquivo `.claude/specs/XXXX/README.md`:
 
 ## Como executar
 
-Para cada task, abra um subagente e invoque:
+Recomendado — orquestração automática:
+
+```
+/centaur-driven-run XXXX
+```
+
+O run lança um subagente por task, paraleliza as independentes e respeita as dependências.
+
+Alternativa manual — para cada task, abra um subagente e invoque:
 
 ```
 /centaur-driven-implement [cole aqui a instrução da task]
@@ -174,12 +182,10 @@ Adicione uma linha:
 Confirme a criação com:
 - Número e título da spec (ex: "Spec criada em `.claude/specs/0001/`")
 - Quantas tasks foram criadas e a ordem de execução recomendada
-- Instrução de como usar: abrir um subagente por task e invocar `/centaur-driven-implement` com a instrução da task (o prefixo `Spec XXXX — Task NN` faz o implement ativar o modo spec: não pergunta nada, atualiza o checklist e o status da spec automaticamente)
+- Como executar: `/centaur-driven-run XXXX` orquestra tudo automaticamente (subagentes, paralelismo, dependências, checklist). A alternativa manual é abrir um subagente por task com `/centaur-driven-implement` e a instrução da task
 
 Exemplo de mensagem final:
 
-> Spec `0001` criada com 4 tasks. Execute cada uma em um subagente separado na ordem abaixo:
-> 1. Task 01 — [Título]: `/centaur-driven-implement [instrução]`
-> 2. Task 02 — [Título]: `/centaur-driven-implement [instrução]`
-> 3. Task 03 — [Título]: `/centaur-driven-implement [instrução]`
-> 4. Task 04 — [Título]: `/centaur-driven-implement [instrução]`
+> Spec `0001` criada com 4 tasks (Task 02 e 03 paralelizáveis). Para executar:
+>
+> `/centaur-driven-run 0001`

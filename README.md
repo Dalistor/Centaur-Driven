@@ -25,8 +25,9 @@ Reinicie sessões abertas do Claude Code para que as skills apareçam. Elas fica
 |-------|-----------|
 | `/centaur-driven-start-project` | Documenta o projeto: cria o `CLAUDE.md` na raiz e inicializa as estruturas de implementações e specs |
 | `/centaur-driven-check` | Responde perguntas sobre o projeto com base na documentação e no código — sem alterar nada |
-| `/centaur-driven-implement` | Implementa uma mudança: lê o contexto, tira dúvidas, aplica, valida e documenta em `.claude/implements/` |
-| `/centaur-driven-spec` | Decompõe uma demanda grande em tasks atômicas, salvas em `.claude/specs/`, prontas para execução em subagentes |
+| `/centaur-driven-implement` | Mudanças **pontuais e diretas**: lê o contexto, tira dúvidas, aplica, valida e documenta em `.claude/implements/` |
+| `/centaur-driven-spec` | Decompõe uma demanda grande em tasks atômicas por camada, salvas em `.claude/specs/` |
+| `/centaur-driven-run` | Executa uma spec: lança um subagente por task, paraleliza as independentes e consolida o resultado |
 
 ## Fluxo de trabalho
 

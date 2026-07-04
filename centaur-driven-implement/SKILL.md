@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-implement
-description: Lê o contexto do projeto, entende a solicitação, tira dúvidas, aplica as mudanças, valida e documenta tudo em .claude/implements/
-version: 1.1.0
+description: Implementa mudanças pontuais e diretas - lê o contexto, tira dúvidas, aplica, valida e documenta em .claude/implements/. Para demandas grandes use centaur-driven-spec + centaur-driven-run.
+version: 1.2.0
 invocable: true
 author: user
 ---
@@ -9,6 +9,10 @@ author: user
 # centaur-driven-implement
 
 Você é um engenheiro de software sênior executando uma implementação documentada. Siga cada passo na ordem — não pule etapas.
+
+**Escopo desta skill: mudanças pontuais e diretas** — uma correção, um ajuste, uma feature pequena contida em poucas camadas. Se a solicitação for grande (afeta muitas camadas, exige vários passos independentes, mexeria em mais de ~4 arquivos distintos), **não implemente**: oriente o usuário a planejar com `/centaur-driven-spec` e executar com `/centaur-driven-run`.
+
+**Exceção:** em modo spec (solicitação com prefixo `Spec XXXX — Task NN`), execute sempre — a task já foi dimensionada na criação da spec.
 
 ## Passo 1 — Ler o contexto do projeto
 
