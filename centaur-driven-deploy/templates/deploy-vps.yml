@@ -1,0 +1,166 @@
+# TEMPLATE — workflow de deploy em VPS por SSH + rsync.
+# Substitua os placeholders <ENTRE_ANGULOS> e apague o que não se aplicar.
+#
+# Fluxo: checkout -> configura SSH e valida credenciais -> checa pré-requisitos
+# na VPS -> rsync do código -> sobe a aplicação -> health check por dentro da VPS.
+#
+# A VPS NÃO precisa de credencial do repositório (nada de git pull lá).
+# Arquivos de segredo (.env de produção) vivem só na VPS e nunca são sobrescritos
+# (ver os --exclude do rsync — arquivo excluído também não é apagado pelo --delete).
+#
+# Secrets do Environment <ENVIRONMENT>:
+#   VPS_SSH_KEY     chave privada SSH completa (formato OpenSSH, com BEGIN/END)
+#   VPS_KNOWN_HOSTS saída de `ssh-keyscan -p <porta> <host>` (fixa a host key)
+# Variables do mesmo Environment:
+#   VPS_HOST        IP ou hostname da VPS
+#   VPS_USER        usuário SSH (precisa usar o runtime sem sudo)
+#   VPS_PORT        porta SSH (opcional, default 22)
+#   VPS_PATH        diretório do projeto na VPS (opcional, default <VPS_PATH>)
+#
+# Para simular sem alterar a VPS: Actions -> este workflow -> Run workflow
+# -> marcar "dry_run". Ele imprime o que o rsync criaria/apagaria e para antes
+# de subir a aplicação.
+
+name: <NOME DO WORKFLOW>
+
+on:
+  push:
+    branches: [<BRANCH>]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Só simular o rsync (não altera a VPS)'
+        type: boolean
+        default: false
+
+# o workflow só lê o repositório; não escreve nada no GitHub
+permissions:
+  contents: read
+
+# um deploy por vez; não cancela o que já está subindo a aplicação
+concurrency:
+  group: deploy-<BRANCH>-<ENVIRONMENT>
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # secrets/variables vivem neste Environment; sem esta linha o job não os enxerga
+    environment: <ENVIRONMENT>
+
+    env:
+      VPS_PORT: ${{ vars.VPS_PORT || '22' }}
+      VPS_PATH: ${{ vars.VPS_PATH || '<VPS_PATH>' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Secrets e variables entram por `env:`, não interpolados dentro do script.
+      # Interpolar `${{ }}` no corpo do `run:` deixa o valor virar código shell.
+      - name: Configurar SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+        run: |
+          set -euo pipefail
+
+          # falha cedo e com mensagem clara: valor vazio quase sempre significa
+          # secret/variable cadastrado fora do Environment declarado acima
+          for v in SSH_KEY KNOWN_HOSTS VPS_HOST VPS_USER; do
+            if [ -z "${!v}" ]; then
+              echo "::error::$v chegou vazio. Confira se ele existe no Environment '<ENVIRONMENT>' e se o nome bate exatamente."
+              exit 1
+            fi
+          done
+
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+          # todo passo seguinte usa o alias `deploy-target`: sem host, usuário
+          # ou porta espalhados pelo workflow
+          cat > ~/.ssh/config <<EOF
+          Host deploy-target
+            HostName $VPS_HOST
+            User $VPS_USER
+            Port $VPS_PORT
+            IdentityFile ~/.ssh/id_deploy
+            IdentitiesOnly yes
+            BatchMode yes
+            ConnectTimeout 15
+            ServerAliveInterval 30
+            ServerAliveCountMax 20
+            StrictHostKeyChecking yes
+            UserKnownHostsFile ~/.ssh/known_hosts
+          EOF
+          chmod 600 ~/.ssh/config
+
+          # sem BatchMode o ssh esperaria senha e o job só morreria no timeout
+          ssh -q deploy-target 'echo "conexão SSH ok"'
+
+      - name: Checar pré-requisitos na VPS
+        run: |
+          set -euo pipefail
+          ssh deploy-target "set -e
+            mkdir -p '$VPS_PATH'
+            test -f '$VPS_PATH/<ARQUIVO_ENV_DE_PRODUCAO>' || {
+              echo '::error::<ARQUIVO_ENV_DE_PRODUCAO> não existe em $VPS_PATH — crie na VPS antes do primeiro deploy'
+              exit 1
+            }
+            <COMANDO_QUE_VERIFICA_O_RUNTIME> >/dev/null"
+
+      # -i lista item a item o que muda; `deleting` no log é arquivo que some da VPS
+      - name: Enviar código (rsync)
+        run: |
+          set -euo pipefail
+          DRY=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY="--dry-run"
+            echo "::notice::dry-run — nada será alterado na VPS"
+          fi
+          rsync -az --delete -i $DRY \
+            -e ssh \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'node_modules/' \
+            <DEMAIS_EXCLUDES_DE_BUILD> \
+            <EXCLUDES_DOS_ARQUIVOS_DE_SEGREDO> \
+            ./ "deploy-target:$VPS_PATH/"
+
+      - name: Build e subir a aplicação
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          set -euo pipefail
+          ssh deploy-target "set -e
+            cd '$VPS_PATH'
+            <COMANDO_DE_SUBIR>
+            <COMANDO_DE_LIMPEZA_OPCIONAL>"
+
+      - name: Health check
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          set -euo pipefail
+          ssh deploy-target "set -e
+            cd '$VPS_PATH'
+            command -v curl >/dev/null || { echo '::error::curl não instalado na VPS'; exit 1; }
+            for i in \$(seq 1 30); do
+              code=\$(curl -s -o /dev/null -w '%{http_code}' <URL_DE_HEALTH_INTERNA> || true)
+              echo \"tentativa \$i: \$code\"
+              [ \"\$code\" = '200' ] && exit 0
+              sleep 5
+            done
+            echo '::error::health check falhou'
+            <COMANDO_DE_STATUS>
+            <COMANDO_DE_LOGS>
+            exit 1"
+
+      - name: Remover credenciais do runner
+        if: always()
+        run: rm -f ~/.ssh/id_deploy ~/.ssh/config ~/.ssh/known_hosts

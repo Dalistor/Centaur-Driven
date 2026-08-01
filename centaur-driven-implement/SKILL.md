@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-implement
-description: Implementa mudanças pontuais e diretas - lê o contexto, tira dúvidas, aplica, valida e documenta em .claude/implements/. Para demandas grandes use centaur-driven-spec + centaur-driven-run.
-version: 1.2.0
+description: Implementa mudanças pontuais e diretas sem TDD (estruturais, config, UI, ou projetos sem testes) - lê o contexto, tira dúvidas, aplica, valida e documenta em .claude/implements/. Para comportamento testável use centaur-driven-tdd; para demandas grandes use centaur-driven-spec + centaur-driven-run.
+version: 1.4.0
 invocable: true
 author: user
 ---
@@ -13,6 +13,8 @@ Você é um engenheiro de software sênior executando uma implementação docume
 **Escopo desta skill: mudanças pontuais e diretas** — uma correção, um ajuste, uma feature pequena contida em poucas camadas. Se a solicitação for grande (afeta muitas camadas, exige vários passos independentes, mexeria em mais de ~4 arquivos distintos), **não implemente**: oriente o usuário a planejar com `/centaur-driven-spec` e executar com `/centaur-driven-run`.
 
 **Exceção:** em modo spec (solicitação com prefixo `Spec YYYY — Task NN`), execute sempre — a task já foi dimensionada na criação da spec.
+
+**Roteamento para TDD:** se a mudança tem comportamento testável (regra de negócio, validação, cálculo, transformação de dados, correção de bug) **e** o projeto tem infraestrutura de teste, use `/centaur-driven-tdd` no lugar desta skill — o teste vem antes do código. Continue aqui quando a mudança for estrutural (renomear, mover arquivo), de configuração, só de UI/estilo, ou quando o projeto não tiver testes automatizados. Em modo spec, obedeça ao que a task manda: se a instrução da task pedir TDD, invoque `/centaur-driven-tdd`.
 
 ## Passo 1 — Ler o contexto do projeto
 
@@ -78,7 +80,7 @@ Com todas as dúvidas resolvidas, execute a implementação:
 
 Após implementar, tente validar nesta ordem:
 
-1. **Testes**: verifique se existe script de test no package.json, pytest.ini, Makefile ou similar. Se existir, execute. Se não existir, registre "projeto sem testes automatizados" e siga.
+1. **Testes**: verifique se existe script de test no package.json, pytest.ini, Makefile ou similar. Se existir, execute. Se não existir, registre "projeto sem testes automatizados" e siga. Se a mudança acabou introduzindo comportamento testável sem teste, escreva o teste agora (e registre no README que ele veio depois do código, não por TDD).
 2. **Lint / type-check**: verifique se existe script de lint ou type-check. Se existir, execute. Se não existir, registre e siga.
 3. **Revisão manual**: leia o código implementado uma última vez e confirme que não há bugs óbvios, casos não tratados ou regressões.
 4. **Revisão de camadas**: confirme que nenhuma mudança violou a Arquitetura de Camadas — sem regra de negócio em handler, sem query fora de repository, sem DTO vazando para o domínio. Se violou, corrija antes de documentar.
@@ -110,6 +112,7 @@ Crie o arquivo `.claude/implements/XXXX/README.md`:
 
 **Data:** [data de hoje]
 **Status:** Concluído
+**Modo:** direto
 **Spec:** [se veio de uma spec: `.claude/specs/YYYY/` — Task NN. Caso contrário, omita esta linha]
 
 ## Solicitação

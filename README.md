@@ -11,8 +11,8 @@ Centauro: metade humano, metade máquina. Você toma as decisões — o Claude e
 Copie as pastas das skills para o diretório global de skills do Claude Code:
 
 ```bash
-git clone https://github.com/SEU-USUARIO/centaur.git
-cp -r centaur/centaur-driven-* ~/.claude/skills/
+git clone https://github.com/Dalistor/Centaur-Driven.git
+cp -r Centaur-Driven/centaur-driven-* ~/.claude/skills/
 ```
 
 Reinicie sessões abertas do Claude Code para que as skills apareçam. Elas ficam disponíveis em **todos** os projetos.
@@ -25,9 +25,11 @@ Reinicie sessões abertas do Claude Code para que as skills apareçam. Elas fica
 |-------|-----------|
 | `/centaur-driven-start-project` | Documenta o projeto: cria o `CLAUDE.md` na raiz e inicializa as estruturas de implementações e specs |
 | `/centaur-driven-check` | Responde perguntas sobre o projeto com base na documentação e no código — sem alterar nada |
-| `/centaur-driven-implement` | Mudanças **pontuais e diretas**: lê o contexto, tira dúvidas, aplica, valida e documenta em `.claude/implements/` |
-| `/centaur-driven-spec` | Decompõe uma demanda grande em tasks atômicas por camada, salvas em `.claude/specs/` |
-| `/centaur-driven-run` | Executa uma spec: lança um subagente por task, paraleliza as independentes e consolida o resultado |
+| `/centaur-driven-tdd` | Mudanças pontuais com **comportamento testável**: teste antes do código, ciclo red-green-refactor, análise de cobertura |
+| `/centaur-driven-implement` | Mudanças pontuais **estruturais, de configuração ou de UI** — e projetos sem infraestrutura de teste |
+| `/centaur-driven-spec` | Decompõe uma demanda grande em tasks atômicas por camada, cada uma marcada como TDD ou direta, salvas em `.claude/specs/` |
+| `/centaur-driven-run` | Executa uma spec: lança um subagente por task conforme o Modo, paraleliza as independentes e consolida o resultado |
+| `/centaur-driven-deploy` | Configura deploy contínuo para uma VPS (GitHub Actions + SSH + rsync): gera a chave, valida o acesso, cadastra os secrets e acompanha o primeiro run |
 
 ## Fluxo de trabalho
 
@@ -43,27 +45,41 @@ A skill varre o projeto, faz perguntas sobre o que não está evidente no códig
 - `.claude/implements/status.md` — histórico de implementações
 - `.claude/specs/index.md` — índice de specs planejadas
 
-Entre as perguntas está a **Arquitetura de Camadas**: se o projeto já segue um padrão (models, DTOs, handlers, repositories, services...), ela é documentada; se não segue, a skill propõe uma separação adequada à stack para você aprovar. O resultado vira uma tabela no `CLAUDE.md` dizendo, para cada camada, sua pasta, sua responsabilidade e o que é proibido nela — e todas as implementações futuras obedecem a essa tabela.
+Entre as perguntas está a **stack de testes** (framework, comando de rodar a suíte, local e convenção dos arquivos, meta de cobertura) — é o que decide se uma mudança futura vai por TDD ou não. Se o projeto ainda não tem testes, a skill pergunta se você quer adotar TDD dali em diante e com qual framework.
 
-### 2. Para mudanças pontuais, use implement
+Também entre as perguntas está a **Arquitetura de Camadas**: se o projeto já segue um padrão (models, DTOs, handlers, repositories, services...), ela é documentada; se não segue, a skill propõe uma separação adequada à stack para você aprovar. O resultado vira uma tabela no `CLAUDE.md` dizendo, para cada camada, sua pasta, sua responsabilidade e o que é proibido nela — e todas as implementações futuras obedecem a essa tabela.
+
+### 2. Para mudanças com comportamento testável, use tdd
 
 ```
-/centaur-driven-implement adicionar validação de email no cadastro
+/centaur-driven-tdd adicionar validação de email no cadastro
 ```
 
-A skill lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `CLAUDE.md` (regra de negócio em service, query em repository, handler fino), valida (testes, lint e revisão de violação de camadas) e documenta tudo em `.claude/implements/XXXX/README.md`: o que foi pedido, o que mudou, quais arquivos, quais decisões e como validar.
+Regra de negócio, validação, cálculo, transformação de dados, correção de bug — tudo que tem comportamento observável entra por aqui, e **o teste vem antes do código**.
 
-O implement é para **updates básicos** — correções, ajustes, features pequenas. Se a demanda for grande demais (muitas camadas, mais de ~4 arquivos), ele mesmo recusa e orienta a usar spec + run.
+A skill lê o contexto, detecta a stack de testes, transforma a solicitação em **critérios de aceite** (caminho feliz, erros, bordas), tira todas as dúvidas e então roda os ciclos: **RED** (escreve o teste, roda, vê falhar — teste que passa de primeira é teste errado), **GREEN** (o mínimo de código de produção para passar), **REFACTOR** (limpa com a suíte verde). Um ciclo por comportamento. No fim, analisa cobertura, valida lint e camadas, e documenta em `.claude/implements/XXXX/README.md` — incluindo a lista de ciclos executados.
 
-### 3. Para demandas grandes, use spec
+### 3. Para mudanças estruturais, use implement
+
+```
+/centaur-driven-implement renomear a pasta de handlers para controllers
+```
+
+O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `CLAUDE.md` (regra de negócio em service, query em repository, handler fino), valida (testes, lint e revisão de violação de camadas) e documenta em `.claude/implements/XXXX/README.md`.
+
+Se a mudança pedida tiver comportamento testável, ele mesmo redireciona para o `/centaur-driven-tdd`. Se a demanda for grande demais (muitas camadas, mais de ~4 arquivos), recusa e orienta a usar spec + run.
+
+### 4. Para demandas grandes, use spec
 
 ```
 /centaur-driven-spec migrar autenticação de sessão para JWT
 ```
 
-A skill explora o código, resolve as ambiguidades com você **antes** de planejar e gera `.claude/specs/XXXX/README.md` com tasks atômicas e ordenadas. A decomposição segue as camadas do projeto, de dentro para fora — models → DTOs → repositories → services → handlers → testes de integração — e cada task declara quais camadas toca e proíbe tocar as demais, o que permite paralelizar tasks de camadas independentes. Cada instrução é autocontida, com todas as decisões já tomadas.
+A skill explora o código, resolve as ambiguidades com você **antes** de planejar e gera `.claude/specs/XXXX/README.md` com tasks atômicas e ordenadas. A decomposição segue as camadas do projeto, de dentro para fora — models, DTOs, repositories, services, handlers, testes de integração — e cada task declara quais camadas toca e proíbe tocar as demais, o que permite paralelizar tasks de camadas independentes. Cada instrução é autocontida, com todas as decisões já tomadas.
 
-### 4. Para executar a spec, use run
+Cada task carrega também um campo **`Modo`**: `TDD` para as que têm comportamento testável (o teste nasce dentro da própria task, junto do código) e `direto` para as estruturais. Por isso não existe task de "escrever os testes da camada X" — o teste pertence à task que implementa o comportamento. Tasks `TDD` trazem os critérios de aceite já escritos como comportamentos observáveis, porque o subagente que as executa não pode perguntar nada.
+
+### 5. Para executar a spec, use run
 
 ```
 /centaur-driven-run 0001
@@ -72,13 +88,13 @@ A skill explora o código, resolve as ambiguidades com você **antes** de planej
 O run é o orquestrador — e é **restrito a tasks de specs**: não implementa nada por conta própria e recusa qualquer pedido fora do que está planejado. Ele:
 
 - Monta o plano em ondas — tasks com dependências satisfeitas rodam em paralelo, o resto aguarda — e apresenta o plano para você confirmar antes de iniciar
-- Lança um subagente por task, passando a instrução da spec **verbatim** com o prefixo `Spec XXXX — Task NN`
-- Esse prefixo ativa o **modo spec** do implement dentro do subagente: não faz perguntas (as decisões já foram tomadas na spec), marca a task no checklist ao concluir e, quando a última fecha, muda a spec para `Concluída`
+- Lança um subagente por task, escolhendo a skill pelo `Modo` da task (`TDD` → `/centaur-driven-tdd`, `direto` → `/centaur-driven-implement`) e passando a instrução da spec **verbatim** com o prefixo `Spec XXXX — Task NN`
+- Esse prefixo ativa o **modo spec** da skill de execução dentro do subagente: não faz perguntas (as decisões já foram tomadas na spec), marca a task no checklist ao concluir e, quando a última fecha, muda a spec para `Concluída`
 - Se uma task bloquear, pula as dependentes, continua as demais e reporta o que precisa da sua decisão
 - Execução paralela é segura: cada subagente reserva seu número de implementação atomicamente (via `mkdir`), e ao fim de cada onda o run confere o checklist da spec e o `status.md`, reparando registros que se perderam em escritas simultâneas
 - Execução é retomável: rodar `/centaur-driven-run 0001` de novo continua de onde parou
 
-### 5. Para consultar, use check
+### 6. Para consultar, use check
 
 ```
 /centaur-driven-check como funciona o fluxo de pagamento?
@@ -86,6 +102,18 @@ O run é o orquestrador — e é **restrito a tasks de specs**: não implementa 
 ```
 
 Responde com base no `CLAUDE.md`, no histórico de implementações, nas specs e no código real — apontando arquivo e linha quando fizer sentido.
+
+### 7. Para colocar no ar, use deploy
+
+```
+/centaur-driven-deploy
+```
+
+Configura deploy contínuo do projeto para uma **VPS que você controla**, via GitHub Actions + SSH + rsync. A regra da skill é entregar deploy **configurado e testado**, não instruções: ela inspeciona o projeto, gera o par de chaves SSH, instala a pública na VPS, coleta o `known_hosts`, **audita o que o `rsync --delete` apagaria antes de rodar**, escreve o workflow, cadastra secrets e variables pelo `gh` CLI e acompanha o primeiro run. Ação manual só quando o passo exige acesso que ela não tem (senha de sudo na VPS, botão sem equivalente em CLI).
+
+Antes de qualquer comando que altere a VPS ou o GitHub, ela mostra o comando e pede confirmação. No fim, documenta o que ficou fora do repositório e **como revogar** o acesso.
+
+Cobre Docker/Docker Compose e processo direto (systemd, pm2). Fora do escopo: PaaS (Vercel, Railway, Fly), Kubernetes, registry de imagem, blue-green e rollback automático.
 
 ## Estrutura gerada no projeto
 
@@ -106,16 +134,22 @@ projeto/
 ```
 /centaur-driven-start-project          (uma vez por projeto)
         │
-        ├── mudança pontual ──► /centaur-driven-implement ──► .claude/implements/XXXX/
+        ├── pontual + testável ──► /centaur-driven-tdd ──────► .claude/implements/XXXX/
         │
-        └── demanda grande ──► /centaur-driven-spec ──► .claude/specs/XXXX/
-                                        │
-                                        └── /centaur-driven-run XXXX
-                                                │
-                                                └── N subagentes ──► /centaur-driven-implement (modo spec)
-                                                                            │
-                                                                            ├── implementa e documenta
-                                                                            └── atualiza checklist da spec
+        ├── pontual estrutural ──► /centaur-driven-implement ─► .claude/implements/XXXX/
+        │
+        ├── demanda grande ──► /centaur-driven-spec ──► .claude/specs/XXXX/
+        │                               │
+        │                               └── /centaur-driven-run XXXX
+        │                                       │
+        │                                       └── N subagentes (modo spec), por Modo da task
+        │                                               ├── Modo TDD    ──► /centaur-driven-tdd
+        │                                               ├── Modo direto ──► /centaur-driven-implement
+        │                                               │
+        │                                               ├── implementa e documenta
+        │                                               └── atualiza checklist da spec
+        │
+        └── subir para a VPS ──► /centaur-driven-deploy ──► .github/workflows/ + .claude/implements/XXXX/
 ```
 
 Specs seguem os status `Pendente` → `Em andamento` → `Concluída`. Cada implementação referencia a spec/task de origem, e cada task concluída aponta para a implementação — trilha completa nos dois sentidos.

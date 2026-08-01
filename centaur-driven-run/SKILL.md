@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-run
-description: Orquestra a execução de uma spec, lançando subagentes por task com centaur-driven-implement e respeitando dependências. Restrito a tasks de specs — não executa nada fora delas.
-version: 1.0.0
+description: Orquestra a execução de uma spec, lançando subagentes por task com centaur-driven-tdd ou centaur-driven-implement conforme o Modo da task, e respeitando dependências. Restrito a tasks de specs — não executa nada fora delas.
+version: 1.2.0
 invocable: true
 author: user
 ---
@@ -12,9 +12,10 @@ Você é um orquestrador de execução de specs. Sua única função é lançar 
 
 ## Restrições absolutas
 
-1. **Você NÃO implementa código.** Nunca edite arquivos do projeto diretamente. Toda implementação acontece dentro dos subagentes via `/centaur-driven-implement`.
+1. **Você NÃO implementa código.** Nunca edite arquivos do projeto diretamente. Toda implementação acontece dentro dos subagentes via `/centaur-driven-tdd` ou `/centaur-driven-implement`.
 2. **Você só executa tasks definidas na spec.** Se o usuário pedir qualquer mudança que não seja uma task da spec ("aproveita e ajusta X"), recuse e oriente:
-   - Mudança pontual → `/centaur-driven-implement`
+   - Mudança pontual com comportamento testável → `/centaur-driven-tdd`
+   - Mudança pontual estrutural ou de configuração → `/centaur-driven-implement`
    - Mudança grande → `/centaur-driven-spec` para planejar primeiro
 3. **Você não altera as instruções das tasks.** Passe cada instrução ao subagente exatamente como está escrita na spec. Se uma instrução parecer errada ou desatualizada, pare e pergunte ao usuário — não "corrija" por conta própria.
 
@@ -45,13 +46,20 @@ Se a spec estiver `Pendente`, mude para `Em andamento` no README da spec e em `.
 
 ## Passo 4 — Executar as ondas
 
-Para cada onda, lance **um subagente por task** (tasks da mesma onda em paralelo). O prompt de cada subagente deve ser exatamente:
+Para cada onda, lance **um subagente por task** (tasks da mesma onda em paralelo). A skill invocada depende do campo `**Modo:**` da task:
+
+- `Modo: TDD` → `centaur-driven-tdd`
+- `Modo: direto` ou campo ausente → `centaur-driven-implement`
+
+O prompt de cada subagente deve ser exatamente:
 
 ```
-Invoque a skill centaur-driven-implement com a seguinte solicitação:
+Invoque a skill [centaur-driven-tdd | centaur-driven-implement] com a seguinte solicitação:
 
 [instrução da task copiada verbatim da spec, incluindo o prefixo "Spec XXXX — Task NN"]
 ```
+
+Você escolhe a skill pelo campo `Modo`, mas **não altera a instrução** — ela vai verbatim.
 
 Aguarde **todos** os subagentes da onda terminarem antes de iniciar a próxima.
 
@@ -60,7 +68,7 @@ Aguarde **todos** os subagentes da onda terminarem antes de iniciar a próxima.
 Ao fim de cada onda, releia `.claude/specs/XXXX/README.md` e verifique:
 
 1. **Task concluída e marcada no checklist** → ok, segue
-2. **Subagente reportou sucesso mas não marcou o checklist** → marque você mesmo (`- [x] Task NN — [Título] → implements/YYYY`), usando o número da implementação informado no relatório do subagente
+2. **Subagente reportou sucesso mas não marcou o checklist** → marque você mesmo (`- [x] Task NN — [Título] → implements/XXXX`), onde `XXXX` é o número da implementação informado no relatório do subagente (não confunda com o número da spec)
 3. **Task bloqueada** → registre o motivo no checklist, remova do plano as tasks que dependem dela e continue com as demais ondas que não são afetadas
 4. **Subagente falhou sem reportar** → trate como bloqueada; não relance automaticamente
 
