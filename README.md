@@ -29,6 +29,7 @@ Reinicie sessões abertas do Claude Code para que as skills apareçam. Elas fica
 | `/centaur-driven-implement` | Mudanças pontuais **estruturais, de configuração ou de UI** — e projetos sem infraestrutura de teste |
 | `/centaur-driven-spec` | Decompõe uma demanda grande em tasks atômicas por camada, cada uma marcada como TDD ou direta, salvas em `.claude/specs/` |
 | `/centaur-driven-run` | Executa uma spec: lança um subagente por task conforme o Modo, paraleliza as independentes e consolida o resultado |
+| `/centaur-driven-mcp` | Busca a documentação de uma API externa em um MCP server e roteia a requisição para tdd, implement ou spec com esse contexto anexado |
 | `/centaur-driven-deploy` | Configura deploy contínuo para uma VPS (GitHub Actions + SSH + rsync): gera a chave, valida o acesso, cadastra os secrets e acompanha o primeiro run |
 
 ## Fluxo de trabalho
@@ -103,7 +104,22 @@ O run é o orquestrador — e é **restrito a tasks de specs**: não implementa 
 
 Responde com base no `CLAUDE.md`, no histórico de implementações, nas specs e no código real — apontando arquivo e linha quando fizer sentido.
 
-### 7. Para colocar no ar, use deploy
+### 7. Para integrar com API externa, use mcp
+
+```
+/centaur-driven-mcp asaas-docs criar cobrança pix com split
+/centaur-driven-mcp https://docs.asaas.com/mcp criar cobrança pix com split
+```
+
+Quando a mudança depende de uma API de terceiros, o problema não é implementar — é saber o que a API espera. O `mcp` é a ponte: consulta um [MCP server](https://modelcontextprotocol.io) com a documentação oficial do serviço, extrai só o que a requisição precisa (autenticação, endpoints, request, response, erros, restrições) e monta um **dossiê** factual.
+
+Ele **não implementa nada**. Classifica a requisição e roteia: pergunta pura ele responde na hora; comportamento testável vai para o `/centaur-driven-tdd`; estrutural vai para o `/centaur-driven-implement`; integração grande vai para o `/centaur-driven-spec`. A requisição original segue verbatim — o dossiê é anexado, não substitui.
+
+O dossiê tem um campo obrigatório **"Não encontrado no MCP"**, listando tudo que foi procurado e não achado. É o que impede o subagente de completar lacuna com memória: nada é afirmado sobre a API externa sem ter vindo de uma resposta real de uma tool do MCP.
+
+A skill é **agnóstica de MCP** — descobre os disponíveis em tempo de execução. Se o primeiro argumento for uma URL em vez de um nome, ela detecta o transporte, pede sua confirmação e instala o MCP no escopo global antes de seguir. Credenciais nunca entram em código ou em arquivo versionado: só o **nome** da variável de ambiente é documentado.
+
+### 8. Para colocar no ar, use deploy
 
 ```
 /centaur-driven-deploy
@@ -133,6 +149,10 @@ projeto/
 
 ```
 /centaur-driven-start-project          (uma vez por projeto)
+        │
+        ├── depende de API externa ──► /centaur-driven-mcp ──► dossiê da doc oficial
+        │                                       │
+        │                                       └── anexa o dossiê e roteia para um dos três abaixo
         │
         ├── pontual + testável ──► /centaur-driven-tdd ──────► .claude/implements/XXXX/
         │
