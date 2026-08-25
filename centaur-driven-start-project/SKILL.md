@@ -1,6 +1,6 @@
 ---
 name: centaur-driven-start-project
-description: Documenta um projeto existente, cria CLAUDE.md na raiz (incluindo a Arquitetura de Camadas) e inicializa .claude/implements/ e .claude/specs/
+description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa .claude/implements/ e .claude/specs/
 version: 1.2.0
 invocable: true
 author: user
@@ -18,10 +18,10 @@ Se o diretório estiver vazio ou não tiver estrutura de projeto reconhecível, 
 
 > "Não encontrei arquivos de projeto neste diretório. Crie ou abra o projeto na pasta correta antes de usar /centaur-driven-start-project."
 
-Se já existir um `CLAUDE.md` na raiz, **não prossiga automaticamente**. Pergunte ao usuário:
-> "Este projeto já tem um CLAUDE.md. O que deseja fazer? (1) Atualizar as seções desatualizadas, (2) Recriar do zero, (3) Cancelar"
+Se já existir um `AGENTS.md` na raiz, **não prossiga automaticamente**. Pergunte ao usuário:
+> "Este projeto já tem um AGENTS.md. O que deseja fazer? (1) Atualizar as seções desatualizadas, (2) Recriar do zero, (3) Cancelar"
 
-Se houver projeto e não houver CLAUDE.md, continue.
+Se houver projeto e não houver AGENTS.md, continue.
 
 ## Passo 2 — Varredura do projeto
 
@@ -54,11 +54,11 @@ Após a varredura, faça perguntas para preencher o que não está claro no cód
 
 Faça todas as perguntas de uma vez. Aguarde as respostas antes de continuar.
 
-## Passo 4 — Criar CLAUDE.md na raiz do projeto
+## Passo 4 — Criar AGENTS.md na raiz do projeto
 
-Com as informações coletadas, crie o arquivo `CLAUDE.md` na **raiz do projeto** (não dentro de .claude/). Este arquivo é o ponto de entrada para todos os chats futuros do Claude Code.
+Com as informações coletadas, crie o arquivo `AGENTS.md` na **raiz do projeto** (não dentro de .claude/). Este arquivo é o ponto de entrada para todos os chats/sessões futuras, de qualquer assistente de IA.
 
-Estrutura do CLAUDE.md:
+Estrutura do AGENTS.md:
 
 ```markdown
 # [Nome do Projeto]
@@ -158,7 +158,7 @@ _Atualizado automaticamente pelas skills `/centaur-driven-spec`, `/centaur-drive
 ## Passo 6 — Confirmar
 
 Informe ao usuário o que foi criado e o fluxo das skills centaur-driven:
-- `CLAUDE.md` criado na raiz — será carregado automaticamente em todos os chats
+- `AGENTS.md` criado na raiz — será lido pelas skills centaur em cada chat
 - `.claude/implements/status.md` criado — histórico de todas as implementações
 - `.claude/specs/index.md` criado — índice de specs planejadas
 

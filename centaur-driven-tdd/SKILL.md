@@ -26,10 +26,10 @@ Você é um engenheiro de software sênior conduzindo uma implementação por Te
 ## Passo 1 — Ler o contexto do projeto
 
 Leia obrigatoriamente:
-1. `CLAUDE.md` na raiz (visão geral, arquitetura, **Arquitetura de Camadas**, regras)
+1. `AGENTS.md` na raiz (visão geral, arquitetura, **Arquitetura de Camadas**, regras)
 2. `.claude/implements/status.md` (histórico de implementações)
 
-Se `CLAUDE.md` não existir, avise:
+Se `AGENTS.md` não existir, avise:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro para que eu tenha contexto suficiente para implementar com segurança."
 
 Se `.claude/implements/status.md` não existir, crie a estrutura (`.claude/implements/` e `status.md` vazio).
@@ -79,7 +79,7 @@ Se não houver dúvidas, apresente a **lista de casos de teste** derivada do Pas
 
 ## Passo 6 — Ordenar os ciclos
 
-Ordene os casos do mais simples ao mais complexo, e **de dentro para fora nas camadas** (domínio/model → DTO → repository → service → handler), respeitando a Arquitetura de Camadas do `CLAUDE.md`.
+Ordene os casos do mais simples ao mais complexo, e **de dentro para fora nas camadas** (domínio/model → DTO → repository → service → handler), respeitando a Arquitetura de Camadas do `AGENTS.md`.
 
 Cada caso da lista é um ciclo red-green-refactor. Faça um ciclo por vez — nunca escreva dois testes falhando ao mesmo tempo.
 
@@ -103,10 +103,10 @@ Se o teste passar sem nenhuma implementação: o comportamento já existe (remov
 Escreva o **mínimo** de código de produção para o teste passar.
 
 - Nada de generalização especulativa, nada de funcionalidade não exigida por um teste
-- Siga as convenções do `CLAUDE.md`
+- Siga as convenções do `AGENTS.md`
 - **Respeite a Arquitetura de Camadas**: validação de forma em DTOs, regra de negócio em services, acesso a dados em repositories, orquestração em handlers. Nunca atravesse camadas — chame pela interface
-- Se a camada necessária ainda não existe (ex: primeira repository), crie-a na pasta definida pelo `CLAUDE.md`
-- Se o `CLAUDE.md` não tiver a seção "Arquitetura de Camadas", siga o padrão dos arquivos vizinhos e sugira ao usuário rodar `/centaur-driven-start-project`
+- Se a camada necessária ainda não existe (ex: primeira repository), crie-a na pasta definida pelo `AGENTS.md`
+- Se o `AGENTS.md` não tiver a seção "Arquitetura de Camadas", siga o padrão dos arquivos vizinhos e sugira ao usuário rodar `/centaur-driven-start-project`
 
 Execute o teste e confirme que passa. Depois rode **a suíte inteira** e confirme que nada regrediu.
 
@@ -218,9 +218,9 @@ Se a implementação veio de uma spec:
 2. Se **todas** as tasks estiverem marcadas, mude o status da spec para `Concluída` e atualize `.claude/specs/index.md`
 3. Se a task ficou bloqueada, anote o motivo ao lado dela e mantenha a spec `Em andamento`
 
-## Passo 15 — Atualizar CLAUDE.md se necessário
+## Passo 15 — Atualizar AGENTS.md se necessário
 
-Se a implementação adicionou funcionalidade relevante, mudou arquitetura, introduziu dependência importante, ou **estabeleceu a infraestrutura de testes do projeto** (framework, comando, convenção de nomes) → atualize a seção relevante do `CLAUDE.md`. Correção interna sem impacto na visão geral não precisa.
+Se a implementação adicionou funcionalidade relevante, mudou arquitetura, introduziu dependência importante, ou **estabeleceu a infraestrutura de testes do projeto** (framework, comando, convenção de nomes) → atualize a seção relevante do `AGENTS.md`. Correção interna sem impacto na visão geral não precisa.
 
 ## Passo 16 — Informar o usuário
 

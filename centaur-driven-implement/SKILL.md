@@ -19,10 +19,10 @@ Você é um engenheiro de software sênior executando uma implementação docume
 ## Passo 1 — Ler o contexto do projeto
 
 Leia obrigatoriamente:
-1. `CLAUDE.md` na raiz do projeto (visão geral, arquitetura, regras, restrições)
+1. `AGENTS.md` na raiz do projeto (visão geral, arquitetura, regras, restrições)
 2. `.claude/implements/status.md` (histórico de implementações anteriores)
 
-Se `CLAUDE.md` não existir, avise o usuário:
+Se `AGENTS.md` não existir, avise o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro para que eu tenha contexto suficiente para implementar com segurança."
 
 Se `.claude/implements/status.md` não existir, crie a estrutura (crie `.claude/implements/` e o `status.md` vazio).
@@ -68,10 +68,10 @@ Em seguida, aplique as mudanças:
 ## Passo 5b — Aplicar as mudanças
 
 Com todas as dúvidas resolvidas, execute a implementação:
-- Siga as convenções e regras definidas no `CLAUDE.md`
-- **Respeite a Arquitetura de Camadas do `CLAUDE.md`**: cada responsabilidade na sua camada (validação de forma em DTOs, regra de negócio em services, acesso a dados em repositories, orquestração de requisição em handlers). Nunca atravesse camadas — se precisar de algo de outra camada, injete/chame pela interface dela
-- Se a camada necessária ainda não existe no projeto (ex: primeira repository), crie-a na pasta definida pelo `CLAUDE.md`, seguindo o padrão da tabela de camadas
-- Se o `CLAUDE.md` não tiver a seção "Arquitetura de Camadas", siga o padrão dos arquivos vizinhos e sugira ao usuário rodar `/centaur-driven-start-project` para formalizar a arquitetura
+- Siga as convenções e regras definidas no `AGENTS.md`
+- **Respeite a Arquitetura de Camadas do `AGENTS.md`**: cada responsabilidade na sua camada (validação de forma em DTOs, regra de negócio em services, acesso a dados em repositories, orquestração de requisição em handlers). Nunca atravesse camadas — se precisar de algo de outra camada, injete/chame pela interface dela
+- Se a camada necessária ainda não existe no projeto (ex: primeira repository), crie-a na pasta definida pelo `AGENTS.md`, seguindo o padrão da tabela de camadas
+- Se o `AGENTS.md` não tiver a seção "Arquitetura de Camadas", siga o padrão dos arquivos vizinhos e sugira ao usuário rodar `/centaur-driven-start-project` para formalizar a arquitetura
 - Faça mudanças cirúrgicas — não refatore o que não está no escopo
 - Se criar novos arquivos, coloque-os nas pastas corretas conforme a estrutura do projeto
 - Adicione comentários apenas onde o "por quê" não é óbvio pelo código
@@ -158,7 +158,7 @@ Se a implementação veio de uma spec:
 2. Se **todas** as tasks estiverem marcadas, mude o status da spec para `Concluída` e atualize a linha correspondente em `.claude/specs/index.md`
 3. Se a task ficou bloqueada, anote o motivo ao lado dela no checklist e mantenha a spec `Em andamento`
 
-## Passo 10 — Atualizar CLAUDE.md se necessário
+## Passo 10 — Atualizar AGENTS.md se necessário
 
 Se a implementação:
 - Adicionou uma funcionalidade nova relevante para o projeto
@@ -166,7 +166,7 @@ Se a implementação:
 - Introduziu uma nova dependência importante
 - Alterou como o projeto é rodado ou deployado
 
-→ Atualize a seção relevante do `CLAUDE.md`.
+→ Atualize a seção relevante do `AGENTS.md`.
 
 Se foi uma correção de bug ou mudança interna sem impacto na visão geral, não precisa atualizar.
 

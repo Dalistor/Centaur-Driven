@@ -23,7 +23,7 @@ Reinicie sessões abertas do Claude Code para que as skills apareçam. Elas fica
 
 | Skill | O que faz |
 |-------|-----------|
-| `/centaur-driven-start-project` | Documenta o projeto: cria o `CLAUDE.md` na raiz e inicializa as estruturas de implementações e specs |
+| `/centaur-driven-start-project` | Documenta o projeto: cria o `AGENTS.md` na raiz e inicializa as estruturas de implementações e specs |
 | `/centaur-driven-check` | Responde perguntas sobre o projeto com base na documentação e no código — sem alterar nada |
 | `/centaur-driven-tdd` | Mudanças pontuais com **comportamento testável**: teste antes do código, ciclo red-green-refactor, análise de cobertura |
 | `/centaur-driven-implement` | Mudanças pontuais **estruturais, de configuração ou de UI** — e projetos sem infraestrutura de teste |
@@ -42,13 +42,13 @@ Reinicie sessões abertas do Claude Code para que as skills apareçam. Elas fica
 
 A skill varre o projeto, faz perguntas sobre o que não está evidente no código (propósito, arquitetura, convenções, restrições) e cria:
 
-- `CLAUDE.md` na raiz — carregado automaticamente em todo chat futuro
+- `AGENTS.md` na raiz — contexto do projeto, lido pelas skills centaur no início de cada chat
 - `.claude/implements/status.md` — histórico de implementações
 - `.claude/specs/index.md` — índice de specs planejadas
 
 Entre as perguntas está a **stack de testes** (framework, comando de rodar a suíte, local e convenção dos arquivos, meta de cobertura) — é o que decide se uma mudança futura vai por TDD ou não. Se o projeto ainda não tem testes, a skill pergunta se você quer adotar TDD dali em diante e com qual framework.
 
-Também entre as perguntas está a **Arquitetura de Camadas**: se o projeto já segue um padrão (models, DTOs, handlers, repositories, services...), ela é documentada; se não segue, a skill propõe uma separação adequada à stack para você aprovar. O resultado vira uma tabela no `CLAUDE.md` dizendo, para cada camada, sua pasta, sua responsabilidade e o que é proibido nela — e todas as implementações futuras obedecem a essa tabela.
+Também entre as perguntas está a **Arquitetura de Camadas**: se o projeto já segue um padrão (models, DTOs, handlers, repositories, services...), ela é documentada; se não segue, a skill propõe uma separação adequada à stack para você aprovar. O resultado vira uma tabela no `AGENTS.md` dizendo, para cada camada, sua pasta, sua responsabilidade e o que é proibido nela — e todas as implementações futuras obedecem a essa tabela.
 
 ### 2. Para mudanças com comportamento testável, use tdd
 
@@ -66,7 +66,7 @@ A skill lê o contexto, detecta a stack de testes, transforma a solicitação em
 /centaur-driven-implement renomear a pasta de handlers para controllers
 ```
 
-O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `CLAUDE.md` (regra de negócio em service, query em repository, handler fino), valida (testes, lint e revisão de violação de camadas) e documenta em `.claude/implements/XXXX/README.md`.
+O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `AGENTS.md` (regra de negócio em service, query em repository, handler fino), valida (testes, lint e revisão de violação de camadas) e documenta em `.claude/implements/XXXX/README.md`.
 
 Se a mudança pedida tiver comportamento testável, ele mesmo redireciona para o `/centaur-driven-tdd`. Se a demanda for grande demais (muitas camadas, mais de ~4 arquivos), recusa e orienta a usar spec + run.
 
@@ -102,7 +102,7 @@ O run é o orquestrador — e é **restrito a tasks de specs**: não implementa 
 /centaur-driven-check o que ainda falta na spec 0001?
 ```
 
-Responde com base no `CLAUDE.md`, no histórico de implementações, nas specs e no código real — apontando arquivo e linha quando fizer sentido.
+Responde com base no `AGENTS.md`, no histórico de implementações, nas specs e no código real — apontando arquivo e linha quando fizer sentido.
 
 ### 7. Para integrar com API externa, use mcp
 
@@ -135,7 +135,7 @@ Cobre Docker/Docker Compose e processo direto (systemd, pm2). Fora do escopo: Pa
 
 ```
 projeto/
-├── CLAUDE.md                        # Contexto do projeto (carregado em todo chat)
+├── AGENTS.md                        # Contexto do projeto (lido pelas skills a cada chat)
 └── .claude/
     ├── implements/
     │   ├── status.md                # Tabela com todas as implementações

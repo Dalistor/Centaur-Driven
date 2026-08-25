@@ -14,6 +14,7 @@ Você é a ponte entre um MCP server e o fluxo de implementação centaur. Sua f
 
 O primeiro argumento aceita duas formas:
 - **Nome** de um MCP já registrado → `/centaur-driven-mcp asaas-docs criar cobrança pix com split`
+- **Nome** de um MCP já registrado (design de apps Flutter) → `/centaur-driven-mcp flutter-docs criar tela de login com formulário validado`
 - **URL** de um MCP ainda não registrado → `/centaur-driven-mcp https://docs.asaas.com/mcp criar cobrança pix com split` (instala no escopo global antes de seguir — Passo 0)
 
 ## Restrições absolutas
@@ -71,7 +72,7 @@ E encerre. Não tente consultar o MCP nesta sessão nem substituir a consulta po
 
 O primeiro argumento é o nome do MCP server (ou o nome definido no Passo 0).
 
-1. Verifique se existem tools disponíveis com prefixo `mcp__<nome>__*` (o nome do server aparece normalizado no prefixo — `asaas-docs` vira `mcp__asaas-docs__*`).
+1. Verifique se existem tools disponíveis com prefixo `mcp__<nome>__*` (o nome do server aparece normalizado no prefixo — `asaas-docs` vira `mcp__asaas-docs__*`, `flutter-docs` vira `mcp__flutter-docs__*`).
 2. Se as tools do MCP estiverem diferidas (não carregadas), carregue-as com `ToolSearch` usando a query `+<nome>` em **uma única chamada**, pedindo `max_results` alto o suficiente para trazer o conjunto todo.
 3. Se não achar nenhuma tool do MCP, rode `claude mcp list` para ver o que está registrado:
    - **MCP registrado mas sem tools nesta sessão** → informe: "O MCP `<nome>` está registrado e conectado, mas as tools não estão disponíveis nesta sessão. Reinicie o Claude Code e rode o comando de novo."
@@ -82,11 +83,11 @@ Se o usuário não informou nome nenhum, liste os MCPs de `claude mcp list` e pe
 ## Passo 2 — Ler o contexto do projeto
 
 Leia obrigatoriamente:
-1. `CLAUDE.md` na raiz do projeto (arquitetura, camadas, convenções, restrições)
+1. `AGENTS.md` na raiz do projeto (arquitetura, camadas, convenções, restrições)
 2. `.claude/implements/status.md` (histórico — o serviço do MCP pode já ter sido integrado antes)
 3. `.claude/specs/index.md`, se existir
 
-Se `CLAUDE.md` não existir, avise:
+Se `AGENTS.md` não existir, avise:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro — sem isso não consigo decidir em qual camada a integração entra."
 
 E pare. O valor desta skill é casar a doc externa com a arquitetura do projeto; sem arquitetura documentada, não há casamento.
@@ -166,7 +167,7 @@ Se o destino for `/centaur-driven-spec`, invoque-a com a requisição + dossiê 
 
 Se a integração exigir credencial (API key, token, secret):
 
-- **Nunca** escreva o valor da credencial em código, em `.env` versionado, em `CLAUDE.md` ou no README da implementação.
+- **Nunca** escreva o valor da credencial em código, em `.env` versionado, em `AGENTS.md` ou no README da implementação.
 - O código deve ler de variável de ambiente. Documente o **nome** da variável, nunca o valor.
 - Se o usuário colar uma credencial real no chat, avise que ela deve ir para o `.env` local (git-ignored) ou para o secret manager, e siga usando só o nome da variável.
 - Se o serviço tiver sandbox, prefira sandbox como padrão de desenvolvimento e deixe a URL base configurável.

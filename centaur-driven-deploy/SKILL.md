@@ -21,10 +21,10 @@ Você é um engenheiro de infraestrutura configurando deploy contínuo de um pro
 ## Passo 1 — Ler o contexto do projeto
 
 Leia obrigatoriamente:
-1. `CLAUDE.md` na raiz do projeto (stack, como rodar, como fazer deploy, restrições)
+1. `AGENTS.md` na raiz do projeto (stack, como rodar, como fazer deploy, restrições)
 2. `.claude/implements/status.md` (histórico — pode já existir deploy configurado)
 
-Se `CLAUDE.md` não existir, avise:
+Se `AGENTS.md` não existir, avise:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro para que eu tenha contexto suficiente para configurar o deploy com segurança."
 
 Se `.claude/implements/status.md` não existir, crie a estrutura.
@@ -43,7 +43,7 @@ Verifique:
 - **Variáveis de build time** (ex: `VITE_*`, `NEXT_PUBLIC_*`): se são embutidas no bundle, mudá-las exige commit — não adianta editar na VPS. Anote.
 - **Migrations:** o boot da aplicação roda migrations sozinho? Se não, o deploy também não vai rodar — anote como passo manual.
 - **Artefatos de build versionados por engano** (`dist/`, `build/`, `.next/`): se estão no repositório eles vão para a VPS; se não estão e a VPS precisa deles, o build tem de rodar lá. Decida qual dos dois e anote.
-- **Documentação de deploy existente:** `deploy/`, `docs/deploy*`, seção "Deploy" do `CLAUDE.md`. Se já houver domínio, portas e nginx documentados, use esses valores em vez de perguntar.
+- **Documentação de deploy existente:** `deploy/`, `docs/deploy*`, seção "Deploy" do `AGENTS.md`. Se já houver domínio, portas e nginx documentados, use esses valores em vez de perguntar.
 
 ## Passo 3 — Checar o ferramental local
 
@@ -391,11 +391,11 @@ Adicione a linha na tabela de `.claude/implements/status.md`:
 | XXXX | Deploy automático da branch [branch] na VPS [ambiente] | [data] | Concluído | .github/workflows/[arquivo].yml |
 ```
 
-## Passo 19 — Atualizar CLAUDE.md
+## Passo 19 — Atualizar AGENTS.md
 
-Deploy sempre entra no `CLAUDE.md` — muda como o projeto é publicado. Atualize a seção "Como Fazer Deploy" (crie se não existir) com: gatilho, transporte, onde ficam os secrets, como rodar em `dry_run`, o que é manual (migrations, env da VPS) e o aviso do `--delete` do rsync.
+Deploy sempre entra no `AGENTS.md` — muda como o projeto é publicado. Atualize a seção "Como Fazer Deploy" (crie se não existir) com: gatilho, transporte, onde ficam os secrets, como rodar em `dry_run`, o que é manual (migrations, env da VPS) e o aviso do `--delete` do rsync.
 
-Se houver documentação de deploy dedicada (`deploy/README.md` ou similar), acrescente lá a seção detalhada e mantenha o `CLAUDE.md` com o resumo apontando para ela.
+Se houver documentação de deploy dedicada (`deploy/README.md` ou similar), acrescente lá a seção detalhada e mantenha o `AGENTS.md` com o resumo apontando para ela.
 
 ## Passo 20 — Informar o usuário
 

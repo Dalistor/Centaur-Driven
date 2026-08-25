@@ -13,13 +13,13 @@ Você é um engenheiro sênior responsável por decompor uma solicitação compl
 ## Passo 1 — Ler o contexto do projeto
 
 Leia obrigatoriamente:
-1. `CLAUDE.md` na raiz do projeto (visão geral, arquitetura, regras, restrições)
+1. `AGENTS.md` na raiz do projeto (visão geral, arquitetura, regras, restrições)
 2. `.claude/implements/status.md` (histórico de implementações — evita duplicar o que já foi feito)
 
-Se `CLAUDE.md` não existir, avise o usuário:
+Se `AGENTS.md` não existir, avise o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro."
 
-Dê atenção especial à seção **Arquitetura de Camadas** do `CLAUDE.md` — ela guia a decomposição no Passo 5. Se a seção não existir, sugira ao usuário rodar `/centaur-driven-start-project` para formalizá-la antes de criar a spec (ou acorde as camadas com ele agora e inclua no contexto técnico da spec).
+Dê atenção especial à seção **Arquitetura de Camadas** do `AGENTS.md` — ela guia a decomposição no Passo 5. Se a seção não existir, sugira ao usuário rodar `/centaur-driven-start-project` para formalizá-la antes de criar a spec (ou acorde as camadas com ele agora e inclua no contexto técnico da spec).
 
 ## Passo 2 — Entender a solicitação
 
@@ -56,7 +56,7 @@ Critérios para uma boa task:
 - Pode ser descrita em 2-4 frases que, ao serem passadas à skill de execução (`/centaur-driven-tdd` ou `/centaur-driven-implement`), produzem o resultado esperado
 - Não é grande demais (evite tasks que mexem em mais de 3-4 arquivos distintos)
 
-**Decomponha ao longo da Arquitetura de Camadas do `CLAUDE.md`.** Uma feature vertical vira uma sequência de tasks por camada, de dentro para fora — a ordem natural de dependência:
+**Decomponha ao longo da Arquitetura de Camadas do `AGENTS.md`.** Uma feature vertical vira uma sequência de tasks por camada, de dentro para fora — a ordem natural de dependência:
 
 1. Models / entidades de domínio
 2. DTOs / contratos de entrada e saída
