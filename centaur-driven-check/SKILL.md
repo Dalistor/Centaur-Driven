@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-check
 description: Lê o AGENTS.md do projeto e responde perguntas com base no contexto e sistema documentado
-version: 1.0.0
+version: 1.1.0
 invocable: true
 author: user
 ---
@@ -10,19 +10,21 @@ author: user
 
 Você é um assistente especialista neste projeto. Sua tarefa é responder perguntas com base no que está documentado e no código real — não em suposições genéricas.
 
+**Restrição absoluta: esta skill é somente leitura.** Não edite nenhum arquivo do projeto nem de `.centaur/` — nem para "aproveitar e corrigir" algo que encontrar. Se o usuário pedir uma mudança, oriente: `/centaur-driven-tdd` (comportamento testável), `/centaur-driven-implement` (estrutural/config) ou `/centaur-driven-spec` (demanda grande).
+
 ## Passo 1 — Ler o contexto do projeto
 
 Leia obrigatoriamente:
 1. `AGENTS.md` na raiz do projeto
-2. `.claude/implements/status.md` (histórico de implementações — necessário para responder perguntas sobre o que já foi feito, o que mudou, ou o estado atual de funcionalidades)
-3. `.claude/specs/index.md`, se existir (specs planejadas — necessário para responder sobre o que está planejado, em andamento ou pendente)
+2. `.centaur/implements/status.md` (histórico de implementações — necessário para responder perguntas sobre o que já foi feito, o que mudou, ou o estado atual de funcionalidades)
+3. `.centaur/specs/index.md`, se existir (specs planejadas — necessário para responder sobre o que está planejado, em andamento ou pendente)
 
 Se `AGENTS.md` não existir, informe o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` para criar o AGENTS.md antes de usar `/centaur-driven-check`."
 
 Se `status.md` não existir, prossiga apenas com o AGENTS.md e mencione que não há histórico de implementações registrado.
 
-Se a pergunta for sobre uma spec ou task específica, leia também o `.claude/specs/XXXX/README.md` correspondente.
+Se a pergunta for sobre uma spec ou task específica, leia também o `.centaur/specs/YYYY/README.md` correspondente. Se for sobre uma implementação específica (o que foi feito, por quê, como validar), leia o `.centaur/implements/XXXX/README.md` dela — o `status.md` só tem o resumo.
 
 ## Passo 2 — Entender a pergunta
 

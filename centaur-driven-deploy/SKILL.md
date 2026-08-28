@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-deploy
-description: Configura deploy automático (GitHub Actions) para uma VPS via SSH + rsync - inspeciona o projeto, gera a chave SSH, valida o acesso, audita o que o rsync apagaria, escreve o workflow, cadastra os secrets/variables no GitHub pelo gh CLI e acompanha o primeiro run. Documenta em .claude/implements/.
-version: 2.0.0
+description: Configura deploy automático (GitHub Actions) para uma VPS via SSH + rsync - inspeciona o projeto, gera a chave SSH, valida o acesso, audita o que o rsync apagaria, escreve o workflow, cadastra os secrets/variables no GitHub pelo gh CLI e acompanha o primeiro run. Documenta em .centaur/implements/.
+version: 2.1.0
 invocable: true
 author: user
 ---
@@ -22,12 +22,12 @@ Você é um engenheiro de infraestrutura configurando deploy contínuo de um pro
 
 Leia obrigatoriamente:
 1. `AGENTS.md` na raiz do projeto (stack, como rodar, como fazer deploy, restrições)
-2. `.claude/implements/status.md` (histórico — pode já existir deploy configurado)
+2. `.centaur/implements/status.md` (histórico — pode já existir deploy configurado)
 
 Se `AGENTS.md` não existir, avise:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro para que eu tenha contexto suficiente para configurar o deploy com segurança."
 
-Se `.claude/implements/status.md` não existir, crie a estrutura.
+Se `.centaur/implements/status.md` não existir, crie a estrutura.
 
 Se já existir workflow de deploy em `.github/workflows/`, leia antes de criar outro — pode ser caso de ajustar o existente, não duplicar.
 
@@ -129,15 +129,16 @@ ssh -i ~/.ssh/<projeto>_deploy -o IdentitiesOnly=yes -o BatchMode=yes -p <porta>
 ## Passo 8 — Coletar o known_hosts
 
 ```bash
-ssh-keyscan -p <porta> <host>
+ssh-keyscan -p <porta> <host> > /tmp/<projeto>_known_hosts
+cat /tmp/<projeto>_known_hosts
 ```
 
-A saída tem 2-3 linhas (ed25519, rsa, ecdsa) — todas vão no secret. Com porta diferente de 22 o formato sai como `[host]:porta`; é o formato correto, não editar.
+A saída tem 2-3 linhas (ed25519, rsa, ecdsa) — todas vão no secret. Com porta diferente de 22 o formato sai como `[host]:porta`; é o formato correto, não editar. Guarde o arquivo: é **ele** que vai para o secret no Passo 12 — não rode `ssh-keyscan` de novo lá, senão o conteúdo gravado não é o que foi conferido aqui.
 
 Confira o fingerprint contra o servidor real antes de gravar (isso é o que impede fixar a host key de um intermediário):
 
 ```bash
-ssh-keygen -lf <(ssh-keyscan -p <porta> <host> 2>/dev/null)
+ssh-keygen -lf /tmp/<projeto>_known_hosts
 # e, por um canal já confiável, na VPS:
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 ```
@@ -239,7 +240,7 @@ Cadastre os valores:
 
 ```bash
 gh secret set VPS_SSH_KEY     -R <owner>/<repo> --env <ENVIRONMENT> < ~/.ssh/<projeto>_deploy
-ssh-keyscan -p <porta> <host> 2>/dev/null | gh secret set VPS_KNOWN_HOSTS -R <owner>/<repo> --env <ENVIRONMENT>
+gh secret set VPS_KNOWN_HOSTS -R <owner>/<repo> --env <ENVIRONMENT> < /tmp/<projeto>_known_hosts
 
 gh variable set VPS_HOST -R <owner>/<repo> --env <ENVIRONMENT> --body '<host>'
 gh variable set VPS_USER -R <owner>/<repo> --env <ENVIRONMENT> --body '<usuario>'
@@ -247,7 +248,7 @@ gh variable set VPS_PORT -R <owner>/<repo> --env <ENVIRONMENT> --body '<porta>'
 gh variable set VPS_PATH -R <owner>/<repo> --env <ENVIRONMENT> --body '<path>'
 ```
 
-Ler a chave por redirecionamento (`< arquivo`) preserva o conteúdo byte a byte. Sem Environment, troque `--env <ENVIRONMENT>` por nada (vai para o nível do repositório).
+Ler chave e known_hosts por redirecionamento (`< arquivo`) preserva o conteúdo byte a byte — e o known_hosts gravado é exatamente o que teve o fingerprint conferido no Passo 8. Sem Environment, troque `--env <ENVIRONMENT>` por nada (vai para o nível do repositório).
 
 Confirme o que ficou gravado — `gh` lista nome e data, nunca o valor do secret:
 
@@ -322,24 +323,27 @@ Rotacionar é repetir os Passos 6, 7 e 12 com um nome de arquivo novo e depois r
 
 ## Passo 16 — Determinar número da implementação
 
+<!-- Mantenha este passo sincronizado com centaur-driven-implement (Passo 8) e centaur-driven-tdd (Passo 12) -->
 ```
-ls .claude/implements/ | grep -E '^[0-9]{4}$' | sort | tail -1
+ls .centaur/implements/ | grep -E '^[0-9]{4}$' | sort | tail -1
 ```
 
 - Se retornar um número (ex: `0003`), o próximo é esse + 1
 - Se retornar vazio, começa em `0001`
 - Sempre 4 dígitos
 
-Reserve o número imediatamente com `mkdir .claude/implements/XXXX` (sem `-p`). Se falhar porque já existe, incremente e tente de novo.
+Reserve o número imediatamente com `mkdir .centaur/implements/XXXX` (sem `-p`). Se falhar porque já existe, incremente e tente de novo.
 
 ## Passo 17 — Documentar
 
-Crie `.claude/implements/XXXX/README.md`:
+Obtenha a data de hoje com `date +%F` — não a preencha de memória.
+
+Crie `.centaur/implements/XXXX/README.md`:
 
 ```markdown
 # [XXXX] Deploy automático da branch [branch] na VPS [ambiente]
 
-**Data:** [data de hoje]
+**Data:** [saída de `date +%F`]
 **Status:** Concluído
 **Modo:** direto
 
@@ -385,11 +389,13 @@ Crie `.claude/implements/XXXX/README.md`:
 
 ## Passo 18 — Atualizar status.md
 
-Adicione a linha na tabela de `.claude/implements/status.md`:
+Adicione a linha na tabela de `.centaur/implements/status.md`:
 
 ```
 | XXXX | Deploy automático da branch [branch] na VPS [ambiente] | [data] | Concluído | .github/workflows/[arquivo].yml |
 ```
+
+Se a tabela ainda contiver a linha placeholder (`| — | — | — | — | — |`), remova-a ao inserir a primeira linha real.
 
 ## Passo 19 — Atualizar AGENTS.md
 
@@ -404,5 +410,5 @@ Encerre com:
 - **O que já está cadastrado no GitHub** (saída de `gh secret list` / `gh variable list`) ou, sem `gh`, a tabela de valores do Passo 12
 - Resultado do run de `dry_run` e o que ele mostrou de `*deleting`
 - O checklist da VPS que ainda estiver pendente
-- Número da implementação (ex: "Documentado em `.claude/implements/0003/`")
+- Número da implementação (ex: "Documentado em `.centaur/implements/0003/`")
 - Aviso de que o push na branch dispara o deploy na hora — e pergunte se pode commitar/pushar

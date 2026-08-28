@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-spec
-description: Decompõe uma demanda grande em tasks atômicas por camada, salvas em .claude/specs/, prontas para execução orquestrada com centaur-driven-run
-version: 1.3.0
+description: Decompõe uma demanda grande em tasks atômicas por camada, salvas em .centaur/specs/, prontas para execução orquestrada com centaur-driven-run
+version: 1.5.0
 invocable: true
 author: user
 ---
@@ -14,7 +14,7 @@ Você é um engenheiro sênior responsável por decompor uma solicitação compl
 
 Leia obrigatoriamente:
 1. `AGENTS.md` na raiz do projeto (visão geral, arquitetura, regras, restrições)
-2. `.claude/implements/status.md` (histórico de implementações — evita duplicar o que já foi feito)
+2. `.centaur/implements/status.md` (histórico de implementações — evita duplicar o que já foi feito)
 
 Se `AGENTS.md` não existir, avise o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro."
@@ -54,7 +54,7 @@ Critérios para uma boa task:
 - Tem um único objetivo claro
 - Pode ser implementada sem depender de tasks ainda não concluídas (ou tem dependência explícita)
 - Pode ser descrita em 2-4 frases que, ao serem passadas à skill de execução (`/centaur-driven-tdd` ou `/centaur-driven-implement`), produzem o resultado esperado
-- Não é grande demais (evite tasks que mexem em mais de 3-4 arquivos distintos)
+- Não é grande demais (evite tasks que mexem em mais de ~4 arquivos distintos — o mesmo limiar que faz `/centaur-driven-implement` recusar uma solicitação)
 
 **Decomponha ao longo da Arquitetura de Camadas do `AGENTS.md`.** Uma feature vertical vira uma sequência de tasks por camada, de dentro para fora — a ordem natural de dependência:
 
@@ -65,9 +65,11 @@ Critérios para uma boa task:
 5. Handlers / controllers / rotas
 6. Testes de integração da feature completa
 
-**Marque cada task como TDD ou direta.** Tasks com comportamento testável (regra de negócio em services, validação em DTOs, cálculo, transformação de dados, correção de bug) recebem `**Modo:** TDD` e são executadas com `/centaur-driven-tdd` — teste antes do código, dentro da própria task. Tasks estruturais (scaffold, migration, config, fiação de rota sem lógica) recebem `**Modo:** direto` e vão para `/centaur-driven-implement`. Não crie tasks separadas de "escrever testes da camada X": o teste pertence à task que implementa o comportamento. A task 6 (testes de integração) continua existindo só para o fluxo ponta a ponta que nenhuma task unitária cobre.
+**Marque cada task como TDD ou direta — com proporcionalidade.** `**Modo:** TDD` é reservado a tasks com **regra de negócio real**: decisão, cálculo, validação com consequência, correção de bug. Ser tecnicamente testável não basta — mapeamento direto de campos, fiação de rota, scaffold, migration, config e CRUD sem regra vão de `**Modo:** direto` para `/centaur-driven-implement`, mesmo que dê para escrever teste. Teste desnecessário custa em toda execução futura da suíte.
 
-Toda task TDD deve trazer, na instrução do subagente, os **critérios de aceite em forma de comportamentos observáveis** (caminho feliz, erros, bordas) — é o que o subagente vai transformar em casos de teste sem poder perguntar nada.
+Não crie tasks separadas de "escrever testes da camada X": o teste pertence à task que implementa o comportamento. A task de **testes de integração é opcional** — inclua só quando existe um fluxo ponta a ponta com valor real que nenhuma task unitária cobre (ex: requisição atravessando handler → service → repository com regra no meio). Não a inclua por hábito.
+
+Toda task TDD deve trazer, na instrução do subagente, os **critérios de aceite em forma de comportamentos observáveis** — é o que o subagente vai transformar em casos de teste sem poder perguntar nada. **Dimensione a lista você mesmo, aqui:** caminho crítico (dinheiro, auth, validação de entrada externa) recebe caminho feliz + erros + bordas; comportamento comum recebe caminho feliz + erros prováveis; nada além disso. O subagente implementa exatamente os casos listados — se você listar bordas exóticas, ele vai testá-las; liste só o que importa.
 
 Nem toda spec precisa de todas as camadas — inclua só as afetadas. Tasks de camadas independentes (ex: dois repositories que não se tocam) podem ser marcadas como paralelizáveis. Cada task deve declarar quais camadas toca, e a instrução deve proibir explicitamente tocar camadas fora do escopo dela.
 
@@ -75,26 +77,30 @@ Ordene as tasks pela sequência de execução recomendada. Marque dependências 
 
 ## Passo 6 — Determinar número da spec
 
+Em todas as skills centaur, `YYYY` é o número da spec e `XXXX` o número de uma implementação.
+
 Execute exatamente este comando para encontrar o último número:
 
 ```
-ls .claude/specs/ 2>/dev/null | grep -E '^[0-9]{4}$' | sort | tail -1
+ls .centaur/specs/ 2>/dev/null | grep -E '^[0-9]{4}$' | sort | tail -1
 ```
 
 - Se retornar um número (ex: `0002`), o próximo é esse + 1 (ex: `0003`)
 - Se retornar vazio ou o diretório não existir, começa em `0001`
 - Formate sempre com 4 dígitos: `0001`, `0002`, `0042`, `0100`
 
-Crie o diretório `.claude/specs/` se não existir.
+Crie o diretório `.centaur/specs/` se não existir.
 
 ## Passo 7 — Criar o arquivo de spec
 
-Crie a pasta `.claude/specs/XXXX/` e o arquivo `.claude/specs/XXXX/README.md`:
+Obtenha a data de hoje com `date +%F` — não a preencha de memória.
+
+Crie a pasta `.centaur/specs/YYYY/` e o arquivo `.centaur/specs/YYYY/README.md`:
 
 ```markdown
-# [XXXX] [Título curto e descritivo]
+# [YYYY] [Título curto e descritivo]
 
-**Data:** [data de hoje]
+**Data:** [saída de `date +%F`]
 **Status:** Pendente
 **Solicitação original:** [o que o usuário pediu, com as palavras dele]
 
@@ -115,7 +121,7 @@ Crie a pasta `.claude/specs/XXXX/` e o arquivo `.claude/specs/XXXX/README.md`:
 **Modo:** [TDD | direto]
 **Depende de:** —
 **Instrução para o subagente:**
-> Spec XXXX — Task 01: [Instrução completa e autocontida. Como o subagente não pode fazer perguntas, inclua TODAS as decisões já tomadas: comportamento esperado, edge cases, arquivos envolvidos e critério de sucesso. Se `Modo: TDD`, liste os critérios de aceite como comportamentos observáveis (caminho feliz, erros, bordas) e comece a instrução com "Implemente por TDD:". Termine com: "Toque apenas nas camadas [X]; não modifique arquivos de outras camadas."]
+> Spec YYYY — Task 01: [Instrução completa e autocontida. Como o subagente não pode fazer perguntas, inclua TODAS as decisões já tomadas: comportamento esperado, edge cases, arquivos envolvidos e critério de sucesso. Se `Modo: TDD`, liste os critérios de aceite como comportamentos observáveis — dimensionados pela proporcionalidade do Passo 5, só o que importa — e comece a instrução com "Implemente por TDD:". Termine com: "Toque apenas nas camadas [X]; não modifique arquivos de outras camadas."]
 
 ---
 
@@ -126,7 +132,7 @@ Crie a pasta `.claude/specs/XXXX/` e o arquivo `.claude/specs/XXXX/README.md`:
 **Modo:** [TDD | direto]
 **Depende de:** Task 01
 **Instrução para o subagente:**
-> Spec XXXX — Task 02: [Instrução completa e autocontida, com todas as decisões já tomadas e a restrição de camadas.]
+> Spec YYYY — Task 02: [Instrução completa e autocontida, com todas as decisões já tomadas e a restrição de camadas.]
 
 ---
 
@@ -137,10 +143,10 @@ Crie a pasta `.claude/specs/XXXX/` e o arquivo `.claude/specs/XXXX/README.md`:
 Recomendado — orquestração automática:
 
 ```
-/centaur-driven-run XXXX
+/centaur-driven-run YYYY
 ```
 
-O run lança um subagente por task, paraleliza as independentes e respeita as dependências.
+O run lança um subagente por task, paraleliza as independentes, respeita as dependências e consolida checklist, status e `status.md` ao fim de cada onda.
 
 Alternativa manual — para cada task, abra um subagente e invoque a skill correspondente ao `Modo` da task:
 
@@ -149,18 +155,18 @@ Alternativa manual — para cada task, abra um subagente e invoque a skill corre
 /centaur-driven-implement [instrução da task, se Modo: direto]
 ```
 
-Execute as tasks na ordem indicada, respeitando as dependências.
+Execute as tasks na ordem indicada, respeitando as dependências. Na execução manual, o subagente **não** escreve neste README nem no `status.md` — ao fim de cada task, quem orquestra marca o checklist, adiciona a linha no `status.md` e atualiza o status da spec com base no relatório do subagente.
 
 ## Ciclo de vida
 
 - `Pendente` → nenhuma task iniciada
-- `Em andamento` → definido pela skill de execução da task (`/centaur-driven-tdd` ou `/centaur-driven-implement`) ao iniciar a primeira task, ou pelo `/centaur-driven-run` ao montar o plano
-- `Concluída` → definido pela skill de execução quando a última task do checklist for marcada
+- `Em andamento` → definido por quem orquestra (`/centaur-driven-run` ao montar o plano, ou quem executa manualmente ao iniciar a primeira task)
+- `Concluída` → definido por quem orquestra quando a última task do checklist for marcada
 - Tasks bloqueadas ficam anotadas no checklist com o motivo
 
 ## Checklist de conclusão
 
-_Atualizado automaticamente pela skill de execução de cada task (`/centaur-driven-tdd` ou `/centaur-driven-implement`)._
+_Atualizado por quem orquestra a execução (`/centaur-driven-run` ou execução manual), a partir do relatório de cada subagente._
 
 - [ ] Task 01 — [Título]
 - [ ] Task 02 — [Título]
@@ -169,7 +175,7 @@ _Atualizado automaticamente pela skill de execução de cada task (`/centaur-dri
 
 ## Passo 8 — Atualizar o índice de specs
 
-Se não existir, crie `.claude/specs/index.md`:
+Se não existir, crie `.centaur/specs/index.md`:
 
 ```markdown
 # Specs
@@ -181,15 +187,17 @@ Se não existir, crie `.claude/specs/index.md`:
 Adicione uma linha:
 
 ```
-| XXXX | [Título] | [data] | Pendente | [N tasks] |
+| YYYY | [Título] | [data] | Pendente | [N tasks] |
 ```
+
+Se a tabela ainda contiver uma linha placeholder (`| — | — | — | — | — |`), remova-a ao inserir a primeira linha real.
 
 ## Passo 9 — Informar o usuário
 
 Confirme a criação com:
-- Número e título da spec (ex: "Spec criada em `.claude/specs/0001/`")
+- Número e título da spec (ex: "Spec criada em `.centaur/specs/0001/`")
 - Quantas tasks foram criadas e a ordem de execução recomendada
-- Como executar: `/centaur-driven-run XXXX` orquestra tudo automaticamente (subagentes, paralelismo, dependências, checklist). A alternativa manual é abrir um subagente por task com a skill do `Modo` dela (`/centaur-driven-tdd` ou `/centaur-driven-implement`) e a instrução da task
+- Como executar: `/centaur-driven-run YYYY` orquestra tudo automaticamente (subagentes, paralelismo, dependências, checklist). A alternativa manual é abrir um subagente por task com a skill do `Modo` dela (`/centaur-driven-tdd` ou `/centaur-driven-implement`) e a instrução da task
 
 Exemplo de mensagem final:
 

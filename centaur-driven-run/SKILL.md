@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-run
 description: Orquestra a execução de uma spec, lançando subagentes por task com centaur-driven-tdd ou centaur-driven-implement conforme o Modo da task, e respeitando dependências. Restrito a tasks de specs — não executa nada fora delas.
-version: 1.2.0
+version: 1.3.0
 invocable: true
 author: user
 ---
@@ -18,18 +18,21 @@ Você é um orquestrador de execução de specs. Sua única função é lançar 
    - Mudança pontual estrutural ou de configuração → `/centaur-driven-implement`
    - Mudança grande → `/centaur-driven-spec` para planejar primeiro
 3. **Você não altera as instruções das tasks.** Passe cada instrução ao subagente exatamente como está escrita na spec. Se uma instrução parecer errada ou desatualizada, pare e pergunte ao usuário — não "corrija" por conta própria.
+4. **Você é o único que escreve na spec e no `status.md` durante a execução.** Os subagentes em modo spec não tocam nesses arquivos (escritas paralelas se sobrescreveriam) — eles apenas reportam. Toda consolidação (checklist, status da spec, `index.md`, linhas do `status.md`) é sua, feita ao fim de cada onda a partir dos relatórios.
+
+**Convenção de numeração:** em todas as skills centaur, `YYYY` é o número da spec e `XXXX` o número de uma implementação.
 
 ## Passo 1 — Identificar a spec
 
 O usuário deve informar o número da spec (ex: `/centaur-driven-run 0001`).
 
-- Se não informou: leia `.claude/specs/index.md`, liste as specs com status `Pendente` ou `Em andamento` e pergunte qual executar
+- Se não informou: leia `.centaur/specs/index.md`, liste as specs com status `Pendente` ou `Em andamento` e pergunte qual executar
 - Se a spec não existir: informe e liste as disponíveis
-- Se não existir `.claude/specs/`: informe que não há specs e sugira `/centaur-driven-spec`
+- Se não existir `.centaur/specs/`: informe que não há specs e sugira `/centaur-driven-spec`
 
 ## Passo 2 — Ler a spec e montar o plano de execução
 
-Leia `.claude/specs/XXXX/README.md` por completo. Monte o plano:
+Leia `.centaur/specs/YYYY/README.md` por completo. Monte o plano:
 
 1. Ignore tasks já marcadas `[x]` no checklist (execução retomada)
 2. Se **todas** estiverem concluídas, informe que a spec já está `Concluída` e encerre
@@ -42,11 +45,13 @@ Apresente o plano ao usuário em formato curto (ondas, tasks, o que roda em para
 
 ## Passo 3 — Atualizar status da spec
 
-Se a spec estiver `Pendente`, mude para `Em andamento` no README da spec e em `.claude/specs/index.md`.
+Se a spec estiver `Pendente`, mude para `Em andamento` no README da spec e em `.centaur/specs/index.md`.
 
 ## Passo 4 — Executar as ondas
 
-Para cada onda, lance **um subagente por task** (tasks da mesma onda em paralelo). A skill invocada depende do campo `**Modo:**` da task:
+Para cada onda, lance **um subagente por task** com a ferramenta **Agent** (tipo `general-purpose`). Para as tasks da mesma onda rodarem de fato em paralelo, envie **todas as chamadas de Agent da onda em uma única mensagem** — chamadas em mensagens separadas executam em sequência.
+
+A skill invocada depende do campo `**Modo:**` da task:
 
 - `Modo: TDD` → `centaur-driven-tdd`
 - `Modo: direto` ou campo ausente → `centaur-driven-implement`
@@ -56,7 +61,7 @@ O prompt de cada subagente deve ser exatamente:
 ```
 Invoque a skill [centaur-driven-tdd | centaur-driven-implement] com a seguinte solicitação:
 
-[instrução da task copiada verbatim da spec, incluindo o prefixo "Spec XXXX — Task NN"]
+[instrução da task copiada verbatim da spec, incluindo o prefixo "Spec YYYY — Task NN"]
 ```
 
 Você escolhe a skill pelo campo `Modo`, mas **não altera a instrução** — ela vai verbatim.
@@ -65,14 +70,14 @@ Aguarde **todos** os subagentes da onda terminarem antes de iniciar a próxima.
 
 ## Passo 5 — Consolidar cada onda
 
-Ao fim de cada onda, releia `.claude/specs/XXXX/README.md` e verifique:
+Ao fim de cada onda, **você** registra o resultado de cada task — os subagentes não escrevem na spec nem no `status.md`. Para cada task da onda, com base no relatório final do subagente:
 
-1. **Task concluída e marcada no checklist** → ok, segue
-2. **Subagente reportou sucesso mas não marcou o checklist** → marque você mesmo (`- [x] Task NN — [Título] → implements/XXXX`), onde `XXXX` é o número da implementação informado no relatório do subagente (não confunda com o número da spec)
-3. **Task bloqueada** → registre o motivo no checklist, remova do plano as tasks que dependem dela e continue com as demais ondas que não são afetadas
-4. **Subagente falhou sem reportar** → trate como bloqueada; não relance automaticamente
+1. **Task concluída** → marque no checklist de `.centaur/specs/YYYY/README.md`: `- [x] Task NN — [Título] → implements/XXXX`, onde `XXXX` é o número da implementação informado no relatório
+2. **Task bloqueada** → registre o motivo ao lado dela no checklist, remova do plano as tasks que dependem dela e continue com as demais ondas que não são afetadas
+3. **Subagente falhou sem reportar** → trate como bloqueada; não relance automaticamente. Confira se ficou pasta órfã em `.centaur/implements/` (número reservado sem README) e anote no relatório final
+4. Adicione em `.centaur/implements/status.md` uma linha por implementação criada na onda (concluída ou bloqueada), com os dados do relatório: `| XXXX | [Título] | [data] | [Concluído|Bloqueado] | [arquivos] |`. Remova a linha placeholder da tabela se ainda existir
 
-Verifique também `.claude/implements/status.md`: como os subagentes da onda escrevem nele em paralelo, uma linha pode ter sido sobrescrita pela edição de outro. Se faltar a linha de alguma implementação concluída, adicione-a com os dados do relatório do subagente.
+Se um subagente tiver editado a spec ou o `status.md` por conta própria (não deveria), confira o resultado e conserte inconsistências.
 
 ## Passo 6 — Finalizar
 
@@ -86,4 +91,4 @@ Reporte ao usuário:
 - Tasks bloqueadas e o motivo de cada uma
 - Tasks não executadas por dependência bloqueada
 - Status final da spec
-- Se houver bloqueios: o que o usuário precisa decidir para destravar (depois basta rodar `/centaur-driven-run XXXX` de novo — a execução retoma de onde parou)
+- Se houver bloqueios: o que o usuário precisa decidir para destravar (depois basta rodar `/centaur-driven-run YYYY` de novo — a execução retoma de onde parou)

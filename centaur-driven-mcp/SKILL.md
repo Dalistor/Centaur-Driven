@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-mcp
 description: Ponte dinâmica entre um MCP server e o fluxo centaur - consulta a documentação/tools do MCP informado, extrai o que é relevante para a requisição do usuário e roteia para centaur-driven-tdd, centaur-driven-implement ou centaur-driven-spec com esse contexto anexado. Também instala o MCP no escopo global quando recebe uma URL no lugar do nome. Uso - /centaur-driven-mcp <Nome do MCP | URL do MCP> [Requisição do usuário]. Não depende de nenhum MCP específico - descobre os disponíveis em tempo de execução.
-version: 1.1.0
+version: 1.2.0
 invocable: true
 author: user
 ---
@@ -13,9 +13,10 @@ Você é a ponte entre um MCP server e o fluxo de implementação centaur. Sua f
 **Invocação:** `/centaur-driven-mcp <Nome do MCP | URL do MCP> [Requisição do usuário]`
 
 O primeiro argumento aceita duas formas:
-- **Nome** de um MCP já registrado → `/centaur-driven-mcp asaas-docs criar cobrança pix com split`
-- **Nome** de um MCP já registrado (design de apps Flutter) → `/centaur-driven-mcp flutter-docs criar tela de login com formulário validado`
-- **URL** de um MCP ainda não registrado → `/centaur-driven-mcp https://docs.asaas.com/mcp criar cobrança pix com split` (instala no escopo global antes de seguir — Passo 0)
+- **Nome** de um MCP já registrado → `/centaur-driven-mcp <nome-do-mcp> <requisição>` (ex: `/centaur-driven-mcp asaas-docs criar cobrança pix com split`)
+- **URL** de um MCP ainda não registrado → `/centaur-driven-mcp <url-do-mcp> <requisição>` (instala no escopo global antes de seguir — Passo 0)
+
+Não presuma que os MCPs dos exemplos existem — os disponíveis são descobertos em tempo de execução (Passo 1).
 
 ## Restrições absolutas
 
@@ -84,8 +85,8 @@ Se o usuário não informou nome nenhum, liste os MCPs de `claude mcp list` e pe
 
 Leia obrigatoriamente:
 1. `AGENTS.md` na raiz do projeto (arquitetura, camadas, convenções, restrições)
-2. `.claude/implements/status.md` (histórico — o serviço do MCP pode já ter sido integrado antes)
-3. `.claude/specs/index.md`, se existir
+2. `.centaur/implements/status.md` (histórico — o serviço do MCP pode já ter sido integrado antes)
+3. `.centaur/specs/index.md`, se existir
 
 Se `AGENTS.md` não existir, avise:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro — sem isso não consigo decidir em qual camada a integração entra."
@@ -133,8 +134,8 @@ Decida o destino:
 | Situação | Destino |
 |---|---|
 | Usuário só perguntou (como funciona, quais campos, existe suporte a X) | Responda direto no Passo 6a |
-| Mudança pontual com comportamento testável (mapeamento de payload, cálculo, validação, tratamento de erro) **e** projeto tem testes | `/centaur-driven-tdd` |
-| Mudança pontual estrutural/config (adicionar client, variável de ambiente, tipagem) ou projeto sem testes | `/centaur-driven-implement` |
+| Mudança pontual com regra de negócio real (cálculo, validação com consequência, tratamento de erro com decisão) **e** projeto tem testes | `/centaur-driven-tdd` |
+| Mudança pontual estrutural/config (adicionar client, variável de ambiente, tipagem), mapeamento trivial de payload, ou projeto sem testes | `/centaur-driven-implement` |
 | Integração grande (vários endpoints, webhooks, persistência, mais de ~4 arquivos) | `/centaur-driven-spec` |
 
 Apresente ao usuário: o dossiê do Passo 4, a classificação e o destino escolhido. **Confirme antes de seguir.** Se ele discordar do destino, use o que ele mandar.
@@ -143,7 +144,7 @@ Apresente ao usuário: o dossiê do Passo 4, a classificação e o destino escol
 
 Responda com base no dossiê, sempre amarrando ao projeto: em qual camada isso entraria, qual arquivo existente seria tocado, o que já existe e o que falta. Cite a origem (`segundo a doc do MCP <nome>`) ao afirmar qualquer coisa sobre a API externa.
 
-Não crie implementação nem documente em `.claude/implements/` — pergunta não gera implementação.
+Não crie implementação nem documente em `.centaur/implements/` — pergunta não gera implementação.
 
 ## Passo 6b — Se for implementação
 
@@ -177,6 +178,6 @@ Se a integração exigir credencial (API key, token, secret):
 Ao final, reporte:
 - Qual MCP foi consultado e quantas consultas foram feitas
 - O que foi roteado e para qual skill
-- Número da implementação criada pelo subagente (ex: `.claude/implements/0007/`) ou número da spec
+- Número da implementação criada pelo subagente (ex: `.centaur/implements/0007/`) ou número da spec
 - O que ficou em **Não encontrado no MCP** e precisa de decisão do usuário
 - Variáveis de ambiente que o usuário precisa preencher para a integração rodar

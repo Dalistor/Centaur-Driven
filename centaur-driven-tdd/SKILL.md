@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-tdd
-description: Implementa uma mudança guiada por testes (red-green-refactor), com casos de teste derivados dos critérios de aceite, análise de cobertura e documentação em .claude/implements/. Use quando a mudança tem regra de negócio testável.
-version: 1.0.1
+description: Implementa uma mudança guiada por testes (red-green-refactor), com casos de teste derivados dos critérios de aceite, análise de cobertura e documentação em .centaur/implements/. Use quando a mudança tem regra de negócio testável.
+version: 1.2.0
 invocable: true
 author: user
 ---
@@ -12,7 +12,7 @@ Você é um engenheiro de software sênior conduzindo uma implementação por Te
 
 **Escopo desta skill:** mudanças pontuais com comportamento testável — regra de negócio, validação, cálculo, transformação de dados, correção de bug. Se a demanda for grande, planeje com `/centaur-driven-spec` e execute com `/centaur-driven-run`.
 
-**Quando NÃO usar TDD:** mudança puramente estrutural (renomear, mover arquivo), ajuste de configuração, mudança só de UI/estilo, projeto sem nenhuma infraestrutura de teste e sem autorização do usuário para criá-la. Nesses casos, use `/centaur-driven-implement`.
+**Quando NÃO usar TDD:** mudança puramente estrutural (renomear, mover arquivo), ajuste de configuração, mudança só de UI/estilo, **comportamento trivial mesmo que testável** (mapeamento direto de campos, passthrough, fiação sem lógica), projeto sem nenhuma infraestrutura de teste e sem autorização do usuário para criá-la. Nesses casos, use `/centaur-driven-implement`.
 
 ## Regras invioláveis
 
@@ -27,12 +27,12 @@ Você é um engenheiro de software sênior conduzindo uma implementação por Te
 
 Leia obrigatoriamente:
 1. `AGENTS.md` na raiz (visão geral, arquitetura, **Arquitetura de Camadas**, regras)
-2. `.claude/implements/status.md` (histórico de implementações)
+2. `.centaur/implements/status.md` (histórico de implementações)
 
 Se `AGENTS.md` não existir, avise:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro para que eu tenha contexto suficiente para implementar com segurança."
 
-Se `.claude/implements/status.md` não existir, crie a estrutura (`.claude/implements/` e `status.md` vazio).
+Se `.centaur/implements/status.md` não existir, crie a estrutura (`.centaur/implements/` e `status.md` vazio).
 
 ## Passo 2 — Detectar a stack de testes
 
@@ -45,19 +45,27 @@ Identifique o framework, o comando de execução e a ferramenta de cobertura já
 Registre: comando de teste, comando de teste de arquivo único (para o loop rápido), comando de cobertura, convenção de nome e local dos arquivos de teste.
 
 **Se o projeto não tem infraestrutura de teste:** pare e pergunte ao usuário se pode configurá-la (proponha o framework padrão da stack). Sem resposta afirmativa, não siga com TDD — oriente `/centaur-driven-implement`.
-**[modo spec]** Se não houver infraestrutura de teste e a task não autorizar criá-la, documente como `Bloqueado` e encerre.
+**[modo spec]** Se não houver infraestrutura de teste e a task não autorizar criá-la, siga o procedimento de bloqueio descrito no Passo 5 e encerre.
 
 ## Passo 3 — Entender a solicitação e derivar critérios de aceite
 
 Traduza o pedido em uma lista de **comportamentos observáveis e verificáveis**. Cada item vira pelo menos um teste.
 
-Cubra sistematicamente:
+**Proporcionalidade — a regra que dimensiona a lista:** a profundidade da cobertura acompanha o risco do comportamento, não o ritual.
+
+- **Caminho crítico** (dinheiro, autenticação/autorização, validação de entrada externa, cálculo com regra de negócio, dado que não pode corromper) → cobertura completa: caminho feliz, erros e bordas.
+- **Comportamento comum** (regra de negócio ordinária, transformação com algumas decisões) → caminho feliz + os erros e bordas que têm chance real de acontecer neste projeto.
+- **Comportamento trivial** (mapeamento direto de campos, passthrough, formatação simples, getter com lógica mínima) → 1-2 testes de caminho feliz bastam. Não infle a lista para parecer rigoroso.
+
+As dimensões abaixo são um **checklist para considerar, não uma obrigação por item**. Percorra-as e inclua o que for relevante para o risco do caso:
 - **Caminho feliz** — o uso esperado, com dados válidos
 - **Erros** — entrada inválida, dependência falhando, estado inconsistente, autorização negada
-- **Bordas** — vazio, nulo, zero, limite inferior e superior, valor logo acima e logo abaixo do limite, coleção com 1 elemento, string com caracteres especiais/unicode
+- **Bordas** — vazio, nulo, zero, limites e vizinhança do limite, coleção com 1 elemento, caracteres especiais/unicode
 - **Efeitos colaterais** — o que deve ser persistido, emitido ou chamado (e o que **não** deve)
 
-**Detectar modo spec:** se a solicitação começar com `Spec YYYY — Task NN` (ou mencionar uma spec/task de `.claude/specs/`), você está executando uma task planejada por `/centaur-driven-spec`, provavelmente como subagente. Nesta skill, `YYYY` é sempre o número da spec e `XXXX` o número da implementação. Leia `.claude/specs/YYYY/README.md` inteiro (Objetivo e Contexto técnico fazem parte do seu contexto). Se a spec estiver `Pendente`, mude para `Em andamento`.
+Ao apresentar a lista (Passo 5), diga qual nível de proporcionalidade aplicou e por quê — o usuário pode pedir mais ou menos.
+
+**Detectar modo spec:** se a solicitação começar com `Spec YYYY — Task NN` (ou mencionar uma spec/task de `.centaur/specs/`), você está executando uma task planejada por `/centaur-driven-spec`, provavelmente como subagente. Em todas as skills centaur, `YYYY` é sempre o número da spec e `XXXX` o número da implementação. Leia `.centaur/specs/YYYY/README.md` inteiro (Objetivo e Contexto técnico fazem parte do seu contexto). **Não edite o README da spec nem o `index.md`** (status, checklist) — quem consolida esses arquivos é o orquestrador, com base no seu relatório final.
 
 ## Passo 4 — Explorar o código e os testes existentes
 
@@ -75,7 +83,29 @@ Antes de escrever qualquer teste, liste as ambiguidades: comportamento esperado 
 
 Se não houver dúvidas, apresente a **lista de casos de teste** derivada do Passo 3 e pergunte se pode prosseguir. Essa lista é o contrato da implementação.
 
-**[modo spec]** Não pergunte nada — as decisões já foram resolvidas na criação da spec e, como subagente, você não tem canal com o usuário. Se encontrar ambiguidade que **realmente impede** a implementação, pare sem implementar: documente o bloqueio com status `Bloqueado`, marque a task como bloqueada na spec e encerre reportando o motivo.
+<!-- [modo spec] Mantenha este bloco sincronizado com centaur-driven-implement, Passo 4 -->
+**[modo spec]** Não pergunte nada — as decisões já foram resolvidas na criação da spec e, como subagente, você não tem canal com o usuário. Se encontrar ambiguidade que **realmente impede** a implementação, **pare sem implementar**:
+1. Reserve um número de implementação conforme o Passo 12
+2. Crie `.centaur/implements/XXXX/README.md` mínimo documentando o bloqueio:
+
+```markdown
+# [XXXX] [Título da task] — Bloqueado
+
+**Data:** [saída de `date +%F`]
+**Status:** Bloqueado
+**Modo:** TDD
+**Spec:** `.centaur/specs/YYYY/` — Task NN
+
+## Motivo do bloqueio
+[O que impede a implementação, com referência a arquivo/linha quando aplicável]
+
+## O que destrava
+[Que decisão ou correção o usuário precisa tomar]
+```
+
+3. Encerre reportando o motivo do bloqueio e o número `XXXX` — **não** edite a spec nem o `status.md`; o orquestrador registra o bloqueio.
+
+O mesmo vale para o bloqueio por falta de infraestrutura de teste do Passo 2.
 
 ## Passo 6 — Ordenar os ciclos
 
@@ -128,9 +158,9 @@ Volte ao Passo 7 com o próximo caso da lista, até todos os critérios de aceit
 
 1. **Suíte completa**: execute todos os testes do projeto. Tudo verde.
 2. **Cobertura**: se o projeto tiver comando de cobertura, execute e analise o resultado **das linhas que você tocou** (não da base inteira).
-   - Alvo: 100% nos caminhos críticos que você implementou (autenticação, pagamento, validação, cálculo)
+   - Alvo **proporcional** (mesma régua do Passo 3): 100% de branch nos caminhos críticos que você implementou (autenticação, pagamento, validação, cálculo). No restante, cubra o que importa — não persiga número.
    - Reporte cobertura de **branch**, não só de linha — linha coberta com branch descoberto é falso conforto
-   - Toda linha nova descoberta é um caso de teste faltando: escreva o teste ou justifique explicitamente na documentação
+   - Linha nova descoberta em caminho crítico é um caso de teste faltando: escreva o teste. Em código trivial, uma justificativa de uma frase na documentação basta — não escreva teste só para fechar número.
 3. **Lint / type-check**: se existir, execute.
 4. **Revisão de camadas**: confirme que nenhuma mudança violou a Arquitetura de Camadas.
 5. **Qualidade dos testes** — revise a suíte nova contra estes cheiros:
@@ -144,29 +174,32 @@ Corrija tudo antes de documentar.
 
 ## Passo 12 — Determinar número da implementação
 
+<!-- Mantenha este passo sincronizado com centaur-driven-implement (Passo 8) e centaur-driven-deploy (Passo 16) -->
 Execute exatamente este comando para encontrar o último número:
 
 ```
-ls .claude/implements/ | grep -E '^[0-9]{4}$' | sort | tail -1
+ls .centaur/implements/ | grep -E '^[0-9]{4}$' | sort | tail -1
 ```
 
 - Se retornar um número (ex: `0003`), o próximo é esse + 1 (ex: `0004`)
 - Se retornar vazio, começa em `0001`
 - Formate sempre com 4 dígitos: `0001`, `0002`, `0042`, `0100`
 
-**Reserve o número imediatamente** criando a pasta com `mkdir .claude/implements/XXXX` (sem `-p`). Se falhar porque a pasta já existe — acontece quando outra task roda em paralelo via `/centaur-driven-run` —, incremente e tente de novo. O número só é seu depois que o `mkdir` tiver sucesso.
+**Reserve o número imediatamente** criando a pasta com `mkdir .centaur/implements/XXXX` (sem `-p`). Se falhar porque a pasta já existe — acontece quando outra task roda em paralelo via `/centaur-driven-run` —, incremente e tente de novo. O número só é seu depois que o `mkdir` tiver sucesso.
 
 ## Passo 13 — Documentar a implementação
 
-Crie `.claude/implements/XXXX/README.md`:
+Obtenha a data de hoje com `date +%F` — não a preencha de memória.
+
+Crie `.centaur/implements/XXXX/README.md`:
 
 ```markdown
 # [XXXX] [Título curto e descritivo da implementação]
 
-**Data:** [data de hoje]
+**Data:** [saída de `date +%F`]
 **Status:** Concluído
 **Modo:** TDD
-**Spec:** [se veio de uma spec: `.claude/specs/YYYY/` — Task NN. Caso contrário, omita esta linha]
+**Spec:** [se veio de uma spec: `.centaur/specs/YYYY/` — Task NN. Caso contrário, omita esta linha]
 
 ## Solicitação
 [O que o usuário pediu, com as palavras dele]
@@ -203,20 +236,15 @@ Crie `.claude/implements/XXXX/README.md`:
 
 ## Passo 14 — Atualizar status.md
 
-Adicione uma linha na tabela de `.claude/implements/status.md`:
+**[modo spec]** Pule este passo — o orquestrador escreve a linha no `status.md` com base no seu relatório final. Escritas paralelas de subagentes no mesmo arquivo se sobrescrevem.
+
+Adicione uma linha na tabela de `.centaur/implements/status.md`:
 
 ```
 | XXXX | [Título] | [data] | Concluído | [lista de arquivos afetados] |
 ```
 
-## Passo 14b — [modo spec] Atualizar a spec
-
-Se a implementação veio de uma spec:
-
-1. Marque a task no **Checklist de conclusão** de `.claude/specs/YYYY/README.md`:
-   `- [x] Task NN — [Título] → implements/XXXX`
-2. Se **todas** as tasks estiverem marcadas, mude o status da spec para `Concluída` e atualize `.claude/specs/index.md`
-3. Se a task ficou bloqueada, anote o motivo ao lado dela e mantenha a spec `Em andamento`
+Se a tabela ainda contiver a linha placeholder (`| — | — | — | — | — |`), remova-a ao inserir a primeira linha real.
 
 ## Passo 15 — Atualizar AGENTS.md se necessário
 
@@ -228,5 +256,15 @@ Confirme com:
 - O que foi feito (resumo de 2-3 linhas)
 - Quantos ciclos red-green-refactor foram executados
 - Resultado real da validação: testes passando, cobertura de linha e branch dos arquivos tocados
-- Número da implementação (ex: "Documentado em `.claude/implements/0003/`")
-- **[modo spec]** Qual task da spec foi concluída e quantas restam
+- Número da implementação (ex: "Documentado em `.centaur/implements/0003/`")
+
+**[modo spec]** Encerre com um relatório estruturado — é dele que o orquestrador consolida a spec e o `status.md`:
+
+```
+Spec YYYY — Task NN: [Concluída | Bloqueada]
+Implementação: XXXX
+Título: [título usado no README da implementação]
+Arquivos afetados: [lista]
+Validação: [ciclos executados, testes passando, cobertura de linha/branch dos arquivos tocados]
+[Se bloqueada: Motivo do bloqueio e o que destrava]
+```

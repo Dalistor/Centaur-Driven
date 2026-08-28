@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-start-project
-description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa .claude/implements/ e .claude/specs/
-version: 1.2.0
+description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa .centaur/implements/ e .centaur/specs/
+version: 1.3.0
 invocable: true
 author: user
 ---
@@ -20,6 +20,10 @@ Se o diretório estiver vazio ou não tiver estrutura de projeto reconhecível, 
 
 Se já existir um `AGENTS.md` na raiz, **não prossiga automaticamente**. Pergunte ao usuário:
 > "Este projeto já tem um AGENTS.md. O que deseja fazer? (1) Atualizar as seções desatualizadas, (2) Recriar do zero, (3) Cancelar"
+
+- **(1) Atualizar:** leia o `AGENTS.md` atual por completo, execute a varredura do Passo 2 e compare: liste as seções que divergem do código (stack, estrutura, scripts, camadas) e as seções do template do Passo 4 que estão faltando. No Passo 3, pergunte **apenas** sobre o que divergiu ou falta — preserve intacto o que continua correto. Em seguida, edite as seções afetadas (não reescreva o arquivo inteiro) e siga para o Passo 5 apenas para criar o que ainda não existir em `.centaur/`.
+- **(2) Recriar:** siga o fluxo normal do zero; o arquivo atual será substituído.
+- **(3) Cancelar:** encerre sem tocar em nada.
 
 Se houver projeto e não houver AGENTS.md, continue.
 
@@ -118,12 +122,12 @@ Estrutura do AGENTS.md:
 
 ## Implementações
 [Atualizado automaticamente pelas skills /centaur-driven-tdd e /centaur-driven-implement]
-Veja `.claude/implements/status.md` para o histórico completo e `.claude/specs/index.md` para as specs planejadas.
+Veja `.centaur/implements/status.md` para o histórico completo e `.centaur/specs/index.md` para as specs planejadas.
 ```
 
 ## Passo 5 — Criar estrutura de implementações e specs
 
-Crie o diretório `.claude/implements/` e o arquivo `status.md` dentro dele:
+Crie o diretório `.centaur/implements/` e o arquivo `status.md` dentro dele:
 
 ```markdown
 # Status das Implementações
@@ -132,14 +136,13 @@ Histórico de todas as implementações realizadas neste projeto.
 
 | # | Título | Data | Status | Arquivos Afetados |
 |---|--------|------|--------|-------------------|
-| — | — | — | — | — |
 
 ---
 
 _Atualizado automaticamente pelas skills `/centaur-driven-tdd` e `/centaur-driven-implement`_
 ```
 
-Crie também o diretório `.claude/specs/` e o arquivo `index.md` dentro dele:
+Crie também o diretório `.centaur/specs/` e o arquivo `index.md` dentro dele:
 
 ```markdown
 # Specs
@@ -148,7 +151,6 @@ Planejamentos de implementações complexas, decompostos em tasks para subagente
 
 | # | Título | Data | Status | Tasks |
 |---|--------|------|--------|-------|
-| — | — | — | — | — |
 
 ---
 
@@ -159,8 +161,8 @@ _Atualizado automaticamente pelas skills `/centaur-driven-spec`, `/centaur-drive
 
 Informe ao usuário o que foi criado e o fluxo das skills centaur-driven:
 - `AGENTS.md` criado na raiz — será lido pelas skills centaur em cada chat
-- `.claude/implements/status.md` criado — histórico de todas as implementações
-- `.claude/specs/index.md` criado — índice de specs planejadas
+- `.centaur/implements/status.md` criado — histórico de todas as implementações
+- `.centaur/specs/index.md` criado — índice de specs planejadas
 
 Fluxo de trabalho:
 - `/centaur-driven-check` — perguntar sobre o projeto sem alterar nada
@@ -169,4 +171,4 @@ Fluxo de trabalho:
 - `/centaur-driven-spec` — para demandas grandes: decompõe em tasks atômicas por camada, cada uma marcada como TDD ou direta
 - `/centaur-driven-run` — executa uma spec: lança subagentes por task conforme o Modo, paraleliza e consolida
 
-Ambas as skills de execução documentam em `.claude/implements/XXXX/`.
+Ambas as skills de execução documentam em `.centaur/implements/XXXX/`.
