@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-start-project
 description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa .centaur/implements/ e .centaur/specs/
-version: 1.4.0
+version: 1.5.0
 invocable: true
 author: user
 ---
@@ -21,7 +21,7 @@ Se o diretório estiver vazio ou não tiver estrutura de projeto reconhecível, 
 Se já existir um `AGENTS.md` na raiz, **não prossiga automaticamente**. Pergunte ao usuário:
 > "Este projeto já tem um AGENTS.md. O que deseja fazer? (1) Atualizar as seções desatualizadas, (2) Recriar do zero, (3) Cancelar"
 
-- **(1) Atualizar:** leia o `AGENTS.md` atual por completo, execute a varredura do Passo 2 e compare: liste as seções que divergem do código (stack, estrutura, scripts, camadas) e as seções do template do Passo 4 que estão faltando. No Passo 3, pergunte **apenas** sobre o que divergiu ou falta — preserve intacto o que continua correto. Em seguida, edite as seções afetadas (não reescreva o arquivo inteiro) e siga para o Passo 5 apenas para criar o que ainda não existir em `.centaur/`.
+- **(1) Atualizar:** este é o trabalho de `/centaur-driven-update`, que além de migrar as seções faltantes audita a integridade do histórico e resolve contradições entre documentação e código. Recomende-a e encerre. Só faça a atualização aqui se o usuário insistir em não usar a outra skill — nesse caso, leia o `AGENTS.md` atual por completo, execute a varredura do Passo 2, liste as seções que divergem do código e as que faltam em relação ao template do Passo 4, pergunte **apenas** sobre isso no Passo 3, edite as seções afetadas sem reescrever o arquivo inteiro e siga para o Passo 5 só para criar o que ainda não existir em `.centaur/`.
 - **(2) Recriar:** siga o fluxo normal do zero; o arquivo atual será substituído.
 - **(3) Cancelar:** encerre sem tocar em nada.
 
@@ -140,7 +140,13 @@ Estrutura do AGENTS.md:
 ## Implementações
 [Atualizado automaticamente pelas skills /centaur-driven-tdd e /centaur-driven-implement]
 Veja `.centaur/implements/status.md` para o histórico completo e `.centaur/specs/index.md` para as specs planejadas.
+
+---
+
+_Documentação centaur — schema `[versão desta skill, do frontmatter]`, gerada em `[saída de date +%F]`. Atualize com `/centaur-driven-update`._
 ```
+
+A última linha é o **carimbo de schema**: é por ela que `/centaur-driven-update` sabe qual versão do template gerou este `AGENTS.md` e o que precisa migrar. Preencha com a versão declarada no frontmatter desta skill — não invente outro número.
 
 ## Passo 5 — Criar estrutura de implementações e specs
 
@@ -187,5 +193,6 @@ Fluxo de trabalho:
 - `/centaur-driven-implement` — mudança pontual estrutural, de configuração ou de UI, e projetos sem infraestrutura de teste
 - `/centaur-driven-spec` — para demandas grandes: decompõe em tasks atômicas por camada, cada uma marcada como TDD ou direta
 - `/centaur-driven-run` — executa uma spec: lança subagentes por task conforme o Modo, paraleliza e consolida
+- `/centaur-driven-update` — manutenção da documentação: migra o `AGENTS.md` quando as skills evoluem, audita o histórico e resolve contradições
 
 Ambas as skills de execução documentam em `.centaur/implements/XXXX/`.

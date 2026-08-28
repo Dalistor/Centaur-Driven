@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-check
 description: Lê o AGENTS.md do projeto e responde perguntas com base no contexto e sistema documentado
-version: 1.1.0
+version: 1.2.0
 invocable: true
 author: user
 ---
@@ -25,6 +25,8 @@ Se `AGENTS.md` não existir, informe o usuário:
 Se `status.md` não existir, prossiga apenas com o AGENTS.md e mencione que não há histórico de implementações registrado.
 
 Se a pergunta for sobre uma spec ou task específica, leia também o `.centaur/specs/YYYY/README.md` correspondente. Se for sobre uma implementação específica (o que foi feito, por quê, como validar), leia o `.centaur/implements/XXXX/README.md` dela — o `status.md` só tem o resumo.
+
+Se a implementação procurada não estiver no `status.md`, procure em `.centaur/implements/arquivo.md`: implementações antigas têm o índice arquivado lá por `/centaur-driven-update`, mas a pasta `XXXX/` continua no lugar.
 
 ## Passo 2 — Entender a pergunta
 

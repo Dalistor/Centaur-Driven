@@ -31,6 +31,7 @@ Reinicie sessões abertas do Claude Code para que as skills apareçam. Elas fica
 | `/centaur-driven-run` | Executa uma spec: lança um subagente por task conforme o Modo, paraleliza as independentes e consolida o resultado |
 | `/centaur-driven-mcp` | Busca a documentação de uma API externa em um MCP server e roteia a requisição para tdd, implement ou spec com esse contexto anexado |
 | `/centaur-driven-deploy` | Configura deploy contínuo para uma VPS (GitHub Actions + SSH + rsync): gera a chave, valida o acesso, cadastra os secrets e acompanha o primeiro run |
+| `/centaur-driven-update` | Manutenção da documentação: migra o `AGENTS.md` quando as skills evoluem, audita o histórico, resolve contradições e consolida para agentes novos |
 
 ## Fluxo de trabalho
 
@@ -133,6 +134,22 @@ Antes de qualquer comando que altere a VPS ou o GitHub, ela mostra o comando e p
 
 Cobre Docker/Docker Compose e processo direto (systemd, pm2). Fora do escopo: PaaS (Vercel, Railway, Fly), Kubernetes, registry de imagem, blue-green e rollback automático.
 
+### 9. Para manter a documentação viva, use update
+
+```
+/centaur-driven-update
+```
+
+Projetos envelhecem em duas direções. As skills ganham seções novas — Arquitetura de Camadas, stack de testes, Vocabulário e Idioma do Código — e o `AGENTS.md` escrito meses atrás não as tem. E o histórico acumula implementações que se contradizem: o que era verdade na `0003` foi desfeito na `0021`, mas o `AGENTS.md` ainda descreve a versão antiga. Um agente que chega lê tudo isso e age com informação errada.
+
+O `update` resolve as duas. Ele lê o **carimbo de schema** na última linha do `AGENTS.md`, compara com a versão do `centaur-driven-start-project` instalado e migra o que ficou para trás — usando o template da skill instalada como fonte de verdade, e não uma tabela de migrações embutida que apodreceria. Seções customizadas por você nunca são apagadas.
+
+Depois vem a parte que importa no dia a dia: audita a integridade dos registros (pasta sem README, linha fantasma no `status.md`, spec com todas as tasks feitas mas ainda `Em andamento`), cruza as implementações pelos arquivos afetados para achar onde uma desfez a outra, e detecta o que a documentação afirma e o código desmente. Cada conflito é apresentado com **evidência** — o que a doc diz, o que é verdade, e onde está a prova. Sem evidência não é conflito, é palpite.
+
+Por fim consolida para quem chega depois: promove para o `AGENTS.md` o conhecimento que estava preso dentro de um README de implementação (o cliente HTTP padrão, a estratégia de mock, a convenção estabelecida no meio do caminho) e arquiva as linhas antigas do `status.md` em `.centaur/implements/arquivo.md`, marcando o que foi superado. Como toda skill lê `AGENTS.md` e `status.md` no primeiro passo, índice enxuto é contexto economizado em **toda** execução futura.
+
+Ele **não toca em código**: bug ou violação de camada que encontrar vira relatório com a skill certa para resolver. E nunca apaga pasta de implementação ou de spec — arquivar é mover linha de índice, o registro fica.
+
 ## O código é a documentação
 
 As skills de execução tratam o código como a documentação principal do projeto — o README da implementação é trilha de auditoria, não explicação do código. Por isso o "porquê" tem uma ordem de precedência fixa:
@@ -150,9 +167,11 @@ O `implement` tem uma etapa dedicada a isso (revisar a clareza antes de validar)
 ```
 projeto/
 ├── AGENTS.md                        # Contexto do projeto (lido pelas skills a cada chat)
+│                                    # Última linha: carimbo de schema, usado pelo update
 └── .centaur/
     ├── implements/
-    │   ├── status.md                # Tabela com todas as implementações
+    │   ├── status.md                # Tabela com as implementações recentes
+    │   ├── arquivo.md               # Índice das antigas (criado pelo update quando cresce)
     │   └── 0001/README.md           # Documentação de cada implementação
     └── specs/
         ├── index.md                 # Tabela com todas as specs
@@ -184,7 +203,14 @@ projeto/
         │                                       │
         │                                       └── consolida checklist, status da spec e status.md
         │
-        └── subir para a VPS ──► /centaur-driven-deploy ──► .github/workflows/ + .centaur/implements/XXXX/
+        ├── subir para a VPS ──► /centaur-driven-deploy ──► .github/workflows/ + .centaur/implements/XXXX/
+        │
+        └── doc envelhecida ──► /centaur-driven-update ──► AGENTS.md migrado e consolidado
+                                        │
+                                        ├── migra o schema (carimbo vs skill instalada)
+                                        ├── audita integridade dos registros
+                                        ├── resolve conflitos doc × código × histórico
+                                        └── arquiva índice antigo em implements/arquivo.md
 ```
 
 Specs seguem os status `Pendente` → `Em andamento` → `Concluída`. Cada implementação referencia a spec/task de origem, e cada task concluída aponta para a implementação — trilha completa nos dois sentidos.

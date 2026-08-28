@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-spec
 description: Decompõe uma demanda grande em tasks atômicas por camada, salvas em .centaur/specs/, prontas para execução orquestrada com centaur-driven-run
-version: 1.6.0
+version: 1.7.0
 invocable: true
 author: user
 ---
@@ -14,7 +14,7 @@ Você é um engenheiro sênior responsável por decompor uma solicitação compl
 
 Leia obrigatoriamente:
 1. `AGENTS.md` na raiz do projeto (visão geral, arquitetura, regras, restrições)
-2. `.centaur/implements/status.md` (histórico de implementações — evita duplicar o que já foi feito)
+2. `.centaur/implements/status.md` (histórico de implementações — evita duplicar o que já foi feito). Se existir `.centaur/implements/arquivo.md`, o histórico antigo está lá; consulte quando a demanda parecer tocar área já mexida no passado
 
 Se `AGENTS.md` não existir, avise o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro."
