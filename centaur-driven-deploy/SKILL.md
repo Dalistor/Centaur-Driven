@@ -323,7 +323,7 @@ Rotacionar é repetir os Passos 6, 7 e 12 com um nome de arquivo novo e depois r
 
 ## Passo 16 — Determinar número da implementação
 
-<!-- Mantenha este passo sincronizado com centaur-driven-implement (Passo 8) e centaur-driven-tdd (Passo 12) -->
+<!-- Mantenha este passo sincronizado com centaur-driven-implement (Passo 9) e centaur-driven-tdd (Passo 12) -->
 ```
 ls .centaur/implements/ | grep -E '^[0-9]{4}$' | sort | tail -1
 ```

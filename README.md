@@ -48,6 +48,8 @@ A skill varre o projeto, faz perguntas sobre o que não está evidente no códig
 
 Entre as perguntas está a **stack de testes** (framework, comando de rodar a suíte, local e convenção dos arquivos, meta de cobertura) — é o que decide se uma mudança futura vai por TDD ou não. Se o projeto ainda não tem testes, a skill pergunta se você quer adotar TDD dali em diante e com qual framework.
 
+Outra pergunta é o **idioma e o vocabulário do código**: em que língua ficam identificadores, comentários e commits, e quais são os termos do domínio — a palavra oficial de cada conceito, com as variações que **não** devem ser usadas. Isso vira uma seção do `AGENTS.md` que as skills de implementação consultam antes de nomear qualquer coisa nova, para o projeto não acumular três nomes para a mesma entidade.
+
 Também entre as perguntas está a **Arquitetura de Camadas**: se o projeto já segue um padrão (models, DTOs, handlers, repositories, services...), ela é documentada; se não segue, a skill propõe uma separação adequada à stack para você aprovar. O resultado vira uma tabela no `AGENTS.md` dizendo, para cada camada, sua pasta, sua responsabilidade e o que é proibido nela — e todas as implementações futuras obedecem a essa tabela.
 
 ### 2. Para mudanças com comportamento testável, use tdd
@@ -58,7 +60,7 @@ Também entre as perguntas está a **Arquitetura de Camadas**: se o projeto já 
 
 Regra de negócio, validação com consequência, cálculo, correção de bug — o que tem comportamento com regra real entra por aqui, e **o teste vem antes do código**. Ser tecnicamente testável não basta: mapeamento direto, passthrough e fiação sem lógica vão pelo `implement`.
 
-A skill lê o contexto, detecta a stack de testes, transforma a solicitação em **critérios de aceite proporcionais ao risco** — caminho crítico (dinheiro, auth, validação) ganha bateria completa de caminho feliz, erros e bordas; comportamento comum ganha só o que tem chance real de acontecer; trivial ganha 1-2 testes —, tira todas as dúvidas e então roda os ciclos: **RED** (escreve o teste, roda, vê falhar — teste que passa de primeira é teste errado), **GREEN** (o mínimo de código de produção para passar), **REFACTOR** (limpa com a suíte verde). Um ciclo por comportamento. No fim, analisa cobertura, valida lint e camadas, e documenta em `.centaur/implements/XXXX/README.md` — incluindo a lista de ciclos executados.
+A skill lê o contexto, detecta a stack de testes, transforma a solicitação em **critérios de aceite proporcionais ao risco** — caminho crítico (dinheiro, auth, validação) ganha bateria completa de caminho feliz, erros e bordas; comportamento comum ganha só o que tem chance real de acontecer; trivial ganha 1-2 testes —, tira todas as dúvidas e então roda os ciclos: **RED** (escreve o teste, roda, vê falhar — teste que passa de primeira é teste errado), **GREEN** (o mínimo de código de produção para passar), **REFACTOR** (limpa com a suíte verde, sob o mesmo critério de clareza do `implement`). Um ciclo por comportamento. No fim, analisa cobertura, valida lint, camadas e clareza, e documenta em `.centaur/implements/XXXX/README.md` — incluindo a lista de ciclos executados.
 
 ### 3. Para mudanças estruturais, use implement
 
@@ -66,7 +68,7 @@ A skill lê o contexto, detecta a stack de testes, transforma a solicitação em
 /centaur-driven-implement renomear a pasta de handlers para controllers
 ```
 
-O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `AGENTS.md` (regra de negócio em service, query em repository, handler fino), valida (testes, lint e revisão de violação de camadas) e documenta em `.centaur/implements/XXXX/README.md`.
+O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `AGENTS.md` (regra de negócio em service, query em repository, handler fino), **revisa a clareza do que escreveu** (nomes que revelam intenção, vocabulário do domínio, sem número mágico nem comentário que narra a linha), valida (testes, lint e revisão de violação de camadas) e documenta em `.centaur/implements/XXXX/README.md`.
 
 Se a mudança pedida tiver regra de negócio relevante, ele mesmo redireciona para o `/centaur-driven-tdd`. Se a demanda for grande demais (muitas camadas, mais de ~4 arquivos), recusa e orienta a usar spec + run.
 
@@ -130,6 +132,18 @@ Configura deploy contínuo do projeto para uma **VPS que você controla**, via G
 Antes de qualquer comando que altere a VPS ou o GitHub, ela mostra o comando e pede confirmação. No fim, documenta o que ficou fora do repositório e **como revogar** o acesso.
 
 Cobre Docker/Docker Compose e processo direto (systemd, pm2). Fora do escopo: PaaS (Vercel, Railway, Fly), Kubernetes, registry de imagem, blue-green e rollback automático.
+
+## O código é a documentação
+
+As skills de execução tratam o código como a documentação principal do projeto — o README da implementação é trilha de auditoria, não explicação do código. Por isso o "porquê" tem uma ordem de precedência fixa:
+
+1. **No próprio código**, sempre que couber — constante nomeada no lugar do número solto, função extraída cujo nome diz a intenção, tipo ou enum no lugar de string livre
+2. **Em comentário curto ao lado**, só quando o porquê é externo ao código: regra de negócio arbitrária, limite de uma API, workaround de bug de terceiro. Comentário diz **por que**, nunca **o que**
+3. **No README da implementação**, só o que não cabe num arquivo de código: alternativas descartadas, trade-off de arquitetura, contexto histórico
+
+Quem abre o fonte não lê `.centaur/`, e o README envelhece enquanto o código muda — por isso o README nunca substitui código claro.
+
+O `implement` tem uma etapa dedicada a isso (revisar a clareza antes de validar) e o `tdd` aplica o mesmo critério no ciclo REFACTOR: nome que revela intenção, vocabulário do domínio vindo do `AGENTS.md`, função que faz uma coisa só, sem número mágico, sem aninhamento profundo, sem comentário que narra a linha seguinte, sem código morto. E a regra que resume: **nome que precisa de comentário para ser entendido é nome errado — troque o nome**.
 
 ## Estrutura gerada no projeto
 

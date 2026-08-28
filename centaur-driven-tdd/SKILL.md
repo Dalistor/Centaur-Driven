@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-tdd
 description: Implementa uma mudança guiada por testes (red-green-refactor), com casos de teste derivados dos critérios de aceite, análise de cobertura e documentação em .centaur/implements/. Use quando a mudança tem regra de negócio testável.
-version: 1.2.0
+version: 1.3.0
 invocable: true
 author: user
 ---
@@ -26,7 +26,7 @@ Você é um engenheiro de software sênior conduzindo uma implementação por Te
 ## Passo 1 — Ler o contexto do projeto
 
 Leia obrigatoriamente:
-1. `AGENTS.md` na raiz (visão geral, arquitetura, **Arquitetura de Camadas**, regras)
+1. `AGENTS.md` na raiz (visão geral, arquitetura, **Arquitetura de Camadas**, **Vocabulário e Idioma do Código**, regras)
 2. `.centaur/implements/status.md` (histórico de implementações)
 
 Se `AGENTS.md` não existir, avise:
@@ -142,11 +142,33 @@ Execute o teste e confirme que passa. Depois rode **a suíte inteira** e confirm
 
 ## Passo 9 — Ciclo REFACTOR
 
-Com a suíte verde, melhore o que ficou feio — no código **e nos testes**:
+<!-- Mantenha este passo sincronizado com centaur-driven-implement, Passo 7 -->
+Com a suíte verde, releia o que você escreveu como se estivesse chegando nele pela primeira vez, sem o contexto desta conversa. O código é a documentação principal do projeto — corrija o que só faz sentido para quem acabou de escrever, no código **e nos testes**.
 
-- Duplicação, nomes ruins, função longa, aninhamento profundo
+**Critério de bom nome:**
+- Revela a **intenção** — o que a coisa faz ou representa, não como está implementada (`precoComDesconto`, não `p2`; `buscarPorEmail`, não `query2`)
+- Usa o **vocabulário do domínio** do projeto — a palavra registrada na seção "Vocabulário e Idioma do Código" do `AGENTS.md` (ou, se a seção não existir, a que o resto do código já usa). Um conceito, um nome, no código inteiro. O idioma dos identificadores, dos comentários e dos nomes de teste também sai dessa seção
+- Sem abreviação (`calc`, `usr`, `tmp`, `res`) e sem sufixo redundante de tipo (`listaDeUsuariosArray`, `DataManager`)
+- Função é verbo, valor é substantivo, booleano lê como afirmação (`estaAtivo`, `temPermissao`)
+- **Nome que precisa de comentário para ser entendido é nome errado** — troque o nome, não adicione o comentário
+
+**Onde o "porquê" mora — nesta ordem de precedência:**
+1. **No próprio código**, sempre que couber: constante nomeada no lugar do número/string solto, função extraída cujo nome diz a intenção, tipo ou enum no lugar de string livre, guarda explícita no lugar de condição implícita
+2. **Em comentário curto ao lado**, quando o porquê é externo ao código e não há como expressá-lo nele: regra de negócio arbitrária, limite imposto por uma API, workaround de bug de terceiro, decisão contraintuitiva. Comentário explica **por que**, nunca **o que** a linha faz
+3. **No README da implementação** (Passo 13), só o que não cabe no arquivo: alternativas descartadas, trade-off de arquitetura, contexto histórico
+
+Nunca use o README como substituto de código claro: quem abre o fonte não lê `.centaur/`, e o README envelhece enquanto o código muda. O nome do teste é parte dessa documentação — ele é a especificação executável do comportamento.
+
+**Cheiros que este ciclo precisa pegar:**
+- Nome que não revela intenção, ou que usa palavra diferente da que o resto do projeto usa para o mesmo conceito
+- Duplicação
+- Número ou string mágico sem constante nomeada
+- Função que faz mais de uma coisa (se descrever exige um "e", separe)
+- Aninhamento além de 2-3 níveis — inverta a condição, extraia função ou use retorno antecipado
+- Parâmetro booleano que troca o comportamento da função (dois nomes explícitos são mais legíveis)
+- Comentário que narra a linha seguinte — apague, ou renomeie o que está sendo narrado
+- Código morto ou comentado — apague, o histórico está no Git
 - Setup repetido nos testes → extraia fixture/factory/helper
-- Números mágicos → constantes nomeadas
 
 Regras: refatore só o que a mudança atual tocou (não faça faxina fora do escopo), e rode a suíte depois de cada refatoração. Se ficou vermelho, reverta a refatoração — não conserte por cima.
 
@@ -163,7 +185,8 @@ Volte ao Passo 7 com o próximo caso da lista, até todos os critérios de aceit
    - Linha nova descoberta em caminho crítico é um caso de teste faltando: escreva o teste. Em código trivial, uma justificativa de uma frase na documentação basta — não escreva teste só para fechar número.
 3. **Lint / type-check**: se existir, execute.
 4. **Revisão de camadas**: confirme que nenhuma mudança violou a Arquitetura de Camadas.
-5. **Qualidade dos testes** — revise a suíte nova contra estes cheiros:
+5. **Clareza**: confirme que o resultado final passa nos critérios do Passo 9 — os ciclos foram muitos e a última refatoração pode ter deixado nome ou estrutura para trás.
+6. **Qualidade dos testes** — revise a suíte nova contra estes cheiros:
    - Teste que depende da ordem de execução ou de estado deixado por outro teste
    - Teste sem asserção, ou com asserção que passaria com qualquer valor
    - Mock do próprio objeto sob teste
@@ -174,7 +197,7 @@ Corrija tudo antes de documentar.
 
 ## Passo 12 — Determinar número da implementação
 
-<!-- Mantenha este passo sincronizado com centaur-driven-implement (Passo 8) e centaur-driven-deploy (Passo 16) -->
+<!-- Mantenha este passo sincronizado com centaur-driven-implement (Passo 9) e centaur-driven-deploy (Passo 16) -->
 Execute exatamente este comando para encontrar o último número:
 
 ```
@@ -190,6 +213,8 @@ ls .centaur/implements/ | grep -E '^[0-9]{4}$' | sort | tail -1
 ## Passo 13 — Documentar a implementação
 
 Obtenha a data de hoje com `date +%F` — não a preencha de memória.
+
+Este README é a trilha de auditoria, **não** o lugar onde o código é explicado. O que dá para expressar no próprio código já foi expresso no Passo 9; aqui fica só o que não cabe num arquivo de código.
 
 Crie `.centaur/implements/XXXX/README.md`:
 
@@ -225,7 +250,7 @@ Crie `.centaur/implements/XXXX/README.md`:
 - `caminho/novo.ext` — [para que serve]
 
 ## Decisões técnicas
-[Por que cada decisão foi tomada dessa forma e não de outra — incluindo estratégia de mock e o que foi deixado deliberadamente sem teste]
+[Só o que não cabe no código: alternativas descartadas e por quê, trade-offs de arquitetura, estratégia de mock, o que foi deixado deliberadamente sem teste. Se a justificativa cabia numa constante nomeada ou num comentário ao lado da linha, o lugar dela era lá — não aqui]
 
 ## Como validar
 [Comando exato para rodar os testes desta implementação]
@@ -248,7 +273,7 @@ Se a tabela ainda contiver a linha placeholder (`| — | — | — | — | — |
 
 ## Passo 15 — Atualizar AGENTS.md se necessário
 
-Se a implementação adicionou funcionalidade relevante, mudou arquitetura, introduziu dependência importante, ou **estabeleceu a infraestrutura de testes do projeto** (framework, comando, convenção de nomes) → atualize a seção relevante do `AGENTS.md`. Correção interna sem impacto na visão geral não precisa.
+Se a implementação adicionou funcionalidade relevante, mudou arquitetura, introduziu dependência importante, **estabeleceu a infraestrutura de testes do projeto** (framework, comando, convenção de nomes), ou **estabeleceu um termo novo do domínio** que o código passou a usar → atualize a seção relevante do `AGENTS.md`. O termo novo vai para a seção "Vocabulário e Idioma do Código", para que a próxima implementação use a mesma palavra. Correção interna sem impacto na visão geral não precisa.
 
 ## Passo 16 — Informar o usuário
 

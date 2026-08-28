@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-start-project
 description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa .centaur/implements/ e .centaur/specs/
-version: 1.3.0
+version: 1.4.0
 invocable: true
 author: user
 ---
@@ -52,9 +52,10 @@ Após a varredura, faça perguntas para preencher o que não está claro no cód
 4. **Camadas**: O projeto segue (ou deve seguir) separação em camadas? Se você identificou um padrão na varredura (models, DTOs, handlers/controllers, repositories, services, etc.), confirme com o usuário. Se não há padrão definido, proponha a separação em camadas adequada à stack e pergunte se ele aprova — ela será a regra para todas as implementações futuras.
 5. **Testes**: Qual framework de teste o projeto usa (ou deve usar)? Qual o comando para rodar a suíte, um arquivo só e a cobertura? Onde ficam os arquivos de teste e qual a convenção de nome? Há meta de cobertura? Se a varredura já revelou isso (scripts do package.json, pytest.ini, pasta de testes), só confirme. Se o projeto não tem testes, pergunte se ele quer adotar TDD nas próximas implementações e qual framework.
 6. **Padrões**: Há convenções ou regras que devem ser seguidas nas implementações (naming, estrutura de pastas, estilo)?
-7. **Restrições**: Há limitações técnicas, de performance, de segurança ou de negócio?
-8. **Ambiente**: Como rodar localmente? Como fazer deploy?
-9. **Contexto extra**: Qualquer coisa que um dev novo precisaria saber antes de tocar no código?
+7. **Idioma e vocabulário do código**: Em que idioma são escritos os identificadores (nomes de variável, função, classe)? E os comentários? E as mensagens de commit? É comum o domínio ficar em português e a infraestrutura em inglês — se a varredura mostrou isso, confirme em vez de perguntar. Levante também os **termos do domínio** que já aparecem no código (as palavras que nomeiam as entidades centrais) e confirme se são as palavras corretas do negócio: elas viram o vocabulário obrigatório das próximas implementações. Um conceito, um nome, no projeto inteiro.
+8. **Restrições**: Há limitações técnicas, de performance, de segurança ou de negócio?
+9. **Ambiente**: Como rodar localmente? Como fazer deploy?
+10. **Contexto extra**: Qualquer coisa que um dev novo precisaria saber antes de tocar no código?
 
 Faça todas as perguntas de uma vez. Aguarde as respostas antes de continuar.
 
@@ -110,6 +111,22 @@ Estrutura do AGENTS.md:
 | Meta de cobertura | [ex: 80% linha, 100% em serviços críticos] |
 
 [Como mockar dependências externas (banco, HTTP, relógio) neste projeto. Se o projeto não tem testes automatizados, registre isso explicitamente aqui.]
+
+## Vocabulário e Idioma do Código
+
+| Item | Valor |
+|------|-------|
+| Identificadores (variável, função, classe) | [ex: inglês; ou português no domínio e inglês na infraestrutura] |
+| Comentários | [ex: português] |
+| Mensagens de commit | [ex: português, prefixo convencional feat/fix/...] |
+
+**Termos do domínio** — a palavra à esquerda é a única usada no código para esse conceito:
+
+| Termo | Significa | Não use |
+|-------|-----------|---------|
+| [ex: `cobranca`] | [ex: uma ordem de pagamento emitida para um cliente] | [ex: `payment`, `fatura`, `charge`] |
+
+[Se o projeto ainda não tem vocabulário definido, registre isso e o combinado com o usuário. As skills de implementação consultam esta seção antes de nomear qualquer coisa nova, e acrescentam aqui os termos que estabelecerem.]
 
 ## Regras e Convenções
 [O que seguir ao implementar: naming, estrutura de pastas, padrões de código, etc]

@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-spec
 description: Decompõe uma demanda grande em tasks atômicas por camada, salvas em .centaur/specs/, prontas para execução orquestrada com centaur-driven-run
-version: 1.5.0
+version: 1.6.0
 invocable: true
 author: user
 ---
@@ -19,7 +19,7 @@ Leia obrigatoriamente:
 Se `AGENTS.md` não existir, avise o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro."
 
-Dê atenção especial à seção **Arquitetura de Camadas** do `AGENTS.md` — ela guia a decomposição no Passo 5. Se a seção não existir, sugira ao usuário rodar `/centaur-driven-start-project` para formalizá-la antes de criar a spec (ou acorde as camadas com ele agora e inclua no contexto técnico da spec).
+Dê atenção especial a duas seções do `AGENTS.md`: **Arquitetura de Camadas**, que guia a decomposição no Passo 5, e **Vocabulário e Idioma do Código**, cujos termos você deve usar ao escrever as instruções das tasks — o subagente nomeia o código com as palavras que a instrução usar. Se a seção não existir, sugira ao usuário rodar `/centaur-driven-start-project` para formalizá-la antes de criar a spec (ou acorde as camadas com ele agora e inclua no contexto técnico da spec).
 
 ## Passo 2 — Entender a solicitação
 

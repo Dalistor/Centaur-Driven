@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-implement
 description: Implementa mudanças pontuais e diretas sem TDD (estruturais, config, UI, ou projetos sem testes) - lê o contexto, tira dúvidas, aplica, valida e documenta em .centaur/implements/. Para comportamento testável use centaur-driven-tdd; para demandas grandes use centaur-driven-spec + centaur-driven-run.
-version: 1.6.0
+version: 1.7.0
 invocable: true
 author: user
 ---
@@ -19,7 +19,7 @@ Você é um engenheiro de software sênior executando uma implementação docume
 ## Passo 1 — Ler o contexto do projeto
 
 Leia obrigatoriamente:
-1. `AGENTS.md` na raiz do projeto (visão geral, arquitetura, regras, restrições)
+1. `AGENTS.md` na raiz do projeto (visão geral, arquitetura, **Arquitetura de Camadas**, **Vocabulário e Idioma do Código**, regras, restrições)
 2. `.centaur/implements/status.md` (histórico de implementações anteriores)
 
 Se `AGENTS.md` não existir, avise o usuário:
@@ -59,7 +59,7 @@ Se não houver dúvidas, confirme o plano de implementação em uma ou duas fras
 
 <!-- [modo spec] Mantenha este bloco sincronizado com centaur-driven-tdd, Passo 5 -->
 **[modo spec]** Não pergunte nada — as decisões já foram resolvidas quando a spec foi criada, e como subagente você não tem canal com o usuário. Se a instrução da task for suficiente, prossiga direto. Se encontrar uma ambiguidade que **realmente impede** a implementação (conflito com o código atual, dependência não concluída), **pare sem implementar**:
-1. Reserve um número de implementação conforme o Passo 8
+1. Reserve um número de implementação conforme o Passo 9
 2. Crie `.centaur/implements/XXXX/README.md` mínimo documentando o bloqueio:
 
 ```markdown
@@ -90,11 +90,41 @@ Com todas as dúvidas resolvidas, execute a implementação:
 - **Respeite a Arquitetura de Camadas do `AGENTS.md`**: cada responsabilidade na sua camada (validação de forma em DTOs, regra de negócio em services, acesso a dados em repositories, orquestração de requisição em handlers). Nunca atravesse camadas — se precisar de algo de outra camada, injete/chame pela interface dela
 - Se a camada necessária ainda não existe no projeto (ex: primeira repository), crie-a na pasta definida pelo `AGENTS.md`, seguindo o padrão da tabela de camadas
 - Se o `AGENTS.md` não tiver a seção "Arquitetura de Camadas", siga o padrão dos arquivos vizinhos e sugira ao usuário rodar `/centaur-driven-start-project` para formalizar a arquitetura
+- **Escreva para quem vai ler**: siga o princípio de expressividade do Passo 7 enquanto escreve, não só na revisão
 - Faça mudanças cirúrgicas — não refatore o que não está no escopo
 - Se criar novos arquivos, coloque-os nas pastas corretas conforme a estrutura do projeto
-- Adicione comentários apenas onde o "por quê" não é óbvio pelo código
 
-## Passo 7 — Validar
+## Passo 7 — Revisar a clareza do código
+
+<!-- Mantenha este passo sincronizado com centaur-driven-tdd, Passo 9 (REFACTOR) -->
+O código é a documentação principal do projeto. Antes de validar, releia o que você escreveu como se estivesse chegando nele pela primeira vez, sem o contexto desta conversa. Corrija o que só faz sentido para quem acabou de escrever.
+
+**Critério de bom nome:**
+- Revela a **intenção** — o que a coisa faz ou representa, não como está implementada (`precoComDesconto`, não `p2`; `buscarPorEmail`, não `query2`)
+- Usa o **vocabulário do domínio** do projeto — a palavra registrada na seção "Vocabulário e Idioma do Código" do `AGENTS.md` (ou, se a seção não existir, a que o resto do código já usa). Um conceito, um nome, no código inteiro. O idioma dos identificadores e dos comentários também sai dessa seção
+- Sem abreviação (`calc`, `usr`, `tmp`, `res`) e sem sufixo redundante de tipo (`listaDeUsuariosArray`, `DataManager`)
+- Função é verbo, valor é substantivo, booleano lê como afirmação (`estaAtivo`, `temPermissao`)
+- **Nome que precisa de comentário para ser entendido é nome errado** — troque o nome, não adicione o comentário
+
+**Onde o "porquê" mora — nesta ordem de precedência:**
+1. **No próprio código**, sempre que couber: constante nomeada no lugar do número/string solto, função extraída cujo nome diz a intenção, tipo ou enum no lugar de string livre, guarda explícita no lugar de condição implícita
+2. **Em comentário curto ao lado**, quando o porquê é externo ao código e não há como expressá-lo nele: regra de negócio arbitrária, limite imposto por uma API, workaround de bug de terceiro, decisão contraintuitiva. Comentário explica **por que**, nunca **o que** a linha faz
+3. **No README da implementação** (Passo 10), só o que não cabe no arquivo: alternativas descartadas, trade-off de arquitetura, contexto histórico
+
+Nunca use o README como substituto de código claro: quem abre o fonte não lê `.centaur/`, e o README envelhece enquanto o código muda.
+
+**Cheiros que esta revisão precisa pegar:**
+- Nome que não revela intenção, ou que usa palavra diferente da que o resto do projeto usa para o mesmo conceito
+- Número ou string mágico sem constante nomeada
+- Função que faz mais de uma coisa (se descrever exige um "e", separe)
+- Aninhamento além de 2-3 níveis — inverta a condição, extraia função ou use retorno antecipado
+- Parâmetro booleano que troca o comportamento da função (dois nomes explícitos são mais legíveis)
+- Comentário que narra a linha seguinte — apague, ou renomeie o que está sendo narrado
+- Código morto ou comentado — apague, o histórico está no Git
+
+Corrija dentro do escopo que você tocou; não faça faxina no resto do arquivo.
+
+## Passo 8 — Validar
 
 Após implementar, tente validar nesta ordem:
 
@@ -105,7 +135,7 @@ Após implementar, tente validar nesta ordem:
 
 Se encontrar problemas na validação, corrija antes de documentar. Se nenhum mecanismo de validação existir no projeto, documente isso explicitamente no README da implementação.
 
-## Passo 8 — Determinar número da implementação
+## Passo 9 — Determinar número da implementação
 
 <!-- Mantenha este passo sincronizado com centaur-driven-tdd (Passo 12) e centaur-driven-deploy (Passo 16) -->
 Execute exatamente este comando para encontrar o último número:
@@ -120,9 +150,11 @@ ls .centaur/implements/ | grep -E '^[0-9]{4}$' | sort | tail -1
 
 **Reserve o número imediatamente** criando a pasta com `mkdir .centaur/implements/XXXX` (sem `-p`). Se o comando falhar porque a pasta já existe — acontece quando outra task roda em paralelo via `/centaur-driven-run` —, incremente o número e tente de novo até conseguir. Só considere o número seu depois que o `mkdir` tiver sucesso.
 
-## Passo 9 — Documentar a implementação
+## Passo 10 — Documentar a implementação
 
 Obtenha a data de hoje com `date +%F` — não a preencha de memória.
+
+Este README é a trilha de auditoria, **não** o lugar onde o código é explicado. O que dá para expressar no próprio código já foi expresso no Passo 7; aqui fica só o que não cabe num arquivo de código.
 
 Crie o arquivo `.centaur/implements/XXXX/README.md`:
 
@@ -151,7 +183,7 @@ Crie o arquivo `.centaur/implements/XXXX/README.md`:
 - `caminho/novo.ext` — [para que serve]
 
 ## Decisões técnicas
-[Por que cada decisão foi tomada dessa forma e não de outra]
+[Só o que não cabe no código: alternativas descartadas e por quê, trade-offs de arquitetura, contexto histórico. Se a justificativa cabia numa constante nomeada ou num comentário ao lado da linha, o lugar dela era lá — não aqui]
 
 ## Como validar
 [Como testar/verificar manualmente que funciona]
@@ -160,7 +192,7 @@ Crie o arquivo `.centaur/implements/XXXX/README.md`:
 [O que foi executado e o resultado: testes passando, sem erros de lint, etc]
 ```
 
-## Passo 10 — Atualizar status.md
+## Passo 11 — Atualizar status.md
 
 **[modo spec]** Pule este passo — o orquestrador escreve a linha no `status.md` com base no seu relatório final. Escritas paralelas de subagentes no mesmo arquivo se sobrescrevem.
 
@@ -172,19 +204,20 @@ Adicione uma linha na tabela de `.centaur/implements/status.md`:
 
 Se a tabela ainda contiver a linha placeholder (`| — | — | — | — | — |`), remova-a ao inserir a primeira linha real.
 
-## Passo 11 — Atualizar AGENTS.md se necessário
+## Passo 12 — Atualizar AGENTS.md se necessário
 
 Se a implementação:
 - Adicionou uma funcionalidade nova relevante para o projeto
 - Mudou a arquitetura ou estrutura de pastas
 - Introduziu uma nova dependência importante
 - Alterou como o projeto é rodado ou deployado
+- **Estabeleceu um termo novo do domínio** que o código passou a usar → registre na seção "Vocabulário e Idioma do Código", para que a próxima implementação use a mesma palavra
 
 → Atualize a seção relevante do `AGENTS.md`.
 
 Se foi uma correção de bug ou mudança interna sem impacto na visão geral, não precisa atualizar.
 
-## Passo 12 — Informar o usuário
+## Passo 13 — Informar o usuário
 
 Confirme que a implementação foi concluída com:
 - O que foi feito (resumo de 2-3 linhas)
