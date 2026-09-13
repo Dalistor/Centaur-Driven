@@ -8,16 +8,38 @@ Centauro: metade humano, metade máquina. Você toma as decisões — o Claude e
 
 ## Instalação
 
-Copie as pastas das skills para o diretório global de skills do Claude Code:
+O conjunto depende da skill **`clean-code`**, distribuída pelo projeto [Clean Code Skills](https://github.com/btseee/clean-code-skills). Ela fornece os critérios de qualidade de código e arquitetura usados pelas nove skills Centaur. A versão de referência desta integração é **3.2.0**.
+
+Para uma instalação nova, copie o conjunto e a dependência completa para o diretório global de skills do Claude Code:
 
 ```bash
 git clone https://github.com/Dalistor/Centaur-Driven.git
+git clone https://github.com/btseee/clean-code-skills.git
+mkdir -p ~/.claude/skills
 cp -r Centaur-Driven/centaur-driven-* ~/.claude/skills/
+cp -r clean-code-skills/skills/clean-code ~/.claude/skills/
+test -f ~/.claude/skills/clean-code/SKILL.md
+test -f ~/.claude/skills/clean-code/references/session-protocol.md
+test -f ~/.claude/skills/clean-code/references/architecture.md
+test -f ~/.claude/skills/clean-code/references/tests.md
 ```
 
 Reinicie sessões abertas do Claude Code para que as skills apareçam. Elas ficam disponíveis em **todos** os projetos.
 
-> Se preferir instalar apenas em um projeto, copie as pastas para `.claude/skills/` na raiz do projeto.
+> Se preferir instalar apenas em um projeto, copie as pastas do Centaur **e** `clean-code` para `.claude/skills/` na raiz do projeto. Preserve `references/`, `scripts/` e `assets/` da dependência; copiar apenas o `SKILL.md` não basta. Se ela já estiver instalada, confira sua versão e os recursos antes de substituir a pasta.
+
+### Contrato da dependência
+
+Cada skill declara `metadata.dependencies: clean-code` e instrui o agente a localizar e ler a dependência antes de executar seu fluxo. Esse campo documenta o requisito; não instala nem resolve versões automaticamente. Se a dependência estiver ausente ou incompleta, o agente informa o problema antes de executar trabalho dependente dela.
+
+- `start-project` e `spec` usam os critérios de responsabilidade e direção de dependências na documentação e no planejamento.
+- `implement`, `tdd` e `deploy` aplicam os critérios ao escrever e revisar código, testes, workflows e scripts.
+- `run` e `mcp` garantem o carregamento também pelos executores.
+- `check` e `update` usam os critérios na análise, preservando seus limites de leitura e documentação.
+
+As instruções do usuário e do projeto prevalecem. O Centaur mantém seu roteamento entre TDD e modo direto, com validação proporcional ao risco. `AGENTS.md` e `.centaur/` continuam sendo seu contexto e histórico; `.clean/`, quando já existe, é consultado sem escritas por estes fluxos. Carregar `clean-code` não inicia auditoria ou refatoração geral.
+
+Projetos já documentados recebem a seção de qualidade do novo template por `/centaur-driven-update`.
 
 ## As skills
 

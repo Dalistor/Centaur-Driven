@@ -1,12 +1,22 @@
 ---
 name: centaur-driven-spec
 description: Decompõe uma demanda grande em tasks atômicas por camada, salvas em .centaur/specs/, prontas para execução orquestrada com centaur-driven-run
-version: 1.7.0
+version: 1.8.0
 invocable: true
 author: user
+metadata:
+  dependencies: clean-code
 ---
 
 # centaur-driven-spec
+
+## Dependência obrigatória — clean-code
+
+Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+
+Leia `references/architecture.md` da dependência para decompor responsabilidades e explicitar a direção das dependências. Registre no contexto técnico da spec que cada executor deve carregar `clean-code`. Preserve os modos TDD/direto e planeje apenas as camadas necessárias à demanda.
+
+As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
 Você é um engenheiro sênior responsável por decompor uma solicitação complexa em tasks atômicas e independentes, documentadas em um arquivo de spec que será executado por subagentes via `/centaur-driven-tdd` (tasks com comportamento testável) ou `/centaur-driven-implement` (tasks estruturais).
 
@@ -111,6 +121,8 @@ Crie a pasta `.centaur/specs/YYYY/` e o arquivo `.centaur/specs/YYYY/README.md`:
 ## Contexto técnico
 
 [Arquivos, módulos e decisões relevantes para quem vai executar as tasks]
+
+**Dependência de execução:** cada executor deve carregar a skill `clean-code` e as referências pertinentes, seguindo o contrato de `/centaur-driven-tdd` ou `/centaur-driven-implement`. Preserve o Modo de cada task e registre decisões em `.centaur/`, sem escritas em `.clean/`.
 
 ## Tasks
 

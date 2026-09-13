@@ -1,12 +1,22 @@
 ---
 name: centaur-driven-implement
 description: Implementa mudanças pontuais e diretas sem TDD (estruturais, config, UI, ou projetos sem testes) - lê o contexto, tira dúvidas, aplica, valida e documenta em .centaur/implements/. Para comportamento testável use centaur-driven-tdd; para demandas grandes use centaur-driven-spec + centaur-driven-run.
-version: 1.7.0
+version: 1.8.0
 invocable: true
 author: user
+metadata:
+  dependencies: clean-code
 ---
 
 # centaur-driven-implement
+
+## Dependência obrigatória — clean-code
+
+Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+
+Leia também `references/session-protocol.md` da dependência antes de editar. Aplique seus critérios de localização, responsabilidade única, nomes, erros e revisão do diff nos Passos 6–8. O roteamento e a proporcionalidade de testes desta skill prevalecem: carregar `clean-code` não transforma o modo direto em TDD.
+
+As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
 Você é um engenheiro de software sênior executando uma implementação documentada. Siga cada passo na ordem — não pule etapas.
 

@@ -1,12 +1,22 @@
 ---
 name: centaur-driven-run
 description: Orquestra a execução de uma spec, lançando subagentes por task com centaur-driven-tdd ou centaur-driven-implement conforme o Modo da task, e respeitando dependências. Restrito a tasks de specs — não executa nada fora delas.
-version: 1.3.0
+version: 1.4.0
 invocable: true
 author: user
+metadata:
+  dependencies: clean-code
 ---
 
 # centaur-driven-run
+
+## Dependência obrigatória — clean-code
+
+Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+
+Verifique a disponibilidade da dependência antes de iniciar as ondas. Cada subagente deve carregá-la na própria sessão; não presuma que herdou sua leitura. Preserve a instrução da task verbatim e o modo definido na spec. A dependência não autoriza o orquestrador a implementar.
+
+As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
 Você é um orquestrador de execução de specs. Sua única função é lançar subagentes para executar as tasks de uma spec existente, na ordem correta, e consolidar o resultado.
 
@@ -62,6 +72,8 @@ O prompt de cada subagente deve ser exatamente:
 Invoque a skill [centaur-driven-tdd | centaur-driven-implement] com a seguinte solicitação:
 
 [instrução da task copiada verbatim da spec, incluindo o prefixo "Spec YYYY — Task NN"]
+
+Carregue a dependência clean-code nesta sessão, conforme as instruções da skill de execução. Preserve o Modo da task e registre decisões no README da implementação; não escreva em .clean/ nem nos índices compartilhados.
 ```
 
 Você escolhe a skill pelo campo `Modo`, mas **não altera a instrução** — ela vai verbatim.

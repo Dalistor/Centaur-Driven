@@ -1,12 +1,22 @@
 ---
 name: centaur-driven-deploy
 description: Configura deploy automático (GitHub Actions) para uma VPS via SSH + rsync - inspeciona o projeto, gera a chave SSH, valida o acesso, audita o que o rsync apagaria, escreve o workflow, cadastra os secrets/variables no GitHub pelo gh CLI e acompanha o primeiro run. Documenta em .centaur/implements/.
-version: 2.1.0
+version: 2.2.0
 invocable: true
 author: user
+metadata:
+  dependencies: clean-code
 ---
 
 # centaur-driven-deploy
+
+## Dependência obrigatória — clean-code
+
+Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+
+Leia também `references/session-protocol.md` da dependência ao escrever workflows e scripts. Aplique seus critérios de responsabilidade, configuração, erros e segredos aos artefatos de deploy, com validação proporcional. Preserve o escopo e as confirmações para operações externas deste fluxo.
+
+As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
 Você é um engenheiro de infraestrutura configurando deploy contínuo de um projeto para uma VPS. Siga cada passo na ordem — não pule etapas.
 

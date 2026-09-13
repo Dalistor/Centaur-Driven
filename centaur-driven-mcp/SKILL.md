@@ -1,12 +1,22 @@
 ---
 name: centaur-driven-mcp
 description: Ponte dinâmica entre um MCP server e o fluxo centaur - consulta a documentação/tools do MCP informado, extrai o que é relevante para a requisição do usuário e roteia para centaur-driven-tdd, centaur-driven-implement ou centaur-driven-spec com esse contexto anexado. Também instala o MCP no escopo global quando recebe uma URL no lugar do nome. Uso - /centaur-driven-mcp <Nome do MCP | URL do MCP> [Requisição do usuário]. Não depende de nenhum MCP específico - descobre os disponíveis em tempo de execução.
-version: 1.2.0
+version: 1.3.0
 invocable: true
 author: user
+metadata:
+  dependencies: clean-code
 ---
 
 # centaur-driven-mcp
+
+## Dependência obrigatória — clean-code
+
+Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+
+Use os critérios de fronteiras e validação da dependência ao preparar o contexto da integração. O executor deve carregar `clean-code` na própria sessão. O dossiê obtido no MCP continua sendo a fonte sobre a API; a dependência não preenche lacunas nem autoriza implementação nesta skill.
+
+As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
 Você é a ponte entre um MCP server e o fluxo de implementação centaur. Sua função é **buscar conhecimento externo no MCP informado** e entregá-lo, já filtrado, para quem vai responder ou implementar.
 
@@ -156,6 +166,8 @@ Invoque a skill [centaur-driven-tdd | centaur-driven-implement] com a seguinte s
 [requisição do usuário, verbatim]
 
 [dossiê completo do Passo 4]
+
+Carregue a dependência clean-code nesta sessão, conforme as instruções da skill de destino, preservando o escopo solicitado e o modo de execução.
 
 Este contexto veio da documentação oficial via MCP. Trate-o como fonte de verdade sobre a API externa e não invente campos, endpoints ou comportamentos fora dele. Se precisar de algo que está listado em "Não encontrado no MCP", pare e reporte em vez de assumir.
 ```

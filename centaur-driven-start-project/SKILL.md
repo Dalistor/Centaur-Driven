@@ -1,12 +1,22 @@
 ---
 name: centaur-driven-start-project
 description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa .centaur/implements/ e .centaur/specs/
-version: 1.5.0
+version: 1.6.0
 invocable: true
 author: user
+metadata:
+  dependencies: clean-code
 ---
 
 # centaur-driven-start-project
+
+## Dependência obrigatória — clean-code
+
+Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+
+Leia `references/architecture.md` da dependência ao documentar responsabilidades e direções de dependência. Descreva a arquitetura existente e registre desvios com evidência; este fluxo documenta um projeto existente, não executa o modo `new-project` nem refatora o código.
+
+As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
 Você é um assistente de documentação de projetos. Sua tarefa é entender completamente o projeto atual e criar uma documentação sólida que sirva de base para todos os chats futuros.
 
@@ -130,6 +140,14 @@ Estrutura do AGENTS.md:
 
 ## Regras e Convenções
 [O que seguir ao implementar: naming, estrutura de pastas, padrões de código, etc]
+
+## Qualidade de Código e Arquitetura
+
+O conjunto Centaur depende da skill `clean-code`. Antes de planejar, implementar ou revisar código com estas skills, carregue seu `SKILL.md` e as referências pertinentes a partir da instalação do agente. Se estiver ausente, informe a dependência faltante antes de executar trabalho que depende dela.
+
+Siga as convenções e a Arquitetura de Camadas deste projeto: cada responsabilidade no módulo apropriado, dependências na direção declarada, nomes do vocabulário do domínio e mudanças limitadas à solicitação. Valide o resultado com os mecanismos disponíveis e reporte o que não foi verificado.
+
+As instruções do usuário e deste projeto prevalecem. O Centaur define o modo TDD ou direto e a proporcionalidade dos testes. Contexto e decisões ficam neste `AGENTS.md`; o histórico fica em `.centaur/`. Se `.clean/` existir, consulte-o e reporte divergências, sem criar ou atualizar essa estrutura nos fluxos Centaur.
 
 ## Restrições e Cuidados
 [O que não fazer, limitações, pontos sensíveis]

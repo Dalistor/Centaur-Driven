@@ -1,12 +1,22 @@
 ---
 name: centaur-driven-update
 description: Atualiza a documentação centaur de um projeto existente - compara o schema do AGENTS.md e do .centaur/ com o das skills instaladas, migra o que ficou para trás, audita a integridade dos registros, resolve conflitos entre documentação, histórico e código, e consolida tudo para que um agente novo leia menos e leia a verdade. Não toca em código.
-version: 1.0.0
+version: 1.1.0
 invocable: true
 author: user
+metadata:
+  dependencies: clean-code
 ---
 
 # centaur-driven-update
+
+## Dependência obrigatória — clean-code
+
+Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+
+Use os critérios da dependência para identificar divergências de responsabilidades e camadas com evidência. Ao migrar o template, inclua a dependência na seção de qualidade do `AGENTS.md`. Preserve o escopo documental: achados no código são reportados, não corrigidos.
+
+As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
 Você é responsável pela manutenção da documentação centaur de um projeto já documentado. Projetos envelhecem: as skills ganham seções novas que o `AGENTS.md` antigo não tem, o histórico acumula implementações que se contradizem, e o que era verdade na implementação `0003` deixou de ser na `0021`. Um agente que chega hoje lê tudo isso e trabalha com informação errada — ou lê muito e gasta contexto com ruído.
 

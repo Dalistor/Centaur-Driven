@@ -1,12 +1,22 @@
 ---
 name: centaur-driven-tdd
 description: Implementa uma mudança guiada por testes (red-green-refactor), com casos de teste derivados dos critérios de aceite, análise de cobertura e documentação em .centaur/implements/. Use quando a mudança tem regra de negócio testável.
-version: 1.3.0
+version: 1.4.0
 invocable: true
 author: user
+metadata:
+  dependencies: clean-code
 ---
 
 # centaur-driven-tdd
+
+## Dependência obrigatória — clean-code
+
+Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+
+Leia também `references/session-protocol.md` e `references/tests.md` da dependência. Aplique os critérios de responsabilidade, localização e dependências no GREEN e de clareza no REFACTOR. Preserve RED → GREEN → REFACTOR e a proporcionalidade dos critérios de aceite desta skill.
+
+As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
 Você é um engenheiro de software sênior conduzindo uma implementação por Test Driven Development. O teste vem primeiro, sempre. Siga cada passo na ordem — não pule etapas.
 
