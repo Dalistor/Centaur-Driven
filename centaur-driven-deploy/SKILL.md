@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-deploy
 description: Configura deploy automático (GitHub Actions) para uma VPS via SSH + rsync - inspeciona o projeto, gera a chave SSH, valida o acesso, audita o que o rsync apagaria, escreve o workflow, cadastra os secrets/variables no GitHub pelo gh CLI e acompanha o primeiro run. Documenta em .centaur/implements/.
-version: 2.2.0
+version: 2.3.0
 invocable: true
 author: user
 metadata:
@@ -413,7 +413,11 @@ Deploy sempre entra no `AGENTS.md` — muda como o projeto é publicado. Atualiz
 
 Se houver documentação de deploy dedicada (`deploy/README.md` ou similar), acrescente lá a seção detalhada e mantenha o `AGENTS.md` com o resumo apontando para ela.
 
-## Passo 20 — Informar o usuário
+## Passo 20 — Sincronizar o Obsidian
+
+Use `centaur-driven-obsidian` para atualizar o fluxo de publicação, registrando o que foi confirmado sobre responsabilidades externas e de servidor. Se o vault não estiver configurado, reporte a pendência sem bloquear o deploy validado.
+
+## Passo 21 — Informar o usuário
 
 Encerre com:
 - Resumo em 2-3 linhas do que foi configurado
@@ -421,4 +425,5 @@ Encerre com:
 - Resultado do run de `dry_run` e o que ele mostrou de `*deleting`
 - O checklist da VPS que ainda estiver pendente
 - Número da implementação (ex: "Documentado em `.centaur/implements/0003/`")
+- Notas do Obsidian atualizadas, ou pendência explícita do vault
 - Aviso de que o push na branch dispara o deploy na hora — e pergunte se pode commitar/pushar

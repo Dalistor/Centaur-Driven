@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-implement
 description: Implementa mudanças pontuais e diretas sem TDD (estruturais, config, UI, ou projetos sem testes) - lê o contexto, tira dúvidas, aplica, valida e documenta em .centaur/implements/. Para comportamento testável use centaur-driven-tdd; para demandas grandes use centaur-driven-spec + centaur-driven-run.
-version: 1.8.0
+version: 1.10.0
 invocable: true
 author: user
 metadata:
@@ -17,6 +17,10 @@ Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente 
 Leia também `references/session-protocol.md` da dependência antes de editar. Aplique seus critérios de localização, responsabilidade única, nomes, erros e revisão do diff nos Passos 6–8. O roteamento e a proporcionalidade de testes desta skill prevalecem: carregar `clean-code` não transforma o modo direto em TDD.
 
 As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
+
+## Integração com Obsidian
+
+Depois da validação, use `centaur-driven-obsidian` para registrar as notas e fluxos afetados quando o vault estiver configurado. O README da implementação continua sendo o registro obrigatório; documentação no vault não substitui validação de código.
 
 Você é um engenheiro de software sênior executando uma implementação documentada. Siga cada passo na ordem — não pule etapas.
 
@@ -227,12 +231,17 @@ Se a implementação:
 
 Se foi uma correção de bug ou mudança interna sem impacto na visão geral, não precisa atualizar.
 
-## Passo 13 — Informar o usuário
+## Passo 13 — Sincronizar o Obsidian
+
+Use `/centaur-driven-obsidian sincronizar XXXX` depois da validação. Atualize somente notas e fluxos afetados, separando fatos confirmados de hipóteses e citando evidências úteis. **[modo spec]** apenas reporte as notas afetadas; o orquestrador escreve no vault serialmente ao fim da onda.
+
+## Passo 14 — Informar o usuário
 
 Confirme que a implementação foi concluída com:
 - O que foi feito (resumo de 2-3 linhas)
 - Resultado da validação
 - Número da implementação criada (ex: "Documentado em `.centaur/implements/0003/`")
+- Notas do Obsidian atualizadas, ou pendência explícita quando o vault não estiver configurado
 
 **[modo spec]** Encerre com um relatório estruturado — é dele que o orquestrador consolida a spec e o `status.md`:
 
@@ -242,5 +251,7 @@ Implementação: XXXX
 Título: [título usado no README da implementação]
 Arquivos afetados: [lista]
 Validação: [resultado resumido]
+Mapa: [caminho e resultado real; se bloqueada sem implementação, não aplicável]
+Perspectivas afetadas: [ids de views existentes ou nenhuma; atualização reservada ao orquestrador]
 [Se bloqueada: Motivo do bloqueio e o que destrava]
 ```

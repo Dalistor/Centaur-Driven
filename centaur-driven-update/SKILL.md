@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-update
-description: Atualiza a documentação centaur de um projeto existente - compara o schema do AGENTS.md e do .centaur/ com o das skills instaladas, migra o que ficou para trás, audita a integridade dos registros, resolve conflitos entre documentação, histórico e código, e consolida tudo para que um agente novo leia menos e leia a verdade. Não toca em código.
-version: 1.1.0
+description: Atualiza a documentação centaur de um projeto existente - migra AGENTS.md, histórico e vault Obsidian, verifica as dependências da skill e do Claudian, audita conflitos e consolida a verdade. Não toca em código.
+version: 1.4.0
 invocable: true
 author: user
 metadata:
@@ -46,9 +46,17 @@ git status --porcelain
 
 Você vai reescrever documentação. Se houver mudanças não commitadas, avise o usuário e pergunte se quer commitar antes — com a árvore limpa, desfazer é `git checkout`.
 
+4. Verifique as dependências da documentação no Obsidian:
+
+   - localize `centaur-driven-obsidian` na instalação de projeto ou global e confirme que seu `SKILL.md`, `scripts/init_vault.py` e `references/` existem;
+   - se `.centaur/obsidian/` existir, confira `.obsidian/app.json`, `Sistema/Visão geral.md`, Drafts, Fluxos, Perspectivas, Decisões, Specs e a cópia da skill em `.agents/skills/centaur-driven-obsidian/`;
+   - se o vault existir, detecte Claudian por `.obsidian/plugins/claudian/` e pelo registro em `.obsidian/community-plugins.json`, quando esses arquivos existirem.
+
+O **Claudian é opcional para a atualização dos arquivos**: sem ele, o vault continua válido e pode ser atualizado pelo agente. Mas registre como pendência que o usuário precisa instalar/habilitar Claudian naquele vault para usar Codex dentro do Obsidian. Esta skill não instala nem atualiza plugins do Obsidian.
+
 ## Passo 2 — Descobrir as versões
 
-**Skills instaladas.** Localize os `SKILL.md` e leia a versão do frontmatter de cada um:
+**Skills instaladas.** Localize os `SKILL.md` e leia a versão do frontmatter de cada um, incluindo `centaur-driven-obsidian`:
 
 ```bash
 for d in .claude/skills/centaur-driven-*/ ~/.claude/skills/centaur-driven-*/; do
@@ -78,6 +86,8 @@ Leia o template de `AGENTS.md` dentro do `centaur-driven-start-project` instalad
 
 Faça o mesmo com a estrutura `.centaur/`: compare `implements/status.md` e `specs/index.md` contra os templates do Passo 5 do `start-project`. Cabeçalho de tabela que ganhou coluna nova precisa ganhar a coluna (com as células antigas preenchidas com `—` quando o dado não existir).
 
+Compare também o vault com `centaur-driven-obsidian`. Se estiver ausente ou incompleto, execute o inicializador da skill para completar somente os arquivos faltantes. A cópia de `.agents/skills/centaur-driven-obsidian/` deve conter scripts e referências, não apenas `SKILL.md`. Nunca substitua notas, Drafts, Canvases ou decisões existentes durante a inicialização.
+
 **Seções que exigem informação que não está em lugar nenhum** — tipicamente as mais novas — viram perguntas para o usuário. Levante primeiro o que der para inferir do código e apresente já preenchido, para ele só confirmar. Exemplos do que costuma faltar em documentação antiga:
 
 - **Arquitetura de Camadas** → mapeie as pastas reais e proponha a tabela (camada, pasta, responsabilidade, o que é proibido)
@@ -87,6 +97,8 @@ Faça o mesmo com a estrutura `.centaur/`: compare `implements/status.md` e `spe
 Não invente conteúdo para preencher seção: seção sem informação real fica com o texto explícito de que não foi definida, e vira pergunta.
 
 ## Passo 4 — Auditar a integridade dos registros
+
+Se o vault local existir, consulte Visão Geral, Fluxos, Perspectivas, Decisões e referências de Specs para detectar documentação que contradiz o código. Proponha correções no plano confirmado; não reescreva histórico de implementações para mudar a compreensão atual.
 
 Verificações mecânicas, todas resolvíveis sem perguntar:
 
@@ -106,6 +118,11 @@ Cheque e anote:
 5. **Spec `Em andamento` com todas as tasks marcadas** → deveria estar `Concluída`; corrija no README da spec e no `index.md`.
 6. **Spec `Pendente`/`Em andamento` com tasks não marcadas** → verifique se as tasks foram feitas por fora (procure por implementações que citam a spec). Se foram, marque; se a spec foi abandonada, pergunte ao usuário se quer marcá-la como `Cancelada`.
 7. **Divergência entre `index.md` e os READMEs das specs** (status, número de tasks) → o README da spec é a fonte; alinhe o índice.
+8. **Implementação concluída com fluxo ou nota pendente** → registre a lacuna e inclua a sincronização no plano; não trate a ausência de documentação como falha do código validado.
+9. **Draft fora de `Sistema/Drafts/` ou sem estado** → não o promova automaticamente; mova-o apenas com autorização e registre a hipótese e perguntas abertas.
+10. **Canvas inválido, técnico demais ou sem nota irmã** → corrija no plano: Canvas usa JSON válido, conceitos humanos e uma pergunta de perspectiva; nomes de arquivos e símbolos viram evidência na nota irmã.
+11. **`Sistema/Specs/YYYY.md` sem spec correspondente, ou spec sem nota de referência** → registre o vínculo faltante e corrija no plano. Preserve a spec executável em `.centaur/specs/YYYY/README.md`.
+12. **Claudian ausente ou desabilitado** → registre a pendência operacional; não bloqueie a atualização de documentação e não instale o plugin sem solicitação explícita.
 
 ## Passo 5 — Detectar conflitos
 
@@ -149,6 +166,7 @@ Execute o plano confirmado, nesta ordem:
 3. Migrar as seções do `AGENTS.md` (crie as que faltam, reformate as que mudaram, **preserve as customizadas**)
 4. Corrigir os pontos onde a documentação contradizia o código
 5. Promover para o `AGENTS.md` o conhecimento que estava preso no histórico
+6. Inicializar ou completar o vault local e sincronizar as notas, Canvases e referências de Specs aprovados no plano
 
 Edite cirurgicamente: mantenha o texto que continua correto com as palavras originais do usuário. Reescrever seção inteira que estava certa só troca a redação dele pela sua.
 
@@ -246,6 +264,8 @@ Adicione a linha em `.centaur/implements/status.md` (removendo a linha placehold
 | XXXX | Atualização da documentação centaur | [data] | Concluído | AGENTS.md, .centaur/ |
 ```
 
+Use `/centaur-driven-obsidian sincronizar XXXX` para atualizar as notas, Canvases e referências de specs afetadas por esta própria atualização. Inclua a situação do Claudian nas pendências quando ele não estiver disponível no vault.
+
 ## Passo 11 — Informar o usuário
 
 Encerre com:
@@ -256,4 +276,5 @@ Encerre com:
 - O que foi arquivado e onde
 - **Pendências de código** encontradas e não corrigidas, com a skill certa para cada uma
 - Número da implementação (ex: "Documentado em `.centaur/implements/0022/`")
+- Vault do Obsidian atualizado, dependências verificadas e pendências explícitas do Claudian, quando houver
 - Sugestão de conferir com `git diff` antes de commitar

@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-run
 description: Orquestra a execução de uma spec, lançando subagentes por task com centaur-driven-tdd ou centaur-driven-implement conforme o Modo da task, e respeitando dependências. Restrito a tasks de specs — não executa nada fora delas.
-version: 1.4.0
+version: 1.6.0
 invocable: true
 author: user
 metadata:
@@ -42,6 +42,8 @@ O usuário deve informar o número da spec (ex: `/centaur-driven-run 0001`).
 
 ## Passo 2 — Ler a spec e montar o plano de execução
 
+Antes de relançar tasks, confira registros vinculados de execuções anteriores. Se código e validação já foram concluídos e restou apenas documentação no Obsidian, sincronize as notas; não reexecute a implementação nem reserve outro número.
+
 Leia `.centaur/specs/YYYY/README.md` por completo. Monte o plano:
 
 1. Ignore tasks já marcadas `[x]` no checklist (execução retomada)
@@ -73,7 +75,7 @@ Invoque a skill [centaur-driven-tdd | centaur-driven-implement] com a seguinte s
 
 [instrução da task copiada verbatim da spec, incluindo o prefixo "Spec YYYY — Task NN"]
 
-Carregue a dependência clean-code nesta sessão, conforme as instruções da skill de execução. Preserve o Modo da task e registre decisões no README da implementação; não escreva em .clean/ nem nos índices compartilhados.
+Carregue a dependência clean-code. Preserve o Modo da task, registre decisões no README da implementação e reporte as notas do Obsidian afetadas; não escreva em .clean/ nem nos índices compartilhados.
 ```
 
 Você escolhe a skill pelo campo `Modo`, mas **não altera a instrução** — ela vai verbatim.
@@ -84,10 +86,12 @@ Aguarde **todos** os subagentes da onda terminarem antes de iniciar a próxima.
 
 Ao fim de cada onda, **você** registra o resultado de cada task — os subagentes não escrevem na spec nem no `status.md`. Para cada task da onda, com base no relatório final do subagente:
 
-1. **Task concluída** → marque no checklist de `.centaur/specs/YYYY/README.md`: `- [x] Task NN — [Título] → implements/XXXX`, onde `XXXX` é o número da implementação informado no relatório
+1. **Task concluída** → sincronize serialmente as notas do Obsidian afetadas quando o vault estiver configurado; então marque no checklist `- [x] Task NN — [Título] → implements/XXXX`. Uma pendência de documentação não reabre código validado.
 2. **Task bloqueada** → registre o motivo ao lado dela no checklist, remova do plano as tasks que dependem dela e continue com as demais ondas que não são afetadas
 3. **Subagente falhou sem reportar** → trate como bloqueada; não relance automaticamente. Confira se ficou pasta órfã em `.centaur/implements/` (número reservado sem README) e anote no relatório final
 4. Adicione em `.centaur/implements/status.md` uma linha por implementação criada na onda (concluída ou bloqueada), com os dados do relatório: `| XXXX | [Título] | [data] | [Concluído|Bloqueado] | [arquivos] |`. Remova a linha placeholder da tabela se ainda existir
+
+Use `centaur-driven-obsidian` para sincronizar notas e fluxos afetados. Os subagentes não escrevem no vault em paralelo; a consolidação é serial. Registre qualquer pendência de documentação sem reexecutar código.
 
 Se um subagente tiver editado a spec ou o `status.md` por conta própria (não deveria), confira o resultado e conserte inconsistências.
 

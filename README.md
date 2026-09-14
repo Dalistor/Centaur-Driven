@@ -1,6 +1,6 @@
 # Centaur
 
-Conjunto de skills para o [Claude Code](https://claude.com/claude-code) que cria um fluxo de desenvolvimento documentado e rastreável: todo projeto tem contexto persistente, toda implementação fica registrada e demandas grandes são decompostas em tasks executadas por subagentes.
+Conjunto de skills para o [Claude Code](https://claude.com/claude-code) que cria um fluxo de desenvolvimento documentado e rastreável: todo projeto tem contexto persistente, toda implementação fica registrada, o fluxograma semântico evolui junto do código e demandas grandes são decompostas em tasks executadas por subagentes.
 
 ## Por que "centaur"?
 
@@ -8,7 +8,7 @@ Centauro: metade humano, metade máquina. Você toma as decisões — o Claude e
 
 ## Instalação
 
-O conjunto depende da skill **`clean-code`**, distribuída pelo projeto [Clean Code Skills](https://github.com/btseee/clean-code-skills). Ela fornece os critérios de qualidade de código e arquitetura usados pelas nove skills Centaur. A versão de referência desta integração é **3.2.0**.
+O conjunto depende da skill **`clean-code`**, distribuída pelo projeto [Clean Code Skills](https://github.com/btseee/clean-code-skills). Ela fornece os critérios de qualidade de código e arquitetura usados pelas skills Centaur. A versão de referência desta integração é **3.2.0**.
 
 Para uma instalação nova, copie o conjunto e a dependência completa para o diretório global de skills do Claude Code:
 
@@ -30,7 +30,7 @@ Reinicie sessões abertas do Claude Code para que as skills apareçam. Elas fica
 
 ### Contrato da dependência
 
-Cada skill declara `metadata.dependencies: clean-code` e instrui o agente a localizar e ler a dependência antes de executar seu fluxo. Esse campo documenta o requisito; não instala nem resolve versões automaticamente. Se a dependência estiver ausente ou incompleta, o agente informa o problema antes de executar trabalho dependente dela.
+As skills de desenvolvimento declaram `metadata.dependencies: clean-code`. A skill `centaur-driven-obsidian` integra o vault confirmado e pode usar um MCP de Obsidian. No Codex, o destino equivalente é `~/.codex/skills/` ou o diretório de skills do projeto.
 
 - `start-project` e `spec` usam os critérios de responsabilidade e direção de dependências na documentação e no planejamento.
 - `implement`, `tdd` e `deploy` aplicam os critérios ao escrever e revisar código, testes, workflows e scripts.
@@ -51,6 +51,7 @@ Projetos já documentados recebem a seção de qualidade do novo template por `/
 | `/centaur-driven-implement` | Mudanças pontuais **estruturais, de configuração ou de UI** — e projetos sem infraestrutura de teste |
 | `/centaur-driven-spec` | Decompõe uma demanda grande em tasks atômicas por camada, cada uma marcada como TDD ou direta, salvas em `.centaur/specs/` |
 | `/centaur-driven-run` | Executa uma spec: lança um subagente por task conforme o Modo, paraleliza as independentes e consolida o resultado |
+| `/centaur-driven-obsidian` | Cria e refina drafts, fluxos, decisões e links de specs no vault do Obsidian |
 | `/centaur-driven-mcp` | Busca a documentação de uma API externa em um MCP server e roteia a requisição para tdd, implement ou spec com esse contexto anexado |
 | `/centaur-driven-deploy` | Configura deploy contínuo para uma VPS (GitHub Actions + SSH + rsync): gera a chave, valida o acesso, cadastra os secrets e acompanha o primeiro run |
 | `/centaur-driven-update` | Manutenção da documentação: migra o `AGENTS.md` quando as skills evoluem, audita o histórico, resolve contradições e consolida para agentes novos |
@@ -68,6 +69,7 @@ A skill varre o projeto, faz perguntas sobre o que não está evidente no códig
 - `AGENTS.md` na raiz — contexto do projeto, lido pelas skills centaur no início de cada chat
 - `.centaur/implements/status.md` — histórico de implementações
 - `.centaur/specs/index.md` — índice de specs planejadas
+- `.centaur/obsidian/` — vault local com drafts, fluxos, decisões e referências das specs
 
 Entre as perguntas está a **stack de testes** (framework, comando de rodar a suíte, local e convenção dos arquivos, meta de cobertura) — é o que decide se uma mudança futura vai por TDD ou não. Se o projeto ainda não tem testes, a skill pergunta se você quer adotar TDD dali em diante e com qual framework.
 
@@ -83,7 +85,7 @@ Também entre as perguntas está a **Arquitetura de Camadas**: se o projeto já 
 
 Regra de negócio, validação com consequência, cálculo, correção de bug — o que tem comportamento com regra real entra por aqui, e **o teste vem antes do código**. Ser tecnicamente testável não basta: mapeamento direto, passthrough e fiação sem lógica vão pelo `implement`.
 
-A skill lê o contexto, detecta a stack de testes, transforma a solicitação em **critérios de aceite proporcionais ao risco** — caminho crítico (dinheiro, auth, validação) ganha bateria completa de caminho feliz, erros e bordas; comportamento comum ganha só o que tem chance real de acontecer; trivial ganha 1-2 testes —, tira todas as dúvidas e então roda os ciclos: **RED** (escreve o teste, roda, vê falhar — teste que passa de primeira é teste errado), **GREEN** (o mínimo de código de produção para passar), **REFACTOR** (limpa com a suíte verde, sob o mesmo critério de clareza do `implement`). Um ciclo por comportamento. No fim, analisa cobertura, valida lint, camadas e clareza, e documenta em `.centaur/implements/XXXX/README.md` — incluindo a lista de ciclos executados.
+A skill lê o contexto, detecta a stack de testes, transforma a solicitação em **critérios de aceite proporcionais ao risco** — caminho crítico (dinheiro, auth, validação) ganha bateria completa de caminho feliz, erros e bordas; comportamento comum ganha só o que tem chance real de acontecer; trivial ganha 1-2 testes —, tira todas as dúvidas e então roda os ciclos: **RED** (escreve o teste, roda, vê falhar — teste que passa de primeira é teste errado), **GREEN** (o mínimo de código de produção para passar), **REFACTOR** (limpa com a suíte verde, sob o mesmo critério de clareza do `implement`). Um ciclo por comportamento. No fim, analisa cobertura, valida lint, camadas e clareza, documenta em `.centaur/implements/XXXX/README.md` e sincroniza o Obsidian quando configurado.
 
 ### 3. Para mudanças estruturais, use implement
 
@@ -91,7 +93,7 @@ A skill lê o contexto, detecta a stack de testes, transforma a solicitação em
 /centaur-driven-implement renomear a pasta de handlers para controllers
 ```
 
-O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `AGENTS.md` (regra de negócio em service, query em repository, handler fino), **revisa a clareza do que escreveu** (nomes que revelam intenção, vocabulário do domínio, sem número mágico nem comentário que narra a linha), valida (testes, lint e revisão de violação de camadas) e documenta em `.centaur/implements/XXXX/README.md`.
+O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `AGENTS.md` (regra de negócio em service, query em repository, handler fino), **revisa a clareza do que escreveu** (nomes que revelam intenção, vocabulário do domínio, sem número mágico nem comentário que narra a linha), valida (testes, lint e revisão de violação de camadas) e entrega `.centaur/implements/XXXX/README.md`, atualizando o Obsidian quando configurado.
 
 Se a mudança pedida tiver regra de negócio relevante, ele mesmo redireciona para o `/centaur-driven-tdd`. Se a demanda for grande demais (muitas camadas, mais de ~4 arquivos), recusa e orienta a usar spec + run.
 
@@ -172,6 +174,19 @@ Por fim consolida para quem chega depois: promove para o `AGENTS.md` o conhecime
 
 Ele **não toca em código**: bug ou violação de camada que encontrar vira relatório com a skill certa para resolver. E nunca apaga pasta de implementação ou de spec — arquivar é mover linha de índice, o registro fica.
 
+### 10. Para desenhar e evoluir o sistema, use Obsidian
+
+```
+/centaur-driven-obsidian criar draft da jornada de compra
+/centaur-driven-obsidian refinar draft
+/centaur-driven-spec implementar a jornada confirmada
+/centaur-driven-obsidian sincronizar 0007
+```
+
+O Draft é um Canvas e uma nota irmã no vault: desenha a intenção em linguagem humana antes do código. O Centaur identifica hipóteses e lacunas, pergunta o que for necessário e encaminha a ideia confirmada para a spec. Depois de cada implementação validada, as notas e fluxos afetados são sincronizados serialmente.
+
+O vault é criado em `.centaur/obsidian/`. Abra essa pasta no Obsidian e use o Claudian com Codex para conversar, editar notas e anexar contexto por `@`. O Claudian carrega a skill no escopo do vault; um MCP paralelo não é necessário.
+
 ## O código é a documentação
 
 As skills de execução tratam o código como a documentação principal do projeto — o README da implementação é trilha de auditoria, não explicação do código. Por isso o "porquê" tem uma ordem de precedência fixa:
@@ -194,10 +209,12 @@ projeto/
     ├── implements/
     │   ├── status.md                # Tabela com as implementações recentes
     │   ├── arquivo.md               # Índice das antigas (criado pelo update quando cresce)
-    │   └── 0001/README.md           # Documentação de cada implementação
-    └── specs/
-        ├── index.md                 # Tabela com todas as specs
-        └── 0001/README.md           # Spec com tasks, dependências e checklist
+    │   └── 0001/
+    │       └── README.md           # Trilha de auditoria da implementação
+    ├── specs/
+    │   ├── index.md                 # Tabela com todas as specs
+    │   └── 0001/README.md           # Spec com tasks, dependências e checklist
+    └── obsidian/                    # Vault local: drafts, fluxos, decisões e referências de specs
 ```
 
 ## Ciclo de vida
@@ -209,9 +226,9 @@ projeto/
         │                                       │
         │                                       └── anexa o dossiê e roteia para um dos três abaixo
         │
-        ├── pontual + testável ──► /centaur-driven-tdd ──────► .centaur/implements/XXXX/
+        ├── pontual + testável ──► /centaur-driven-tdd ──────► .centaur/implements/XXXX/README.md
         │
-        ├── pontual estrutural ──► /centaur-driven-implement ─► .centaur/implements/XXXX/
+        ├── pontual estrutural ──► /centaur-driven-implement ─► .centaur/implements/XXXX/README.md
         │
         ├── demanda grande ──► /centaur-driven-spec ──► .centaur/specs/YYYY/
         │                               │
@@ -224,6 +241,8 @@ projeto/
         │                                       │       └── implementa, documenta e reporta
         │                                       │
         │                                       └── consolida checklist, status da spec e status.md
+        │
+        ├── desenhar/refinar sistema ──► /centaur-driven-obsidian ──► Canvas e notas do vault
         │
         ├── subir para a VPS ──► /centaur-driven-deploy ──► .github/workflows/ + .centaur/implements/XXXX/
         │

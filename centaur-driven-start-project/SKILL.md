@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-start-project
-description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa .centaur/implements/ e .centaur/specs/
-version: 1.6.0
+description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa implementações, specs e entradas do mapa semântico em .centaur/
+version: 1.8.0
 invocable: true
 author: user
 metadata:
@@ -155,6 +155,10 @@ As instruções do usuário e deste projeto prevalecem. O Centaur define o modo 
 ## Contexto Extra
 [Qualquer coisa que um dev novo precisaria saber]
 
+## Sistema no Obsidian
+
+Use `/centaur-driven-obsidian` para manter drafts, fluxos, decisões e a visão humana do sistema no vault configurado. O vault contém intenção e documentação; o código e a validação continuam sendo a evidência de comportamento implementado. Em execuções paralelas, o orquestrador sincroniza notas compartilhadas serialmente.
+
 ## Implementações
 [Atualizado automaticamente pelas skills /centaur-driven-tdd e /centaur-driven-implement]
 Veja `.centaur/implements/status.md` para o histórico completo e `.centaur/specs/index.md` para as specs planejadas.
@@ -166,7 +170,7 @@ _Documentação centaur — schema `[versão desta skill, do frontmatter]`, gera
 
 A última linha é o **carimbo de schema**: é por ela que `/centaur-driven-update` sabe qual versão do template gerou este `AGENTS.md` e o que precisa migrar. Preencha com a versão declarada no frontmatter desta skill — não invente outro número.
 
-## Passo 5 — Criar estrutura de implementações e specs
+## Passo 5 — Criar estrutura do Centaur
 
 Crie o diretório `.centaur/implements/` e o arquivo `status.md` dentro dele:
 
@@ -198,12 +202,15 @@ Planejamentos de implementações complexas, decompostos em tasks para subagente
 _Atualizado automaticamente pelas skills `/centaur-driven-spec`, `/centaur-driven-tdd`, `/centaur-driven-implement` e `/centaur-driven-run`_
 ```
 
+Crie também o vault local `.centaur/obsidian/` conforme `centaur-driven-obsidian`: inclua `.obsidian/app.json`, `Sistema/Visão geral.md`, as pastas Drafts, Fluxos, Decisões e Specs e a skill no escopo `.agents/skills/`. As notas iniciais devem ser marcadas como rascunho; não invente a descrição do sistema.
+
 ## Passo 6 — Confirmar
 
 Informe ao usuário o que foi criado e o fluxo das skills centaur-driven:
 - `AGENTS.md` criado na raiz — será lido pelas skills centaur em cada chat
 - `.centaur/implements/status.md` criado — histórico de todas as implementações
 - `.centaur/specs/index.md` criado — índice de specs planejadas
+- `.centaur/obsidian/` criado — vault local para drafts, fluxos, decisões e referências das specs
 
 Fluxo de trabalho:
 - `/centaur-driven-check` — perguntar sobre o projeto sem alterar nada
@@ -211,6 +218,7 @@ Fluxo de trabalho:
 - `/centaur-driven-implement` — mudança pontual estrutural, de configuração ou de UI, e projetos sem infraestrutura de teste
 - `/centaur-driven-spec` — para demandas grandes: decompõe em tasks atômicas por camada, cada uma marcada como TDD ou direta
 - `/centaur-driven-run` — executa uma spec: lança subagentes por task conforme o Modo, paraleliza e consolida
+- `/centaur-driven-obsidian` — cria e refina drafts, fluxos e decisões no vault do Obsidian
 - `/centaur-driven-update` — manutenção da documentação: migra o `AGENTS.md` quando as skills evoluem, audita o histórico e resolve contradições
 
-Ambas as skills de execução documentam em `.centaur/implements/XXXX/`.
+Ambas as skills de execução documentam em `.centaur/implements/XXXX/` e reportam as notas do Obsidian afetadas para sincronização após a validação.

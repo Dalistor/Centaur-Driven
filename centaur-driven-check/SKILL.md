@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-check
 description: Lê o AGENTS.md do projeto e responde perguntas com base no contexto e sistema documentado
-version: 1.3.0
+version: 1.5.0
 invocable: true
 author: user
 metadata:
@@ -29,6 +29,8 @@ Leia obrigatoriamente:
 2. `.centaur/implements/status.md` (histórico de implementações — necessário para responder perguntas sobre o que já foi feito, o que mudou, ou o estado atual de funcionalidades)
 3. `.centaur/specs/index.md`, se existir (specs planejadas — necessário para responder sobre o que está planejado, em andamento ou pendente)
 
+Quando a pergunta envolver capacidades, responsabilidades ou um fluxo ponta a ponta, consulte a documentação correspondente no Obsidian, quando o vault estiver configurado, e confirme detalhes no código e nos READMEs de implementação. Se não houver nota, deixe claro que a documentação do fluxo ainda não foi criada.
+
 Se `AGENTS.md` não existir, informe o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` para criar o AGENTS.md antes de usar `/centaur-driven-check`."
 
@@ -39,6 +41,8 @@ Se a pergunta for sobre uma spec ou task específica, leia também o `.centaur/s
 Se a implementação procurada não estiver no `status.md`, procure em `.centaur/implements/arquivo.md`: implementações antigas têm o índice arquivado lá por `/centaur-driven-update`, mas a pasta `XXXX/` continua no lugar.
 
 ## Passo 2 — Entender a pergunta
+
+Para uma pergunta sobre um fluxo, consulte a nota correspondente no Obsidian quando o vault estiver configurado. Se o usuário pedir criar ou alterar um fluxograma, indique `/centaur-driven-obsidian`; este comando continua somente leitura.
 
 Leia o que o usuário perguntou. Identifique se a resposta está:
 - Diretamente no `AGENTS.md`
