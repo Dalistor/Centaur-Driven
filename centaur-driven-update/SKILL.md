@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-update
 description: Atualiza a documentação centaur de um projeto existente - migra AGENTS.md, histórico e vault Obsidian, verifica as dependências da skill e do Claudian, audita conflitos e consolida a verdade. Não toca em código.
-version: 1.4.0
+version: 1.4.1
 invocable: true
 author: user
 metadata:
@@ -49,7 +49,7 @@ Você vai reescrever documentação. Se houver mudanças não commitadas, avise 
 4. Verifique as dependências da documentação no Obsidian:
 
    - localize `centaur-driven-obsidian` na instalação de projeto ou global e confirme que seu `SKILL.md`, `scripts/init_vault.py` e `references/` existem;
-   - se `.centaur/obsidian/` existir, confira `.obsidian/app.json`, `Sistema/Visão geral.md`, Drafts, Fluxos, Perspectivas, Decisões, Specs e a cópia da skill em `.agents/skills/centaur-driven-obsidian/`;
+   - se `.centaur/obsidian/` existir, confira `.obsidian/app.json`, `Sistema/Mapa do sistema.canvas`, `Sistema/Visão geral.md`, `Sistema/Glossário.md`, Drafts, Fluxos, Perspectivas, Decisões e a cópia da skill em `.agents/skills/centaur-driven-obsidian/`;
    - se o vault existir, detecte Claudian por `.obsidian/plugins/claudian/` e pelo registro em `.obsidian/community-plugins.json`, quando esses arquivos existirem.
 
 O **Claudian é opcional para a atualização dos arquivos**: sem ele, o vault continua válido e pode ser atualizado pelo agente. Mas registre como pendência que o usuário precisa instalar/habilitar Claudian naquele vault para usar Codex dentro do Obsidian. Esta skill não instala nem atualiza plugins do Obsidian.
@@ -98,7 +98,7 @@ Não invente conteúdo para preencher seção: seção sem informação real fic
 
 ## Passo 4 — Auditar a integridade dos registros
 
-Se o vault local existir, consulte Visão Geral, Fluxos, Perspectivas, Decisões e referências de Specs para detectar documentação que contradiz o código. Proponha correções no plano confirmado; não reescreva histórico de implementações para mudar a compreensão atual.
+Se o vault local existir, consulte Mapa do sistema, Visão Geral, Glossário, Fluxos, Perspectivas e Decisões para detectar documentação que contradiz o código. Proponha correções no plano confirmado; não reescreva histórico de implementações para mudar a compreensão atual.
 
 Verificações mecânicas, todas resolvíveis sem perguntar:
 
@@ -121,7 +121,7 @@ Cheque e anote:
 8. **Implementação concluída com fluxo ou nota pendente** → registre a lacuna e inclua a sincronização no plano; não trate a ausência de documentação como falha do código validado.
 9. **Draft fora de `Sistema/Drafts/` ou sem estado** → não o promova automaticamente; mova-o apenas com autorização e registre a hipótese e perguntas abertas.
 10. **Canvas inválido, técnico demais ou sem nota irmã** → corrija no plano: Canvas usa JSON válido, conceitos humanos e uma pergunta de perspectiva; nomes de arquivos e símbolos viram evidência na nota irmã.
-11. **`Sistema/Specs/YYYY.md` sem spec correspondente, ou spec sem nota de referência** → registre o vínculo faltante e corrija no plano. Preserve a spec executável em `.centaur/specs/YYYY/README.md`.
+11. **`Sistema/Specs/` legado no vault** → não crie nem atualize notas nele. Informe que specs pertencem a `.centaur/specs/` e proponha retirar da navegação humana; não apague conteúdo existente sem autorização.
 12. **Claudian ausente ou desabilitado** → registre a pendência operacional; não bloqueie a atualização de documentação e não instale o plugin sem solicitação explícita.
 
 ## Passo 5 — Detectar conflitos
@@ -166,7 +166,7 @@ Execute o plano confirmado, nesta ordem:
 3. Migrar as seções do `AGENTS.md` (crie as que faltam, reformate as que mudaram, **preserve as customizadas**)
 4. Corrigir os pontos onde a documentação contradizia o código
 5. Promover para o `AGENTS.md` o conhecimento que estava preso no histórico
-6. Inicializar ou completar o vault local e sincronizar as notas, Canvases e referências de Specs aprovados no plano
+6. Inicializar ou completar o vault local e sincronizar o mapa, as notas e os Canvases aprovados no plano
 
 Edite cirurgicamente: mantenha o texto que continua correto com as palavras originais do usuário. Reescrever seção inteira que estava certa só troca a redação dele pela sua.
 
@@ -264,7 +264,7 @@ Adicione a linha em `.centaur/implements/status.md` (removendo a linha placehold
 | XXXX | Atualização da documentação centaur | [data] | Concluído | AGENTS.md, .centaur/ |
 ```
 
-Use `/centaur-driven-obsidian sincronizar XXXX` para atualizar as notas, Canvases e referências de specs afetadas por esta própria atualização. Inclua a situação do Claudian nas pendências quando ele não estiver disponível no vault.
+Use `/centaur-driven-obsidian sincronizar XXXX` para atualizar o mapa, as notas e os Canvases afetados por esta própria atualização. Inclua a situação do Claudian nas pendências quando ele não estiver disponível no vault.
 
 ## Passo 11 — Informar o usuário
 

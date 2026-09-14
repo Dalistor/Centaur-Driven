@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-start-project
 description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa implementações, specs e entradas do mapa semântico em .centaur/
-version: 1.8.0
+version: 1.9.0
 invocable: true
 author: user
 metadata:
@@ -157,7 +157,7 @@ As instruções do usuário e deste projeto prevalecem. O Centaur define o modo 
 
 ## Sistema no Obsidian
 
-Use `/centaur-driven-obsidian` para manter drafts, fluxos, decisões e a visão humana do sistema no vault configurado. O vault contém intenção e documentação; o código e a validação continuam sendo a evidência de comportamento implementado. Em execuções paralelas, o orquestrador sincroniza notas compartilhadas serialmente.
+Use `/centaur-driven-obsidian` para manter o mapa, os drafts, fluxos, perspectivas, decisões e a visão humana do sistema no vault configurado. O vault contém a leitura destinada ao usuário; contexto técnico, specs, tasks e histórico permanecem em `AGENTS.md` e `.centaur/`. O código e a validação continuam sendo a evidência de comportamento implementado. Em execuções paralelas, o orquestrador sincroniza notas compartilhadas serialmente.
 
 ## Implementações
 [Atualizado automaticamente pelas skills /centaur-driven-tdd e /centaur-driven-implement]
@@ -202,7 +202,7 @@ Planejamentos de implementações complexas, decompostos em tasks para subagente
 _Atualizado automaticamente pelas skills `/centaur-driven-spec`, `/centaur-driven-tdd`, `/centaur-driven-implement` e `/centaur-driven-run`_
 ```
 
-Crie também o vault local `.centaur/obsidian/` conforme `centaur-driven-obsidian`: inclua `.obsidian/app.json`, `Sistema/Visão geral.md`, as pastas Drafts, Fluxos, Decisões e Specs e a skill no escopo `.agents/skills/`. As notas iniciais devem ser marcadas como rascunho; não invente a descrição do sistema.
+Crie também o vault local `.centaur/obsidian/` conforme `centaur-driven-obsidian`: inclua `.obsidian/app.json`, `Sistema/Mapa do sistema.canvas`, `Sistema/Visão geral.md`, `Sistema/Glossário.md`, as pastas Drafts, Fluxos, Perspectivas e Decisões e a skill no escopo `.agents/skills/`. Não crie `Sistema/Specs/`: specs e tasks pertencem à memória operacional da IA em `.centaur/specs/`. As notas iniciais devem ser marcadas como rascunho; não invente a descrição do sistema.
 
 ## Passo 6 — Confirmar
 
@@ -210,7 +210,7 @@ Informe ao usuário o que foi criado e o fluxo das skills centaur-driven:
 - `AGENTS.md` criado na raiz — será lido pelas skills centaur em cada chat
 - `.centaur/implements/status.md` criado — histórico de todas as implementações
 - `.centaur/specs/index.md` criado — índice de specs planejadas
-- `.centaur/obsidian/` criado — vault local para drafts, fluxos, decisões e referências das specs
+- `.centaur/obsidian/` criado — mapa e documentação do sistema para leitura do usuário
 
 Fluxo de trabalho:
 - `/centaur-driven-check` — perguntar sobre o projeto sem alterar nada

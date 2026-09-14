@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-spec
 description: Decompõe uma demanda grande em tasks atômicas por camada, salvas em .centaur/specs/, prontas para execução orquestrada com centaur-driven-run
-version: 1.9.0
+version: 1.9.1
 invocable: true
 author: user
 metadata:
@@ -40,7 +40,7 @@ Leia com atenção o que o usuário pediu. Identifique:
 
 ## Passo 3 — Explorar o código relevante
 
-Antes de explorar o código, leia `.centaur/obsidian/Sistema/Visão geral.md` e os Drafts, Fluxos e Decisões relevantes, quando existirem. Eles são a referência humana da demanda; confirme detalhes no código e separe hipótese de comportamento implementado. Registre no contexto técnico quais notas originaram a spec. Depois de criar `.centaur/specs/YYYY/README.md`, use `centaur-driven-obsidian` para criar `Sistema/Specs/YYYY.md` com links relativos para a spec e para suas notas de origem.
+Antes de explorar o código, leia `.centaur/obsidian/Sistema/Visão geral.md` e os Drafts, Fluxos, Perspectivas e Decisões relevantes, quando existirem. Eles são a referência humana da demanda; confirme detalhes no código e separe hipótese de comportamento implementado. Registre no contexto técnico da própria `.centaur/specs/YYYY/README.md` quais notas originaram a spec. Não crie nota espelho ou índice de specs no Obsidian: o vault é a leitura do usuário, enquanto specs e tasks são memória operacional da IA.
 
 Localize e leia os arquivos que fornecem contexto suficiente para decompor a solicitação:
 - Pontos de entrada relacionados

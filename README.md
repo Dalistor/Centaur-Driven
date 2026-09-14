@@ -51,7 +51,7 @@ Projetos já documentados recebem a seção de qualidade do novo template por `/
 | `/centaur-driven-implement` | Mudanças pontuais **estruturais, de configuração ou de UI** — e projetos sem infraestrutura de teste |
 | `/centaur-driven-spec` | Decompõe uma demanda grande em tasks atômicas por camada, cada uma marcada como TDD ou direta, salvas em `.centaur/specs/` |
 | `/centaur-driven-run` | Executa uma spec: lança um subagente por task conforme o Modo, paraleliza as independentes e consolida o resultado |
-| `/centaur-driven-obsidian` | Cria e refina drafts, fluxos, decisões e links de specs no vault do Obsidian |
+| `/centaur-driven-obsidian` | Cria e refina o mapa, drafts, fluxos, perspectivas e decisões para leitura humana no Obsidian |
 | `/centaur-driven-mcp` | Busca a documentação de uma API externa em um MCP server e roteia a requisição para tdd, implement ou spec com esse contexto anexado |
 | `/centaur-driven-deploy` | Configura deploy contínuo para uma VPS (GitHub Actions + SSH + rsync): gera a chave, valida o acesso, cadastra os secrets e acompanha o primeiro run |
 | `/centaur-driven-update` | Manutenção da documentação: migra o `AGENTS.md` quando as skills evoluem, audita o histórico, resolve contradições e consolida para agentes novos |
@@ -69,7 +69,7 @@ A skill varre o projeto, faz perguntas sobre o que não está evidente no códig
 - `AGENTS.md` na raiz — contexto do projeto, lido pelas skills centaur no início de cada chat
 - `.centaur/implements/status.md` — histórico de implementações
 - `.centaur/specs/index.md` — índice de specs planejadas
-- `.centaur/obsidian/` — vault local com drafts, fluxos, decisões e referências das specs
+- `.centaur/obsidian/` — vault local com mapa e documentação do sistema para leitura do usuário
 
 Entre as perguntas está a **stack de testes** (framework, comando de rodar a suíte, local e convenção dos arquivos, meta de cobertura) — é o que decide se uma mudança futura vai por TDD ou não. Se o projeto ainda não tem testes, a skill pergunta se você quer adotar TDD dali em diante e com qual framework.
 
@@ -183,9 +183,11 @@ Ele **não toca em código**: bug ou violação de camada que encontrar vira rel
 /centaur-driven-obsidian sincronizar 0007
 ```
 
-O Draft é um Canvas e uma nota irmã no vault: desenha a intenção em linguagem humana antes do código. O Centaur identifica hipóteses e lacunas, pergunta o que for necessário e encaminha a ideia confirmada para a spec. Depois de cada implementação validada, as notas e fluxos afetados são sincronizados serialmente.
+O Draft começa como uma nota no vault e pode ganhar um Canvas irmão quando a leitura visual ajudar: desenha a intenção em linguagem humana antes do código. O Centaur identifica hipóteses e lacunas, pergunta o que for necessário e encaminha a ideia confirmada para uma spec mantida fora do vault. Depois de cada implementação validada, as notas e fluxos afetados são sincronizados serialmente.
 
-O vault é criado em `.centaur/obsidian/`. Abra essa pasta no Obsidian e use o Claudian com Codex para conversar, editar notas e anexar contexto por `@`. O Claudian carrega a skill no escopo do vault; um MCP paralelo não é necessário.
+O vault é criado em `.centaur/obsidian/`. Abra `Sistema/Mapa do sistema.canvas` para navegar visualmente por visão geral, fluxos, perspectivas, decisões, drafts e glossário. Abra essa pasta no Obsidian e use o Claudian com Codex para conversar, editar notas e anexar contexto por `@`. O Claudian carrega a skill no escopo do vault; um MCP paralelo não é necessário.
+
+O limite é intencional: `AGENTS.md`, `.centaur/specs/` e `.centaur/implements/` guardam o contexto técnico que a IA lê; o vault guarda a explicação do sistema que o usuário lê. Por isso não existe `Sistema/Specs/` no Obsidian.
 
 ## O código é a documentação
 
@@ -214,7 +216,7 @@ projeto/
     ├── specs/
     │   ├── index.md                 # Tabela com todas as specs
     │   └── 0001/README.md           # Spec com tasks, dependências e checklist
-    └── obsidian/                    # Vault local: drafts, fluxos, decisões e referências de specs
+    └── obsidian/                    # Vault local: mapa e documentação para o usuário
 ```
 
 ## Ciclo de vida
