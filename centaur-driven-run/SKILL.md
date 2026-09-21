@@ -10,6 +10,10 @@ metadata:
 
 # centaur-driven-run
 
+## Escopos e equipe
+
+Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-obsidian/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+
 ## Dependência obrigatória — clean-code
 
 Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
@@ -34,9 +38,9 @@ Você é um orquestrador de execução de specs. Sua única função é lançar 
 
 ## Passo 1 — Identificar a spec
 
-O usuário deve informar o número da spec (ex: `/centaur-driven-run 0001`).
+O usuário deve informar o ID qualificado da spec (ex: `/centaur-driven-run frontend/0001`); números legados devem ser resolvidos entre todos os escopos. Adquira a reserva da spec conforme o contrato de equipe antes de executar. O usuário pode informar o número da spec (ex: `/centaur-driven-run 0001`).
 
-- Se não informou: leia `.centaur/specs/index.md`, liste as specs com status `Pendente` ou `Em andamento` e pergunte qual executar
+- Se não informou: leia os índices de todos os escopos e liste as specs ainda não concluídas, com IDs qualificados e bloqueios, para selecionar qual retomar
 - Se a spec não existir: informe e liste as disponíveis
 - Se não existir `.centaur/specs/`: informe que não há specs e sugira `/centaur-driven-spec`
 
@@ -47,10 +51,10 @@ Antes de relançar tasks, confira registros vinculados de execuções anteriores
 Leia `.centaur/specs/YYYY/README.md` por completo. Monte o plano:
 
 1. Ignore tasks já marcadas `[x]` no checklist (execução retomada)
-2. Se **todas** estiverem concluídas, informe que a spec já está `Concluída` e encerre
+2. Se **todas** estiverem concluídas, confira também specs filhas e critérios de integração. Se faltar revisão ou integração, mantenha `Em revisão` e reporte a pendência; só encerre como `Concluída` quando todos os critérios do contrato estiverem atendidos. Uma mestre sem tasks próprias ainda precisa orquestrar suas filhas pendentes
 3. Agrupe as tasks pendentes em **ondas** de execução:
    - Uma task entra na onda quando todas as suas dependências já foram concluídas (em execuções anteriores ou em ondas anteriores desta execução)
-   - Tasks sem dependência entre si na mesma onda rodam **em paralelo**
+   - Tasks sem dependência e sem sobreposição de arquivos na mesma onda podem rodar **em paralelo**, respeitando posse e isolamento definidos no contrato
 4. Se houver task pendente cuja dependência está bloqueada, ela fica fora do plano (será reportada ao final)
 
 Apresente o plano ao usuário em formato curto (ondas, tasks, o que roda em paralelo) e confirme antes de iniciar.
@@ -99,8 +103,8 @@ Se um subagente tiver editado a spec ou o `status.md` por conta própria (não d
 
 Após a última onda:
 
-1. Se todas as tasks do checklist estiverem `[x]`: mude o status da spec para `Concluída` no README e no `index.md`
-2. Se sobraram tasks bloqueadas ou não executadas: mantenha `Em andamento`
+1. Se todas as tasks do checklist estiverem `[x]`: aplique os critérios de integração do contrato: use `Em revisão` até integrar e validar, então `Concluída` no README e no `index.md`
+2. Se houver impedimento que paralisa a spec, use `Bloqueada` e registre motivo; havendo trabalho independente em execução, mantenha `Em andamento` e liste os bloqueios
 
 Reporte ao usuário:
 - Tasks concluídas nesta execução (com o número da implementação de cada uma: `Task 02 → implements/0005`)
@@ -108,3 +112,5 @@ Reporte ao usuário:
 - Tasks não executadas por dependência bloqueada
 - Status final da spec
 - Se houver bloqueios: o que o usuário precisa decidir para destravar (depois basta rodar `/centaur-driven-run YYYY` de novo — a execução retoma de onde parou)
+
+Ao consolidar cada onda e finalizar, sincronize o quadro, recalcule o estado da spec mestre com base nas filhas e libere apenas a reserva desta sessão. Inclua IDs qualificados e caminhos completos nos prompts e relatórios.

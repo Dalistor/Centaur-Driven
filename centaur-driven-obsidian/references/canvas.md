@@ -2,7 +2,7 @@
 
 Um arquivo `.canvas` é JSON do Obsidian Canvas. Crie apenas em `Sistema/Perspectivas/` ou como irmão de um Draft que está sendo refinado.
 
-`Sistema/Mapa do sistema.canvas` é a única exceção: ele é um índice visual e pode usar cards de arquivo para abrir as áreas principais do vault. Não coloque arquivos técnicos nesse mapa.
+`Sistema/Quadro de specs.canvas` é uma projeção gerada com colunas por status, sem limite de cards. `Sistema/Mapa do sistema.canvas` é outra exceção: ele é um índice visual e pode usar cards de arquivo para abrir as áreas principais do vault. Não coloque arquivos técnicos nesse mapa.
 
 ## Gramática visual
 

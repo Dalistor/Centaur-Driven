@@ -8,6 +8,8 @@ import json
 import shutil
 from pathlib import Path
 
+from sync_board import sync
+
 
 NOTES = {
     "Sistema/Visão geral.md": """---
@@ -132,6 +134,7 @@ def main() -> None:
 
     destination = vault / ".agents" / "skills" / "centaur-driven-obsidian"
     shutil.copytree(args.skill_source, destination, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
+    sync(args.project_root)
     print(vault)
 
 

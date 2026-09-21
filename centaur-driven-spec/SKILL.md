@@ -10,6 +10,10 @@ metadata:
 
 # centaur-driven-spec
 
+## Escopos e equipe
+
+Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-obsidian/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+
 ## Dependência obrigatória — clean-code
 
 Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
@@ -40,7 +44,7 @@ Leia com atenção o que o usuário pediu. Identifique:
 
 ## Passo 3 — Explorar o código relevante
 
-Antes de explorar o código, leia `.centaur/obsidian/Sistema/Visão geral.md` e os Drafts, Fluxos, Perspectivas e Decisões relevantes, quando existirem. Eles são a referência humana da demanda; confirme detalhes no código e separe hipótese de comportamento implementado. Registre no contexto técnico da própria `.centaur/specs/YYYY/README.md` quais notas originaram a spec. Não crie nota espelho ou índice de specs no Obsidian: o vault é a leitura do usuário, enquanto specs e tasks são memória operacional da IA.
+Antes de explorar o código, leia `.centaur/obsidian/Sistema/Visão geral.md` e os Drafts, Fluxos, Perspectivas e Decisões relevantes, quando existirem. Eles são a referência humana da demanda; confirme detalhes no código e separe hipótese de comportamento implementado. Registre no contexto técnico da própria `.centaur/specs/YYYY/README.md` quais notas originaram a spec. Atualize o quadro de specs no Obsidian após salvar a spec; exponha título, escopo, responsável, progresso e status, mantendo as instruções técnicas no README canônico.
 
 Localize e leia os arquivos que fornecem contexto suficiente para decompor a solicitação:
 - Pontos de entrada relacionados
@@ -91,7 +95,7 @@ Ordene as tasks pela sequência de execução recomendada. Marque dependências 
 
 Em todas as skills centaur, `YYYY` é o número da spec e `XXXX` o número de uma implementação.
 
-Execute exatamente este comando para encontrar o último número:
+Para IDs sequenciais legados, este comando encontra o último número; adapte o caminho ao escopo. Em clones independentes use o sufixo único definido no contrato:
 
 ```
 ls .centaur/specs/ 2>/dev/null | grep -E '^[0-9]{4}$' | sort | tail -1
@@ -99,7 +103,7 @@ ls .centaur/specs/ 2>/dev/null | grep -E '^[0-9]{4}$' | sort | tail -1
 
 - Se retornar um número (ex: `0002`), o próximo é esse + 1 (ex: `0003`)
 - Se retornar vazio ou o diretório não existir, começa em `0001`
-- Formate sempre com 4 dígitos: `0001`, `0002`, `0042`, `0100`
+- Formate a base numérica com 4 dígitos: `0001`, `0002`, `0042`, `0100`
 
 Crie o diretório `.centaur/specs/` se não existir.
 
@@ -107,13 +111,18 @@ Crie o diretório `.centaur/specs/` se não existir.
 
 Obtenha a data de hoje com `date +%F` — não a preencha de memória.
 
-Crie a pasta `.centaur/specs/YYYY/` e o arquivo `.centaur/specs/YYYY/README.md`:
+Reserve atomicamente a pasta `.centaur/specs/YYYY/` com `mkdir` sem `-p` (se existir, escolha outro ID). Crie então o arquivo `.centaur/specs/YYYY/README.md`:
 
 ```markdown
 # [YYYY] [Título curto e descritivo]
 
 **Data:** [saída de `date +%F`]
 **Status:** Pendente
+**Escopo:** [escopo]
+**Responsável:** [pessoa/equipe]
+**Spec mestre:** [ID qualificado ou —]
+**Specs filhas:** [IDs qualificados ou —]
+**Dependências:** [IDs qualificados ou —]
 **Solicitação original:** [o que o usuário pediu, com as palavras dele]
 
 ## Objetivo
@@ -218,3 +227,5 @@ Exemplo de mensagem final:
 > Spec `0001` criada com 4 tasks (Task 02 e 03 paralelizáveis). Para executar:
 >
 > `/centaur-driven-run 0001`
+
+Ao concluir o planejamento, sincronize o quadro pelo script da skill Obsidian. Para demandas entre módulos, registre primeiro a mestre e as filhas com links recíprocos; só libere execução após conferir todas as referências.

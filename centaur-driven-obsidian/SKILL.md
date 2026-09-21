@@ -2,7 +2,7 @@
 name: centaur-driven-obsidian
 description: Cria e mantém a visão humana do sistema no vault local `.centaur/obsidian`, com mapa, drafts, fluxos, perspectivas e decisões; use com o Claudian para compreender e planejar o produto.
 metadata:
-  version: 1.2.0
+  version: 2.0.0
   invocable: true
 ---
 
@@ -15,7 +15,11 @@ Mantenha a separação de públicos:
 - `AGENTS.md`, `.centaur/specs/` e `.centaur/implements/` são memória operacional da IA: contexto técnico, tasks, status e trilha de execução.
 - `.centaur/obsidian/` é leitura do usuário: capacidades, jornadas, conceitos, decisões e possibilidades em linguagem humana.
 
-Não crie nem mantenha `Sistema/Specs/` no vault e não replique tasks, checklists, índices ou READMEs técnicos no Obsidian. A IA pode ler as notas humanas como origem de uma demanda e registrar esses links dentro da spec, sem expor a spec como parte da navegação do vault.
+Exponha specs no quadro por status, incluindo concluídas e pendentes. Mantenha apenas resumos e links de origem no vault; as instruções e checklists técnicos permanecem nos READMEs canônicos.
+
+## Escopos e equipe
+
+Leia o [contrato de módulos e equipe](references/team-workspace.md) antes de localizar registros ou sincronizar o quadro. Ele define caminhos, IDs qualificados, responsáveis e estados, incluindo compatibilidade com projetos legados.
 
 ## Vault local e Claudian
 
@@ -27,6 +31,8 @@ O [Claudian](https://github.com/YishenTu/claudian) executa Codex diretamente no 
 
 - `Sistema/Mapa do sistema.canvas`: porta de entrada visual para as áreas do vault; organiza a navegação, sem tentar representar todo o código.
 - `Sistema/Visão geral.md`: porta de entrada textual com propósito, estado, atores, capacidades, limites e links para as demais leituras.
+- `Sistema/Quadro de specs.canvas`: quadro com colunas de status e cards de todas as specs mestre e dos módulos.
+- `Sistema/Quadro de specs.md`: resumo navegável do mesmo quadro.
 - `Sistema/Glossário.md`: vocabulário do domínio explicado para o usuário.
 - `Sistema/Fluxos/<slug>.md`: um fluxo em linguagem humana, com Mermaid e links entre conceitos.
 - `Sistema/Drafts/<slug>.md`: única entrada criada manualmente pelo usuário. Registra objetivo, hipótese e resultado esperado; um Canvas irmão pode ser adicionado pelo Centaur.
@@ -41,7 +47,7 @@ Execute o inicializador idempotente antes de usar o vault:
 python3 <pasta-da-skill>/scripts/init_vault.py <raiz-do-projeto> --skill-source <pasta-da-skill>
 ```
 
-Ele cria, quando faltar, `.centaur/obsidian/.obsidian/app.json`, `Sistema/Mapa do sistema.canvas`, `Sistema/Visão geral.md`, `Sistema/Glossário.md`, as pastas Drafts, Fluxos, Perspectivas e Decisões e a cópia completa da skill em `.agents/skills/`. As notas iniciais declaram explicitamente o que ainda está a definir; não invente conteúdo do sistema. Preserve qualquer nota existente. O inicializador não cria `.centaur/specs/` nem `Sistema/Specs/`.
+Ele cria, quando faltar, `.centaur/obsidian/.obsidian/app.json`, `Sistema/Mapa do sistema.canvas`, `Sistema/Visão geral.md`, `Sistema/Glossário.md`, as pastas Drafts, Fluxos, Perspectivas e Decisões e a cópia completa da skill em `.agents/skills/`. As notas iniciais declaram explicitamente o que ainda está a definir; não invente conteúdo do sistema. Preserve notas humanas existentes; o quadro gerado é atualizado e vinculado ao mapa a cada execução. O inicializador não cria `.centaur/specs/` nem `Sistema/Specs/`.
 
 ## Atualizar a partir do código
 
@@ -57,12 +63,22 @@ Aceite criação manual somente em `Sistema/Drafts/<slug>.md`; ignore `_modelo.m
 
 No modo `refinar <slug>`, preserve o arquivo original, liste hipóteses, compare com `AGENTS.md` e código no escopo necessário e faça todas as perguntas que alterem comportamento, limites, dados ou responsabilidade. Não gere spec nem código enquanto houver ambiguidade material.
 
-Após o usuário aprovar, use `promover <slug>`: marque o Draft como promovido, escreva ou atualize Fluxo, Decisões, Visão Geral e uma Perspectiva quando ela ajudar a compreensão. Em seguida, crie a spec usando `/centaur-driven-spec`; a própria spec registra as notas humanas que lhe deram origem. Não crie uma nota espelho no vault. Use `implementar YYYY` somente quando a spec estiver confirmada; ele delega para `/centaur-driven-run YYYY`, que preserva TDD ou modo direto de cada task.
+Após o usuário aprovar, use `promover <slug>`: marque o Draft como promovido, escreva ou atualize Fluxo, Decisões, Visão Geral e uma Perspectiva quando ela ajudar a compreensão. Em seguida, crie a spec usando `/centaur-driven-spec`; a própria spec registra as notas humanas que lhe deram origem. Não crie uma nota espelho no vault. Use `implementar <escopo>/<id>` somente quando a spec estiver confirmada; ele delega para `/centaur-driven-run <escopo>/<id>`, que preserva TDD ou modo direto de cada task.
 
 ## Sincronizar implementação
 
-Depois de uma implementação validada, atualize somente a leitura humana afetada: comportamento estabelecido, decisão relevante, estado confirmado e evidência discreta. Não copie para o vault o número da task, checklist, status de execução ou resumo técnico da implementação. Em execução paralela, o executor apenas relata as notas afetadas; o orquestrador escreve no vault serialmente ao fim da onda. Falha de documentação não invalida código já validado, mas deve ser reportada como pendência.
+Depois de uma implementação validada, atualize somente a leitura humana afetada: comportamento estabelecido, decisão relevante, estado confirmado e evidência discreta. Após consolidar os registros técnicos, regenere o quadro para mostrar o status e o progresso das specs; não replique instruções de tasks. Em execução paralela, o executor apenas relata as notas afetadas; o orquestrador escreve no vault serialmente ao fim da onda. Falha de documentação não invalida código já validado, mas deve ser reportada como pendência.
 
 ## Entrega
 
 Informe as notas e Canvases alterados, o que foi confirmado versus hipótese e a validação real. O vault local é a origem da documentação humana; não dependa de MCP.
+
+## Sincronizar quadro de specs
+
+Execute após inicializar o vault e após cada mudança de estado canônico:
+
+```bash
+python3 <pasta-da-skill>/scripts/sync_board.py <raiz-do-projeto>
+```
+
+O script lê `.centaur/workspace.json` (ou usa master legado), os READMEs de specs e gera `Sistema/Quadro de specs.canvas` e `.md`, conectando o quadro ao mapa existente. Não requer plugin Kanban. Esses dois arquivos são projeções geradas: alterações de status devem ser feitas nos registros canônicos e então sincronizadas. Arrastar cards só altera a apresentação até a próxima sincronização. Cards incluem escopo, responsável, relação mestre/filhas, dependências e progresso; status desconhecido fica visível em `A verificar`. Links externos ao vault usam URI de arquivo e exigem acesso local ao projeto.

@@ -45,6 +45,7 @@ Projetos já documentados recebem a seção de qualidade do novo template por `/
 
 | Skill | O que faz |
 |-------|-----------|
+| `/centaur-driven-commitAndPush` | Cria commit e publica na main após buscar a branch remota, simular integração e validar; bloqueia em conflitos e sugere resolução |
 | `/centaur-driven-start-project` | Documenta o projeto: cria o `AGENTS.md` na raiz e inicializa as estruturas de implementações e specs |
 | `/centaur-driven-check` | Responde perguntas sobre o projeto com base na documentação e no código — sem alterar nada |
 | `/centaur-driven-tdd` | Mudanças pontuais com **regra de negócio real**: teste antes do código, ciclo red-green-refactor, cobertura proporcional ao risco |
@@ -119,7 +120,7 @@ O run é o orquestrador — e é **restrito a tasks de specs**: não implementa 
 - Lança um subagente por task, escolhendo a skill pelo `Modo` da task (`TDD` → `/centaur-driven-tdd`, `direto` → `/centaur-driven-implement`) e passando a instrução da spec **verbatim** com o prefixo `Spec YYYY — Task NN`
 - Esse prefixo ativa o **modo spec** da skill de execução dentro do subagente: não faz perguntas (as decisões já foram tomadas na spec) e encerra com um relatório estruturado, sem tocar nos arquivos compartilhados
 - Se uma task bloquear, pula as dependentes, continua as demais e reporta o que precisa da sua decisão
-- Execução paralela é segura: cada subagente reserva seu número de implementação atomicamente (via `mkdir`) e **só o run escreve** no checklist da spec e no `status.md` — a consolidação acontece ao fim de cada onda, a partir dos relatórios, sem risco de escritas simultâneas se sobrescreverem
+- Execução paralela é segura: cada subagente reserva seu número de implementação atomicamente (via `mkdir`) e **só o run escreve** no checklist da spec e no `status.md` — a consolidação acontece ao fim de cada onda, a partir dos relatórios, com um coordenador responsável por consolidar os registros compartilhados
 - Execução é retomável: rodar `/centaur-driven-run 0001` de novo continua de onde parou
 
 ### 6. Para consultar, use check
@@ -187,7 +188,7 @@ O Draft começa como uma nota no vault e pode ganhar um Canvas irmão quando a l
 
 O vault é criado em `.centaur/obsidian/`. Abra `Sistema/Mapa do sistema.canvas` para navegar visualmente por visão geral, fluxos, perspectivas, decisões, drafts e glossário. Abra essa pasta no Obsidian e use o Claudian com Codex para conversar, editar notas e anexar contexto por `@`. O Claudian carrega a skill no escopo do vault; um MCP paralelo não é necessário.
 
-O limite é intencional: `AGENTS.md`, `.centaur/specs/` e `.centaur/implements/` guardam o contexto técnico que a IA lê; o vault guarda a explicação do sistema que o usuário lê. Por isso não existe `Sistema/Specs/` no Obsidian.
+O quadro `Sistema/Quadro de specs.canvas`, ligado ao mapa, mostra specs mestre e de todos os módulos por status, como um Trello, sem exigir plugin. Os cards exibem responsável, progresso, dependências e links para as specs. O quadro e seu resumo Markdown são gerados dos READMEs canônicos; edite o estado na spec e sincronize. Arrastar um card não atualiza o estado operacional.
 
 ## O código é a documentação
 
@@ -208,7 +209,11 @@ projeto/
 ├── AGENTS.md                        # Contexto do projeto (lido pelas skills a cada chat)
 │                                    # Última linha: carimbo de schema, usado pelo update
 └── .centaur/
-    ├── implements/
+    ├── workspace.json              # Escopos, caminhos e responsáveis
+    ├── modules/
+    │   ├── frontend/               # specs/index.md e implements/status.md próprios
+    │   └── backend/                # specs/index.md e implements/status.md próprios
+    ├── implements/                # Histórico mestre
     │   ├── status.md                # Tabela com as implementações recentes
     │   ├── arquivo.md               # Índice das antigas (criado pelo update quando cresce)
     │   └── 0001/
@@ -256,4 +261,18 @@ projeto/
                                         └── arquiva índice antigo em implements/arquivo.md
 ```
 
-Specs seguem os status `Pendente` → `Em andamento` → `Concluída`. Cada implementação referencia a spec/task de origem, e cada task concluída aponta para a implementação — trilha completa nos dois sentidos.
+Specs seguem os status `Pendente`, `Em andamento`, `Bloqueada`, `Em revisão` e `Concluída`; conclusão exige validação e integração. Cada implementação referencia a spec/task de origem, e cada task concluída aponta para a implementação — trilha completa nos dois sentidos.
+
+## Módulos e colaboração
+
+O `start-project` identifica os módulos reais e registra `.centaur/workspace.json`. A pasta mestre `.centaur/` conserva `specs/` e `implements/` existentes. Cada módulo tem suas próprias pastas, por padrão em `.centaur/modules/<módulo>/`. Os caminhos podem ser configurados dentro do projeto. A configuração e as regras da equipe ficam vinculadas no `AGENTS.md`.
+
+Uma demanda de todo o sistema recebe uma spec `master/0001`, ligada às specs `frontend/0001` e `backend/0001`, por exemplo. Use `/centaur-driven-run frontend/0001` para executar o escopo certo; números repetidos sem módulo exigem desambiguação. Cada task tem responsável, arquivos e dependências. Em clones diferentes, novos IDs podem receber sufixo único para evitar colisões. O contrato completo está em [módulos e equipe](centaur-driven-obsidian/references/team-workspace.md).
+
+Trabalho paralelo usa posse explícita de tasks e branches/worktrees por executor quando necessário. Um coordenador consolida arquivos compartilhados, integra as entregas e atualiza a spec mestre. Ela só conclui quando as specs filhas e os critérios de integração estiverem atendidos. Projetos legados mantêm seus caminhos; `/centaur-driven-update` adiciona os novos escopos e regenera o quadro sem mover o histórico.
+
+## Commit e push na main
+
+Use `/centaur-driven-commitAndPush` para publicar o trabalho solicitado. A skill revisa o escopo, cria o commit, busca a main remota, simula a integração e valida o resultado em worktree temporário. Se houver conflito, informa os arquivos e propõe resolução em branch de trabalho. Se estiver limpo, faz push normal do resultado validado para main; não força histórico nem ignora proteção de branch. Uma atualização concorrente exige nova checagem.
+
+O nome `centaur-driven-commitAndPush` foi preservado conforme solicitado; validadores que exigem nomes exclusivamente em minúsculas com hífens podem rejeitá-lo.

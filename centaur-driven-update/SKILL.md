@@ -10,6 +10,10 @@ metadata:
 
 # centaur-driven-update
 
+## Escopos e equipe
+
+Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-obsidian/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+
 ## Dependência obrigatória — clean-code
 
 Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
@@ -121,7 +125,7 @@ Cheque e anote:
 8. **Implementação concluída com fluxo ou nota pendente** → registre a lacuna e inclua a sincronização no plano; não trate a ausência de documentação como falha do código validado.
 9. **Draft fora de `Sistema/Drafts/` ou sem estado** → não o promova automaticamente; mova-o apenas com autorização e registre a hipótese e perguntas abertas.
 10. **Canvas inválido, técnico demais ou sem nota irmã** → corrija no plano: Canvas usa JSON válido, conceitos humanos e uma pergunta de perspectiva; nomes de arquivos e símbolos viram evidência na nota irmã.
-11. **`Sistema/Specs/` legado no vault** → não crie nem atualize notas nele. Informe que specs pertencem a `.centaur/specs/` e proponha retirar da navegação humana; não apague conteúdo existente sem autorização.
+11. **Quadro de specs** → regenere a projeção a partir dos READMEs de todos os escopos. Preserve notas legadas em `Sistema/Specs/`; vincule o novo quadro ao mapa sem apagar conteúdo humano.
 12. **Claudian ausente ou desabilitado** → registre a pendência operacional; não bloqueie a atualização de documentação e não instale o plugin sem solicitação explícita.
 
 ## Passo 5 — Detectar conflitos
@@ -278,3 +282,5 @@ Encerre com:
 - Número da implementação (ex: "Documentado em `.centaur/implements/0022/`")
 - Vault do Obsidian atualizado, dependências verificadas e pendências explícitas do Claudian, quando houver
 - Sugestão de conferir com `git diff` antes de commitar
+
+Na migração para módulos, preserve os caminhos existentes como master. Adicione `.centaur/workspace.json` e os escopos identificados sem mover históricos; audite cada índice/arquivo e também as relações mestre–filhas. Percorra todos os diretórios de registros, inclusive IDs com sufixo: os filtros numéricos dos exemplos legados não cobrem registros de clones independentes.
