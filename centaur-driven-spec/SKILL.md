@@ -44,7 +44,7 @@ Leia com atenção o que o usuário pediu. Identifique:
 
 ## Passo 3 — Explorar o código relevante
 
-Antes de explorar o código, leia `.centaur/system/Visão geral.md` e os Drafts, Fluxos, Perspectivas e Decisões relevantes, quando existirem. Eles são a referência humana da demanda; confirme detalhes no código e separe hipótese de comportamento implementado. Registre no contexto técnico da própria `.centaur/specs/YYYY/README.md` quais notas originaram a spec. Após salvar a spec e seu índice, sincronize os documentos no Graphify; o README continua sendo a fonte canônica de status.
+Antes de explorar o código, leia `docs/system/Visão geral.md` e os Drafts, Fluxos, Perspectivas e Decisões relevantes, quando existirem. Eles são a referência humana da demanda; use o Graphify para localizar arquivos candidatos, confirme detalhes no código e separe hipótese de comportamento implementado. Registre no contexto técnico da própria `.centaur/specs/YYYY/README.md` quais notas originaram a spec. Após salvar a spec e seu índice, sincronize os documentos no Graphify; o README continua sendo a fonte canônica de status.
 
 Localize e leia os arquivos que fornecem contexto suficiente para decompor a solicitação:
 - Pontos de entrada relacionados

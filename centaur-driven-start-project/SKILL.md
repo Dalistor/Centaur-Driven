@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-start-project
-description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa implementações, specs e entradas do mapa semântico em .centaur/
-version: 3.1.0
+description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas), registros em .centaur/ e mapa humano em docs/system/
+version: 3.2.0
 invocable: true
 author: user
 metadata:
@@ -164,7 +164,7 @@ As instruções do usuário e deste projeto prevalecem. O Centaur define o modo 
 
 ## Sistema no Graphify
 
-Use `/centaur-driven-graphify` para manter a visão geral, drafts, fluxos, perspectivas e decisões em `.centaur/system/` e consultar o grafo em `graphify-out/`. Specs, tasks e histórico permanecem nos escopos de `.centaur/workspace.json`. O código e a validação confirmam o comportamento implementado. Após alterar código e documentos, sincronize ambos pelo fluxo da skill; em paralelo, somente o coordenador escreve os documentos compartilhados e atualiza o grafo.
+Use `/centaur-driven-graphify` para manter a visão geral, mapa, drafts, fluxos, perspectivas e decisões em `docs/system/` e consultar o índice técnico em `graphify-out/`. Specs, tasks e histórico permanecem nos escopos de `.centaur/workspace.json`. O código e a validação confirmam o comportamento implementado. Após alterar código e documentos, sincronize ambos pelo fluxo da skill; em paralelo, somente o coordenador escreve os documentos compartilhados e atualiza o índice.
 
 ## Módulos e Equipe
 
@@ -217,7 +217,7 @@ Planejamentos de implementações complexas, decompostos em tasks para subagente
 _Atualizado automaticamente pelas skills `/centaur-driven-spec`, `/centaur-driven-tdd`, `/centaur-driven-implement` e `/centaur-driven-run`_
 ```
 
-Inicialize `.centaur/system/` conforme `centaur-driven-graphify`, com `Visão geral.md`, `Mapa do sistema.md`, `Glossário.md` e as pastas Drafts, Fluxos, Perspectivas e Decisões. O mapa principal deve seguir módulo → funcionalidade/página → processo, com detalhes dos processos em diagramas separados, conforme `references/readable-maps.md` da skill Graphify. Registre hipóteses explicitamente. Verifique o CLI e a skill oficial Graphify, gere o grafo de código e documentos e confira `graphify-out/graph.json`, `GRAPH_REPORT.md` e `graph.html`. Se uma dependência impedir a geração, entregue os documentos e reporte a pendência; nunca afirme que o grafo está sincronizado sem verificar os artefatos.
+Inicialize `docs/system/` conforme `centaur-driven-graphify`, com `Visão geral.md`, `Mapa do sistema.md`, `Glossário.md` e as pastas Drafts, Fluxos, Perspectivas e Decisões. O mapa principal deve seguir módulo → funcionalidade/página → processo, com detalhes dos processos em diagramas separados, conforme `references/readable-maps.md` da skill Graphify. Registre hipóteses explicitamente. Verifique o CLI e a skill oficial Graphify, gere o índice de código e documentos e confira `graphify-out/graph.json` e `GRAPH_REPORT.md`. Se uma dependência impedir a geração, entregue os documentos e reporte a pendência; nunca afirme que o índice está sincronizado sem verificar os artefatos.
 
 ## Passo 6 — Confirmar
 
@@ -225,7 +225,7 @@ Informe ao usuário o que foi criado e o fluxo das skills centaur-driven:
 - `AGENTS.md` criado na raiz — será lido pelas skills centaur em cada chat
 - `.centaur/implements/status.md` criado — histórico de todas as implementações
 - `.centaur/specs/index.md` criado — índice de specs planejadas
-- `.centaur/system/` criado — documentação humana; `graphify-out/` — mapa e consultas, quando gerado
+- `docs/system/` criado — mapa e documentação humana visíveis no Obsidian; `graphify-out/` — índice técnico para consultas, quando gerado
 
 Fluxo de trabalho:
 - `/centaur-driven-check` — perguntar sobre o projeto sem alterar nada

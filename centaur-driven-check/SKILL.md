@@ -33,7 +33,7 @@ Leia obrigatoriamente:
 2. `.centaur/implements/status.md` (histórico de implementações — necessário para responder perguntas sobre o que já foi feito, o que mudou, ou o estado atual de funcionalidades)
 3. `.centaur/specs/index.md`, se existir (specs planejadas — necessário para responder sobre o que está planejado, em andamento ou pendente)
 
-Quando a pergunta envolver capacidades, responsabilidades ou um fluxo ponta a ponta, consulte o grafo com `graphify query` e a documentação correspondente em `.centaur/system/`, quando o Graphify estiver configurado, e confirme detalhes no código e nos READMEs de implementação. Se não houver nota, deixe claro que a documentação do fluxo ainda não foi criada.
+Quando a pergunta envolver capacidades, responsabilidades ou um fluxo ponta a ponta, use `graphify query` para localizar fontes e leia a documentação correspondente em `docs/system/`, quando o Graphify estiver configurado. Confirme detalhes no código e nos READMEs de implementação; o índice não comprova comportamento por si só. Se não houver nota, deixe claro que a documentação do fluxo ainda não foi criada.
 
 Se `AGENTS.md` não existir, informe o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` para criar o AGENTS.md antes de usar `/centaur-driven-check`."
@@ -46,7 +46,7 @@ Se a implementação procurada não estiver no `status.md`, procure em `.centaur
 
 ## Passo 2 — Entender a pergunta
 
-Para uma pergunta sobre um fluxo, consulte o grafo e a nota correspondente em `.centaur/system/` quando o Graphify estiver configurado. Se o usuário pedir criar ou alterar um fluxograma, indique `/centaur-driven-graphify`; este comando continua somente leitura.
+Para uma pergunta sobre um fluxo, consulte o índice e a nota correspondente em `docs/system/` quando o Graphify estiver configurado. Se o usuário pedir criar ou alterar um fluxograma, indique `/centaur-driven-graphify`; este comando continua somente leitura.
 
 Leia o que o usuário perguntou. Identifique se a resposta está:
 - Diretamente no `AGENTS.md`

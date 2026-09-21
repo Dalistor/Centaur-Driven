@@ -70,7 +70,7 @@ A skill varre o projeto, faz perguntas sobre o que não está evidente no códig
 - `AGENTS.md` na raiz — contexto do projeto, lido pelas skills centaur no início de cada chat
 - `.centaur/implements/status.md` — histórico de implementações
 - `.centaur/specs/index.md` — índice de specs planejadas
-- `.centaur/system/` — documentação humana; `graphify-out/` — mapa navegável e grafo consultável
+- `docs/system/` — mapa e documentação humana visíveis no Obsidian; `graphify-out/` — índice técnico consultável pela IA
 
 Entre as perguntas está a **stack de testes** (framework, comando de rodar a suíte, local e convenção dos arquivos, meta de cobertura) — é o que decide se uma mudança futura vai por TDD ou não. Se o projeto ainda não tem testes, a skill pergunta se você quer adotar TDD dali em diante e com qual framework.
 
@@ -184,7 +184,7 @@ Ele **não toca em código**: bug ou violação de camada que encontrar vira rel
 /centaur-driven-graphify sincronizar frontend/0007
 ```
 
-A skill mantém a visão geral, drafts, fluxos, decisões e perspectivas em `.centaur/system/`. O mapa principal fica em `.centaur/system/Mapa do sistema.md`, organizado por **módulo → funcionalidade/página → processo**, com diagramas Mermaid pequenos e links para os fluxos detalhados. Exemplo: Backend → Autenticação → Processo de autenticação; Frontend → Página de login → Processo de login. As perspectivas explicam as etapas e interações em linguagem humana, sustentadas por consultas ao Graphify. Para navegar nos arquivos e símbolos, use a árvore recolhível em `graphify-out/GRAPH_TREE.html`; o grafo denso de `graphify-out/graph.html` fica disponível para investigar relações específicas.
+A skill usa o Graphify como índice para a IA localizar conceitos, arquivos e relações; depois confirma as respostas nas fontes. A visão geral, os fluxos, as decisões e as perspectivas humanas ficam em `docs/system/`. O mapa principal é `docs/system/Mapa do sistema.md`, organizado por **módulo → funcionalidade/página → processo**, com diagramas Mermaid pequenos e links para detalhes. Ao abrir a raiz do projeto como vault no Obsidian, essa nota aparece no explorador e o Mermaid é renderizado; abrir o vault não seleciona automaticamente o mapa. HTMLs técnicos do Graphify são opcionais para investigação.
 
 Specs e implements permanecem nos escopos de `.centaur/workspace.json`, com status nos READMEs e índices. O quadro visual foi removido. A sincronização inclui código e documentos: atualização AST isolada não atualiza specs/implements. As skills consolidam os registros primeiro e depois atualizam o Graphify serialmente; falhas semânticas são reportadas como pendências.
 

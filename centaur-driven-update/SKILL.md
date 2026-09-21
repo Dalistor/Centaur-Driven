@@ -50,7 +50,7 @@ git status --porcelain
 
 Você vai reescrever documentação. Se houver mudanças não commitadas, avise o usuário e pergunte se quer commitar antes — com a árvore limpa, desfazer é `git checkout`.
 
-4. Verifique `centaur-driven-graphify`, sua referência de equipe, a skill oficial `graphify` e `graphify --version`. Confira `.centaur/system/` e os artefatos em `graphify-out/`. Ausência do CLI ou extração semântica pendente deve ser reportada sem bloquear a documentação já validada. Para projetos antigos, leia `references/migration.md` de `centaur-driven-graphify` antes de migrar os documentos.
+4. Verifique `centaur-driven-graphify`, sua referência de equipe, a skill oficial `graphify` e `graphify --version`. Confira `docs/system/`, o legado em `.centaur/system/` e os artefatos em `graphify-out/`. Ausência do CLI ou extração semântica pendente deve ser reportada sem bloquear a documentação já validada. Para projetos antigos, leia `references/migration.md` de `centaur-driven-graphify` antes de migrar os documentos.
 
 ## Passo 2 — Descobrir as versões
 
@@ -84,7 +84,7 @@ Leia o template de `AGENTS.md` dentro do `centaur-driven-start-project` instalad
 
 Faça o mesmo com a estrutura `.centaur/`: compare `implements/status.md` e `specs/index.md` contra os templates do Passo 5 do `start-project`. Cabeçalho de tabela que ganhou coluna nova precisa ganhar a coluna (com as células antigas preenchidas com `—` quando o dado não existir).
 
-Compare também `.centaur/system/` com a estrutura de `centaur-driven-graphify`; crie apenas o que faltar. Migre documentos legados conforme `references/migration.md`, preservando originais e links. Atualize a seção do sistema no AGENTS.md e reporte o estado real do grafo.
+Compare também `docs/system/` com a estrutura de `centaur-driven-graphify`; crie apenas o que faltar. Migre documentos legados de `.centaur/system/` conforme `references/migration.md`, preservando conteúdo e links. Atualize a seção do sistema no AGENTS.md e reporte o estado real do índice.
 
 **Seções que exigem informação que não está em lugar nenhum** — tipicamente as mais novas — viram perguntas para o usuário. Levante primeiro o que der para inferir do código e apresente já preenchido, para ele só confirmar. Exemplos do que costuma faltar em documentação antiga:
 
@@ -96,7 +96,7 @@ Não invente conteúdo para preencher seção: seção sem informação real fic
 
 ## Passo 4 — Auditar a integridade dos registros
 
-Se a documentação existir, consulte o grafo, Visão Geral, Glossário, Fluxos, Perspectivas e Decisões em `.centaur/system/` para detectar documentação que contradiz o código. Proponha correções no plano confirmado; não reescreva histórico de implementações para mudar a compreensão atual.
+Se a documentação existir, consulte o índice Graphify, Visão Geral, Glossário, Fluxos, Perspectivas e Decisões em `docs/system/` para detectar documentação que contradiz o código. Proponha correções no plano confirmado; não reescreva histórico de implementações para mudar a compreensão atual.
 
 Verificações mecânicas, todas resolvíveis sem perguntar:
 
@@ -117,7 +117,7 @@ Cheque e anote:
 6. **Spec `Pendente`/`Em andamento` com tasks não marcadas** → verifique se as tasks foram feitas por fora (procure por implementações que citam a spec). Se foram, marque; se a spec foi abandonada, pergunte ao usuário se quer marcá-la como `Cancelada`.
 7. **Divergência entre `index.md` e os READMEs das specs** (status, número de tasks) → o README da spec é a fonte; alinhe o índice.
 8. **Implementação concluída com fluxo ou nota pendente** → registre a lacuna e inclua a sincronização no plano; não trate a ausência de documentação como falha do código validado.
-9. **Draft fora de `.centaur/system/Drafts/` ou sem estado** → não o promova automaticamente; registre hipótese e perguntas abertas.
+9. **Draft fora de `docs/system/Drafts/` ou sem estado** → não o promova automaticamente; registre hipótese e perguntas abertas.
 10. **Perspectiva sem evidência ou desatualizada** → consulte o grafo e confirme no código; diferencie planejado, implementado e inferido.
 11. **Grafo desatualizado** → atualize código e documentos conforme a skill Graphify; atualizar só AST não sincroniza specs/implements.
 12. **Documentação legada** → siga a referência de migração, preservando conteúdos humanos e retirando o quadro da navegação ativa.
@@ -164,7 +164,7 @@ Execute o plano confirmado, nesta ordem:
 3. Migrar as seções do `AGENTS.md` (crie as que faltam, reformate as que mudaram, **preserve as customizadas**)
 4. Corrigir os pontos onde a documentação contradizia o código
 5. Promover para o `AGENTS.md` o conhecimento que estava preso no histórico
-6. Inicializar ou completar `.centaur/system/` e sincronizar código e documentos no Graphify conforme o plano
+6. Inicializar ou completar `docs/system/` e sincronizar código e documentos no Graphify conforme o plano
 
 Edite cirurgicamente: mantenha o texto que continua correto com as palavras originais do usuário. Reescrever seção inteira que estava certa só troca a redação dele pela sua.
 
