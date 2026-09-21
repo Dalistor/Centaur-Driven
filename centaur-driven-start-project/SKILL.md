@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-start-project
 description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa implementações, specs e entradas do mapa semântico em .centaur/
-version: 3.0.0
+version: 3.1.0
 invocable: true
 author: user
 metadata:
@@ -217,7 +217,7 @@ Planejamentos de implementações complexas, decompostos em tasks para subagente
 _Atualizado automaticamente pelas skills `/centaur-driven-spec`, `/centaur-driven-tdd`, `/centaur-driven-implement` e `/centaur-driven-run`_
 ```
 
-Inicialize `.centaur/system/` conforme `centaur-driven-graphify`, com `Visão geral.md`, `Glossário.md` e as pastas Drafts, Fluxos, Perspectivas e Decisões. Registre hipóteses explicitamente. Verifique o CLI e a skill oficial Graphify, gere o grafo de código e documentos e confira `graphify-out/graph.json`, `GRAPH_REPORT.md` e `graph.html`. Se uma dependência impedir a geração, entregue os documentos e reporte a pendência; nunca afirme que o grafo está sincronizado sem verificar os artefatos.
+Inicialize `.centaur/system/` conforme `centaur-driven-graphify`, com `Visão geral.md`, `Mapa do sistema.md`, `Glossário.md` e as pastas Drafts, Fluxos, Perspectivas e Decisões. O mapa principal deve seguir módulo → funcionalidade/página → processo, com detalhes dos processos em diagramas separados, conforme `references/readable-maps.md` da skill Graphify. Registre hipóteses explicitamente. Verifique o CLI e a skill oficial Graphify, gere o grafo de código e documentos e confira `graphify-out/graph.json`, `GRAPH_REPORT.md` e `graph.html`. Se uma dependência impedir a geração, entregue os documentos e reporte a pendência; nunca afirme que o grafo está sincronizado sem verificar os artefatos.
 
 ## Passo 6 — Confirmar
 

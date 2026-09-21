@@ -184,7 +184,7 @@ Ele **não toca em código**: bug ou violação de camada que encontrar vira rel
 /centaur-driven-graphify sincronizar frontend/0007
 ```
 
-A skill mantém a visão geral, drafts, fluxos, decisões e perspectivas em `.centaur/system/`. O mapa navegável fica em `graphify-out/graph.html`, acompanhado de `graph.json` e `GRAPH_REPORT.md`. As perspectivas combinam consultas ao grafo com explicações em Markdown e diagramas Mermaid quando úteis.
+A skill mantém a visão geral, drafts, fluxos, decisões e perspectivas em `.centaur/system/`. O mapa principal fica em `.centaur/system/Mapa do sistema.md`, organizado por **módulo → funcionalidade/página → processo**, com diagramas Mermaid e links para os fluxos detalhados. Exemplo: Backend → Autenticação → Processo de autenticação; Frontend → Página de login → Processo de login. As perspectivas explicam as etapas e interações em linguagem humana, sustentadas por consultas ao Graphify. O grafo de arquivos e símbolos em `graphify-out/graph.html` fica disponível para aprofundamento técnico.
 
 Specs e implements permanecem nos escopos de `.centaur/workspace.json`, com status nos READMEs e índices. O quadro visual foi removido. A sincronização inclui código e documentos: atualização AST isolada não atualiza specs/implements. As skills consolidam os registros primeiro e depois atualizam o Graphify serialmente; falhas semânticas são reportadas como pendências.
 
