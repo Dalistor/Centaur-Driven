@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-start-project
 description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa implementações, specs e entradas do mapa semântico em .centaur/
-version: 2.0.0
+version: 2.0.1
 invocable: true
 author: user
 metadata:
@@ -60,6 +60,8 @@ Identifique: linguagem(ns), framework(s), banco de dados, dependências principa
 
 Após a varredura, faça perguntas para preencher o que não está claro no código. Adapte as perguntas ao que você encontrou — não pergunte o que já está evidente. Cubra:
 
+Inclua explicitamente: **"O desenvolvimento deste projeto será individual ou em equipe?"** Não deduza a resposta da quantidade de módulos ou colaboradores no Git. Se o usuário já informou o modo nesta sessão, reutilize a resposta. No mesmo bloco, peça responsáveis por módulo e pela integração **somente se for em equipe**. Registre a escolha em `.centaur/workspace.json` como `collaboration: "individual"` ou `collaboration: "team"` e na seção Módulos e Equipe do `AGENTS.md`.
+
 1. **Propósito**: O que este projeto faz? Para quem é?
 2. **Status atual**: Em que fase está? (MVP, produção, refactor, etc)
 3. **Arquitetura**: Há decisões arquiteturais importantes que não estão no código?
@@ -69,7 +71,7 @@ Após a varredura, faça perguntas para preencher o que não está claro no cód
 7. **Idioma e vocabulário do código**: Em que idioma são escritos os identificadores (nomes de variável, função, classe)? E os comentários? E as mensagens de commit? É comum o domínio ficar em português e a infraestrutura em inglês — se a varredura mostrou isso, confirme em vez de perguntar. Levante também os **termos do domínio** que já aparecem no código (as palavras que nomeiam as entidades centrais) e confirme se são as palavras corretas do negócio: elas viram o vocabulário obrigatório das próximas implementações. Um conceito, um nome, no projeto inteiro.
 8. **Restrições**: Há limitações técnicas, de performance, de segurança ou de negócio?
 9. **Ambiente**: Como rodar localmente? Como fazer deploy?
-10. **Módulos e equipe**: Identifique módulos, pastas de código, responsáveis e quem coordena a integração. Registre os escopos em `.centaur/workspace.json` conforme o contrato. Pergunte somente o que não estiver evidente; não crie frontend/backend se não existirem.
+10. **Módulos e equipe**: Identifique módulos e pastas de código, independentemente do modo individual/equipe. No modo equipe, registre responsáveis e quem coordena a integração; no individual, use o próprio desenvolvedor como responsável, sem exigir divisão de papéis. Registre os escopos em `.centaur/workspace.json` conforme o contrato. Pergunte somente o que não estiver evidente; não crie frontend/backend se não existirem.
 11. **Contexto extra**: Qualquer coisa que um dev novo precisaria saber antes de tocar no código?
 
 Faça todas as perguntas de uma vez. Aguarde as respostas antes de continuar.
@@ -165,6 +167,8 @@ As instruções do usuário e deste projeto prevalecem. O Centaur define o modo 
 Use `/centaur-driven-obsidian` para manter o mapa, os drafts, fluxos, perspectivas, decisões e a visão humana do sistema no vault configurado. O vault contém a leitura destinada ao usuário; contexto técnico, specs, tasks e histórico permanecem em `AGENTS.md` e `.centaur/`. O código e a validação continuam sendo a evidência de comportamento implementado. Em execuções paralelas, o orquestrador sincroniza notas compartilhadas serialmente.
 
 ## Módulos e Equipe
+
+Modo de colaboração: [individual ou equipe, conforme resposta do usuário].
 
 Consulte `.centaur/workspace.json` para escopos, pastas de código, specs, implementações e responsáveis. A pasta mestre contém specs do sistema que ligam as specs dos módulos. Use IDs qualificados, como `frontend/0001`. Registre aqui responsáveis pela integração, convenções de branches e validações de cada módulo. O quadro `Sistema/Quadro de specs.canvas` mostra o andamento consolidado.
 

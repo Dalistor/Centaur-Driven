@@ -9,6 +9,7 @@ O start-project cria `.centaur/workspace.json`. Exemplo para um projeto com dois
 ```json
 {
   "version": 1,
+  "collaboration": "team",
   "scopes": {
     "master": {"code": ".", "specs": ".centaur/specs", "implements": ".centaur/implements", "owner": "equipe"},
     "frontend": {"code": "frontend", "specs": ".centaur/modules/frontend/specs", "implements": ".centaur/modules/frontend/implements", "owner": "a definir"},
@@ -18,6 +19,8 @@ O start-project cria `.centaur/workspace.json`. Exemplo para um projeto com dois
 ```
 
 Todos os caminhos são relativos à raiz, ficam dentro do projeto e as pastas de registros dos escopos são distintas. `master` é obrigatório e contém specs principais do sistema, decisões de integração e implementações transversais. Os nomes dos módulos seguem as responsabilidades reais do projeto; frontend/backend são exemplos. Cada escopo tem `specs/index.md`, `implements/status.md` e registros próprios. Sem configuração, use somente `master` nos caminhos legados; nunca mova registros antigos automaticamente.
+
+`collaboration` registra a resposta explícita do usuário: `individual` ou `team`. Ambos permitem múltiplos módulos e specs mestre. No modo individual, o desenvolvedor acumula responsabilidade e integração; não exija outros participantes ou revisão por outra pessoa. Havendo agentes/sessões simultâneos, as regras de concorrência continuam valendo. Em configurações antigas sem esse campo, preserve o funcionamento e pergunte o modo na próxima atualização de contexto, sem presumir equipe.
 
 ## Identidade e responsabilidade
 

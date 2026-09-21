@@ -265,6 +265,8 @@ Specs seguem os status `Pendente`, `Em andamento`, `Bloqueada`, `Em revisão` e 
 
 ## Módulos e colaboração
 
+O `start-project` pergunta explicitamente se o desenvolvimento será **individual ou em equipe** e registra a resposta. Ambos permitem módulos; no modo equipe, também define responsáveis por módulo e pela integração. No individual, o próprio desenvolvedor assume essas responsabilidades.
+
 O `start-project` identifica os módulos reais e registra `.centaur/workspace.json`. A pasta mestre `.centaur/` conserva `specs/` e `implements/` existentes. Cada módulo tem suas próprias pastas, por padrão em `.centaur/modules/<módulo>/`. Os caminhos podem ser configurados dentro do projeto. A configuração e as regras da equipe ficam vinculadas no `AGENTS.md`.
 
 Uma demanda de todo o sistema recebe uma spec `master/0001`, ligada às specs `frontend/0001` e `backend/0001`, por exemplo. Use `/centaur-driven-run frontend/0001` para executar o escopo certo; números repetidos sem módulo exigem desambiguação. Cada task tem responsável, arquivos e dependências. Em clones diferentes, novos IDs podem receber sufixo único para evitar colisões. O contrato completo está em [módulos e equipe](centaur-driven-obsidian/references/team-workspace.md).
