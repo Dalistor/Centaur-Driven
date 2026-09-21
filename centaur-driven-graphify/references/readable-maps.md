@@ -6,6 +6,8 @@ O mapa deve permitir entender o que cada área faz e como um processo acontece, 
 
 Use os módulos reais do projeto no primeiro nível. Dentro de cada módulo, mostre funcionalidades, domínios ou páginas; depois os processos que eles oferecem. Detalhe as etapas em um fluxo separado, vinculado por link Markdown. Evite colocar todos os processos e etapas no mapa geral.
 
+Cada diagrama precisa caber e ser lido sem arrastar o canvas ou ampliar o texto. Como ponto de partida, mostre até cerca de 10 nós e dois níveis por diagrama; se houver mais conceitos, crie um panorama por módulo e links para diagramas menores. Distribua as ligações na mesma direção, mantenha rótulos curtos e escreva explicações longas na nota. Não acrescente arestas cruzadas ao panorama para representar toda relação técnica encontrada. Uma relação entre módulos que importa ao usuário pertence a um fluxo próprio.
+
 Exemplo ilustrativo; crie esses elementos somente se existirem no projeto ou estiverem explicitamente planejados:
 
 ```mermaid
@@ -43,4 +45,4 @@ Não presuma senha, sessão, token, provedor externo ou regras de recusa: adapte
 
 ## Verificação da entrega
 
-Confira se uma pessoa consegue localizar módulo, funcionalidade/página e processo sem abrir código; se as setas têm significado consistente; se cada processo tem evidência ou marca de planejamento; e se o mapa principal aponta para o detalhe. Não entregue apenas o HTML técnico do Graphify como conclusão de um pedido de mapa legível.
+Confira se uma pessoa consegue localizar módulo, funcionalidade/página e processo sem abrir código; se os rótulos ficam legíveis no tamanho normal; se nós e setas não se sobrepõem; se as setas têm significado consistente; se cada processo tem evidência ou marca de planejamento; e se o mapa principal aponta para o detalhe. Se o diagrama falhar em qualquer ponto, divida-o e revise os links antes de entregar. Não entregue apenas o HTML técnico do Graphify como conclusão de um pedido de mapa legível.
