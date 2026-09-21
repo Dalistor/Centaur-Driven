@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-start-project
 description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas) e inicializa implementações, specs e entradas do mapa semântico em .centaur/
-version: 2.0.1
+version: 3.0.0
 invocable: true
 author: user
 metadata:
@@ -12,7 +12,7 @@ metadata:
 
 ## Escopos e equipe
 
-Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-obsidian/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
 
 ## Dependência obrigatória — clean-code
 
@@ -162,15 +162,15 @@ As instruções do usuário e deste projeto prevalecem. O Centaur define o modo 
 ## Contexto Extra
 [Qualquer coisa que um dev novo precisaria saber]
 
-## Sistema no Obsidian
+## Sistema no Graphify
 
-Use `/centaur-driven-obsidian` para manter o mapa, os drafts, fluxos, perspectivas, decisões e a visão humana do sistema no vault configurado. O vault contém a leitura destinada ao usuário; contexto técnico, specs, tasks e histórico permanecem em `AGENTS.md` e `.centaur/`. O código e a validação continuam sendo a evidência de comportamento implementado. Em execuções paralelas, o orquestrador sincroniza notas compartilhadas serialmente.
+Use `/centaur-driven-graphify` para manter a visão geral, drafts, fluxos, perspectivas e decisões em `.centaur/system/` e consultar o grafo em `graphify-out/`. Specs, tasks e histórico permanecem nos escopos de `.centaur/workspace.json`. O código e a validação confirmam o comportamento implementado. Após alterar código e documentos, sincronize ambos pelo fluxo da skill; em paralelo, somente o coordenador escreve os documentos compartilhados e atualiza o grafo.
 
 ## Módulos e Equipe
 
 Modo de colaboração: [individual ou equipe, conforme resposta do usuário].
 
-Consulte `.centaur/workspace.json` para escopos, pastas de código, specs, implementações e responsáveis. A pasta mestre contém specs do sistema que ligam as specs dos módulos. Use IDs qualificados, como `frontend/0001`. Registre aqui responsáveis pela integração, convenções de branches e validações de cada módulo. O quadro `Sistema/Quadro de specs.canvas` mostra o andamento consolidado.
+Consulte `.centaur/workspace.json` para escopos, pastas de código, specs, implementações e responsáveis. A pasta mestre contém specs do sistema que ligam as specs dos módulos. Use IDs qualificados, como `frontend/0001`. Registre aqui responsáveis pela integração, convenções de branches e validações de cada módulo. Consulte os índices de specs e implementações de cada escopo para o andamento.
 
 ## Implementações
 [Atualizado automaticamente pelas skills /centaur-driven-tdd e /centaur-driven-implement]
@@ -217,7 +217,7 @@ Planejamentos de implementações complexas, decompostos em tasks para subagente
 _Atualizado automaticamente pelas skills `/centaur-driven-spec`, `/centaur-driven-tdd`, `/centaur-driven-implement` e `/centaur-driven-run`_
 ```
 
-Crie também o vault local `.centaur/obsidian/` conforme `centaur-driven-obsidian`: inclua `.obsidian/app.json`, `Sistema/Mapa do sistema.canvas`, `Sistema/Visão geral.md`, `Sistema/Glossário.md`, as pastas Drafts, Fluxos, Perspectivas e Decisões e a skill no escopo `.agents/skills/`. Crie também o quadro `Sistema/Quadro de specs.canvas` e seu resumo usando o sincronizador da skill Obsidian; os READMEs técnicos continuam nos escopos configurados. As notas iniciais devem ser marcadas como rascunho; não invente a descrição do sistema.
+Inicialize `.centaur/system/` conforme `centaur-driven-graphify`, com `Visão geral.md`, `Glossário.md` e as pastas Drafts, Fluxos, Perspectivas e Decisões. Registre hipóteses explicitamente. Verifique o CLI e a skill oficial Graphify, gere o grafo de código e documentos e confira `graphify-out/graph.json`, `GRAPH_REPORT.md` e `graph.html`. Se uma dependência impedir a geração, entregue os documentos e reporte a pendência; nunca afirme que o grafo está sincronizado sem verificar os artefatos.
 
 ## Passo 6 — Confirmar
 
@@ -225,7 +225,7 @@ Informe ao usuário o que foi criado e o fluxo das skills centaur-driven:
 - `AGENTS.md` criado na raiz — será lido pelas skills centaur em cada chat
 - `.centaur/implements/status.md` criado — histórico de todas as implementações
 - `.centaur/specs/index.md` criado — índice de specs planejadas
-- `.centaur/obsidian/` criado — mapa e documentação do sistema para leitura do usuário
+- `.centaur/system/` criado — documentação humana; `graphify-out/` — mapa e consultas, quando gerado
 
 Fluxo de trabalho:
 - `/centaur-driven-check` — perguntar sobre o projeto sem alterar nada
@@ -233,7 +233,7 @@ Fluxo de trabalho:
 - `/centaur-driven-implement` — mudança pontual estrutural, de configuração ou de UI, e projetos sem infraestrutura de teste
 - `/centaur-driven-spec` — para demandas grandes: decompõe em tasks atômicas por camada, cada uma marcada como TDD ou direta
 - `/centaur-driven-run` — executa uma spec: lança subagentes por task conforme o Modo, paraleliza e consolida
-- `/centaur-driven-obsidian` — cria e refina drafts, fluxos e decisões no vault do Obsidian
+- `/centaur-driven-graphify` — mantém documentos, mapa e perspectivas do sistema usando Graphify
 - `/centaur-driven-update` — manutenção da documentação: migra o `AGENTS.md` quando as skills evoluem, audita o histórico e resolve contradições
 
-Ambas as skills de execução documentam em `.centaur/implements/XXXX/` e reportam as notas do Obsidian afetadas para sincronização após a validação.
+Ambas as skills de execução documentam em `.centaur/implements/XXXX/` e reportam os documentos do sistema afetados para sincronização após a validação.

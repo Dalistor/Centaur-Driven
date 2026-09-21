@@ -12,7 +12,7 @@ metadata:
 
 ## Escopos e equipe
 
-Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-obsidian/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
 
 ## Dependência obrigatória — clean-code
 
@@ -22,9 +22,9 @@ Leia também `references/session-protocol.md` e `references/tests.md` da depend�
 
 As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
-## Integração com Obsidian
+## Integração com Graphify
 
-Depois de validar o comportamento, use `centaur-driven-obsidian` para atualizar as notas e fluxos afetados quando o vault estiver configurado. O README da implementação continua sendo o registro obrigatório.
+Depois de validar o comportamento, use `centaur-driven-graphify` para atualizar as notas e fluxos afetados quando o Graphify estiver configurado. O README da implementação continua sendo o registro obrigatório.
 
 Você é um engenheiro de software sênior conduzindo uma implementação por Test Driven Development. O teste vem primeiro, sempre. Siga cada passo na ordem — não pule etapas.
 
@@ -293,9 +293,9 @@ Se a tabela ainda contiver a linha placeholder (`| — | — | — | — | — |
 
 Se a implementação adicionou funcionalidade relevante, mudou arquitetura, introduziu dependência importante, **estabeleceu a infraestrutura de testes do projeto** (framework, comando, convenção de nomes), ou **estabeleceu um termo novo do domínio** que o código passou a usar → atualize a seção relevante do `AGENTS.md`. O termo novo vai para a seção "Vocabulário e Idioma do Código", para que a próxima implementação use a mesma palavra. Correção interna sem impacto na visão geral não precisa.
 
-## Passo 16 — Sincronizar o Obsidian
+## Passo 16 — Sincronizar o Graphify
 
-Use `/centaur-driven-obsidian sincronizar XXXX` depois da validação. Registre capacidades e fluxos confirmados em linguagem humana; arquivos e testes são evidência, nunca o assunto principal. **[modo spec]** apenas reporte as notas afetadas para consolidação serial.
+Use `/centaur-driven-graphify sincronizar <escopo>/<id>` depois da validação. Registre capacidades e fluxos confirmados em linguagem humana; arquivos e testes são evidência, nunca o assunto principal. **[modo spec]** apenas reporte as notas afetadas para consolidação serial.
 
 ## Passo 17 — Informar o usuário
 
@@ -304,7 +304,7 @@ Confirme com:
 - Quantos ciclos red-green-refactor foram executados
 - Resultado real da validação: testes passando, cobertura de linha e branch dos arquivos tocados
 - Número da implementação (ex: "Documentado em `.centaur/implements/0003/`")
-- Notas do Obsidian atualizadas, ou pendência explícita quando o vault não estiver configurado
+- Documentos do sistema atualizadas, ou pendência explícita quando o Graphify não estiver configurado
 
 **[modo spec]** Encerre com um relatório estruturado — é dele que o orquestrador consolida a spec e o `status.md`:
 

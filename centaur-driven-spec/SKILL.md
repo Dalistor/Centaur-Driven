@@ -12,7 +12,7 @@ metadata:
 
 ## Escopos e equipe
 
-Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-obsidian/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
 
 ## Dependência obrigatória — clean-code
 
@@ -44,7 +44,7 @@ Leia com atenção o que o usuário pediu. Identifique:
 
 ## Passo 3 — Explorar o código relevante
 
-Antes de explorar o código, leia `.centaur/obsidian/Sistema/Visão geral.md` e os Drafts, Fluxos, Perspectivas e Decisões relevantes, quando existirem. Eles são a referência humana da demanda; confirme detalhes no código e separe hipótese de comportamento implementado. Registre no contexto técnico da própria `.centaur/specs/YYYY/README.md` quais notas originaram a spec. Atualize o quadro de specs no Obsidian após salvar a spec; exponha título, escopo, responsável, progresso e status, mantendo as instruções técnicas no README canônico.
+Antes de explorar o código, leia `.centaur/system/Visão geral.md` e os Drafts, Fluxos, Perspectivas e Decisões relevantes, quando existirem. Eles são a referência humana da demanda; confirme detalhes no código e separe hipótese de comportamento implementado. Registre no contexto técnico da própria `.centaur/specs/YYYY/README.md` quais notas originaram a spec. Após salvar a spec e seu índice, sincronize os documentos no Graphify; o README continua sendo a fonte canônica de status.
 
 Localize e leia os arquivos que fornecem contexto suficiente para decompor a solicitação:
 - Pontos de entrada relacionados
@@ -228,4 +228,4 @@ Exemplo de mensagem final:
 >
 > `/centaur-driven-run 0001`
 
-Ao concluir o planejamento, sincronize o quadro pelo script da skill Obsidian. Para demandas entre módulos, registre primeiro a mestre e as filhas com links recíprocos; só libere execução após conferir todas as referências.
+Ao concluir o planejamento, sincronize os documentos pela skill Graphify. Para demandas entre módulos, registre primeiro a mestre e as filhas com links recíprocos; só libere execução após conferir todas as referências.

@@ -12,7 +12,7 @@ metadata:
 
 ## Escopos e equipe
 
-Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-obsidian/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
 
 ## Dependência obrigatória — clean-code
 
@@ -22,9 +22,9 @@ Leia também `references/session-protocol.md` da dependência antes de editar. A
 
 As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
-## Integração com Obsidian
+## Integração com Graphify
 
-Depois da validação, use `centaur-driven-obsidian` para registrar as notas e fluxos afetados quando o vault estiver configurado. O README da implementação continua sendo o registro obrigatório; documentação no vault não substitui validação de código.
+Depois da validação, use `centaur-driven-graphify` para registrar as notas e fluxos afetados quando o Graphify estiver configurado. O README da implementação continua sendo o registro obrigatório; documentação do sistema não substitui validação de código.
 
 Você é um engenheiro de software sênior executando uma implementação documentada. Siga cada passo na ordem — não pule etapas.
 
@@ -235,9 +235,9 @@ Se a implementação:
 
 Se foi uma correção de bug ou mudança interna sem impacto na visão geral, não precisa atualizar.
 
-## Passo 13 — Sincronizar o Obsidian
+## Passo 13 — Sincronizar o Graphify
 
-Use `/centaur-driven-obsidian sincronizar XXXX` depois da validação. Atualize somente notas e fluxos afetados, separando fatos confirmados de hipóteses e citando evidências úteis. **[modo spec]** apenas reporte as notas afetadas; o orquestrador escreve no vault serialmente ao fim da onda.
+Use `/centaur-driven-graphify sincronizar <escopo>/<id>` depois da validação. Atualize somente notas e fluxos afetados, separando fatos confirmados de hipóteses e citando evidências úteis. **[modo spec]** apenas reporte as notas afetadas; o orquestrador sincroniza o grafo serialmente ao fim da onda.
 
 ## Passo 14 — Informar o usuário
 
@@ -245,7 +245,7 @@ Confirme que a implementação foi concluída com:
 - O que foi feito (resumo de 2-3 linhas)
 - Resultado da validação
 - Número da implementação criada (ex: "Documentado em `.centaur/implements/0003/`")
-- Notas do Obsidian atualizadas, ou pendência explícita quando o vault não estiver configurado
+- Documentos do sistema atualizadas, ou pendência explícita quando o Graphify não estiver configurado
 
 **[modo spec]** Encerre com um relatório estruturado — é dele que o orquestrador consolida a spec e o `status.md`:
 

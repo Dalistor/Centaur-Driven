@@ -1,0 +1,61 @@
+---
+name: centaur-driven-graphify
+description: Mantém mapa e perspectivas do sistema com Graphify, sincronizando código, specs e implements; cria visão geral, drafts, fluxos e decisões em Markdown. Use para compreender o sistema ou explorar uma perspectiva por módulo, domínio ou jornada.
+metadata:
+  version: 3.0.0
+  dependencies: graphify
+---
+
+# centaur-driven-graphify
+
+Use Graphify como mapa consultável do sistema. Os registros em `AGENTS.md` e `.centaur/` são canônicos; o grafo é derivado e não decide status de entrega. Código e validação comprovam comportamento implementado. Leia [módulos e equipe](references/team-workspace.md) para resolver escopos e IDs.
+
+## Dependência e instalação
+
+Localize e leia a skill oficial `graphify` e as referências pertinentes ao modo solicitado. Verifique `graphify --version` e o help da versão instalada antes de escolher flags. O pacote oficial é `graphifyy` (dois y), do [Graphify-Labs/graphify](https://github.com/Graphify-Labs/graphify). Referência verificada: CLI 0.9.65; comandos podem evoluir.
+
+Se necessário, instale com `uv tool install graphifyy` ou `pipx install graphifyy`, respeitando as permissões do ambiente. Registre a skill com `graphify install --platform codex` no Codex ou com a plataforma real do agente. Não altere configurações de outros agentes nem instale hooks globais como efeito colateral. Sem a dependência, mantenha os registros e informe que a geração do grafo está pendente.
+
+## Documentação e artefatos
+
+Crie somente os documentos necessários, preservando conteúdo existente:
+
+- `.centaur/system/Visão geral.md`: propósito, atores, capacidades, limites e links para fluxos, decisões e perspectivas. Diferencie o que existe do que está planejado.
+- `.centaur/system/Glossário.md`: conceitos do domínio em linguagem humana.
+- `.centaur/system/Drafts/<slug>.md`: objetivo, hipóteses, perguntas abertas e estado (`hipótese`, `confirmado`, `promovido`).
+- `.centaur/system/Fluxos/<slug>.md`: jornadas e fluxos confirmados, com Mermaid quando útil.
+- `.centaur/system/Perspectivas/<slug>.md`: pergunta, escopo, resposta, diagrama opcional e evidências.
+- `.centaur/system/Decisões/<slug>.md`: decisões confirmadas e seus motivos.
+- `graphify-out/graph.json`: grafo gerado; `GRAPH_REPORT.md`: visão analítica; `graph.html`: navegação no navegador.
+
+Use links Markdown relativos e registre caminhos/linhas de evidência. Não gere quadro, Kanban ou cards de status. Consulte status diretamente nos READMEs e índices de specs/implements do escopo. Mantenha documentos humanos fora de `graphify-out/`, pois artefatos gerados podem ser reconstruídos.
+
+## Inicializar e sincronizar
+
+`inicializar` cria a documentação mínima com lacunas explícitas, verifica dependências e executa a primeira extração. `sincronizar [escopo/id]` atualiza documentos afetados e o grafo depois de salvar os registros canônicos.
+
+1. Leia `AGENTS.md`, `.centaur/workspace.json`, as specs e implementações relevantes e o código necessário para confirmar as mudanças. Para sincronização geral, percorra todos os escopos; IDs isolados precisam ser desambiguados.
+2. Atualize Visão Geral, Fluxos, Decisões e Perspectivas afetados. Registre separadamente conteúdo planejado, implementado, histórico superado e inferência. Preserve READMEs de implementações concluídas como histórico.
+3. Execute o pipeline da skill oficial `graphify` para o projeto na primeira execução e o modo `--update` da **skill** nas seguintes. No Codex, a invocação é `$graphify <raiz>` ou `$graphify <raiz> --update`; isso não é um comando de shell. Siga o fluxo oficial de extração AST e semântica, construção, relatório e HTML.
+4. Garanta que o corpus contém **código + AGENTS.md + documentos humanos + specs/implements de todos os escopos**, inclusive arquivos ocultos de `.centaur/`. Confira o resultado da detecção e as origens no grafo; não suponha que escanear a raiz incluiu pastas ocultas. Quando necessário, forneça explicitamente os diretórios configurados ao fluxo multipasta da skill oficial (`references/github-and-merge.md`), mantendo caminhos de origem corretos. Não remova ignores globalmente para incluir a documentação. Exclua `.git`, credenciais, backups, artefatos gerados e arquivos legados já migrados do corpus ativo.
+5. **Código e documentos têm atualizações distintas.** `graphify update <raiz>` é atualização de código via AST; não basta para alterações de specs, implements ou Markdown. Use a extração semântica da skill oficial para esses documentos. A alternativa headless é `graphify extract <raiz> --backend <backend-configurado>`, somente com backend configurado para o projeto. Não invente credenciais nem envie documentos para um provedor diferente do autorizado. Sem extração semântica disponível, reporte explicitamente quais documentos ficaram pendentes.
+6. Verifique os artefatos reais e consulte conceitos representativos do escopo alterado com `graphify query`. Confira se uma spec e uma implementação do escopo aparecem com origem correta, quando existirem. Arquivos vazios, fontes ausentes, nós removidos ainda presentes ou falhas de extração são pendências; não diga que está sincronizado apenas porque o comando terminou. Remoções exigem conferir a reconstrução conforme o help da versão instalada.
+7. Registre em `.centaur/system/sync.md` a versão do CLI, a revisão Git (e se havia mudanças locais), raízes incluídas, atualização de código/documentos, consultas de verificação e pendências. Não registre segredos. Exclua esse relatório operacional do corpus para evitar realimentação.
+
+Em execução paralela, executores reportam arquivos/documentos afetados. O coordenador primeiro consolida specs, índices e implementações, depois sincroniza o grafo serialmente. Uma falha de sincronização não reabre código validado nem cria outra implementação.
+
+## Visão geral e perspectivas
+
+`visão geral` consulta o grafo e o relatório para explicar módulos, responsabilidades, relações e limites do sistema; atualiza `Visão geral.md` quando solicitado. Para uma pergunta simples, responda sem criar documentos desnecessários.
+
+`perspectiva <objetivo>` começa com `graphify query "<objetivo>"`. Use `graphify path "A" "B"` ou `graphify explain "X"` quando a pergunta exigir caminhos ou detalhes. Confirme afirmações importantes nas fontes e registre a perspectiva em Markdown, com links para documentos, escopo e evidências. Marque inferências; uma relação extraída de uma spec planejada não comprova implementação. Se o grafo estiver ausente ou desatualizado, sincronize ou explicite a limitação antes de responder.
+
+Exemplos: jornada do usuário, autenticação, fluxo de dados entre frontend/backend, dependências de um módulo e impacto de uma mudança. Um diagrama Mermaid pode sintetizar a resposta; o mapa navegável é `graphify-out/graph.html`. `graphify export callflow-html` pode gerar a visão de chamadas/arquitetura quando os dados suportarem essa leitura. Não prometa que uma consulta gera automaticamente uma nova visualização filtrada.
+
+## Drafts e execução
+
+`criar draft <objetivo>` registra a intenção e lacunas. `refinar <slug>` preserva o original, consulta contexto e resolve ambiguidades materiais. `promover <slug>` exige confirmação do comportamento pelo usuário: atualize os documentos humanos, crie a spec com `centaur-driven-spec`, ligue a origem do draft e marque-o promovido. Sincronize os novos documentos. `implementar <escopo>/<id>` delega a spec confirmada a `centaur-driven-run`, preservando TDD/direto.
+
+## Migração e entrega
+
+Para projetos com documentação anterior, leia [migração](references/migration.md). Ao entregar, informe documentos e artefatos alterados, versão do Graphify, consultas executadas e o que continua pendente. Diferencie atualização de código de atualização semântica. Nunca afirme sincronização contínua: o fluxo padrão é explícito após alterações; hooks opcionais de código não substituem a atualização dos documentos.

@@ -1,6 +1,6 @@
 # Centaur
 
-Conjunto de skills para o [Claude Code](https://claude.com/claude-code) que cria um fluxo de desenvolvimento documentado e rastreável: todo projeto tem contexto persistente, toda implementação fica registrada, o fluxograma semântico evolui junto do código e demandas grandes são decompostas em tasks executadas por subagentes.
+Conjunto de skills para Codex e [Claude Code](https://claude.com/claude-code) que cria um fluxo de desenvolvimento documentado e rastreável: todo projeto tem contexto persistente, toda implementação fica registrada, o fluxograma semântico evolui junto do código e demandas grandes são decompostas em tasks executadas por subagentes.
 
 ## Por que "centaur"?
 
@@ -30,7 +30,7 @@ Reinicie sessões abertas do Claude Code para que as skills apareçam. Elas fica
 
 ### Contrato da dependência
 
-As skills de desenvolvimento declaram `metadata.dependencies: clean-code`. A skill `centaur-driven-obsidian` integra o vault confirmado e pode usar um MCP de Obsidian. No Codex, o destino equivalente é `~/.codex/skills/` ou o diretório de skills do projeto.
+As skills de desenvolvimento declaram `metadata.dependencies: clean-code`. A skill `centaur-driven-graphify` depende do CLI `graphify` (pacote oficial `graphifyy`) e da skill oficial Graphify. No Codex, o destino equivalente é `~/.codex/skills/` ou o diretório de skills do projeto.
 
 - `start-project` e `spec` usam os critérios de responsabilidade e direção de dependências na documentação e no planejamento.
 - `implement`, `tdd` e `deploy` aplicam os critérios ao escrever e revisar código, testes, workflows e scripts.
@@ -52,7 +52,7 @@ Projetos já documentados recebem a seção de qualidade do novo template por `/
 | `/centaur-driven-implement` | Mudanças pontuais **estruturais, de configuração ou de UI** — e projetos sem infraestrutura de teste |
 | `/centaur-driven-spec` | Decompõe uma demanda grande em tasks atômicas por camada, cada uma marcada como TDD ou direta, salvas em `.centaur/specs/` |
 | `/centaur-driven-run` | Executa uma spec: lança um subagente por task conforme o Modo, paraleliza as independentes e consolida o resultado |
-| `/centaur-driven-obsidian` | Cria e refina o mapa, drafts, fluxos, perspectivas e decisões para leitura humana no Obsidian |
+| `/centaur-driven-graphify` | Sincroniza código e documentos no Graphify e mantém visão geral, drafts, fluxos e perspectivas |
 | `/centaur-driven-mcp` | Busca a documentação de uma API externa em um MCP server e roteia a requisição para tdd, implement ou spec com esse contexto anexado |
 | `/centaur-driven-deploy` | Configura deploy contínuo para uma VPS (GitHub Actions + SSH + rsync): gera a chave, valida o acesso, cadastra os secrets e acompanha o primeiro run |
 | `/centaur-driven-update` | Manutenção da documentação: migra o `AGENTS.md` quando as skills evoluem, audita o histórico, resolve contradições e consolida para agentes novos |
@@ -70,7 +70,7 @@ A skill varre o projeto, faz perguntas sobre o que não está evidente no códig
 - `AGENTS.md` na raiz — contexto do projeto, lido pelas skills centaur no início de cada chat
 - `.centaur/implements/status.md` — histórico de implementações
 - `.centaur/specs/index.md` — índice de specs planejadas
-- `.centaur/obsidian/` — vault local com mapa e documentação do sistema para leitura do usuário
+- `.centaur/system/` — documentação humana; `graphify-out/` — mapa navegável e grafo consultável
 
 Entre as perguntas está a **stack de testes** (framework, comando de rodar a suíte, local e convenção dos arquivos, meta de cobertura) — é o que decide se uma mudança futura vai por TDD ou não. Se o projeto ainda não tem testes, a skill pergunta se você quer adotar TDD dali em diante e com qual framework.
 
@@ -86,7 +86,7 @@ Também entre as perguntas está a **Arquitetura de Camadas**: se o projeto já 
 
 Regra de negócio, validação com consequência, cálculo, correção de bug — o que tem comportamento com regra real entra por aqui, e **o teste vem antes do código**. Ser tecnicamente testável não basta: mapeamento direto, passthrough e fiação sem lógica vão pelo `implement`.
 
-A skill lê o contexto, detecta a stack de testes, transforma a solicitação em **critérios de aceite proporcionais ao risco** — caminho crítico (dinheiro, auth, validação) ganha bateria completa de caminho feliz, erros e bordas; comportamento comum ganha só o que tem chance real de acontecer; trivial ganha 1-2 testes —, tira todas as dúvidas e então roda os ciclos: **RED** (escreve o teste, roda, vê falhar — teste que passa de primeira é teste errado), **GREEN** (o mínimo de código de produção para passar), **REFACTOR** (limpa com a suíte verde, sob o mesmo critério de clareza do `implement`). Um ciclo por comportamento. No fim, analisa cobertura, valida lint, camadas e clareza, documenta em `.centaur/implements/XXXX/README.md` e sincroniza o Obsidian quando configurado.
+A skill lê o contexto, detecta a stack de testes, transforma a solicitação em **critérios de aceite proporcionais ao risco** — caminho crítico (dinheiro, auth, validação) ganha bateria completa de caminho feliz, erros e bordas; comportamento comum ganha só o que tem chance real de acontecer; trivial ganha 1-2 testes —, tira todas as dúvidas e então roda os ciclos: **RED** (escreve o teste, roda, vê falhar — teste que passa de primeira é teste errado), **GREEN** (o mínimo de código de produção para passar), **REFACTOR** (limpa com a suíte verde, sob o mesmo critério de clareza do `implement`). Um ciclo por comportamento. No fim, analisa cobertura, valida lint, camadas e clareza, documenta em `.centaur/implements/XXXX/README.md` e sincroniza código e documentos no Graphify quando configurado.
 
 ### 3. Para mudanças estruturais, use implement
 
@@ -94,7 +94,7 @@ A skill lê o contexto, detecta a stack de testes, transforma a solicitação em
 /centaur-driven-implement renomear a pasta de handlers para controllers
 ```
 
-O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `AGENTS.md` (regra de negócio em service, query em repository, handler fino), **revisa a clareza do que escreveu** (nomes que revelam intenção, vocabulário do domínio, sem número mágico nem comentário que narra a linha), valida (testes, lint e revisão de violação de camadas) e entrega `.centaur/implements/XXXX/README.md`, atualizando o Obsidian quando configurado.
+O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `AGENTS.md` (regra de negócio em service, query em repository, handler fino), **revisa a clareza do que escreveu** (nomes que revelam intenção, vocabulário do domínio, sem número mágico nem comentário que narra a linha), valida (testes, lint e revisão de violação de camadas) e entrega `.centaur/implements/XXXX/README.md`, atualizando o Graphify quando configurado.
 
 Se a mudança pedida tiver regra de negócio relevante, ele mesmo redireciona para o `/centaur-driven-tdd`. Se a demanda for grande demais (muitas camadas, mais de ~4 arquivos), recusa e orienta a usar spec + run.
 
@@ -175,20 +175,27 @@ Por fim consolida para quem chega depois: promove para o `AGENTS.md` o conhecime
 
 Ele **não toca em código**: bug ou violação de camada que encontrar vira relatório com a skill certa para resolver. E nunca apaga pasta de implementação ou de spec — arquivar é mover linha de índice, o registro fica.
 
-### 10. Para desenhar e evoluir o sistema, use Obsidian
+### 10. Para compreender e evoluir o sistema, use Graphify
 
+```text
+/centaur-driven-graphify inicializar
+/centaur-driven-graphify criar draft da jornada de compra
+/centaur-driven-graphify perspectiva fluxo de dados entre frontend e backend
+/centaur-driven-graphify sincronizar frontend/0007
 ```
-/centaur-driven-obsidian criar draft da jornada de compra
-/centaur-driven-obsidian refinar draft
-/centaur-driven-spec implementar a jornada confirmada
-/centaur-driven-obsidian sincronizar 0007
+
+A skill mantém a visão geral, drafts, fluxos, decisões e perspectivas em `.centaur/system/`. O mapa navegável fica em `graphify-out/graph.html`, acompanhado de `graph.json` e `GRAPH_REPORT.md`. As perspectivas combinam consultas ao grafo com explicações em Markdown e diagramas Mermaid quando úteis.
+
+Specs e implements permanecem nos escopos de `.centaur/workspace.json`, com status nos READMEs e índices. O quadro visual foi removido. A sincronização inclui código e documentos: atualização AST isolada não atualiza specs/implements. As skills consolidam os registros primeiro e depois atualizam o Graphify serialmente; falhas semânticas são reportadas como pendências.
+
+Instale a dependência conforme a [documentação oficial](https://github.com/Graphify-Labs/graphify):
+
+```bash
+uv tool install graphifyy
+graphify install --platform codex
 ```
 
-O Draft começa como uma nota no vault e pode ganhar um Canvas irmão quando a leitura visual ajudar: desenha a intenção em linguagem humana antes do código. O Centaur identifica hipóteses e lacunas, pergunta o que for necessário e encaminha a ideia confirmada para uma spec mantida fora do vault. Depois de cada implementação validada, as notas e fluxos afetados são sincronizados serialmente.
-
-O vault é criado em `.centaur/obsidian/`. Abra `Sistema/Mapa do sistema.canvas` para navegar visualmente por visão geral, fluxos, perspectivas, decisões, drafts e glossário. Abra essa pasta no Obsidian e use o Claudian com Codex para conversar, editar notas e anexar contexto por `@`. O Claudian carrega a skill no escopo do vault; um MCP paralelo não é necessário.
-
-O quadro `Sistema/Quadro de specs.canvas`, ligado ao mapa, mostra specs mestre e de todos os módulos por status, como um Trello, sem exigir plugin. Os cards exibem responsável, progresso, dependências e links para as specs. O quadro e seu resumo Markdown são gerados dos READMEs canônicos; edite o estado na spec e sincronize. Arrastar um card não atualiza o estado operacional.
+No Codex, a skill oficial é invocada como `$graphify`. A integração Centaur orienta sua utilização e verifica se os diretórios ocultos de `.centaur/` entraram no corpus. O CLI local de referência é 0.9.65. Para migrar projetos existentes, `/centaur-driven-update` segue a [migração](centaur-driven-graphify/references/migration.md), preservando textos e registros legados.
 
 ## O código é a documentação
 
@@ -221,7 +228,7 @@ projeto/
     ├── specs/
     │   ├── index.md                 # Tabela com todas as specs
     │   └── 0001/README.md           # Spec com tasks, dependências e checklist
-    └── obsidian/                    # Vault local: mapa e documentação para o usuário
+    └── system/                      # Visão geral, drafts, fluxos, perspectivas e decisões
 ```
 
 ## Ciclo de vida
@@ -249,7 +256,7 @@ projeto/
         │                                       │
         │                                       └── consolida checklist, status da spec e status.md
         │
-        ├── desenhar/refinar sistema ──► /centaur-driven-obsidian ──► Canvas e notas do vault
+        ├── desenhar/refinar sistema ──► /centaur-driven-graphify ──► Grafo, documentos e perspectivas
         │
         ├── subir para a VPS ──► /centaur-driven-deploy ──► .github/workflows/ + .centaur/implements/XXXX/
         │
@@ -269,9 +276,9 @@ O `start-project` pergunta explicitamente se o desenvolvimento será **individua
 
 O `start-project` identifica os módulos reais e registra `.centaur/workspace.json`. A pasta mestre `.centaur/` conserva `specs/` e `implements/` existentes. Cada módulo tem suas próprias pastas, por padrão em `.centaur/modules/<módulo>/`. Os caminhos podem ser configurados dentro do projeto. A configuração e as regras da equipe ficam vinculadas no `AGENTS.md`.
 
-Uma demanda de todo o sistema recebe uma spec `master/0001`, ligada às specs `frontend/0001` e `backend/0001`, por exemplo. Use `/centaur-driven-run frontend/0001` para executar o escopo certo; números repetidos sem módulo exigem desambiguação. Cada task tem responsável, arquivos e dependências. Em clones diferentes, novos IDs podem receber sufixo único para evitar colisões. O contrato completo está em [módulos e equipe](centaur-driven-obsidian/references/team-workspace.md).
+Uma demanda de todo o sistema recebe uma spec `master/0001`, ligada às specs `frontend/0001` e `backend/0001`, por exemplo. Use `/centaur-driven-run frontend/0001` para executar o escopo certo; números repetidos sem módulo exigem desambiguação. Cada task tem responsável, arquivos e dependências. Em clones diferentes, novos IDs podem receber sufixo único para evitar colisões. O contrato completo está em [módulos e equipe](centaur-driven-graphify/references/team-workspace.md).
 
-Trabalho paralelo usa posse explícita de tasks e branches/worktrees por executor quando necessário. Um coordenador consolida arquivos compartilhados, integra as entregas e atualiza a spec mestre. Ela só conclui quando as specs filhas e os critérios de integração estiverem atendidos. Projetos legados mantêm seus caminhos; `/centaur-driven-update` adiciona os novos escopos e regenera o quadro sem mover o histórico.
+Trabalho paralelo usa posse explícita de tasks e branches/worktrees por executor quando necessário. Um coordenador consolida arquivos compartilhados, integra as entregas e atualiza a spec mestre. Ela só conclui quando as specs filhas e os critérios de integração estiverem atendidos. Projetos legados mantêm seus caminhos; `/centaur-driven-update` adiciona os novos escopos e sincroniza o grafo sem mover o histórico.
 
 ## Commit e push na main
 

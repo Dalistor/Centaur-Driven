@@ -1,6 +1,6 @@
 # Trabalho por módulos e em equipe
 
-Leia este contrato antes de localizar specs ou implementações. Os caminhos simples dos exemplos das skills representam o escopo selecionado; substitua-os pelos caminhos registrados, inclusive nos comandos de reserva, leitura, arquivamento e escrita. Resolva sempre a partir da raiz do projeto, mesmo ao executar dentro do vault.
+Leia este contrato antes de localizar specs ou implementações. Os caminhos simples dos exemplos das skills representam o escopo selecionado; substitua-os pelos caminhos registrados, inclusive nos comandos de reserva, leitura, arquivamento e escrita. Resolva sempre a partir da raiz do projeto, mesmo ao executar dentro de uma subpasta.
 
 ## Registro dos escopos
 
@@ -32,12 +32,12 @@ Todos os caminhos são relativos à raiz, ficam dentro do projeto e as pastas de
 
 ## Concorrência e integração
 
-Um coordenador por spec consolida seus registros. Defina quem integra specs mestre e mantém índices e vault compartilhados; executores reportam resultados e só editam seus arquivos e README de implementação. Em sessões no mesmo checkout, reserve a spec com `mkdir .centaur/locks/<escopo>-<id>` e registre responsável e sessão dentro; se já existir, não execute a mesma spec. Crie somente o pai `locks` com `-p`. Libere apenas o lock da própria sessão ao encerrar. Lock abandonado exige verificar a sessão antes de remover.
+Um coordenador por spec consolida seus registros. Defina quem integra specs mestre e mantém índices e grafo compartilhados; executores reportam resultados e só editam seus arquivos e README de implementação. Em sessões no mesmo checkout, reserve a spec com `mkdir .centaur/locks/<escopo>-<id>` e registre responsável e sessão dentro; se já existir, não execute a mesma spec. Crie somente o pai `locks` com `-p`. Libere apenas o lock da própria sessão ao encerrar. Lock abandonado exige verificar a sessão antes de remover.
 
 Distribua trabalho por pessoa/agente, branch e worktree/clone quando houver execução simultânea. Dependências concluídas precisam estar integradas no checkout do executor antes de liberá-lo. Tasks que editam os mesmos arquivos, contratos compartilhados, índices ou configuração executam serialmente ou em branches isoladas com integração sequencial. Não prometa exclusão entre clones por locks locais. Os responsáveis coordenam a posse das tasks no repositório compartilhado.
 
-## Estado canônico e quadro
+## Estado canônico e grafo
 
-O README de cada spec é a fonte de seu estado; índices e o quadro são projeções. Status: `Pendente`, `Em andamento`, `Bloqueada`, `Em revisão`, `Concluída`. Uma task validada pode estar concluída localmente, mas a spec vai a `Em revisão` enquanto faltar integração ou aceite previsto. `Concluída` exige tasks e dependências entregues, validação e integração confirmadas. Registre motivo e ação necessária para bloqueios; quando resolvidos, retome `Em andamento`. Pendência apenas documental não reabre código validado.
+O README de cada spec é a fonte de seu estado; índices e o grafo são projeções. Status: `Pendente`, `Em andamento`, `Bloqueada`, `Em revisão`, `Concluída`. Uma task validada pode estar concluída localmente, mas a spec vai a `Em revisão` enquanto faltar integração ou aceite previsto. `Concluída` exige tasks e dependências entregues, validação e integração confirmadas. Registre motivo e ação necessária para bloqueios; quando resolvidos, retome `Em andamento`. Pendência apenas documental não reabre código validado.
 
-A spec mestre só conclui após todas as filhas e seus critérios de integração. Não execute de novo as tasks de uma filha como tasks duplicadas da mestre. O run resolve o grafo entre specs e tasks, detecta referências ausentes/ciclos antes de iniciar e retoma somente pendências. Após criar spec, consolidar onda, bloquear/desbloquear, revisar, integrar ou atualizar documentação: atualize README, índice do escopo e depois regenere o quadro serialmente. Não marque conclusão a partir da posição de um card.
+A spec mestre só conclui após todas as filhas e seus critérios de integração. Não execute de novo as tasks de uma filha como tasks duplicadas da mestre. O run resolve o grafo entre specs e tasks, detecta referências ausentes/ciclos antes de iniciar e retoma somente pendências. Após criar spec, consolidar onda, bloquear/desbloquear, revisar, integrar ou atualizar documentação: atualize README, índice do escopo e depois sincronize os documentos no Graphify serialmente. Não infira conclusão da presença de um nó no grafo.

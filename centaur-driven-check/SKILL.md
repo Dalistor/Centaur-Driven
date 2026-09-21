@@ -12,7 +12,7 @@ metadata:
 
 ## Escopos e equipe
 
-Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-obsidian/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
 
 ## Dependência obrigatória — clean-code
 
@@ -33,7 +33,7 @@ Leia obrigatoriamente:
 2. `.centaur/implements/status.md` (histórico de implementações — necessário para responder perguntas sobre o que já foi feito, o que mudou, ou o estado atual de funcionalidades)
 3. `.centaur/specs/index.md`, se existir (specs planejadas — necessário para responder sobre o que está planejado, em andamento ou pendente)
 
-Quando a pergunta envolver capacidades, responsabilidades ou um fluxo ponta a ponta, consulte a documentação correspondente no Obsidian, quando o vault estiver configurado, e confirme detalhes no código e nos READMEs de implementação. Se não houver nota, deixe claro que a documentação do fluxo ainda não foi criada.
+Quando a pergunta envolver capacidades, responsabilidades ou um fluxo ponta a ponta, consulte o grafo com `graphify query` e a documentação correspondente em `.centaur/system/`, quando o Graphify estiver configurado, e confirme detalhes no código e nos READMEs de implementação. Se não houver nota, deixe claro que a documentação do fluxo ainda não foi criada.
 
 Se `AGENTS.md` não existir, informe o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` para criar o AGENTS.md antes de usar `/centaur-driven-check`."
@@ -46,7 +46,7 @@ Se a implementação procurada não estiver no `status.md`, procure em `.centaur
 
 ## Passo 2 — Entender a pergunta
 
-Para uma pergunta sobre um fluxo, consulte a nota correspondente no Obsidian quando o vault estiver configurado. Se o usuário pedir criar ou alterar um fluxograma, indique `/centaur-driven-obsidian`; este comando continua somente leitura.
+Para uma pergunta sobre um fluxo, consulte o grafo e a nota correspondente em `.centaur/system/` quando o Graphify estiver configurado. Se o usuário pedir criar ou alterar um fluxograma, indique `/centaur-driven-graphify`; este comando continua somente leitura.
 
 Leia o que o usuário perguntou. Identifique se a resposta está:
 - Diretamente no `AGENTS.md`

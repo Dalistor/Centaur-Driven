@@ -12,7 +12,7 @@ metadata:
 
 ## Escopos e equipe
 
-Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-obsidian/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
 
 ## Dependência obrigatória — clean-code
 
@@ -417,9 +417,9 @@ Deploy sempre entra no `AGENTS.md` — muda como o projeto é publicado. Atualiz
 
 Se houver documentação de deploy dedicada (`deploy/README.md` ou similar), acrescente lá a seção detalhada e mantenha o `AGENTS.md` com o resumo apontando para ela.
 
-## Passo 20 — Sincronizar o Obsidian
+## Passo 20 — Sincronizar o Graphify
 
-Use `centaur-driven-obsidian` para atualizar o fluxo de publicação, registrando o que foi confirmado sobre responsabilidades externas e de servidor. Se o vault não estiver configurado, reporte a pendência sem bloquear o deploy validado.
+Use `centaur-driven-graphify` para atualizar o fluxo de publicação, registrando o que foi confirmado sobre responsabilidades externas e de servidor. Se o Graphify não estiver configurado, reporte a pendência sem bloquear o deploy validado.
 
 ## Passo 21 — Informar o usuário
 
@@ -429,5 +429,5 @@ Encerre com:
 - Resultado do run de `dry_run` e o que ele mostrou de `*deleting`
 - O checklist da VPS que ainda estiver pendente
 - Número da implementação (ex: "Documentado em `.centaur/implements/0003/`")
-- Notas do Obsidian atualizadas, ou pendência explícita do vault
+- Documentos do sistema atualizadas, ou pendência explícita do Graphify
 - Aviso de que o push na branch dispara o deploy na hora — e pergunte se pode commitar/pushar

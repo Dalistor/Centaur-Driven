@@ -1,6 +1,6 @@
 ---
 name: centaur-driven-update
-description: Atualiza a documentação centaur de um projeto existente - migra AGENTS.md, histórico e vault Obsidian, verifica as dependências da skill e do Claudian, audita conflitos e consolida a verdade. Não toca em código.
+description: Atualiza a documentação centaur de um projeto existente - migra AGENTS.md, histórico e grafo Graphify, verifica as dependências da skill e do CLI Graphify, audita conflitos e consolida a verdade. Não toca em código.
 version: 1.4.1
 invocable: true
 author: user
@@ -12,7 +12,7 @@ metadata:
 
 ## Escopos e equipe
 
-Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-obsidian/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
 
 ## Dependência obrigatória — clean-code
 
@@ -50,17 +50,11 @@ git status --porcelain
 
 Você vai reescrever documentação. Se houver mudanças não commitadas, avise o usuário e pergunte se quer commitar antes — com a árvore limpa, desfazer é `git checkout`.
 
-4. Verifique as dependências da documentação no Obsidian:
-
-   - localize `centaur-driven-obsidian` na instalação de projeto ou global e confirme que seu `SKILL.md`, `scripts/init_vault.py` e `references/` existem;
-   - se `.centaur/obsidian/` existir, confira `.obsidian/app.json`, `Sistema/Mapa do sistema.canvas`, `Sistema/Visão geral.md`, `Sistema/Glossário.md`, Drafts, Fluxos, Perspectivas, Decisões e a cópia da skill em `.agents/skills/centaur-driven-obsidian/`;
-   - se o vault existir, detecte Claudian por `.obsidian/plugins/claudian/` e pelo registro em `.obsidian/community-plugins.json`, quando esses arquivos existirem.
-
-O **Claudian é opcional para a atualização dos arquivos**: sem ele, o vault continua válido e pode ser atualizado pelo agente. Mas registre como pendência que o usuário precisa instalar/habilitar Claudian naquele vault para usar Codex dentro do Obsidian. Esta skill não instala nem atualiza plugins do Obsidian.
+4. Verifique `centaur-driven-graphify`, sua referência de equipe, a skill oficial `graphify` e `graphify --version`. Confira `.centaur/system/` e os artefatos em `graphify-out/`. Ausência do CLI ou extração semântica pendente deve ser reportada sem bloquear a documentação já validada. Para projetos antigos, leia `references/migration.md` de `centaur-driven-graphify` antes de migrar os documentos.
 
 ## Passo 2 — Descobrir as versões
 
-**Skills instaladas.** Localize os `SKILL.md` e leia a versão do frontmatter de cada um, incluindo `centaur-driven-obsidian`:
+**Skills instaladas.** Localize os `SKILL.md` e leia a versão do frontmatter de cada um, incluindo `centaur-driven-graphify`:
 
 ```bash
 for d in .claude/skills/centaur-driven-*/ ~/.claude/skills/centaur-driven-*/; do
@@ -90,7 +84,7 @@ Leia o template de `AGENTS.md` dentro do `centaur-driven-start-project` instalad
 
 Faça o mesmo com a estrutura `.centaur/`: compare `implements/status.md` e `specs/index.md` contra os templates do Passo 5 do `start-project`. Cabeçalho de tabela que ganhou coluna nova precisa ganhar a coluna (com as células antigas preenchidas com `—` quando o dado não existir).
 
-Compare também o vault com `centaur-driven-obsidian`. Se estiver ausente ou incompleto, execute o inicializador da skill para completar somente os arquivos faltantes. A cópia de `.agents/skills/centaur-driven-obsidian/` deve conter scripts e referências, não apenas `SKILL.md`. Nunca substitua notas, Drafts, Canvases ou decisões existentes durante a inicialização.
+Compare também `.centaur/system/` com a estrutura de `centaur-driven-graphify`; crie apenas o que faltar. Migre documentos legados conforme `references/migration.md`, preservando originais e links. Atualize a seção do sistema no AGENTS.md e reporte o estado real do grafo.
 
 **Seções que exigem informação que não está em lugar nenhum** — tipicamente as mais novas — viram perguntas para o usuário. Levante primeiro o que der para inferir do código e apresente já preenchido, para ele só confirmar. Exemplos do que costuma faltar em documentação antiga:
 
@@ -102,7 +96,7 @@ Não invente conteúdo para preencher seção: seção sem informação real fic
 
 ## Passo 4 — Auditar a integridade dos registros
 
-Se o vault local existir, consulte Mapa do sistema, Visão Geral, Glossário, Fluxos, Perspectivas e Decisões para detectar documentação que contradiz o código. Proponha correções no plano confirmado; não reescreva histórico de implementações para mudar a compreensão atual.
+Se a documentação existir, consulte o grafo, Visão Geral, Glossário, Fluxos, Perspectivas e Decisões em `.centaur/system/` para detectar documentação que contradiz o código. Proponha correções no plano confirmado; não reescreva histórico de implementações para mudar a compreensão atual.
 
 Verificações mecânicas, todas resolvíveis sem perguntar:
 
@@ -119,14 +113,14 @@ Cheque e anote:
 2. **Pasta com README ausente do `status.md`** → adicione a linha, com os dados do README.
 3. **Linha no `status.md` sem pasta correspondente** → registro fantasma; confirme com o usuário antes de remover.
 4. **Buraco na numeração** → só anote; buraco é normal (task falhou, número queimado).
-5. **Spec `Em andamento` com todas as tasks marcadas** → deveria estar `Concluída`; corrija no README da spec e no `index.md`.
+5. **Spec com todas as tasks marcadas** → confira filhas, validação e integração antes de concluir; use `Em revisão` enquanto faltar integração/aceite, conforme o contrato de equipe.
 6. **Spec `Pendente`/`Em andamento` com tasks não marcadas** → verifique se as tasks foram feitas por fora (procure por implementações que citam a spec). Se foram, marque; se a spec foi abandonada, pergunte ao usuário se quer marcá-la como `Cancelada`.
 7. **Divergência entre `index.md` e os READMEs das specs** (status, número de tasks) → o README da spec é a fonte; alinhe o índice.
 8. **Implementação concluída com fluxo ou nota pendente** → registre a lacuna e inclua a sincronização no plano; não trate a ausência de documentação como falha do código validado.
-9. **Draft fora de `Sistema/Drafts/` ou sem estado** → não o promova automaticamente; mova-o apenas com autorização e registre a hipótese e perguntas abertas.
-10. **Canvas inválido, técnico demais ou sem nota irmã** → corrija no plano: Canvas usa JSON válido, conceitos humanos e uma pergunta de perspectiva; nomes de arquivos e símbolos viram evidência na nota irmã.
-11. **Quadro de specs** → regenere a projeção a partir dos READMEs de todos os escopos. Preserve notas legadas em `Sistema/Specs/`; vincule o novo quadro ao mapa sem apagar conteúdo humano.
-12. **Claudian ausente ou desabilitado** → registre a pendência operacional; não bloqueie a atualização de documentação e não instale o plugin sem solicitação explícita.
+9. **Draft fora de `.centaur/system/Drafts/` ou sem estado** → não o promova automaticamente; registre hipótese e perguntas abertas.
+10. **Perspectiva sem evidência ou desatualizada** → consulte o grafo e confirme no código; diferencie planejado, implementado e inferido.
+11. **Grafo desatualizado** → atualize código e documentos conforme a skill Graphify; atualizar só AST não sincroniza specs/implements.
+12. **Documentação legada** → siga a referência de migração, preservando conteúdos humanos e retirando o quadro da navegação ativa.
 
 ## Passo 5 — Detectar conflitos
 
@@ -170,7 +164,7 @@ Execute o plano confirmado, nesta ordem:
 3. Migrar as seções do `AGENTS.md` (crie as que faltam, reformate as que mudaram, **preserve as customizadas**)
 4. Corrigir os pontos onde a documentação contradizia o código
 5. Promover para o `AGENTS.md` o conhecimento que estava preso no histórico
-6. Inicializar ou completar o vault local e sincronizar o mapa, as notas e os Canvases aprovados no plano
+6. Inicializar ou completar `.centaur/system/` e sincronizar código e documentos no Graphify conforme o plano
 
 Edite cirurgicamente: mantenha o texto que continua correto com as palavras originais do usuário. Reescrever seção inteira que estava certa só troca a redação dele pela sua.
 
@@ -268,7 +262,7 @@ Adicione a linha em `.centaur/implements/status.md` (removendo a linha placehold
 | XXXX | Atualização da documentação centaur | [data] | Concluído | AGENTS.md, .centaur/ |
 ```
 
-Use `/centaur-driven-obsidian sincronizar XXXX` para atualizar o mapa, as notas e os Canvases afetados por esta própria atualização. Inclua a situação do Claudian nas pendências quando ele não estiver disponível no vault.
+Use `/centaur-driven-graphify sincronizar <escopo>/<id>` para atualizar os documentos afetados e o grafo após esta atualização. Reporte separadamente falhas do CLI e extração semântica pendente.
 
 ## Passo 11 — Informar o usuário
 
@@ -280,7 +274,7 @@ Encerre com:
 - O que foi arquivado e onde
 - **Pendências de código** encontradas e não corrigidas, com a skill certa para cada uma
 - Número da implementação (ex: "Documentado em `.centaur/implements/0022/`")
-- Vault do Obsidian atualizado, dependências verificadas e pendências explícitas do Claudian, quando houver
+- Documentação e grafo Graphify atualizados, com dependências e extrações pendentes explicitadas
 - Sugestão de conferir com `git diff` antes de commitar
 
 Na migração para módulos, preserve os caminhos existentes como master. Adicione `.centaur/workspace.json` e os escopos identificados sem mover históricos; audite cada índice/arquivo e também as relações mestre–filhas. Percorra todos os diretórios de registros, inclusive IDs com sufixo: os filtros numéricos dos exemplos legados não cobrem registros de clones independentes.

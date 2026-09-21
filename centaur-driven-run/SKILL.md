@@ -12,7 +12,7 @@ metadata:
 
 ## Escopos e equipe
 
-Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-obsidian/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
 
 ## Dependência obrigatória — clean-code
 
@@ -46,7 +46,7 @@ O usuário deve informar o ID qualificado da spec (ex: `/centaur-driven-run fron
 
 ## Passo 2 — Ler a spec e montar o plano de execução
 
-Antes de relançar tasks, confira registros vinculados de execuções anteriores. Se código e validação já foram concluídos e restou apenas documentação no Obsidian, sincronize as notas; não reexecute a implementação nem reserve outro número.
+Antes de relançar tasks, confira registros vinculados de execuções anteriores. Se código e validação já foram concluídos e restou apenas documentação no Graphify, sincronize as notas; não reexecute a implementação nem reserve outro número.
 
 Leia `.centaur/specs/YYYY/README.md` por completo. Monte o plano:
 
@@ -79,7 +79,7 @@ Invoque a skill [centaur-driven-tdd | centaur-driven-implement] com a seguinte s
 
 [instrução da task copiada verbatim da spec, incluindo o prefixo "Spec YYYY — Task NN"]
 
-Carregue a dependência clean-code. Preserve o Modo da task, registre decisões no README da implementação e reporte as notas do Obsidian afetadas; não escreva em .clean/ nem nos índices compartilhados.
+Carregue a dependência clean-code. Preserve o Modo da task, registre decisões no README da implementação e reporte os documentos do sistema afetados; não escreva em .clean/ nem nos índices compartilhados.
 ```
 
 Você escolhe a skill pelo campo `Modo`, mas **não altera a instrução** — ela vai verbatim.
@@ -90,12 +90,12 @@ Aguarde **todos** os subagentes da onda terminarem antes de iniciar a próxima.
 
 Ao fim de cada onda, **você** registra o resultado de cada task — os subagentes não escrevem na spec nem no `status.md`. Para cada task da onda, com base no relatório final do subagente:
 
-1. **Task concluída** → sincronize serialmente as notas do Obsidian afetadas quando o vault estiver configurado; então marque no checklist `- [x] Task NN — [Título] → implements/XXXX`. Uma pendência de documentação não reabre código validado.
+1. **Task concluída** → marque no checklist `- [x] Task NN — [Título] → implements/XXXX`. Uma pendência de documentação não reabre código validado.
 2. **Task bloqueada** → registre o motivo ao lado dela no checklist, remova do plano as tasks que dependem dela e continue com as demais ondas que não são afetadas
 3. **Subagente falhou sem reportar** → trate como bloqueada; não relance automaticamente. Confira se ficou pasta órfã em `.centaur/implements/` (número reservado sem README) e anote no relatório final
 4. Adicione em `.centaur/implements/status.md` uma linha por implementação criada na onda (concluída ou bloqueada), com os dados do relatório: `| XXXX | [Título] | [data] | [Concluído|Bloqueado] | [arquivos] |`. Remova a linha placeholder da tabela se ainda existir
 
-Use `centaur-driven-obsidian` para sincronizar notas e fluxos afetados. Os subagentes não escrevem no vault em paralelo; a consolidação é serial. Registre qualquer pendência de documentação sem reexecutar código.
+Após consolidar os registros da onda, use `centaur-driven-graphify` para atualizar documentos afetados e sincronizar código e documentos no grafo. Os subagentes não sincronizam o grafo em paralelo; a consolidação é serial. Registre qualquer pendência de documentação sem reexecutar código.
 
 Se um subagente tiver editado a spec ou o `status.md` por conta própria (não deveria), confira o resultado e conserte inconsistências.
 
@@ -113,4 +113,4 @@ Reporte ao usuário:
 - Status final da spec
 - Se houver bloqueios: o que o usuário precisa decidir para destravar (depois basta rodar `/centaur-driven-run YYYY` de novo — a execução retoma de onde parou)
 
-Ao consolidar cada onda e finalizar, sincronize o quadro, recalcule o estado da spec mestre com base nas filhas e libere apenas a reserva desta sessão. Inclua IDs qualificados e caminhos completos nos prompts e relatórios.
+Ao consolidar cada onda e finalizar, sincronize código e documentos no Graphify, recalcule o estado da spec mestre com base nas filhas e libere apenas a reserva desta sessão. Inclua IDs qualificados e caminhos completos nos prompts e relatórios.
