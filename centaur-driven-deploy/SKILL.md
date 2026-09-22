@@ -1,18 +1,23 @@
 ---
 name: centaur-driven-deploy
-description: Configura deploy automático (GitHub Actions) para uma VPS via SSH + rsync - inspeciona o projeto, gera a chave SSH, valida o acesso, audita o que o rsync apagaria, escreve o workflow, cadastra os secrets/variables no GitHub pelo gh CLI e acompanha o primeiro run. Documenta em .centaur/implements/.
-version: 2.4.0
+description: Configura deploy automático (GitHub Actions) para uma VPS via SSH + rsync - inspeciona o projeto, gera a chave SSH, valida o acesso, audita o que o rsync apagaria, escreve o workflow, cadastra os secrets/variables no GitHub pelo gh CLI e acompanha o primeiro run. Registra no backend de memória configurado.
+version: 2.5.0
 invocable: true
 author: user
 metadata:
   dependencies: clean-code, graphify
+  optional-dependencies: ai-memory
 ---
 
 # centaur-driven-deploy
 
+## Memória de implementações
+
+Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements/status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
+
 ## Contexto persistente — Graphify
 
-Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -43,7 +48,7 @@ Leia `AGENTS.md` e recupere o contexto da solicitação pelo contrato Graphify a
 Se `AGENTS.md` não existir, avise:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro para que eu tenha contexto suficiente para configurar o deploy com segurança."
 
-Se `.centaur/implements/status.md` não existir, crie a estrutura.
+No backend `files`, se `.centaur/implements/status.md` não existir, crie a estrutura.
 
 Se já existir workflow de deploy em `.github/workflows/`, leia antes de criar outro — pode ser caso de ajustar o existente, não duplicar.
 
@@ -339,6 +344,10 @@ Rotacionar é repetir os Passos 6, 7 e 12 com um nome de arquivo novo e depois r
 
 ## Passo 16 — Determinar número da implementação
 
+**Backend ai-memory:** use o UUID e o caminho do contrato de memória, sem reservar pasta. O template do próximo passo fornece o corpo da página/fila. Pule a etapa de `status.md` e informe a referência da página no lugar do número. Em modo spec, grave a fila e reporte ao coordenador; inclusive em bloqueios, não crie README local nem publique diretamente.
+
+**Backend files:** siga a reserva abaixo.
+
 <!-- Mantenha este passo sincronizado com centaur-driven-implement (Passo 9) e centaur-driven-tdd (Passo 12) -->
 ```
 ls .centaur/implements/ | grep -E '^[0-9]{4}$' | sort | tail -1
@@ -354,7 +363,7 @@ Reserve o número imediatamente com `mkdir .centaur/implements/XXXX` (sem `-p`).
 
 Obtenha a data de hoje com `date +%F` — não a preencha de memória.
 
-Crie `.centaur/implements/XXXX/README.md`:
+Em `files`, crie `.centaur/implements/XXXX/README.md`. Em `ai-memory`, use este conteúdo no registro do contrato, com o ID atribuído:
 
 ```markdown
 # [XXXX] Deploy automático da branch [branch] na VPS [ambiente]
@@ -405,7 +414,7 @@ Crie `.centaur/implements/XXXX/README.md`:
 
 ## Passo 18 — Atualizar status.md
 
-Adicione a linha na tabela de `.centaur/implements/status.md`:
+Somente em `files`, adicione a linha na tabela de `.centaur/implements/status.md`:
 
 ```
 | XXXX | Deploy automático da branch [branch] na VPS [ambiente] | [data] | Concluído | .github/workflows/[arquivo].yml |
@@ -430,6 +439,6 @@ Encerre com:
 - **O que já está cadastrado no GitHub** (saída de `gh secret list` / `gh variable list`) ou, sem `gh`, a tabela de valores do Passo 12
 - Resultado do run de `dry_run` e o que ele mostrou de `*deleting`
 - O checklist da VPS que ainda estiver pendente
-- Número da implementação (ex: "Documentado em `.centaur/implements/0003/`")
+- Referência da página e estado da memória, ou número/README no backend `files`
 - Documentos do sistema atualizadas, ou pendência explícita do Graphify
 - Aviso de que o push na branch dispara o deploy na hora — e pergunte se pode commitar/pushar

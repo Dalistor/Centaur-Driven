@@ -1,18 +1,23 @@
 ---
 name: centaur-driven-run
 description: Orquestra a execução de uma spec, lançando subagentes por task com centaur-driven-tdd ou centaur-driven-implement conforme o Modo da task, e respeitando dependências. Restrito a tasks de specs — não executa nada fora delas.
-version: 1.8.0
+version: 1.9.0
 invocable: true
 author: user
 metadata:
   dependencies: clean-code, graphify
+  optional-dependencies: ai-memory
 ---
 
 # centaur-driven-run
 
+## Memória de implementações
+
+Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements/status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
+
 ## Contexto persistente — Graphify
 
-Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -50,7 +55,7 @@ O usuário deve informar o ID qualificado da spec (ex: `/centaur-driven-run fron
 
 ## Passo 2 — Ler a spec e montar o plano de execução
 
-Antes de relançar tasks, confira registros vinculados de execuções anteriores. Se código e validação já foram concluídos e restou apenas documentação no Graphify, sincronize as notas; não reexecute a implementação nem reserve outro número.
+Antes de relançar tasks, confira registros vinculados de execuções anteriores, páginas ai-memory e fila pendente conforme o backend. Resolva persistência pendente sem reexecutar código validado. Se código e validação já foram concluídos e restou apenas documentação no Graphify, sincronize as notas; não reexecute a implementação nem reserve outro número.
 
 Leia `.centaur/specs/YYYY/README.md` por completo. Monte o plano:
 
@@ -69,6 +74,8 @@ Se a spec estiver `Pendente`, mude para `Em andamento` no README da spec e em `.
 
 ## Passo 4 — Executar as ondas
 
+No backend ai-memory, atribua UUID/caminho por execução e salve a referência na task antes de iniciar. Acrescente backend, identidade explícita e destino ao contexto do executor, sem alterar a instrução da task. O executor grava somente sua fila; a publicação cabe ao coordenador.
+
 Para cada onda, lance **um subagente por task** com a ferramenta **Agent** (tipo `general-purpose`). Para as tasks da mesma onda rodarem de fato em paralelo, envie **todas as chamadas de Agent da onda em uma única mensagem** — chamadas em mensagens separadas executam em sequência.
 
 A skill invocada depende do campo `**Modo:**` da task:
@@ -83,7 +90,7 @@ Invoque a skill [centaur-driven-tdd | centaur-driven-implement] com a seguinte s
 
 [instrução da task copiada verbatim da spec, incluindo o prefixo "Spec YYYY — Task NN"]
 
-Carregue as dependências clean-code e graphify e siga o contrato de contexto da skill de destino. Consulte o grafo e confirme as fontes atuais; não atualize o índice compartilhado. Preserve o Modo da task, registre decisões no README da implementação e reporte os documentos do sistema afetados; não escreva em .clean/ nem nos índices compartilhados.
+Carregue as dependências clean-code e graphify e siga o contrato de contexto da skill de destino. Consulte o grafo e confirme as fontes atuais; não atualize o índice compartilhado. Preserve o Modo da task, registre decisões no destino do backend configurado (README em files; fila individual em ai-memory) e reporte os documentos do sistema afetados; não escreva em .clean/ nem nos índices compartilhados.
 ```
 
 Você escolhe a skill pelo campo `Modo`, mas **não altera a instrução** — ela vai verbatim.
@@ -92,6 +99,8 @@ Aguarde **todos** os subagentes da onda terminarem antes de iniciar a próxima.
 
 ## Passo 5 — Consolidar cada onda
 
+**Backend ai-memory:** recolha os registros/filas dos executores e publique serialmente pelo contrato de memória. Marque tasks pelo resultado validado e salve `(workspace, project, path)` e `Memória: confirmada | pendente` separadamente. No checklist, use essa referência em vez de `implements/XXXX`. Não crie nem atualize `implements/status.md`. Falha sem relatório exige conferir diff, fila e página atribuída, sem relançar automaticamente. As quatro instruções abaixo detalham o backend `files`; a sincronização Graphify posterior aplica-se a ambos.
+
 Ao fim de cada onda, **você** registra o resultado de cada task — os subagentes não escrevem na spec nem no `status.md`. Para cada task da onda, com base no relatório final do subagente:
 
 1. **Task concluída** → marque no checklist `- [x] Task NN — [Título] → implements/XXXX`. Uma pendência de documentação não reabre código validado.
@@ -99,7 +108,7 @@ Ao fim de cada onda, **você** registra o resultado de cada task — os subagent
 3. **Subagente falhou sem reportar** → trate como bloqueada; não relance automaticamente. Confira se ficou pasta órfã em `.centaur/implements/` (número reservado sem README) e anote no relatório final
 4. Adicione em `.centaur/implements/status.md` uma linha por implementação criada na onda (concluída ou bloqueada), com os dados do relatório: `| XXXX | [Título] | [data] | [Concluído|Bloqueado] | [arquivos] |`. Remova a linha placeholder da tabela se ainda existir
 
-Após consolidar os registros da onda, execute obrigatoriamente `centaur-driven-graphify` para sincronizar código, testes e documentos de cada implementação, inclusive os READMEs e índices em `.centaur/`. Faça essa atualização serial antes da próxima onda ou da entrega final; os subagentes não escrevem no grafo compartilhado. Verifique com consultas focadas e registre a cobertura das implementações. Em falha, tente resolver a causa; persistindo o impedimento, registre os arquivos pendentes e comunique a limitação aos próximos executores para conferirem as fontes atuais. Não reexecute código validado nem declare sincronização concluída.
+Após consolidar os registros da onda no backend selecionado, execute obrigatoriamente `centaur-driven-graphify` para sincronizar código, testes e documentos de cada implementação, inclusive os READMEs e índices locais existentes em `.centaur/`, excluindo `memory-pending/` e a wiki externa. Faça essa atualização serial antes da próxima onda ou da entrega final; os subagentes não escrevem no grafo compartilhado. Verifique com consultas focadas e registre a cobertura das implementações. Em falha, tente resolver a causa; persistindo o impedimento, registre os arquivos pendentes e comunique a limitação aos próximos executores para conferirem as fontes atuais. Não reexecute código validado nem declare sincronização concluída.
 
 Se um subagente tiver editado a spec ou o `status.md` por conta própria (não deveria), confira o resultado e conserte inconsistências.
 
@@ -111,7 +120,7 @@ Após a última onda:
 2. Se houver impedimento que paralisa a spec, use `Bloqueada` e registre motivo; havendo trabalho independente em execução, mantenha `Em andamento` e liste os bloqueios
 
 Reporte ao usuário:
-- Tasks concluídas nesta execução (com o número da implementação de cada uma: `Task 02 → implements/0005`)
+- Tasks concluídas nesta execução (com a referência da página e estado da memória, ou o número da implementação em `files`)
 - Tasks bloqueadas e o motivo de cada uma
 - Tasks não executadas por dependência bloqueada
 - Status final da spec

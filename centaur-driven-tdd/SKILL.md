@@ -1,18 +1,23 @@
 ---
 name: centaur-driven-tdd
-description: Implementa uma mudança guiada por testes (red-green-refactor), com casos de teste derivados dos critérios de aceite, análise de cobertura e documentação em .centaur/implements/. Use quando a mudança tem regra de negócio testável.
-version: 1.9.0
+description: Implementa uma mudança guiada por testes (red-green-refactor), com ciclos mínimos, reaproveitamento e manutenção dos testes existentes e registro no backend de memória configurado. Use quando a mudança tem regra de negócio testável.
+version: 1.11.0
 invocable: true
 author: user
 metadata:
   dependencies: clean-code, graphify
+  optional-dependencies: ai-memory
 ---
 
 # centaur-driven-tdd
 
+## Memória de implementações
+
+Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements/status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
+
 ## Contexto persistente — Graphify
 
-Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -26,196 +31,113 @@ Leia também `references/session-protocol.md` e `references/tests.md` da depend�
 
 As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
-## Integração com Graphify
+## Princípio
 
-Depois de validar o comportamento, use `centaur-driven-graphify` para atualizar as notas e fluxos afetados. O README da implementação continua sendo o registro obrigatório.
+Comece pela menor lacuna de comportamento e mantenha a suíte coerente com o contrato atual. Preserve o ciclo RED → GREEN → REFACTOR. Quantidade de testes e percentual de cobertura não são critérios de sucesso por si só.
 
-Você é um engenheiro de software sênior conduzindo uma implementação por Test Driven Development. O teste vem primeiro, sempre. Siga cada passo na ordem — não pule etapas.
+A referência de processo é o [TDD do Superpowers](https://github.com/obra/superpowers/blob/main/skills/test-driven-development/SKILL.md). O Centaur adapta o dimensionamento à solicitação: reaproveita proteção existente e revisa testes afetados quando o contrato muda, em vez de acumular casos a cada entrega. Superpowers é referência, não uma dependência a instalar ou carregar.
 
-**Escopo desta skill:** mudanças pontuais com comportamento testável — regra de negócio, validação, cálculo, transformação de dados, correção de bug. Se a demanda for grande, planeje com `/centaur-driven-spec` e execute com `/centaur-driven-run`.
+**Escopo:** mudanças pontuais com regra de negócio, validação com consequência, cálculo ou correção de bug. Demandas grandes seguem `spec` + `run`. Mudanças estruturais, UI/estilo, configuração e fiação trivial seguem `implement`. Não crie infraestrutura de testes sem que o pedido a autorize.
 
-**Quando NÃO usar TDD:** mudança puramente estrutural (renomear, mover arquivo), ajuste de configuração, mudança só de UI/estilo, **comportamento trivial mesmo que testável** (mapeamento direto de campos, passthrough, fiação sem lógica), projeto sem nenhuma infraestrutura de teste e sem autorização do usuário para criá-la. Nesses casos, use `/centaur-driven-implement`.
+## Regras do ciclo
 
-## Regras invioláveis
+- Comportamento novo ou alterado precisa de uma evidência RED antes da mudança de produção. Um teste existente que reproduz o problema pode cumprir esse papel; não precisa de uma cópia nova.
+- Uma refatoração que preserva comportamento usa os testes existentes antes e depois. Não quebre código só para fabricar RED, nem apague trabalho existente porque não nasceu por TDD.
+- Cada novo caso deve proteger uma falha concreta que ainda não esteja adequadamente coberta. Explique qual falha ele detecta; não crie teste por método, arquivo, camada ou item de checklist.
+- Teste o contrato observado pelo consumidor. Uma mudança interna que preserva esse contrato não deveria obrigar reescrever a suíte.
+- Falha de teste exige diagnóstico. Mudar a expectativa é correto quando o requisito mudou; afrouxá-la para esconder um defeito não é.
+- Reporte somente execuções e resultados observados. Não declare suíte verde a partir de um teste isolado.
 
-1. **Nunca escreva código de produção sem um teste falhando que o exija.**
-2. **Nunca pule o RED.** Rode o teste e veja falhar antes de implementar. Teste que passa de primeira é teste errado — investigue.
-3. **Teste comportamento, não implementação.** Nada de asserção sobre variável privada, ordem de chamadas internas ou detalhe de estrutura interna.
-4. **Um comportamento por teste**, com nome que lê como especificação.
-5. **Nunca afrouxe um teste para fazê-lo passar.** Se o teste está errado, corrija o teste e explique por quê na documentação.
-6. **Não invente cobertura.** Só reporte números que você realmente executou.
+## Passo 1 — Recuperar contexto e identificar modo spec
 
-## Passo 1 — Ler o contexto do projeto
+Leia `AGENTS.md` e siga os contratos de contexto, memória e equipe. Consulte só o histórico e as fontes pertinentes. Se faltar contexto indispensável, informe a lacuna; sem projeto documentado, indique `centaur-driven-start-project`.
 
-Leia `AGENTS.md` e recupere o contexto da solicitação pelo contrato Graphify acima. Consulte apenas os registros e trechos relevantes do escopo; para status, confirme o README canônico.
+Se a solicitação começar com `Spec <escopo/id> — Task NN` ou referenciar uma task, leia a spec inteira e preserve seus critérios. Não edite spec, checklist ou índices compartilhados. O coordenador recebe o resultado e consolida. Não interprete critérios como uma quantidade obrigatória de testes novos.
 
-Se `AGENTS.md` não existir, avise:
-> "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro para que eu tenha contexto suficiente para implementar com segurança."
+No backend `files`, crie o índice de implementações apenas se necessário. No backend ai-memory, use o destino atribuído e a fila do contrato, sem criar `implements/`.
 
-Se `.centaur/implements/status.md` não existir, crie a estrutura (`.centaur/implements/` e `status.md` vazio).
+## Passo 2 — Conhecer a suíte atual
 
-## Passo 2 — Detectar a stack de testes
+Identifique framework, comando para teste/arquivo individual, suíte do projeto e gates obrigatórios nos manifestos e na configuração de CI. Cobertura só precisa de comando próprio quando for exigida pelo projeto ou útil para investigar uma lacuna específica.
 
-Identifique o framework, o comando de execução e a ferramenta de cobertura já usados pelo projeto:
+Leia os testes dos comportamentos afetados e suas fixtures. Execute a seleção relevante antes de editar, para conhecer a situação inicial. Não introduza um segundo padrão de testes.
 
-- **Onde procurar:** `package.json` (scripts + devDependencies), `pytest.ini` / `pyproject.toml` / `setup.cfg`, `Makefile`, `pom.xml` / `build.gradle`, `Gemfile`, `go.mod`, arquivos `*.config.{js,ts}` de test runner, pasta de testes existente
-- **Frameworks comuns:** Jest, Vitest, Mocha (JS/TS) · Pytest, unittest (Python) · JUnit 5 (Java) · RSpec (Ruby) · `go test` (Go) · Japa (AdonisJS)
-- **Cobertura:** Istanbul/nyc/c8 (JS), coverage.py / pytest-cov (Python), JaCoCo (Java)
+Sem infraestrutura, use `implement` quando o pedido não incluir configurá-la. Em modo spec, se a task exigir TDD mas não permitir criar a infraestrutura, reporte bloqueio pelo Passo 5.
 
-Registre: comando de teste, comando de teste de arquivo único (para o loop rápido), comando de cobertura, convenção de nome e local dos arquivos de teste.
+## Passo 3 — Delimitar a mudança observável
 
-**Se o projeto não tem infraestrutura de teste:** pare e pergunte ao usuário se pode configurá-la (proponha o framework padrão da stack). Sem resposta afirmativa, não siga com TDD — oriente `/centaur-driven-implement`.
-**[modo spec]** Se não houver infraestrutura de teste e a task não autorizar criá-la, siga o procedimento de bloqueio descrito no Passo 5 e encerre.
+Descreva o que passa a valer e o que deve continuar funcionando. Compare os critérios de aceite com os testes encontrados: já coberto, precisa atualizar, lacuna real. Critério de aceite não equivale a teste novo.
 
-## Passo 3 — Entender a solicitação e derivar critérios de aceite
+Comece por um exemplo representativo da mudança ou pela reprodução do bug. Acrescente casos apenas quando distinguirem outra decisão da regra, um limite relevante ou um risco concreto ainda desprotegido. Dinheiro, autorização e integridade exigem atenção aos modos de falha reais, não uma combinação automática de todo vazio/nulo/erro/borda possível.
 
-Traduza o pedido em uma lista de **comportamentos observáveis e verificáveis**. Cada item vira pelo menos um teste.
+Escolha o nível mais próximo da regra que dê confiança suficiente. Teste de integração cabe quando o defeito depende da ligação entre componentes. Não repita a mesma regra em unitário, integração e ponta a ponta sem um risco diferente em cada nível. Parametrize entradas que exercitem a mesma regra quando isso melhorar a leitura; parametrização não justifica uma matriz enorme.
 
-**Proporcionalidade — a regra que dimensiona a lista:** a profundidade da cobertura acompanha o risco do comportamento, não o ritual.
+## Passo 4 — Revisar os testes afetados
 
-- **Caminho crítico** (dinheiro, autenticação/autorização, validação de entrada externa, cálculo com regra de negócio, dado que não pode corromper) → cobertura completa: caminho feliz, erros e bordas.
-- **Comportamento comum** (regra de negócio ordinária, transformação com algumas decisões) → caminho feliz + os erros e bordas que têm chance real de acontecer neste projeto.
-- **Comportamento trivial** (mapeamento direto de campos, passthrough, formatação simples, getter com lógica mínima) → 1-2 testes de caminho feliz bastam. Não infle a lista para parecer rigoroso.
+Antes de adicionar, decida o destino dos casos existentes:
 
-As dimensões abaixo são um **checklist para considerar, não uma obrigação por item**. Percorra-as e inclua o que for relevante para o risco do caso:
-- **Caminho feliz** — o uso esperado, com dados válidos
-- **Erros** — entrada inválida, dependência falhando, estado inconsistente, autorização negada
-- **Bordas** — vazio, nulo, zero, limites e vizinhança do limite, coleção com 1 elemento, caracteres especiais/unicode
-- **Efeitos colaterais** — o que deve ser persistido, emitido ou chamado (e o que **não** deve)
+| Situação comprovada | Ação |
+|---|---|
+| A regra continua válida e o teste a protege | Preserve; uma falha após a edição é candidata a regressão. |
+| A solicitação altera a regra | Atualize nome, dados e expectativa para o novo contrato; execute contra a implementação anterior para obter RED. Preserve verificações dos comportamentos que não mudaram. |
+| Dois casos protegem a mesma falha nas mesmas condições | Consolide se nenhum risco distinto for perdido. |
+| O teste depende de detalhes internos | Reescreva pela interface/efeito observável, conservando a proteção da regra. |
+| A funcionalidade foi removida pelo pedido | Remova o caso sem objeto; acrescente proteção para a ausência somente se ela fizer parte do novo contrato. |
+| O motivo da falha é incerto ou intermitente | Investigue; não use skip, delete ou atualização de snapshot como solução. |
 
-Ao apresentar a lista (Passo 5), diga qual nível de proporcionalidade aplicou e por quê — o usuário pode pedir mais ou menos.
+Idade do teste e incompatibilidade com o código atual não provam obsolescência. A evidência vem do requisito aprovado e do contrato. Se o teste antigo revela compatibilidade que deve continuar, mantenha essa proteção. Faça essa manutenção apenas na área afetada e registre o motivo das remoções/substituições; não abra uma limpeza geral da suíte.
 
-**Detectar modo spec:** se a solicitação começar com `Spec YYYY — Task NN` (ou mencionar uma spec/task de `.centaur/specs/`), você está executando uma task planejada por `/centaur-driven-spec`, provavelmente como subagente. Em todas as skills centaur, `YYYY` é sempre o número da spec e `XXXX` o número da implementação. Leia `.centaur/specs/YYYY/README.md` inteiro (Objetivo e Contexto técnico fazem parte do seu contexto). **Não edite o README da spec nem o `index.md`** (status, checklist) — quem consolida esses arquivos é o orquestrador, com base no seu relatório final.
+## Passo 5 — Resolver lacunas reais
 
-## Passo 4 — Explorar o código e os testes existentes
+Pergunte apenas quando a resposta mudar o contrato e não estiver no pedido, nas fontes ou na spec. Se o trabalho já estiver autorizado e não houver ambiguidade, informe o primeiro comportamento e prossiga. Não peça aprovação de uma bateria de testes pré-definida.
 
-Localize e leia:
-- Arquivos que serão modificados ou criados
-- Quem chama e quem é chamado pelos módulos afetados
-- **Testes existentes da área** — reaproveite fixtures, factories, helpers e o estilo de asserção já adotado
-- Configurações de teste (setup global, mocks de infraestrutura, banco de teste)
+**Modo spec:** preserve os critérios e o escopo planejados; escolha a organização dos testes sem mudar requisitos. Se houver conflito entre spec, contrato vigente e código que impeça a implementação, reporte bloqueio e o que destrava. Em ai-memory, grave o registro na fila individual; em `files`, reserve o ID pelo Passo 12 e salve README mínimo com data, status Bloqueado, spec/task e motivo. Não altere a spec nem seus índices e não publique diretamente na wiki.
 
-Não crie um segundo padrão de teste no projeto: siga o que já existe.
+## Passo 6 — Escolher o próximo ciclo
 
-## Passo 5 — Tirar todas as dúvidas
+Escolha a menor lacuna ainda aberta, respeitando as dependências reais da mudança. Não gere ciclos por camada nem escreva uma bateria inteira antes de começar. Um ciclo pode atualizar um teste existente. Se tudo já estiver protegido e o comportamento correto, não invente produção nem teste novo: valide e reporte o que encontrou.
 
-Antes de escrever qualquer teste, liste as ambiguidades: comportamento esperado em casos de erro, valores de borda, o que deve ser mockado vs. real, critério de sucesso. Apresente tudo de uma vez e aguarde as respostas.
+## Passo 7 — RED observado
 
-Se não houver dúvidas, apresente a **lista de casos de teste** derivada do Passo 3 e pergunte se pode prosseguir. Essa lista é o contrato da implementação.
+Releia os trechos exatos que vai tocar. Escreva ou atualize o teste do comportamento escolhido e rode a seleção mínima que o executa. Confirme uma falha causada pela diferença entre o contrato desejado e o código atual. Corrija erros acidentais de sintaxe, importação e setup antes de contar a falha como RED. Ausência da API que a mudança deve criar pode ser a falha esperada, desde que identificada como tal.
 
-<!-- [modo spec] Mantenha este bloco sincronizado com centaur-driven-implement, Passo 4 -->
-**[modo spec]** Não pergunte nada — as decisões já foram resolvidas na criação da spec e, como subagente, você não tem canal com o usuário. Se encontrar ambiguidade que **realmente impede** a implementação, **pare sem implementar**:
-1. Reserve um número de implementação conforme o Passo 12
-2. Crie `.centaur/implements/XXXX/README.md` mínimo documentando o bloqueio:
+Se já passar, investigue: pode ser comportamento existente, duplicação ou uma asserção sem poder de detectar a falha. Não altere a expectativa apenas para forçar vermelho. Preserve um teste de caracterização útil quando necessário, mas não o apresente como prova RED de uma mudança já implementada.
 
-```markdown
-# [XXXX] [Título da task] — Bloqueado
+## Passo 8 — GREEN mínimo
 
-**Data:** [saída de `date +%F`]
-**Status:** Bloqueado
-**Modo:** TDD
-**Spec:** `.centaur/specs/YYYY/` — Task NN
+Implemente só o necessário para satisfazer a lacuna atual, respeitando os limites arquiteturais e convenções do projeto. Rode o caso e os testes diretamente afetados. Se algum teste falhar, use a classificação do Passo 4 para distinguir regressão de mudança intencional; não ajuste expectativas em massa ao resultado produzido.
 
-## Motivo do bloqueio
-[O que impede a implementação, com referência a arquivo/linha quando aplicável]
+## Passo 9 — REFACTOR com manutenção da suíte
 
-## O que destrava
-[Que decisão ou correção o usuário precisa tomar]
-```
+Com os testes relevantes verdes, simplifique código e testes tocados. Use nomes do domínio, responsabilidades claras e helpers pequenos quando eliminarem repetição real. Reexecute os testes afetados após a refatoração. Se houver regressão, corrija ou desfaça apenas a própria edição responsável, preservando trabalho anterior.
 
-3. Encerre reportando o motivo do bloqueio e o número `XXXX` — **não** edite a spec nem o `status.md`; o orquestrador registra o bloqueio.
+Revise a utilidade dos testes com a [referência de qualidade do Superpowers](https://github.com/obra/superpowers/blob/main/skills/test-driven-development/writing-good-tests.md):
 
-O mesmo vale para o bloqueio por falta de infraestrutura de teste do Passo 2.
+- Verifique resultados e efeitos reais. Isole dependências externas ou não determinísticas quando necessário; não substitua por mock a própria regra em teste.
+- Derive valores esperados independentemente da implementação. Não use o mesmo cálculo/helper nos dois lados da asserção.
+- Chamadas e argumentos só são asserções úteis quando expressam um contrato de integração, não a organização privada do código.
+- Evite snapshots amplos, comparações de texto-fonte e testes de constantes sem efeito observável. Texto exato é válido quando o próprio texto é requisito.
+- Várias asserções podem demonstrar um único resultado; não divida cada campo em um teste novo. Não teste o funcionamento interno do framework.
 
-## Passo 6 — Ordenar os ciclos
+Consolide redundâncias e atualize fixtures afetadas. Não remova uma regressão protegida apenas para diminuir a contagem. Não imponha abstrações, meta de quantidade ou limite arbitrário de duração por teste.
 
-Ordene os casos do mais simples ao mais complexo, e **de dentro para fora nas camadas** (domínio/model → DTO → repository → service → handler), respeitando a Arquitetura de Camadas do `AGENTS.md`.
+## Passo 10 — Avaliar se falta outro ciclo
 
-Cada caso da lista é um ciclo red-green-refactor. Faça um ciclo por vez — nunca escreva dois testes falhando ao mesmo tempo.
+Compare o resultado aos critérios e riscos identificados. Prossiga somente se houver comportamento exigido ainda sem proteção suficiente. Pare quando a mudança estiver validada pelos testes mantidos, atualizados ou novos. Não complete listas genéricas nem persiga percentual de cobertura.
 
-## Passo 7 — Ciclo RED
+## Passo 11 — Verificar a entrega
 
-Para o caso atual:
-
-1. **Releia o trecho exato** do arquivo de produção e do arquivo de teste que vai tocar (não confie na memória do Passo 4 — o contexto pode ter sido comprimido)
-2. Escreva **um** teste que descreva o comportamento desejado
-   - Nome que lê como especificação (ex: `rejeita senha com menos de 8 caracteres`)
-   - Estrutura arrange-act-assert explícita
-   - Sem lógica condicional dentro do teste
-   - Asserção específica: o valor esperado, não apenas "não lançou erro"
-3. **Execute só esse teste** e confirme que falha
-4. **Confirme que falha pelo motivo certo** — pela asserção, não por erro de import, de sintaxe ou de setup. Se falhou por outro motivo, corrija o teste e rode de novo.
-
-Se o teste passar sem nenhuma implementação: o comportamento já existe (remova o teste se for duplicata, ou refine a asserção até ela ser significativa).
-
-## Passo 8 — Ciclo GREEN
-
-Escreva o **mínimo** de código de produção para o teste passar.
-
-- Nada de generalização especulativa, nada de funcionalidade não exigida por um teste
-- Siga as convenções do `AGENTS.md`
-- **Respeite a Arquitetura de Camadas**: validação de forma em DTOs, regra de negócio em services, acesso a dados em repositories, orquestração em handlers. Nunca atravesse camadas — chame pela interface
-- Se a camada necessária ainda não existe (ex: primeira repository), crie-a na pasta definida pelo `AGENTS.md`
-- Se o `AGENTS.md` não tiver a seção "Arquitetura de Camadas", siga o padrão dos arquivos vizinhos e sugira ao usuário rodar `/centaur-driven-start-project`
-
-Execute o teste e confirme que passa. Depois rode **a suíte inteira** e confirme que nada regrediu.
-
-## Passo 9 — Ciclo REFACTOR
-
-<!-- Mantenha este passo sincronizado com centaur-driven-implement, Passo 7 -->
-Com a suíte verde, releia o que você escreveu como se estivesse chegando nele pela primeira vez, sem o contexto desta conversa. O código é a documentação principal do projeto — corrija o que só faz sentido para quem acabou de escrever, no código **e nos testes**.
-
-**Critério de bom nome:**
-- Revela a **intenção** — o que a coisa faz ou representa, não como está implementada (`precoComDesconto`, não `p2`; `buscarPorEmail`, não `query2`)
-- Usa o **vocabulário do domínio** do projeto — a palavra registrada na seção "Vocabulário e Idioma do Código" do `AGENTS.md` ou no glossário ali vinculado, consultando os conceitos relevantes (sem registro, use a convenção existente no código). Um conceito, um nome, no código inteiro. O idioma dos identificadores, dos comentários e dos nomes de teste também sai dessa seção
-- Sem abreviação (`calc`, `usr`, `tmp`, `res`) e sem sufixo redundante de tipo (`listaDeUsuariosArray`, `DataManager`)
-- Função é verbo, valor é substantivo, booleano lê como afirmação (`estaAtivo`, `temPermissao`)
-- **Nome que precisa de comentário para ser entendido é nome errado** — troque o nome, não adicione o comentário
-
-**Onde o "porquê" mora — nesta ordem de precedência:**
-1. **No próprio código**, sempre que couber: constante nomeada no lugar do número/string solto, função extraída cujo nome diz a intenção, tipo ou enum no lugar de string livre, guarda explícita no lugar de condição implícita
-2. **Em comentário curto ao lado**, quando o porquê é externo ao código e não há como expressá-lo nele: regra de negócio arbitrária, limite imposto por uma API, workaround de bug de terceiro, decisão contraintuitiva. Comentário explica **por que**, nunca **o que** a linha faz
-3. **No README da implementação** (Passo 13), só o que não cabe no arquivo: alternativas descartadas, trade-off de arquitetura, contexto histórico
-
-Nunca use o README como substituto de código claro: quem abre o fonte não lê `.centaur/`, e o README envelhece enquanto o código muda. O nome do teste é parte dessa documentação — ele é a especificação executável do comportamento.
-
-**Cheiros que este ciclo precisa pegar:**
-- Nome que não revela intenção, ou que usa palavra diferente da que o resto do projeto usa para o mesmo conceito
-- Duplicação
-- Número ou string mágico sem constante nomeada
-- Função que faz mais de uma coisa (se descrever exige um "e", separe)
-- Aninhamento além de 2-3 níveis — inverta a condição, extraia função ou use retorno antecipado
-- Parâmetro booleano que troca o comportamento da função (dois nomes explícitos são mais legíveis)
-- Comentário que narra a linha seguinte — apague, ou renomeie o que está sendo narrado
-- Código morto ou comentado — apague, o histórico está no Git
-- Setup repetido nos testes → extraia fixture/factory/helper
-
-Regras: refatore só o que a mudança atual tocou (não faça faxina fora do escopo), e rode a suíte depois de cada refatoração. Se ficou vermelho, reverta a refatoração — não conserte por cima.
-
-## Passo 10 — Repetir
-
-Volte ao Passo 7 com o próximo caso da lista, até todos os critérios de aceite estarem cobertos por testes verdes.
-
-## Passo 11 — Validar cobertura e qualidade
-
-1. **Suíte completa**: execute todos os testes do projeto. Tudo verde.
-2. **Cobertura**: se o projeto tiver comando de cobertura, execute e analise o resultado **das linhas que você tocou** (não da base inteira).
-   - Alvo **proporcional** (mesma régua do Passo 3): 100% de branch nos caminhos críticos que você implementou (autenticação, pagamento, validação, cálculo). No restante, cubra o que importa — não persiga número.
-   - Reporte cobertura de **branch**, não só de linha — linha coberta com branch descoberto é falso conforto
-   - Linha nova descoberta em caminho crítico é um caso de teste faltando: escreva o teste. Em código trivial, uma justificativa de uma frase na documentação basta — não escreva teste só para fechar número.
-3. **Lint / type-check**: se existir, execute.
-4. **Revisão de camadas**: confirme que nenhuma mudança violou a Arquitetura de Camadas.
-5. **Clareza**: confirme que o resultado final passa nos critérios do Passo 9 — os ciclos foram muitos e a última refatoração pode ter deixado nome ou estrutura para trás.
-6. **Qualidade dos testes** — revise a suíte nova contra estes cheiros:
-   - Teste que depende da ordem de execução ou de estado deixado por outro teste
-   - Teste sem asserção, ou com asserção que passaria com qualquer valor
-   - Mock do próprio objeto sob teste
-   - Dependência de data/hora real, aleatoriedade ou rede
-   - Teste lento (unitário acima de ~100ms sem motivo)
-
-Corrija tudo antes de documentar.
+1. Execute a suíte do projeto e os gates exigidos antes de concluir. Em monorepo, use o escopo de validação documentado e inclua consumidores afetados por contratos compartilhados. O ciclo rápido usa seleção focada; a entrega exige a verificação mais ampla prevista pelo projeto.
+2. Execute lint/type-check e build quando exigidos ou pertinentes à mudança. Reporte comandos, resultados e limitações reais. Se uma suíte não puder rodar, declare o que ficou sem verificar; falhas preexistentes também aparecem no relatório, separadas das regressões causadas pela mudança.
+3. Revise o diff dos testes: a regra antiga deixou de ser exigida? As remoções perderam algum cenário ainda válido? Fixtures e snapshots representam o contrato atual? Não aprove atualizações em massa sem examinar essas diferenças.
+4. Use cobertura como pista de uma lacuna, quando necessário, ou como gate se o projeto já exigir. Não estabeleça 100% de branches, meta nova ou teste extra só para subir a métrica. Respeite gates existentes sem reduzi-los para obter verde.
+5. Confirme que a implementação e os testes não extrapolaram o pedido. Documente falhas ou bloqueios sem apresentar entrega validada quando os checks necessários não passaram.
 
 ## Passo 12 — Determinar número da implementação
+
+**Backend ai-memory:** use o UUID e o caminho do contrato de memória, sem reservar pasta. O template do próximo passo fornece o corpo da página/fila. Pule a etapa de `status.md` e informe a referência da página no lugar do número. Em modo spec, grave a fila e reporte ao coordenador; inclusive em bloqueios, não crie README local nem publique diretamente.
+
+**Backend files:** siga a reserva abaixo.
 
 <!-- Mantenha este passo sincronizado com centaur-driven-implement (Passo 9) e centaur-driven-deploy (Passo 16) -->
 Execute exatamente este comando para encontrar o último número:
@@ -234,15 +156,15 @@ ls .centaur/implements/ | grep -E '^[0-9]{4}$' | sort | tail -1
 
 Obtenha a data de hoje com `date +%F` — não a preencha de memória.
 
-Este README é a trilha de auditoria, **não** o lugar onde o código é explicado. O que dá para expressar no próprio código já foi expresso no Passo 9; aqui fica só o que não cabe num arquivo de código.
+Este README é a trilha de auditoria, **não** o lugar onde o código é explicado. O que cabe no código deve estar claro no código; aqui fica só o que não cabe num arquivo de código.
 
-Crie `.centaur/implements/XXXX/README.md`:
+Em `files`, crie `.centaur/implements/XXXX/README.md`. Em `ai-memory`, use este conteúdo no registro do contrato, com o ID atribuído:
 
 ```markdown
 # [XXXX] [Título curto e descritivo da implementação]
 
 **Data:** [saída de `date +%F`]
-**Status:** Concluído
+**Status:** [Concluído ou Bloqueado, conforme validação]
 **Modo:** TDD
 **Spec:** [se veio de uma spec: `.centaur/specs/YYYY/` — Task NN. Caso contrário, omita esta linha]
 
@@ -256,9 +178,12 @@ Crie `.centaur/implements/XXXX/README.md`:
 [A lista de comportamentos observáveis derivada no Passo 3]
 
 ## Ciclos TDD
-| # | Caso de teste | Arquivo de teste | Código que passou a existir |
-|---|---------------|------------------|------------------------------|
-| 1 | [nome do teste] | `caminho/do/teste.ext` | [o que foi implementado] |
+| Comportamento | Teste novo ou atualizado | RED observado | GREEN observado |
+|---|---|---|---|
+| [regra alterada] | `caminho/do/teste.ext` | [comando e falha esperada] | [comando e resultado] |
+
+## Manutenção dos testes
+[Testes reaproveitados, atualizados, consolidados ou removidos e por quê; indique a proteção preservada. Omita esta seção se nada disso se aplicar.]
 
 ## O que foi feito
 [Descrição objetiva das mudanças realizadas]
@@ -276,17 +201,17 @@ Crie `.centaur/implements/XXXX/README.md`:
 [Comando exato para rodar os testes desta implementação]
 
 ## Resultado da validação
-[Comando executado + resultado real: N testes passando, cobertura de linha/branch nos arquivos tocados, lint limpo]
+[Comandos e resultados reais, incluindo suíte/gates, falhas e limitações. Cobertura somente se medida.]
 ```
 
 ## Passo 14 — Atualizar status.md
 
 **[modo spec]** Pule este passo — o orquestrador escreve a linha no `status.md` com base no seu relatório final. Escritas paralelas de subagentes no mesmo arquivo se sobrescrevem.
 
-Adicione uma linha na tabela de `.centaur/implements/status.md`:
+Somente em `files`, adicione uma linha na tabela de `.centaur/implements/status.md`:
 
 ```
-| XXXX | [Título] | [data] | Concluído | [lista de arquivos afetados] |
+| XXXX | [Título] | [data] | [status real] | [lista de arquivos afetados] |
 ```
 
 Se a tabela ainda contiver a linha placeholder (`| — | — | — | — | — |`), remova-a ao inserir a primeira linha real.
@@ -297,9 +222,9 @@ Se a implementação adicionou funcionalidade relevante, mudou arquitetura, intr
 
 ## Passo 16 — Atualizar obrigatoriamente o Graphify
 
-Após cada implementação, execute o fluxo `centaur-driven-graphify sincronizar <escopo>/<id>` nesta mesma tarefa, depois da validação e de salvar o README da implementação, os índices e demais documentos canônicos. Não deixe a atualização como sugestão ou comando para o usuário executar depois. A obrigação também vale para correções internas, mudanças pequenas e alterações sem impacto no AGENTS.md ou no mapa humano.
+Após cada implementação, execute o fluxo `centaur-driven-graphify sincronizar <escopo>/<id>` nesta mesma tarefa, depois da validação e de salvar o registro no backend configurado e os documentos locais pertinentes. Não deixe a atualização como sugestão ou comando para o usuário executar depois. A obrigação também vale para correções internas, mudanças pequenas e alterações sem impacto no AGENTS.md ou no mapa humano.
 
-Inclua código, testes e documentos alterados, inclusive o novo registro em `.centaur/`; atualização AST isolada não basta para Markdown. Reutilize o grafo com atualização incremental quando suportada e inicialize-o se estiver ausente. Verifique os artefatos e faça uma consulta focada sobre a mudança, conferindo as fontes retornadas antes de afirmar que está sincronizado. Atualize mapas e notas somente quando afetados.
+Inclua código, testes e documentos alterados, inclusive os registros locais quando existirem, excluindo a fila `memory-pending/`; atualização AST isolada não basta para Markdown. Reutilize o grafo com atualização incremental quando suportada e inicialize-o se estiver ausente. Verifique os artefatos e faça uma consulta focada sobre a mudança, conferindo as fontes retornadas antes de afirmar que está sincronizado. Atualize mapas e notas somente quando afetados.
 
 Se houver bloqueio ou validação falhar depois de mudanças, sincronize também os arquivos e registros efetivamente preservados, identificando o estado parcial/bloqueado sem descrevê-lo como comportamento validado. Sem qualquer mudança de código ou documentos, não há atualização a executar.
 
@@ -311,12 +236,12 @@ Se a sincronização falhar, tente resolver a causa dentro do escopo e permissõ
 
 Confirme com:
 - O que foi feito (resumo de 2-3 linhas)
-- Quantos ciclos red-green-refactor foram executados
-- Resultado real da validação: testes passando, cobertura de linha e branch dos arquivos tocados
-- Número da implementação (ex: "Documentado em `.centaur/implements/0003/`")
+- Comportamentos validados e manutenção relevante dos testes existentes
+- Resultado real da suíte/gates; cobertura somente quando medida e limitações explícitas
+- Referência da página e estado da memória, ou número/README no backend `files`
 - Graphify: atualização executada, consulta de verificação e fontes conferidas; em falha, causa e arquivos pendentes
 
-**[modo spec]** Encerre com um relatório estruturado — é dele que o orquestrador consolida a spec e o `status.md`:
+**[modo spec]** Em ai-memory, use o relatório com `Registro` e `Fila` definido no contrato. Em `files`, encerre com o relatório abaixo, usado pelo orquestrador para consolidar a spec e o `status.md`:
 
 ```
 Spec YYYY — Task NN: [Concluída | Bloqueada]
@@ -324,7 +249,8 @@ Implementação: XXXX
 Título: [título usado no README da implementação]
 Arquivos afetados: [código, testes e documentos alterados, incluindo o README da implementação]
 Graphify: sincronização pendente pelo coordenador; [escopo e caminhos a incluir]
-Validação: [ciclos executados, testes passando, cobertura de linha/branch dos arquivos tocados]
+Validação: [evidências RED/GREEN, suíte/gates, falhas e limitações]
+Testes mantidos/atualizados/removidos: [motivos e proteção preservada]
 Mapa: [caminho e resultado real; se bloqueada sem implementação, não aplicável]
 Perspectivas afetadas: [ids de views existentes ou nenhuma; atualização reservada ao orquestrador]
 [Se bloqueada: Motivo do bloqueio e o que destrava]

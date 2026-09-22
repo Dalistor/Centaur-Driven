@@ -1,18 +1,23 @@
 ---
 name: centaur-driven-check
 description: Consulta o Graphify e confirma respostas nas instruções e fontes atuais do projeto, somente leitura.
-version: 1.6.0
+version: 1.7.0
 invocable: true
 author: user
 metadata:
   dependencies: clean-code, graphify
+  optional-dependencies: ai-memory
 ---
 
 # centaur-driven-check
 
+## Memória de implementações
+
+Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements/status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
+
 ## Contexto persistente — Graphify
 
-Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -39,7 +44,7 @@ Quando a pergunta envolver capacidades, responsabilidades ou um fluxo ponta a po
 Se `AGENTS.md` não existir, informe o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` para criar o AGENTS.md antes de usar `/centaur-driven-check`."
 
-Se `status.md` não existir, consulte as fontes disponíveis e mencione a ausência do índice quando ela afetar a resposta; registros individuais ainda podem existir.
+No backend ai-memory, leia a página indicada e a fila relevante; ausência de `implements/status.md` é esperada. As consultas a `implements/` abaixo servem ao histórico legado. No backend files, se `status.md` não existir, consulte as fontes disponíveis e mencione a ausência do índice quando ela afetar a resposta; registros individuais ainda podem existir.
 
 Se a pergunta for sobre uma spec ou task específica, leia também o `.centaur/specs/YYYY/README.md` correspondente. Se for sobre uma implementação específica (o que foi feito, por quê, como validar), leia o `.centaur/implements/XXXX/README.md` dela — o `status.md` só tem o resumo.
 

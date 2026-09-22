@@ -1,14 +1,19 @@
 ---
 name: centaur-driven-start-project
 description: Inicializa o contexto de um projeto existente com AGENTS.md curto, registros Centaur e índice Graphify; reutiliza fontes e documenta detalhes sob demanda.
-version: 3.4.0
+version: 3.5.0
 invocable: true
 author: user
 metadata:
   dependencies: clean-code, graphify
+  optional-dependencies: ai-memory
 ---
 
 # centaur-driven-start-project
+
+## Memória de implementações
+
+Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements/status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
 
 Estabeleça as instruções e fontes persistentes que os agentes consultarão nas próximas sessões. Documente o projeto existente, sem refatorar código nem impor uma arquitetura nova. Mantenha o contexto obrigatório curto e os detalhes recuperáveis pelo Graphify.
 
@@ -57,6 +62,10 @@ Adapte o template abaixo à estrutura real. Remova placeholders, não invente co
 Graphify é dependência do Centaur: CLI `graphify` (pacote `graphifyy`) e skill oficial `graphify`. Após ler estas instruções, consulte da raiz `graphify query "<objetivo da tarefa>" --budget 1500` e abra as fontes relevantes. Confirme conteúdo atual antes de editar; não carregue o grafo ou histórico completos. Sem índice confiável, informe a limitação e use busca focada.
 Decisões ficam em documentos canônicos, indexados para próximas sessões. Código e validação comprovam comportamento; o grafo pode conter planos e inferências. Após mudanças e registros, sincronize pelo fluxo `centaur-driven-graphify`; em paralelo, somente o coordenador atualiza o índice. Consultas somente leitura não sincronizam.
 
+## Memória de decisões e mudanças
+[Backend confirmado em `.centaur/workspace.json`: files ou ai-memory.]
+Com ai-memory, siga `centaur-driven-memory`: use workspace/projeto explícitos da `.ai-memory.toml`, consulte decisões relevantes e registre mudanças na wiki com leitura de confirmação. Sem serviço, preserve o registro em `.centaur/memory-pending/` e reporte pendência. Não crie novas pastas implements nesse modo. Memória histórica não substitui código, testes, regras ou o estado das specs.
+
 ## Comandos essenciais
 [Comandos reais para executar, construir e validar, com diretório quando necessário. Link para instruções detalhadas de ambiente/deploy já existentes.]
 
@@ -75,7 +84,7 @@ Carregue `clean-code` e as referências pertinentes ao planejar, implementar ou 
 
 ## Módulos e Equipe
 [Modo individual/equipe e regras essenciais de integração.]
-Consulte `.centaur/workspace.json` para escopos, caminhos e responsáveis. Specs e implementações ficam nos diretórios ali configurados; leia seus índices sob demanda e confirme status nos READMEs canônicos. Use IDs qualificados ao trabalhar com módulos.
+Consulte `.centaur/workspace.json` para escopos, caminhos e responsáveis. Specs ficam nos diretórios configurados; implementações seguem o backend de memória, preservando os diretórios legados; leia seus índices sob demanda e confirme status nos READMEs canônicos. Use IDs qualificados ao trabalhar com módulos.
 
 ---
 _Documentação centaur — schema `[versão desta skill, do frontmatter]`, gerada em `[saída de date +%F]`. Atualize com `/centaur-driven-update`._
@@ -91,7 +100,9 @@ Mapa do sistema, Fluxos e Perspectivas são criados quando solicitados ou quando
 
 Crie ou complete `.centaur/workspace.json` conforme o contrato de módulos e equipe, preservando caminhos e registros. Registre `master` e os módulos reais, colaboração e responsáveis. Crie os índices abaixo em cada escopo somente quando ausentes; não sobrescreva histórico nem mova pastas existentes. Os caminhos dos exemplos representam o escopo selecionado.
 
-Crie o diretório `.centaur/implements/` e o arquivo `status.md` dentro dele:
+Preserve o backend existente. Para adotar ai-memory, configure e verifique conforme `centaur-driven-memory` antes de selecionar esse backend; sem adoção configurada, use `files` e informe a opção disponível. No backend ai-memory, omita os diretórios de implementação sem histórico e pule o template a seguir.
+
+Somente no backend `files`, crie o diretório `.centaur/implements/` e o arquivo `status.md` dentro dele:
 
 ```markdown
 # Status das Implementações

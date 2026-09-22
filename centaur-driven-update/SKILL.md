@@ -1,18 +1,23 @@
 ---
 name: centaur-driven-update
 description: Atualiza a documentação centaur de um projeto existente - migra AGENTS.md, histórico e grafo Graphify, verifica as dependências da skill e do CLI Graphify, audita conflitos e consolida a verdade. Não toca em código.
-version: 1.6.0
+version: 1.7.0
 invocable: true
 author: user
 metadata:
   dependencies: clean-code, graphify
+  optional-dependencies: ai-memory
 ---
 
 # centaur-driven-update
 
+## Memória de implementações
+
+Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements/status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
+
 ## Contexto persistente — Graphify
 
-Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -40,6 +45,8 @@ Sua tarefa tem duas metades: **migrar o schema** e **consolidar a verdade**.
 4. **Conflito com duas leituras plausíveis é pergunta, não decisão sua.** Você só resolve sozinho o que o código prova (arquivo existe ou não existe, script existe ou não existe).
 
 ## Passo 1 — Verificar pré-condições
+
+Resolva o backend antes da auditoria. Em ai-memory, ausência de `implements/` e de seus índices é esperada: não crie essa estrutura. Aplique as verificações legadas somente aos diretórios já existentes, e confira páginas/fila relacionadas ao escopo. Mudar o backend ou importar histórico segue `centaur-driven-memory` quando solicitado.
 
 1. `AGENTS.md` existe na raiz? Se não:
    > "Este projeto não tem `AGENTS.md` — não há documentação centaur para atualizar. Execute `/centaur-driven-start-project` para documentá-lo pela primeira vez."
@@ -86,7 +93,7 @@ Leia o template de `AGENTS.md` dentro do `centaur-driven-start-project` instalad
 2. **Seções que o projeto tem e o template não** → mantenha. São customizações do usuário; nunca apague seção só porque saiu do template.
 3. **Seções com formato mudado** (ex: virou tabela) → reformate preservando o conteúdo.
 
-Faça o mesmo com a estrutura `.centaur/`: compare `implements/status.md` e `specs/index.md` contra os templates do Passo 5 do `start-project`. Cabeçalho de tabela que ganhou coluna nova precisa ganhar a coluna (com as células antigas preenchidas com `—` quando o dado não existir).
+Faça o mesmo com a estrutura `.centaur/`: compare `implements/status.md` (se backend files ou histórico existente) e `specs/index.md` contra os templates do Passo 5 do `start-project`. Cabeçalho de tabela que ganhou coluna nova precisa ganhar a coluna (com as células antigas preenchidas com `—` quando o dado não existir).
 
 Aplique o Passo 5 de `start-project`: reutilize documentos existentes e crie detalhes em `docs/system/` apenas quando houver conteúdo útil. A lista de documentos de `centaur-driven-graphify` é um catálogo de possibilidades; não exige mapas, glossários ou pastas vazias. Migre documentos legados de `.centaur/system/` conforme `references/migration.md`, preservando conteúdo e links. Migre a seção antiga “Sistema no Graphify” para “Contexto persistente com Graphify” do template instalado, incluindo a dependência obrigatória, consultas com orçamento, confirmação das fontes e modo degradado. Preserve regras customizadas e reporte o estado real do índice. Para compactar o AGENTS.md legado, transfira detalhes de arquitetura, operação e vocabulário para documentos apropriados somente no plano autorizado, preserve todo o conteúdo válido e substitua os trechos transferidos por resumos e links verificáveis. Não apague conteúdo por ter saído do template.
 
@@ -210,7 +217,9 @@ A versão é a do `start-project` instalado, lida no Passo 2 — é ela que defi
 
 Esta atualização é uma mudança rastreável do projeto e entra no histórico como qualquer outra.
 
-Determine o número da implementação:
+No backend ai-memory, registre esta atualização pelo contrato de memória, usando o template abaixo como corpo; dispense reserva, pasta e linha de `status.md`. Em ambos os modos, sincronize os documentos locais no Graphify após salvá-los.
+
+No backend files, determine o número da implementação:
 
 <!-- Mantenha este passo sincronizado com centaur-driven-implement (Passo 9) e centaur-driven-tdd (Passo 12) -->
 ```
@@ -219,7 +228,7 @@ ls .centaur/implements/ | grep -E '^[0-9]{4}$' | sort | tail -1
 
 Próximo número, 4 dígitos, reservado com `mkdir .centaur/implements/XXXX` (sem `-p`). Obtenha a data com `date +%F`.
 
-Crie `.centaur/implements/XXXX/README.md`:
+Em `files`, crie `.centaur/implements/XXXX/README.md`. Em `ai-memory`, use este conteúdo no registro do contrato, com o ID atribuído:
 
 ```markdown
 # [XXXX] Atualização da documentação centaur (schema [origem] → [destino])
@@ -260,7 +269,7 @@ Crie `.centaur/implements/XXXX/README.md`:
 [O que foi conferido e o resultado]
 ```
 
-Adicione a linha em `.centaur/implements/status.md` (removendo a linha placeholder, se ainda existir):
+Somente em `files`, adicione a linha em `.centaur/implements/status.md` (removendo a linha placeholder, se ainda existir):
 
 ```
 | XXXX | Atualização da documentação centaur | [data] | Concluído | AGENTS.md, .centaur/ |
@@ -277,7 +286,7 @@ Encerre com:
 - Conflitos resolvidos, e a evidência de cada um
 - O que foi arquivado e onde
 - **Pendências de código** encontradas e não corrigidas, com a skill certa para cada uma
-- Número da implementação (ex: "Documentado em `.centaur/implements/0022/`")
+- Referência da página e estado da memória, ou número/README em `files`
 - Documentação e grafo Graphify atualizados, com dependências e extrações pendentes explicitadas
 - Sugestão de conferir com `git diff` antes de commitar
 

@@ -1,18 +1,23 @@
 ---
 name: centaur-driven-implement
-description: Implementa mudanças pontuais e diretas sem TDD (estruturais, config, UI, ou projetos sem testes) - lê o contexto, tira dúvidas, aplica, valida e documenta em .centaur/implements/. Para comportamento testável use centaur-driven-tdd; para demandas grandes use centaur-driven-spec + centaur-driven-run.
-version: 1.13.0
+description: Implementa mudanças pontuais e diretas sem TDD (estruturais, config, UI, ou projetos sem testes) - lê o contexto, tira dúvidas, aplica, valida e registra no backend de memória configurado. Para comportamento testável use centaur-driven-tdd; para demandas grandes use centaur-driven-spec + centaur-driven-run.
+version: 1.14.0
 invocable: true
 author: user
 metadata:
   dependencies: clean-code, graphify
+  optional-dependencies: ai-memory
 ---
 
 # centaur-driven-implement
 
+## Memória de implementações
+
+Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements/status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
+
 ## Contexto persistente — Graphify
 
-Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -28,7 +33,7 @@ As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur
 
 ## Integração com Graphify
 
-Depois da validação, use `centaur-driven-graphify` para registrar as notas e fluxos afetados. O README da implementação continua sendo o registro obrigatório; documentação do sistema não substitui validação de código.
+Depois da validação, use `centaur-driven-graphify` para registrar as notas e fluxos afetados. O registro no backend configurado continua obrigatório; documentação do sistema não substitui validação de código.
 
 Você é um engenheiro de software sênior executando uma implementação documentada. Siga cada passo na ordem — não pule etapas.
 
@@ -45,7 +50,7 @@ Leia `AGENTS.md` e recupere o contexto da solicitação pelo contrato Graphify a
 Se `AGENTS.md` não existir, avise o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro para que eu tenha contexto suficiente para implementar com segurança."
 
-Se `.centaur/implements/status.md` não existir, crie a estrutura (crie `.centaur/implements/` e o `status.md` vazio).
+No backend `files`, se `.centaur/implements/status.md` não existir, crie a estrutura (crie `.centaur/implements/` e o `status.md` vazio).
 
 ## Passo 2 — Entender a solicitação
 
@@ -79,6 +84,8 @@ Se não houver dúvidas, confirme o plano de implementação em uma ou duas fras
 
 <!-- [modo spec] Mantenha este bloco sincronizado com centaur-driven-tdd, Passo 5 -->
 **[modo spec]** Não pergunte nada — as decisões já foram resolvidas quando a spec foi criada, e como subagente você não tem canal com o usuário. Se a instrução da task for suficiente, prossiga direto. Se encontrar uma ambiguidade que **realmente impede** a implementação (conflito com o código atual, dependência não concluída), **pare sem implementar**:
+No backend ai-memory, registre o bloqueio na fila e encerre com o relatório do contrato. No backend files:
+
 1. Reserve um número de implementação conforme o Passo 9
 2. Crie `.centaur/implements/XXXX/README.md` mínimo documentando o bloqueio:
 
@@ -116,7 +123,7 @@ Com todas as dúvidas resolvidas, execute a implementação:
 
 ## Passo 7 — Revisar a clareza do código
 
-<!-- Mantenha este passo sincronizado com centaur-driven-tdd, Passo 9 (REFACTOR) -->
+<!-- Os mesmos princípios de clareza orientam o REFACTOR de centaur-driven-tdd; aquela skill também define manutenção dos testes. -->
 O código é a documentação principal do projeto. Antes de validar, releia o que você escreveu como se estivesse chegando nele pela primeira vez, sem o contexto desta conversa. Corrija o que só faz sentido para quem acabou de escrever.
 
 **Critério de bom nome:**
@@ -157,6 +164,10 @@ Se encontrar problemas na validação, corrija antes de documentar. Se nenhum me
 
 ## Passo 9 — Determinar número da implementação
 
+**Backend ai-memory:** use o UUID e o caminho do contrato de memória, sem reservar pasta. O template do próximo passo fornece o corpo da página/fila. Pule a etapa de `status.md` e informe a referência da página no lugar do número. Em modo spec, grave a fila e reporte ao coordenador; inclusive em bloqueios, não crie README local nem publique diretamente.
+
+**Backend files:** siga a reserva abaixo.
+
 <!-- Mantenha este passo sincronizado com centaur-driven-tdd (Passo 12) e centaur-driven-deploy (Passo 16) -->
 Execute exatamente este comando para encontrar o último número:
 
@@ -176,7 +187,7 @@ Obtenha a data de hoje com `date +%F` — não a preencha de memória.
 
 Este README é a trilha de auditoria, **não** o lugar onde o código é explicado. O que dá para expressar no próprio código já foi expresso no Passo 7; aqui fica só o que não cabe num arquivo de código.
 
-Crie o arquivo `.centaur/implements/XXXX/README.md`:
+Em `files`, crie `.centaur/implements/XXXX/README.md`. Em `ai-memory`, use este conteúdo no registro do contrato, com o ID atribuído:
 
 ```markdown
 # [XXXX] [Título curto e descritivo da implementação]
@@ -216,7 +227,7 @@ Crie o arquivo `.centaur/implements/XXXX/README.md`:
 
 **[modo spec]** Pule este passo — o orquestrador escreve a linha no `status.md` com base no seu relatório final. Escritas paralelas de subagentes no mesmo arquivo se sobrescrevem.
 
-Adicione uma linha na tabela de `.centaur/implements/status.md`:
+Somente em `files`, adicione uma linha na tabela de `.centaur/implements/status.md`:
 
 ```
 | XXXX | [Título] | [data] | Concluído | [lista de arquivos afetados] |
@@ -239,9 +250,9 @@ Se foi uma correção de bug ou mudança interna sem impacto na visão geral, n�
 
 ## Passo 13 — Atualizar obrigatoriamente o Graphify
 
-Após cada implementação, execute o fluxo `centaur-driven-graphify sincronizar <escopo>/<id>` nesta mesma tarefa, depois da validação e de salvar o README da implementação, os índices e demais documentos canônicos. Não deixe a atualização como sugestão ou comando para o usuário executar depois. A obrigação também vale para correções internas, mudanças pequenas e alterações sem impacto no AGENTS.md ou no mapa humano.
+Após cada implementação, execute o fluxo `centaur-driven-graphify sincronizar <escopo>/<id>` nesta mesma tarefa, depois da validação e de salvar o registro no backend configurado e os documentos locais pertinentes. Não deixe a atualização como sugestão ou comando para o usuário executar depois. A obrigação também vale para correções internas, mudanças pequenas e alterações sem impacto no AGENTS.md ou no mapa humano.
 
-Inclua código, testes e documentos alterados, inclusive o novo registro em `.centaur/`; atualização AST isolada não basta para Markdown. Reutilize o grafo com atualização incremental quando suportada e inicialize-o se estiver ausente. Verifique os artefatos e faça uma consulta focada sobre a mudança, conferindo as fontes retornadas antes de afirmar que está sincronizado. Atualize mapas e notas somente quando afetados.
+Inclua código, testes e documentos alterados, inclusive os registros locais quando existirem, excluindo a fila `memory-pending/`; atualização AST isolada não basta para Markdown. Reutilize o grafo com atualização incremental quando suportada e inicialize-o se estiver ausente. Verifique os artefatos e faça uma consulta focada sobre a mudança, conferindo as fontes retornadas antes de afirmar que está sincronizado. Atualize mapas e notas somente quando afetados.
 
 Se houver bloqueio ou validação falhar depois de mudanças, sincronize também os arquivos e registros efetivamente preservados, identificando o estado parcial/bloqueado sem descrevê-lo como comportamento validado. Sem qualquer mudança de código ou documentos, não há atualização a executar.
 
@@ -251,13 +262,13 @@ Se a sincronização falhar, tente resolver a causa dentro do escopo e permissõ
 
 ## Passo 14 — Informar o usuário
 
-Confirme que a implementação foi concluída com:
+Informe o resultado real da implementação com:
 - O que foi feito (resumo de 2-3 linhas)
 - Resultado da validação
-- Número da implementação criada (ex: "Documentado em `.centaur/implements/0003/`")
+- Referência da página e estado da memória, ou número/README no backend `files`
 - Graphify: atualização executada, consulta de verificação e fontes conferidas; em falha, causa e arquivos pendentes
 
-**[modo spec]** Encerre com um relatório estruturado — é dele que o orquestrador consolida a spec e o `status.md`:
+**[modo spec]** Em ai-memory, use o relatório com `Registro` e `Fila` definido no contrato. Em `files`, encerre com o relatório abaixo, usado pelo orquestrador para consolidar a spec e o `status.md`:
 
 ```
 Spec YYYY — Task NN: [Concluída | Bloqueada]

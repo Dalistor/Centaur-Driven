@@ -2,11 +2,16 @@
 name: centaur-driven-graphify
 description: Inicializa, sincroniza e repara o índice Graphify do Centaur; mantém mapas, drafts e perspectivas humanos. Use para manutenção do contexto persistente ou documentação visual. Consultas cotidianas já fazem parte de todas as skills Centaur.
 metadata:
-  version: 3.4.0
+  version: 3.5.0
   dependencies: graphify
+  optional-dependencies: ai-memory
 ---
 
 # centaur-driven-graphify
+
+## Memória de implementações
+
+Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements/status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
 
 Leia o [contrato de contexto](references/context.md), aplicado por todas as skills Centaur. Esta skill concentra manutenção e documentação humana; não precisa ser invocada para cada consulta.
 
@@ -33,7 +38,7 @@ Crie somente os documentos necessários, preservando conteúdo existente:
 - `docs/system/Decisões/<slug>.md`: decisões confirmadas e seus motivos.
 - `graphify-out/graph.json`: índice técnico gerado; `GRAPH_REPORT.md`: análise técnica. Gere HTML técnico apenas quando solicitado para exploração visual.
 
-Use links Markdown relativos e registre caminhos/linhas de evidência. Não gere quadro, Kanban ou cards de status. Consulte status diretamente nos READMEs e índices de specs/implements do escopo. Mantenha documentos humanos em `docs/system/`, fora de `graphify-out/` e da pasta oculta `.centaur/`. Ao abrir a raiz como vault no Obsidian, o usuário encontra a nota no explorador; abrir o vault não seleciona automaticamente essa nota. Não crie nem altere `.obsidian/` para forçar uma página inicial.
+Use links Markdown relativos e registre caminhos/linhas de evidência. Não gere quadro, Kanban ou cards de status. Consulte status nas specs e nos registros do backend configurado (wiki ou READMEs legados). Mantenha documentos humanos em `docs/system/`, fora de `graphify-out/` e da pasta oculta `.centaur/`. Ao abrir a raiz como vault no Obsidian, o usuário encontra a nota no explorador; abrir o vault não seleciona automaticamente essa nota. Não crie nem altere `.obsidian/` para forçar uma página inicial.
 
 ## Inicializar e sincronizar
 
@@ -42,7 +47,7 @@ Use links Markdown relativos e registre caminhos/linhas de evidência. Não gere
 1. Leia `AGENTS.md`, `.centaur/workspace.json`, as specs e implementações relevantes e o código necessário para confirmar as mudanças. Para sincronização geral, percorra todos os escopos; IDs isolados precisam ser desambiguados.
 2. Atualize Visão Geral, Fluxos, Decisões e Perspectivas afetados. Registre separadamente conteúdo planejado, implementado, histórico superado e inferência. Preserve READMEs de implementações concluídas como histórico.
 3. Execute o pipeline da skill oficial `graphify` para o projeto na primeira execução e o modo `--update` da **skill** nas seguintes. No Codex, a invocação é `$graphify <raiz>` ou `$graphify <raiz> --update`; isso não é um comando de shell. Siga o fluxo oficial de extração AST e semântica, construção e relatório. Quando a versão permitir, omita a visualização HTML automática (`--no-viz`); preserve `graph.json` para consultas.
-4. Garanta que o corpus contém **código + AGENTS.md + docs/system/ + specs/implements de todos os escopos**, inclusive arquivos ocultos de `.centaur/`. Confira o resultado da detecção e as origens no grafo; não suponha que escanear a raiz incluiu pastas ocultas. Quando necessário, forneça explicitamente os diretórios configurados ao fluxo multipasta da skill oficial (`references/github-and-merge.md`), mantendo caminhos de origem corretos. Não remova ignores globalmente para incluir a documentação. Exclua `.git`, credenciais, backups, artefatos gerados, `.obsidian/` e arquivos legados já migrados do corpus ativo.
+4. Garanta que o corpus contém **código + AGENTS.md + docs/system/ + specs/implements de todos os escopos**, inclusive arquivos ocultos de `.centaur/`. Confira o resultado da detecção e as origens no grafo; não suponha que escanear a raiz incluiu pastas ocultas. Quando necessário, forneça explicitamente os diretórios configurados ao fluxo multipasta da skill oficial (`references/github-and-merge.md`), mantendo caminhos de origem corretos. Não remova ignores globalmente para incluir a documentação. Não incorpore a wiki externa do ai-memory ao corpus: consulte-a pelo contrato de memória. Exclua `.centaur/memory-pending/`, `.git`, credenciais, backups, artefatos gerados, `.obsidian/` e arquivos legados já migrados do corpus ativo.
 5. **Código e documentos têm atualizações distintas.** `graphify update <raiz>` é atualização de código via AST; não basta para alterações de specs, implements ou Markdown. Use a extração semântica da skill oficial para esses documentos. A alternativa headless é `graphify extract <raiz> --backend <backend-configurado>`, somente com backend configurado para o projeto. Não invente credenciais nem envie documentos para um provedor diferente do autorizado. Sem extração semântica disponível, reporte explicitamente quais documentos ficaram pendentes.
 6. Verifique os artefatos reais e consulte conceitos representativos do escopo alterado com `graphify query`. Confira se os resultados apontam para arquivos de código, uma spec e uma implementação do escopo com origem correta, quando existirem; abra essas fontes antes de afirmar comportamento. Arquivos vazios, fontes ausentes, nós removidos ainda presentes ou falhas de extração são pendências; não diga que está sincronizado apenas porque o comando terminou. Remoções exigem conferir a reconstrução conforme o help da versão instalada. Com o índice atualizado, revise o Mapa do sistema se existir e for afetado, conforme a hierarquia funcional; uma mudança interna sem efeito no processo não precisa criar novos nós no mapa humano.
 7. Se o usuário pedir navegação técnica visual, gere `graphify tree --graph graphify-out/graph.json --output graphify-out/GRAPH_TREE.html` quando disponível. A árvore organiza arquivos e símbolos; ela não substitui o mapa funcional. Use `graph.html` apenas para investigar relações específicas.

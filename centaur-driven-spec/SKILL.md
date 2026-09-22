@@ -1,18 +1,23 @@
 ---
 name: centaur-driven-spec
 description: Decompõe uma demanda grande em tasks atômicas por camada, salvas em .centaur/specs/, prontas para execução orquestrada com centaur-driven-run
-version: 1.11.0
+version: 1.13.0
 invocable: true
 author: user
 metadata:
   dependencies: clean-code, graphify
+  optional-dependencies: ai-memory
 ---
 
 # centaur-driven-spec
 
+## Memória de implementações
+
+Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements/status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
+
 ## Contexto persistente — Graphify
 
-Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -87,7 +92,7 @@ Critérios para uma boa task:
 
 Não crie tasks separadas de "escrever testes da camada X": o teste pertence à task que implementa o comportamento. A task de **testes de integração é opcional** — inclua só quando existe um fluxo ponta a ponta com valor real que nenhuma task unitária cobre (ex: requisição atravessando handler → service → repository com regra no meio). Não a inclua por hábito.
 
-Toda task TDD deve trazer, na instrução do subagente, os **critérios de aceite em forma de comportamentos observáveis** — é o que o subagente vai transformar em casos de teste sem poder perguntar nada. **Dimensione a lista você mesmo, aqui:** caminho crítico (dinheiro, auth, validação de entrada externa) recebe caminho feliz + erros + bordas; comportamento comum recebe caminho feliz + erros prováveis; nada além disso. O subagente implementa exatamente os casos listados — se você listar bordas exóticas, ele vai testá-las; liste só o que importa.
+Toda task TDD deve trazer os **critérios de aceite em forma de comportamentos observáveis**, os riscos concretos e o que deve permanecer compatível. Aponte testes existentes relevantes e autorize sua manutenção nos arquivos da task. Critérios não impõem uma quantidade de testes novos: o executor reaproveita proteção existente, atualiza casos quando a regra muda e acrescenta somente lacunas distintas. Não prescreva baterias genéricas de erros/bordas, testes por camada ou metas de cobertura novas. Casos explicitamente exigidos continuam obrigatórios; dúvidas sobre o contrato bloqueiam a task, não autorizam remover proteção.
 
 Nem toda spec precisa de todas as camadas — inclua só as afetadas. Tasks de camadas independentes (ex: dois repositories que não se tocam) podem ser marcadas como paralelizáveis. Cada task deve declarar quais camadas toca, e a instrução deve proibir explicitamente tocar camadas fora do escopo dela.
 
@@ -146,7 +151,7 @@ Reserve atomicamente a pasta `.centaur/specs/YYYY/` com `mkdir` sem `-p` (se exi
 **Modo:** [TDD | direto]
 **Depende de:** —
 **Instrução para o subagente:**
-> Spec YYYY — Task 01: [Instrução completa e autocontida. Como o subagente não pode fazer perguntas, inclua TODAS as decisões já tomadas: comportamento esperado, edge cases, arquivos envolvidos e critério de sucesso. Se `Modo: TDD`, liste os critérios de aceite como comportamentos observáveis — dimensionados pela proporcionalidade do Passo 5, só o que importa — e comece a instrução com "Implemente por TDD:". Termine com: "Toque apenas nas camadas [X]; não modifique arquivos de outras camadas."]
+> Spec YYYY — Task 01: [Instrução completa e autocontida. Como o subagente não pode fazer perguntas, inclua TODAS as decisões já tomadas: comportamento esperado, riscos/limites relevantes, compatibilidade a preservar, arquivos de código/testes envolvidos e critério de sucesso. Se `Modo: TDD`, liste os critérios de aceite como comportamentos observáveis — conforme o Passo 5, permitindo reaproveitar/atualizar testes sem mudar requisitos — e comece a instrução com "Implemente por TDD:". Termine com: "Toque apenas nas camadas [X]; não modifique arquivos de outras camadas."]
 
 ---
 
@@ -180,7 +185,7 @@ Alternativa manual — para cada task, abra um subagente e invoque a skill corre
 /centaur-driven-implement [instrução da task, se Modo: direto]
 ```
 
-Execute as tasks na ordem indicada, respeitando as dependências. Na execução manual, o subagente **não** escreve neste README nem no `status.md` — ao fim de cada task, quem orquestra marca o checklist, adiciona a linha no `status.md` e atualiza o status da spec com base no relatório do subagente.
+Execute as tasks na ordem indicada, respeitando as dependências. Na execução manual, o subagente **não** escreve neste README nem no `status.md` — ao fim de cada task, quem orquestra marca o checklist, registra a referência da página (ai-memory) ou a linha no `status.md` (files) e atualiza o status da spec com base no relatório do subagente.
 
 ## Ciclo de vida
 

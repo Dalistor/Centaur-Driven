@@ -2,6 +2,8 @@
 
 Leia este contrato antes de localizar specs ou implementações. Os caminhos simples dos exemplos das skills representam o escopo selecionado; substitua-os pelos caminhos registrados, inclusive nos comandos de reserva, leitura, arquivamento e escrita. Resolva sempre a partir da raiz do projeto, mesmo ao executar dentro de uma subpasta.
 
+O [contrato de memória](../../centaur-driven-memory/references/contract.md) determina o destino das implementações. Reserva numérica, pasta de implementações e seu índice abaixo só são obrigatórios no backend `files`. Em `ai-memory`, use UUID e referência de página; locks, IDs e pastas de specs permanecem iguais.
+
 ## Registro dos escopos
 
 O start-project cria `.centaur/workspace.json`. Exemplo para um projeto com dois módulos:
@@ -18,7 +20,7 @@ O start-project cria `.centaur/workspace.json`. Exemplo para um projeto com dois
 }
 ```
 
-Todos os caminhos são relativos à raiz, ficam dentro do projeto e as pastas de registros dos escopos são distintas. `master` é obrigatório e contém specs principais do sistema, decisões de integração e implementações transversais. Os nomes dos módulos seguem as responsabilidades reais do projeto; frontend/backend são exemplos. Cada escopo tem `specs/index.md`, `implements/status.md` e registros próprios. Sem configuração, use somente `master` nos caminhos legados; nunca mova registros antigos automaticamente.
+Todos os caminhos são relativos à raiz, ficam dentro do projeto e as pastas de registros dos escopos são distintas. `master` é obrigatório e contém specs principais do sistema, decisões de integração e implementações transversais. Os nomes dos módulos seguem as responsabilidades reais do projeto; frontend/backend são exemplos. Cada escopo tem `specs/index.md` e registros próprios. `implements/status.md` é criado somente no backend `files`. O campo opcional `memory` na raiz do JSON seleciona o backend; em `ai-memory`, omita `implements` nos escopos sem histórico legado. Preserve esse campo onde ainda aponta para histórico existente. Sem configuração, use somente `master` nos caminhos legados; nunca mova registros antigos automaticamente.
 
 `collaboration` registra a resposta explícita do usuário: `individual` ou `team`. Ambos permitem múltiplos módulos e specs mestre. No modo individual, o desenvolvedor acumula responsabilidade e integração; não exija outros participantes ou revisão por outra pessoa. Havendo agentes/sessões simultâneos, as regras de concorrência continuam valendo. Em configurações antigas sem esse campo, preserve o funcionamento e pergunte o modo na próxima atualização de contexto, sem presumir equipe.
 
@@ -28,11 +30,11 @@ Todos os caminhos são relativos à raiz, ficam dentro do projeto e as pastas de
 - Antes de criar, selecione o escopo pelo pedido e pelos arquivos afetados. Se houver ambiguidade real, pergunte. Uma demanda entre módulos cria uma spec mestre e specs filhas por módulo; mudanças pequenas transversais podem ficar em master.
 - Reserve IDs com `mkdir` sem `-p` no escopo selecionado. Em clones independentes, prefira IDs com sufixo único (ex.: `0001-ana-a7f2`) para novos registros: `mkdir` só protege concorrência no mesmo filesystem. Não renumere históricos para resolver colisões; ajuste novos IDs e seus links antes da integração.
 - Cada spec registra `**Escopo:**`, `**Responsável:**`, `**Status:**`, `**Spec mestre:**` (ID ou `—`), `**Specs filhas:**` (IDs ou `—`) e `**Dependências:**` (IDs de specs/tasks ou `—`). Cada task registra responsável, arquivos de sua posse e dependências qualificadas. Implementações registram o ID completo da spec/task e sua validação.
-- O prefixo de execução aceita `Spec frontend/0001 — Task 01` e o formato legado. O executor recebe caminhos absolutos do projeto, da spec e da pasta de implementações. Nunca deduza o módulo apenas do número.
+- O prefixo de execução aceita `Spec frontend/0001 — Task 01` e o formato legado. O executor recebe caminhos absolutos do projeto, da spec e, em `files`, da pasta de implementações; em `ai-memory`, recebe identidade, ID e destino da página. Nunca deduza o módulo apenas do número.
 
 ## Concorrência e integração
 
-Um coordenador por spec consolida seus registros. Defina quem integra specs mestre e mantém índices e grafo compartilhados; executores reportam resultados e só editam seus arquivos e README de implementação. Em sessões no mesmo checkout, reserve a spec com `mkdir .centaur/locks/<escopo>-<id>` e registre responsável e sessão dentro; se já existir, não execute a mesma spec. Crie somente o pai `locks` com `-p`. Libere apenas o lock da própria sessão ao encerrar. Lock abandonado exige verificar a sessão antes de remover.
+Um coordenador por spec consolida seus registros. Defina quem integra specs mestre e mantém índices e grafo compartilhados; executores reportam resultados e só editam seus arquivos e o registro individual (README em `files`, fila local em `ai-memory`). Em sessões no mesmo checkout, reserve a spec com `mkdir .centaur/locks/<escopo>-<id>` e registre responsável e sessão dentro; se já existir, não execute a mesma spec. Crie somente o pai `locks` com `-p`. Libere apenas o lock da própria sessão ao encerrar. Lock abandonado exige verificar a sessão antes de remover.
 
 Distribua trabalho por pessoa/agente, branch e worktree/clone quando houver execução simultânea. Dependências concluídas precisam estar integradas no checkout do executor antes de liberá-lo. Tasks que editam os mesmos arquivos, contratos compartilhados, índices ou configuração executam serialmente ou em branches isoladas com integração sequencial. Não prometa exclusão entre clones por locks locais. Os responsáveis coordenam a posse das tasks no repositório compartilhado.
 
