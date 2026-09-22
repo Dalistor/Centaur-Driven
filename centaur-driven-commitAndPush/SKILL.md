@@ -1,9 +1,16 @@
 ---
 name: centaur-driven-commitAndPush
 description: Cria commit do trabalho solicitado e publica na main após buscar a main remota, simular a integração e validar o resultado; interrompe se houver conflitos e sugere como resolvê-los.
+metadata:
+  version: 1.1.0
+  dependencies: graphify
 ---
 
 # centaur-driven-commitAndPush
+
+## Contexto persistente — Graphify
+
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 Use quando o usuário pedir commit e push na `main`. Criar ou editar esta skill não autoriza publicar o repositório. Uma invocação explícita para publicar já autoriza commit, integração limpa e push normal no escopo pedido; não peça confirmação repetida. Respeite permissões do ambiente e proteção de branch.
 

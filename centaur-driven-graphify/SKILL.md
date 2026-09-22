@@ -1,22 +1,24 @@
 ---
 name: centaur-driven-graphify
-description: Indexa código e documentos com Graphify para localizar fontes e consultar contexto; mantém mapas e perspectivas humanos em Markdown/Mermaid. Use para compreender o sistema ou explorar um módulo, domínio ou jornada.
+description: Inicializa, sincroniza e repara o índice Graphify do Centaur; mantém mapas, drafts e perspectivas humanos. Use para manutenção do contexto persistente ou documentação visual. Consultas cotidianas já fazem parte de todas as skills Centaur.
 metadata:
-  version: 3.2.0
+  version: 3.4.0
   dependencies: graphify
 ---
 
 # centaur-driven-graphify
 
+Leia o [contrato de contexto](references/context.md), aplicado por todas as skills Centaur. Esta skill concentra manutenção e documentação humana; não precisa ser invocada para cada consulta.
+
 Use Graphify como índice técnico para a IA localizar arquivos, conceitos e relações antes de ler as fontes. Os registros em `AGENTS.md`, `.centaur/` e `docs/system/` são canônicos; o grafo é derivado e não decide status de entrega. Código e validação comprovam comportamento implementado. Leia [módulos e equipe](references/team-workspace.md) para resolver escopos e IDs.
 
-O mapa apresentado ao usuário deve explicar **módulos → funcionalidades ou páginas → processos → etapas relevantes**. Use o grafo técnico do Graphify para investigar e sustentar essa leitura. Antes de gerar ou atualizar mapas e perspectivas, leia [mapas legíveis](references/readable-maps.md). A entrega padrão é o mapa funcional sintetizado em `docs/system/Mapa do sistema.md`, visível ao abrir a raiz do projeto como vault do Obsidian; a visualização bruta fica como evidência técnica opcional.
+O mapa apresentado ao usuário deve explicar **módulos → funcionalidades ou páginas → processos → etapas relevantes**. Use o grafo técnico do Graphify para investigar e sustentar essa leitura. Antes de gerar ou atualizar mapas e perspectivas, leia [mapas legíveis](references/readable-maps.md). Para pedidos de mapa ou visão visual, a entrega é o mapa funcional sintetizado em `docs/system/Mapa do sistema.md`, visível ao abrir a raiz do projeto como vault do Obsidian; a visualização bruta fica como evidência técnica opcional.
 
 ## Dependência e instalação
 
 Localize e leia a skill oficial `graphify` e as referências pertinentes ao modo solicitado. Verifique `graphify --version` e o help da versão instalada antes de escolher flags. O pacote oficial é `graphifyy` (dois y), do [Graphify-Labs/graphify](https://github.com/Graphify-Labs/graphify). Referência verificada: CLI 0.9.65; comandos podem evoluir.
 
-Se necessário, instale com `uv tool install graphifyy` ou `pipx install graphifyy`, respeitando as permissões do ambiente. Registre a skill com `graphify install --platform codex` no Codex ou com a plataforma real do agente. Não altere configurações de outros agentes nem instale hooks globais como efeito colateral. Sem a dependência, mantenha os registros e informe que a geração do grafo está pendente.
+Se necessário, instale com `uv tool install graphifyy` ou `pipx install graphifyy`, respeitando as permissões do ambiente. No Codex, use o destino `graphify install --platform agents` para registrar em `~/.agents/skills/`; na versão 0.9.65, o destino `codex` ainda usa `.codex/skills`. Em outros agentes, use a plataforma correspondente. Preserve uma única cópia ativa da skill. Não altere configurações de outros agentes nem instale hooks globais como efeito colateral. Sem a dependência, mantenha os registros e informe que a geração do grafo está pendente.
 
 ## Documentação e artefatos
 
@@ -35,14 +37,14 @@ Use links Markdown relativos e registre caminhos/linhas de evidência. Não gere
 
 ## Inicializar e sincronizar
 
-`inicializar` cria a documentação mínima com lacunas explícitas, verifica dependências e executa a primeira extração. `sincronizar [escopo/id]` atualiza documentos afetados e o grafo depois de salvar os registros canônicos.
+`inicializar` reutiliza as fontes existentes, registra lacunas materiais, verifica dependências e executa a primeira extração. Crie documentos somente quando houver conteúdo durável a preservar; não exija mapa, glossário ou pastas vazias para gerar o índice. `sincronizar [escopo/id]` atualiza documentos afetados e o grafo depois de salvar os registros canônicos.
 
 1. Leia `AGENTS.md`, `.centaur/workspace.json`, as specs e implementações relevantes e o código necessário para confirmar as mudanças. Para sincronização geral, percorra todos os escopos; IDs isolados precisam ser desambiguados.
 2. Atualize Visão Geral, Fluxos, Decisões e Perspectivas afetados. Registre separadamente conteúdo planejado, implementado, histórico superado e inferência. Preserve READMEs de implementações concluídas como histórico.
 3. Execute o pipeline da skill oficial `graphify` para o projeto na primeira execução e o modo `--update` da **skill** nas seguintes. No Codex, a invocação é `$graphify <raiz>` ou `$graphify <raiz> --update`; isso não é um comando de shell. Siga o fluxo oficial de extração AST e semântica, construção e relatório. Quando a versão permitir, omita a visualização HTML automática (`--no-viz`); preserve `graph.json` para consultas.
 4. Garanta que o corpus contém **código + AGENTS.md + docs/system/ + specs/implements de todos os escopos**, inclusive arquivos ocultos de `.centaur/`. Confira o resultado da detecção e as origens no grafo; não suponha que escanear a raiz incluiu pastas ocultas. Quando necessário, forneça explicitamente os diretórios configurados ao fluxo multipasta da skill oficial (`references/github-and-merge.md`), mantendo caminhos de origem corretos. Não remova ignores globalmente para incluir a documentação. Exclua `.git`, credenciais, backups, artefatos gerados, `.obsidian/` e arquivos legados já migrados do corpus ativo.
 5. **Código e documentos têm atualizações distintas.** `graphify update <raiz>` é atualização de código via AST; não basta para alterações de specs, implements ou Markdown. Use a extração semântica da skill oficial para esses documentos. A alternativa headless é `graphify extract <raiz> --backend <backend-configurado>`, somente com backend configurado para o projeto. Não invente credenciais nem envie documentos para um provedor diferente do autorizado. Sem extração semântica disponível, reporte explicitamente quais documentos ficaram pendentes.
-6. Verifique os artefatos reais e consulte conceitos representativos do escopo alterado com `graphify query`. Confira se os resultados apontam para arquivos de código, uma spec e uma implementação do escopo com origem correta, quando existirem; abra essas fontes antes de afirmar comportamento. Arquivos vazios, fontes ausentes, nós removidos ainda presentes ou falhas de extração são pendências; não diga que está sincronizado apenas porque o comando terminou. Remoções exigem conferir a reconstrução conforme o help da versão instalada. Com o índice atualizado, revise o Mapa do sistema conforme a hierarquia funcional; uma mudança interna sem efeito no processo não precisa criar novos nós no mapa humano.
+6. Verifique os artefatos reais e consulte conceitos representativos do escopo alterado com `graphify query`. Confira se os resultados apontam para arquivos de código, uma spec e uma implementação do escopo com origem correta, quando existirem; abra essas fontes antes de afirmar comportamento. Arquivos vazios, fontes ausentes, nós removidos ainda presentes ou falhas de extração são pendências; não diga que está sincronizado apenas porque o comando terminou. Remoções exigem conferir a reconstrução conforme o help da versão instalada. Com o índice atualizado, revise o Mapa do sistema se existir e for afetado, conforme a hierarquia funcional; uma mudança interna sem efeito no processo não precisa criar novos nós no mapa humano.
 7. Se o usuário pedir navegação técnica visual, gere `graphify tree --graph graphify-out/graph.json --output graphify-out/GRAPH_TREE.html` quando disponível. A árvore organiza arquivos e símbolos; ela não substitui o mapa funcional. Use `graph.html` apenas para investigar relações específicas.
 8. Registre em `.centaur/system/sync.md` a versão do CLI, a revisão Git (e se havia mudanças locais), raízes incluídas, atualização de código/documentos, consultas de verificação e pendências. Não registre segredos. Exclua esse relatório operacional do corpus para evitar realimentação.
 
@@ -50,7 +52,7 @@ Em execução paralela, executores reportam arquivos/documentos afetados. O coor
 
 ## Visão geral e perspectivas
 
-`visão geral` consulta o grafo e o relatório para explicar módulos, responsabilidades, relações e limites do sistema; apresenta o Mapa do sistema e atualiza `Visão geral.md` quando solicitado. Na inicialização, gere ambos. Para uma pergunta simples, responda sem criar documentos desnecessários.
+`visão geral` consulta o grafo e o relatório para explicar módulos, responsabilidades, relações e limites do sistema; apresenta o Mapa do sistema e atualiza `Visão geral.md` quando solicitado. Crie Visão geral e Mapa quando solicitados ou úteis para explicar relações; a inicialização técnica do índice não exige esses documentos. Para uma pergunta simples, responda sem criar documentos desnecessários.
 
 `perspectiva <objetivo>` começa com `graphify query "<objetivo>"` para localizar conceitos e arquivos candidatos. Use `graphify path "A" "B"` ou `graphify explain "X"` quando a pergunta exigir caminhos ou detalhes. Confirme afirmações importantes nos arquivos apontados e registre a perspectiva em Markdown, com links para documentos, escopo e evidências. Marque inferências; uma relação extraída de uma spec planejada não comprova implementação. Se o grafo estiver ausente ou desatualizado, sincronize ou explicite a limitação antes de responder.
 

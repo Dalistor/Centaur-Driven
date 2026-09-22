@@ -1,14 +1,18 @@
 ---
 name: centaur-driven-deploy
 description: Configura deploy automático (GitHub Actions) para uma VPS via SSH + rsync - inspeciona o projeto, gera a chave SSH, valida o acesso, audita o que o rsync apagaria, escreve o workflow, cadastra os secrets/variables no GitHub pelo gh CLI e acompanha o primeiro run. Documenta em .centaur/implements/.
-version: 2.3.0
+version: 2.4.0
 invocable: true
 author: user
 metadata:
-  dependencies: clean-code
+  dependencies: clean-code, graphify
 ---
 
 # centaur-driven-deploy
+
+## Contexto persistente — Graphify
+
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -34,9 +38,7 @@ Você é um engenheiro de infraestrutura configurando deploy contínuo de um pro
 
 ## Passo 1 — Ler o contexto do projeto
 
-Leia obrigatoriamente:
-1. `AGENTS.md` na raiz do projeto (stack, como rodar, como fazer deploy, restrições)
-2. `.centaur/implements/status.md` (histórico — pode já existir deploy configurado)
+Leia `AGENTS.md` e recupere o contexto da solicitação pelo contrato Graphify acima. Consulte apenas os registros e trechos relevantes do escopo; para status, confirme o README canônico.
 
 Se `AGENTS.md` não existir, avise:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro para que eu tenha contexto suficiente para configurar o deploy com segurança."

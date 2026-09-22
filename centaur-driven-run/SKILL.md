@@ -1,14 +1,18 @@
 ---
 name: centaur-driven-run
 description: Orquestra a execução de uma spec, lançando subagentes por task com centaur-driven-tdd ou centaur-driven-implement conforme o Modo da task, e respeitando dependências. Restrito a tasks de specs — não executa nada fora delas.
-version: 1.6.0
+version: 1.8.0
 invocable: true
 author: user
 metadata:
-  dependencies: clean-code
+  dependencies: clean-code, graphify
 ---
 
 # centaur-driven-run
+
+## Contexto persistente — Graphify
+
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -79,7 +83,7 @@ Invoque a skill [centaur-driven-tdd | centaur-driven-implement] com a seguinte s
 
 [instrução da task copiada verbatim da spec, incluindo o prefixo "Spec YYYY — Task NN"]
 
-Carregue a dependência clean-code. Preserve o Modo da task, registre decisões no README da implementação e reporte os documentos do sistema afetados; não escreva em .clean/ nem nos índices compartilhados.
+Carregue as dependências clean-code e graphify e siga o contrato de contexto da skill de destino. Consulte o grafo e confirme as fontes atuais; não atualize o índice compartilhado. Preserve o Modo da task, registre decisões no README da implementação e reporte os documentos do sistema afetados; não escreva em .clean/ nem nos índices compartilhados.
 ```
 
 Você escolhe a skill pelo campo `Modo`, mas **não altera a instrução** — ela vai verbatim.
@@ -95,7 +99,7 @@ Ao fim de cada onda, **você** registra o resultado de cada task — os subagent
 3. **Subagente falhou sem reportar** → trate como bloqueada; não relance automaticamente. Confira se ficou pasta órfã em `.centaur/implements/` (número reservado sem README) e anote no relatório final
 4. Adicione em `.centaur/implements/status.md` uma linha por implementação criada na onda (concluída ou bloqueada), com os dados do relatório: `| XXXX | [Título] | [data] | [Concluído|Bloqueado] | [arquivos] |`. Remova a linha placeholder da tabela se ainda existir
 
-Após consolidar os registros da onda, use `centaur-driven-graphify` para atualizar documentos afetados e sincronizar código e documentos no grafo. Os subagentes não sincronizam o grafo em paralelo; a consolidação é serial. Registre qualquer pendência de documentação sem reexecutar código.
+Após consolidar os registros da onda, execute obrigatoriamente `centaur-driven-graphify` para sincronizar código, testes e documentos de cada implementação, inclusive os READMEs e índices em `.centaur/`. Faça essa atualização serial antes da próxima onda ou da entrega final; os subagentes não escrevem no grafo compartilhado. Verifique com consultas focadas e registre a cobertura das implementações. Em falha, tente resolver a causa; persistindo o impedimento, registre os arquivos pendentes e comunique a limitação aos próximos executores para conferirem as fontes atuais. Não reexecute código validado nem declare sincronização concluída.
 
 Se um subagente tiver editado a spec ou o `status.md` por conta própria (não deveria), confira o resultado e conserte inconsistências.
 
@@ -114,3 +118,5 @@ Reporte ao usuário:
 - Se houver bloqueios: o que o usuário precisa decidir para destravar (depois basta rodar `/centaur-driven-run YYYY` de novo — a execução retoma de onde parou)
 
 Ao consolidar cada onda e finalizar, sincronize código e documentos no Graphify, recalcule o estado da spec mestre com base nas filhas e libere apenas a reserva desta sessão. Inclua IDs qualificados e caminhos completos nos prompts e relatórios.
+
+Se a finalização alterar status ou documentos após a sincronização da última onda, atualize esses documentos no Graphify antes da resposta final. Reporte o resultado real da sincronização e pendências por implementação.

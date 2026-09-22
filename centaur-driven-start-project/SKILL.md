@@ -1,191 +1,95 @@
 ---
 name: centaur-driven-start-project
-description: Documenta um projeto existente, cria AGENTS.md na raiz (incluindo a Arquitetura de Camadas), registros em .centaur/ e mapa humano em docs/system/
-version: 3.2.0
+description: Inicializa o contexto de um projeto existente com AGENTS.md curto, registros Centaur e índice Graphify; reutiliza fontes e documenta detalhes sob demanda.
+version: 3.4.0
 invocable: true
 author: user
 metadata:
-  dependencies: clean-code
+  dependencies: clean-code, graphify
 ---
 
 # centaur-driven-start-project
 
-## Escopos e equipe
+Estabeleça as instruções e fontes persistentes que os agentes consultarão nas próximas sessões. Documente o projeto existente, sem refatorar código nem impor uma arquitetura nova. Mantenha o contexto obrigatório curto e os detalhes recuperáveis pelo Graphify.
 
-Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+## Passo 1 — Verificar projeto e dependências
 
-## Dependência obrigatória — clean-code
+Verifique se há código, configurações ou documentação de projeto. Se o diretório estiver vazio, informe que é necessário criar ou abrir um projeto e encerre.
 
-Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+Leia as instruções aplicáveis em `AGENTS.md`, se existir, e preserve documentos e registros existentes. Se o projeto já foi inicializado pelo Centaur, siga `centaur-driven-update` para atualização dentro do pedido autorizado. Um `AGENTS.md` sem Centaur não impede a inicialização: acrescente apenas o necessário, preservando suas regras. Não recrie nem substitua conteúdo existente sem solicitação explícita.
 
-Leia `references/architecture.md` da dependência ao documentar responsabilidades e direções de dependência. Descreva a arquitetura existente e registre desvios com evidência; este fluxo documenta um projeto existente, não executa o modo `new-project` nem refatora o código.
+Leia o [contrato de contexto](../centaur-driven-graphify/references/context.md) e o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Localize as skills oficiais `graphify` e `clean-code` no catálogo do agente, leia seus `SKILL.md` uma vez na sessão e confira `graphify --version`. Consulte apenas as referências necessárias ao modo em uso; use `references/architecture.md` de `clean-code` ao documentar responsabilidades. Se a dependência de qualidade estiver ausente, informe a instalação faltante antes do trabalho dependente dela. Para Graphify indisponível, aplique o modo degradado do contrato e reporte a indexação pendente.
 
-As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
+As instruções do usuário e do projeto prevalecem. Consulte `.clean/` se existir, sem criar ou atualizar essa estrutura. Não instale hooks globais como efeito colateral.
 
-Você é um assistente de documentação de projetos. Sua tarefa é entender completamente o projeto atual e criar uma documentação sólida que sirva de base para todos os chats futuros.
+## Passo 2 — Descobrir a estrutura
 
-## Passo 1 — Verificar se há projeto
+Se `graphify-out/graph.json` existir, consulte-o primeiro com perguntas focadas sobre módulos, responsabilidades e pontos de entrada, usando o orçamento do contrato. Confirme os resultados nos arquivos atuais; um índice antigo ou parcial exige busca focada para as lacunas.
 
-Verifique se o diretório de trabalho atual tem arquivos ou pastas de projeto (código fonte, configs, etc).
+Sem grafo, use `rg --files` com filtros para localizar manifestos, configurações, READMEs e pontos de entrada, excluindo dependências e artefatos gerados. Leia os manifestos raiz e dos módulos reais, comandos declarados e trechos pertinentes da documentação. Abra código representativo somente quando necessário para confirmar limites arquiteturais ou conceitos; não tente ler todo o negócio. Não limite a descoberta aos primeiros arquivos de uma listagem nem apenas à raiz de um monorepo.
 
-Se o diretório estiver vazio ou não tiver estrutura de projeto reconhecível, **pare aqui** e informe o usuário:
+Identifique stack, comandos de execução e testes, responsabilidades dos módulos e convenções comprovadas. Reutilize documentação válida e registre fontes para as conclusões. Pare quando houver evidência suficiente para inicializar o contexto. Sem grafo inicial, construa-o no Passo 6, depois de salvar os documentos, evitando duas extrações completas no mesmo fluxo.
 
-> "Não encontrei arquivos de projeto neste diretório. Crie ou abra o projeto na pasta correta antes de usar /centaur-driven-start-project."
+## Passo 3 — Resolver decisões e lacunas
 
-Se já existir um `AGENTS.md` na raiz, **não prossiga automaticamente**. Pergunte ao usuário:
-> "Este projeto já tem um AGENTS.md. O que deseja fazer? (1) Atualizar as seções desatualizadas, (2) Recriar do zero, (3) Cancelar"
+Pergunte apenas o que não estiver nas fontes ou nas instruções já fornecidas. Não peça confirmação de comandos, frameworks ou convenções que estão explícitos e consistentes. Agrupe as dúvidas materiais em um bloco curto:
 
-- **(1) Atualizar:** este é o trabalho de `/centaur-driven-update`, que além de migrar as seções faltantes audita a integridade do histórico e resolve contradições entre documentação e código. Recomende-a e encerre. Só faça a atualização aqui se o usuário insistir em não usar a outra skill — nesse caso, leia o `AGENTS.md` atual por completo, execute a varredura do Passo 2, liste as seções que divergem do código e as que faltam em relação ao template do Passo 4, pergunte **apenas** sobre isso no Passo 3, edite as seções afetadas sem reescrever o arquivo inteiro e siga para o Passo 5 só para criar o que ainda não existir em `.centaur/`.
-- **(2) Recriar:** siga o fluxo normal do zero; o arquivo atual será substituído.
-- **(3) Cancelar:** encerre sem tocar em nada.
+- Propósito, restrições, limites arquiteturais ou decisões de produto que as fontes não esclarecem. Distinga arquitetura observada de uma proposta; documentar não exige adotar camadas novas.
+- Idioma e vocabulário quando houver ambiguidade real. Preserve termos já estabelecidos; não invente um glossário completo.
+- Testes ausentes: registre a ausência. Pergunte sobre adoção de TDD ou framework somente se essa decisão fizer parte do pedido; não bloqueie a documentação por falta de testes ou de meta de cobertura.
+- Colaboração: obtenha explicitamente **individual ou equipe**, reutilizando resposta da sessão ou configuração explícita existente. Não deduza pelo número de módulos. No modo equipe, esclareça apenas responsáveis e integração ainda indefinidos; no individual, o desenvolvedor assume essas funções.
 
-Se houver projeto e não houver AGENTS.md, continue.
+Aguarde respostas necessárias antes de registrar uma decisão como confirmada. Lacunas não essenciais podem ficar identificadas no documento pertinente. Se não houver dúvidas materiais, prossiga sem entrevista.
 
-## Passo 2 — Varredura do projeto
+## Passo 4 — Criar AGENTS.md curto na raiz
 
-**Importante: priorize profundidade sobre amplitude.** Não tente ler todos os arquivos — leia os mais importantes para entender a estrutura geral.
+O arquivo contém instruções necessárias em toda sessão: regras, comandos essenciais, limites arquiteturais e recuperação de contexto. Detalhes de operação, justificativas, catálogo de arquivos, glossário extenso e histórico ficam em fontes vinculadas no Passo 5. Preserve os títulos Arquitetura de Camadas, Testes e Vocabulário e Idioma do Código usados pelas demais skills; preencha-os de forma concisa, com referências específicas quando necessário.
 
-Execute `find . -not \( -path '*/node_modules/*' -o -path '*/.git/*' -o -path '*/dist/*' -o -path '*/build/*' -o -path '*/__pycache__/*' -o -path '*/.next/*' -o -path '*/coverage/*' \) -type f | head -80` para ter uma visão do projeto.
-
-Em seguida, leia apenas:
-1. Arquivos de configuração raiz (package.json, pyproject.toml, Cargo.toml, go.mod, composer.json — **só um nível de profundidade**)
-2. O arquivo de entrada/bootstrap principal (main, index, app, server — **apenas o principal**)
-3. READMEs existentes, se houver
-
-Pare de ler quando tiver entendimento suficiente da stack e estrutura. Não leia código de negócio nesta etapa.
-
-Identifique: linguagem(ns), framework(s), banco de dados, dependências principais, scripts disponíveis.
-
-## Passo 3 — Perguntas ao usuário
-
-Após a varredura, faça perguntas para preencher o que não está claro no código. Adapte as perguntas ao que você encontrou — não pergunte o que já está evidente. Cubra:
-
-Inclua explicitamente: **"O desenvolvimento deste projeto será individual ou em equipe?"** Não deduza a resposta da quantidade de módulos ou colaboradores no Git. Se o usuário já informou o modo nesta sessão, reutilize a resposta. No mesmo bloco, peça responsáveis por módulo e pela integração **somente se for em equipe**. Registre a escolha em `.centaur/workspace.json` como `collaboration: "individual"` ou `collaboration: "team"` e na seção Módulos e Equipe do `AGENTS.md`.
-
-1. **Propósito**: O que este projeto faz? Para quem é?
-2. **Status atual**: Em que fase está? (MVP, produção, refactor, etc)
-3. **Arquitetura**: Há decisões arquiteturais importantes que não estão no código?
-4. **Camadas**: O projeto segue (ou deve seguir) separação em camadas? Se você identificou um padrão na varredura (models, DTOs, handlers/controllers, repositories, services, etc.), confirme com o usuário. Se não há padrão definido, proponha a separação em camadas adequada à stack e pergunte se ele aprova — ela será a regra para todas as implementações futuras.
-5. **Testes**: Qual framework de teste o projeto usa (ou deve usar)? Qual o comando para rodar a suíte, um arquivo só e a cobertura? Onde ficam os arquivos de teste e qual a convenção de nome? Há meta de cobertura? Se a varredura já revelou isso (scripts do package.json, pytest.ini, pasta de testes), só confirme. Se o projeto não tem testes, pergunte se ele quer adotar TDD nas próximas implementações e qual framework.
-6. **Padrões**: Há convenções ou regras que devem ser seguidas nas implementações (naming, estrutura de pastas, estilo)?
-7. **Idioma e vocabulário do código**: Em que idioma são escritos os identificadores (nomes de variável, função, classe)? E os comentários? E as mensagens de commit? É comum o domínio ficar em português e a infraestrutura em inglês — se a varredura mostrou isso, confirme em vez de perguntar. Levante também os **termos do domínio** que já aparecem no código (as palavras que nomeiam as entidades centrais) e confirme se são as palavras corretas do negócio: elas viram o vocabulário obrigatório das próximas implementações. Um conceito, um nome, no projeto inteiro.
-8. **Restrições**: Há limitações técnicas, de performance, de segurança ou de negócio?
-9. **Ambiente**: Como rodar localmente? Como fazer deploy?
-10. **Módulos e equipe**: Identifique módulos e pastas de código, independentemente do modo individual/equipe. No modo equipe, registre responsáveis e quem coordena a integração; no individual, use o próprio desenvolvedor como responsável, sem exigir divisão de papéis. Registre os escopos em `.centaur/workspace.json` conforme o contrato. Pergunte somente o que não estiver evidente; não crie frontend/backend se não existirem.
-11. **Contexto extra**: Qualquer coisa que um dev novo precisaria saber antes de tocar no código?
-
-Faça todas as perguntas de uma vez. Aguarde as respostas antes de continuar.
-
-## Passo 4 — Criar AGENTS.md na raiz do projeto
-
-Com as informações coletadas, crie o arquivo `AGENTS.md` na **raiz do projeto** (não dentro de .claude/). Este arquivo é o ponto de entrada para todos os chats/sessões futuras, de qualquer assistente de IA.
-
-Estrutura do AGENTS.md:
+Adapte o template abaixo à estrutura real. Remova placeholders, não invente comandos, camadas ou documentos. Links devem apontar para arquivos existentes ou criados no Passo 5; não obrigue todos os documentos vinculados a serem lidos em toda sessão.
 
 ```markdown
-# [Nome do Projeto]
+# [Nome do projeto]
 
 ## Visão Geral
-[O que é, para que serve, para quem]
+[Propósito e stack em poucas linhas. Link para visão detalhada existente, se necessário.]
 
-## Stack Técnica
-[Linguagem, framework, banco, infra, principais libs]
+## Contexto persistente com Graphify
+Graphify é dependência do Centaur: CLI `graphify` (pacote `graphifyy`) e skill oficial `graphify`. Após ler estas instruções, consulte da raiz `graphify query "<objetivo da tarefa>" --budget 1500` e abra as fontes relevantes. Confirme conteúdo atual antes de editar; não carregue o grafo ou histórico completos. Sem índice confiável, informe a limitação e use busca focada.
+Decisões ficam em documentos canônicos, indexados para próximas sessões. Código e validação comprovam comportamento; o grafo pode conter planos e inferências. Após mudanças e registros, sincronize pelo fluxo `centaur-driven-graphify`; em paralelo, somente o coordenador atualiza o índice. Consultas somente leitura não sincronizam.
 
-## Estrutura do Projeto
-[Mapa das pastas e responsabilidades]
-
-## Como Rodar
-[Passos para rodar localmente]
-
-## Como Fazer Deploy
-[Passos ou referência]
-
-## Arquitetura e Decisões Técnicas
-[Decisões importantes, padrões adotados, por quê]
+## Comandos essenciais
+[Comandos reais para executar, construir e validar, com diretório quando necessário. Link para instruções detalhadas de ambiente/deploy já existentes.]
 
 ## Arquitetura de Camadas
-[A separação de camadas acordada com o usuário no Passo 3. Para cada camada: nome, pasta, responsabilidade e o que é PROIBIDO nela. Exemplo (adapte à stack e ao acordado):]
-
-| Camada | Pasta | Responsabilidade | Proibido |
-|--------|-------|------------------|----------|
-| Models | `src/models/` | Entidades de domínio | Lógica de negócio, acesso a dados |
-| DTOs | `src/dtos/` | Contratos de entrada/saída (validação de forma) | Regras de negócio |
-| Repositories | `src/repositories/` | Acesso a dados (queries, ORM) | Regras de negócio, HTTP |
-| Services | `src/services/` | Regras de negócio | Acesso direto ao banco, detalhes de HTTP |
-| Handlers/Controllers | `src/handlers/` | Receber requisição, chamar service, retornar resposta | Regras de negócio, queries |
-
-[Regras de dependência entre camadas — exemplo: handler → service → repository → model; nunca no sentido inverso; DTOs apenas nas bordas]
+[Limites obrigatórios e direção das dependências. Tabela curta de camada/módulo, pasta, responsabilidade e proibições somente se útil. Preserve a arquitetura real, mesmo sem camadas convencionais. Referência para detalhes.]
 
 ## Testes
-
-| Item | Valor |
-|------|-------|
-| Framework | [ex: Vitest, Pytest, JUnit 5] |
-| Rodar tudo | [comando] |
-| Rodar um arquivo | [comando] |
-| Cobertura | [comando, ou "não configurado"] |
-| Local e nome | [ex: `tests/**/*.spec.ts`] |
-| Meta de cobertura | [ex: 80% linha, 100% em serviços críticos] |
-
-[Como mockar dependências externas (banco, HTTP, relógio) neste projeto. Se o projeto não tem testes automatizados, registre isso explicitamente aqui.]
+[Framework, comandos essenciais e local/convenção dos testes; ou ausência explícita. Gates e metas somente quando definidos. Referência para estratégias específicas de teste.]
 
 ## Vocabulário e Idioma do Código
+[Idiomas e regras de nomenclatura. Termos críticos curtos ou referência ao glossário existente: consulte os conceitos relevantes antes de nomear código.]
 
-| Item | Valor |
-|------|-------|
-| Identificadores (variável, função, classe) | [ex: inglês; ou português no domínio e inglês na infraestrutura] |
-| Comentários | [ex: português] |
-| Mensagens de commit | [ex: português, prefixo convencional feat/fix/...] |
-
-**Termos do domínio** — a palavra à esquerda é a única usada no código para esse conceito:
-
-| Termo | Significa | Não use |
-|-------|-----------|---------|
-| [ex: `cobranca`] | [ex: uma ordem de pagamento emitida para um cliente] | [ex: `payment`, `fatura`, `charge`] |
-
-[Se o projeto ainda não tem vocabulário definido, registre isso e o combinado com o usuário. As skills de implementação consultam esta seção antes de nomear qualquer coisa nova, e acrescentam aqui os termos que estabelecerem.]
-
-## Regras e Convenções
-[O que seguir ao implementar: naming, estrutura de pastas, padrões de código, etc]
-
-## Qualidade de Código e Arquitetura
-
-O conjunto Centaur depende da skill `clean-code`. Antes de planejar, implementar ou revisar código com estas skills, carregue seu `SKILL.md` e as referências pertinentes a partir da instalação do agente. Se estiver ausente, informe a dependência faltante antes de executar trabalho que depende dela.
-
-Siga as convenções e a Arquitetura de Camadas deste projeto: cada responsabilidade no módulo apropriado, dependências na direção declarada, nomes do vocabulário do domínio e mudanças limitadas à solicitação. Valide o resultado com os mecanismos disponíveis e reporte o que não foi verificado.
-
-As instruções do usuário e deste projeto prevalecem. O Centaur define o modo TDD ou direto e a proporcionalidade dos testes. Contexto e decisões ficam neste `AGENTS.md`; o histórico fica em `.centaur/`. Se `.clean/` existir, consulte-o e reporte divergências, sem criar ou atualizar essa estrutura nos fluxos Centaur.
-
-## Restrições e Cuidados
-[O que não fazer, limitações, pontos sensíveis]
-
-## Contexto Extra
-[Qualquer coisa que um dev novo precisaria saber]
-
-## Sistema no Graphify
-
-Use `/centaur-driven-graphify` para manter a visão geral, mapa, drafts, fluxos, perspectivas e decisões em `docs/system/` e consultar o índice técnico em `graphify-out/`. Specs, tasks e histórico permanecem nos escopos de `.centaur/workspace.json`. O código e a validação confirmam o comportamento implementado. Após alterar código e documentos, sincronize ambos pelo fluxo da skill; em paralelo, somente o coordenador escreve os documentos compartilhados e atualiza o índice.
+## Regras e Restrições
+[Convenções obrigatórias e limites específicos do projeto, sem repetir seções anteriores.]
+Carregue `clean-code` e as referências pertinentes ao planejar, implementar ou revisar código. Preserve o modo TDD/direto e validação proporcional definidos pelo Centaur. As instruções do usuário e deste projeto prevalecem. Consulte `.clean/` se existir, sem escrevê-lo nestes fluxos.
 
 ## Módulos e Equipe
-
-Modo de colaboração: [individual ou equipe, conforme resposta do usuário].
-
-Consulte `.centaur/workspace.json` para escopos, pastas de código, specs, implementações e responsáveis. A pasta mestre contém specs do sistema que ligam as specs dos módulos. Use IDs qualificados, como `frontend/0001`. Registre aqui responsáveis pela integração, convenções de branches e validações de cada módulo. Consulte os índices de specs e implementações de cada escopo para o andamento.
-
-## Implementações
-[Atualizado automaticamente pelas skills /centaur-driven-tdd e /centaur-driven-implement]
-Veja `.centaur/implements/status.md` e `.centaur/specs/index.md` para o escopo mestre e os índices dos módulos registrados em `.centaur/workspace.json` para o histórico e planejamento de cada equipe.
+[Modo individual/equipe e regras essenciais de integração.]
+Consulte `.centaur/workspace.json` para escopos, caminhos e responsáveis. Specs e implementações ficam nos diretórios ali configurados; leia seus índices sob demanda e confirme status nos READMEs canônicos. Use IDs qualificados ao trabalhar com módulos.
 
 ---
-
 _Documentação centaur — schema `[versão desta skill, do frontmatter]`, gerada em `[saída de date +%F]`. Atualize com `/centaur-driven-update`._
 ```
 
-A última linha é o **carimbo de schema**: é por ela que `/centaur-driven-update` sabe qual versão do template gerou este `AGENTS.md` e o que precisa migrar. Preencha com a versão declarada no frontmatter desta skill — não invente outro número.
+O carimbo usa a versão do frontmatter desta skill, para `update` detectar migrações. Não remova regras customizadas para atingir um tamanho arbitrário; elimine duplicações e extraia detalhes preservando o significado.
 
-## Passo 5 — Criar estrutura do Centaur
+## Passo 5 — Salvar detalhes e registros
 
-Crie `.centaur/workspace.json` conforme o contrato de equipe. Preserve registros existentes no escopo mestre e crie, para cada módulo real, suas pastas de specs e implements. Aplique os dois templates abaixo em **cada escopo**, usando os caminhos configurados.
+Prefira atualizar ou vincular documentação existente a duplicá-la. Crie documentos em `docs/system/` somente quando houver conteúdo durável que não caiba nas instruções curtas: visão geral, arquitetura, operação, glossário ou decisões com motivos. Registre evidências e distinga fatos, planos e lacunas. Use caminhos reais e links Markdown relativos; mantenha esses documentos no corpus do Graphify. Se houver glossário, ele é a fonte dos termos e variações proibidas, acessada pela referência em AGENTS.md.
+
+Mapa do sistema, Fluxos e Perspectivas são criados quando solicitados ou quando explicam relações que o texto não esclarece; siga a referência de mapas legíveis de `centaur-driven-graphify` nesses casos. Não gere pastas vazias de Drafts, Fluxos, Perspectivas ou Decisões, nem glossários e mapas apenas para cumprir uma estrutura. Preserve os que já existirem. A inicialização do índice funciona sem `docs/system/` quando as fontes existentes bastarem.
+
+Crie ou complete `.centaur/workspace.json` conforme o contrato de módulos e equipe, preservando caminhos e registros. Registre `master` e os módulos reais, colaboração e responsáveis. Crie os índices abaixo em cada escopo somente quando ausentes; não sobrescreva histórico nem mova pastas existentes. Os caminhos dos exemplos representam o escopo selecionado.
 
 Crie o diretório `.centaur/implements/` e o arquivo `status.md` dentro dele:
 
@@ -217,23 +121,12 @@ Planejamentos de implementações complexas, decompostos em tasks para subagente
 _Atualizado automaticamente pelas skills `/centaur-driven-spec`, `/centaur-driven-tdd`, `/centaur-driven-implement` e `/centaur-driven-run`_
 ```
 
-Inicialize `docs/system/` conforme `centaur-driven-graphify`, com `Visão geral.md`, `Mapa do sistema.md`, `Glossário.md` e as pastas Drafts, Fluxos, Perspectivas e Decisões. O mapa principal deve seguir módulo → funcionalidade/página → processo, com detalhes dos processos em diagramas separados, conforme `references/readable-maps.md` da skill Graphify. Registre hipóteses explicitamente. Verifique o CLI e a skill oficial Graphify, gere o índice de código e documentos e confira `graphify-out/graph.json` e `GRAPH_REPORT.md`. Se uma dependência impedir a geração, entregue os documentos e reporte a pendência; nunca afirme que o índice está sincronizado sem verificar os artefatos.
+## Passo 6 — Indexar, verificar e entregar
 
-## Passo 6 — Confirmar
+Após salvar as fontes canônicas, siga **Inicializar e sincronizar** de `centaur-driven-graphify`. Reutilize o grafo existente e atualize apenas o necessário quando suportado. Na primeira execução, gere o índice de código e a extração semântica dos documentos; inclua AGENTS.md, documentação existente e registros de todos os escopos, verificando explicitamente a cobertura de `.centaur/`. Inicializar o índice não exige gerar mapas ou HTML.
 
-Informe ao usuário o que foi criado e o fluxo das skills centaur-driven:
-- `AGENTS.md` criado na raiz — será lido pelas skills centaur em cada chat
-- `.centaur/implements/status.md` criado — histórico de todas as implementações
-- `.centaur/specs/index.md` criado — índice de specs planejadas
-- `docs/system/` criado — mapa e documentação humana visíveis no Obsidian; `graphify-out/` — índice técnico para consultas, quando gerado
+Confira os artefatos reais, os links do AGENTS.md e os caminhos de workspace. Faça consultas representativas sobre uma responsabilidade do código e uma decisão/regra documentada, abrindo as fontes retornadas. Consulte specs/implementações se já existirem; índices vazios de um projeto novo não exigem registros fictícios. Registre cobertura e pendências em `.centaur/system/sync.md`, fora do corpus.
 
-Fluxo de trabalho:
-- `/centaur-driven-check` — perguntar sobre o projeto sem alterar nada
-- `/centaur-driven-tdd` — mudança pontual com comportamento testável (regra de negócio, validação, cálculo, bug): teste antes do código, ciclo red-green-refactor
-- `/centaur-driven-implement` — mudança pontual estrutural, de configuração ou de UI, e projetos sem infraestrutura de teste
-- `/centaur-driven-spec` — para demandas grandes: decompõe em tasks atômicas por camada, cada uma marcada como TDD ou direta
-- `/centaur-driven-run` — executa uma spec: lança subagentes por task conforme o Modo, paraleliza e consolida
-- `/centaur-driven-graphify` — mantém documentos, mapa e perspectivas do sistema usando Graphify
-- `/centaur-driven-update` — manutenção da documentação: migra o `AGENTS.md` quando as skills evoluem, audita o histórico e resolve contradições
+Se a indexação falhar ou ficar parcial, entregue os documentos preservados e diga quais fontes ainda não estão recuperáveis pelo grafo. Não declare contexto sincronizado apenas porque os arquivos foram criados.
 
-Ambas as skills de execução documentam em `.centaur/implements/XXXX/` e reportam os documentos do sistema afetados para sincronização após a validação.
+Na entrega, informe arquivos criados/alterados, resultado das consultas e pendências. Indique somente os próximos comandos úteis ao pedido: `check` para consultar, `implement`/`tdd` para mudanças pontuais ou `spec`/`run` para demandas maiores. `update` mantém a documentação; `centaur-driven-graphify` mantém o índice e cria mapas e perspectivas sob demanda.

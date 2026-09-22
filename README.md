@@ -8,7 +8,9 @@ Centauro: metade humano, metade máquina. Você toma as decisões — o Claude e
 
 ## Instalação
 
-O conjunto depende da skill **`clean-code`**, distribuída pelo projeto [Clean Code Skills](https://github.com/btseee/clean-code-skills). Ela fornece os critérios de qualidade de código e arquitetura usados pelas skills Centaur. A versão de referência desta integração é **3.2.0**.
+O conjunto depende de **Graphify** (CLI `graphify`, pacote `graphifyy`, e skill oficial `graphify`) para recuperar contexto persistente, e da skill **`clean-code`**, distribuída pelo projeto [Clean Code Skills](https://github.com/btseee/clean-code-skills). Ela fornece os critérios de qualidade de código e arquitetura usados pelas skills Centaur. A versão de referência desta integração é **3.2.0**.
+
+Instale o CLI Graphify com `uv tool install graphifyy` (ou `pipx install graphifyy`). A versão local de referência desta integração é **0.9.65**; confira o help ao usar outra versão.
 
 Para uma instalação nova, copie o conjunto e a dependência completa para o diretório global de skills do Claude Code:
 
@@ -22,24 +24,37 @@ test -f ~/.claude/skills/clean-code/SKILL.md
 test -f ~/.claude/skills/clean-code/references/session-protocol.md
 test -f ~/.claude/skills/clean-code/references/architecture.md
 test -f ~/.claude/skills/clean-code/references/tests.md
+graphify install --platform claude
+graphify --version
+test -f ~/.claude/skills/graphify/SKILL.md
 ```
+
+Para Codex, copie `centaur-driven-*` e `clean-code` para `~/.agents/skills/`, o [diretório padrão de skills do usuário](https://developers.openai.com/codex/skills). Registre Graphify com `graphify install --platform agents` e confira `~/.agents/skills/graphify/SKILL.md`. O destino `agents` do Graphify 0.9.65 usa esse diretório; o destino `codex` dessa versão usa o caminho legado `.codex/skills`. O comando registra a skill oficial com seus recursos; não copie apenas seu arquivo de entrada. Ao migrar uma instalação antiga, mantenha uma única cópia ativa por nome; guarde backups fora dos diretórios de skills para evitar duplicações.
 
 Reinicie sessões abertas do Claude Code para que as skills apareçam. Elas ficam disponíveis em **todos** os projetos.
 
-> Se preferir instalar apenas em um projeto, copie as pastas do Centaur **e** `clean-code` para `.claude/skills/` na raiz do projeto. Preserve `references/`, `scripts/` e `assets/` da dependência; copiar apenas o `SKILL.md` não basta. Se ela já estiver instalada, confira sua versão e os recursos antes de substituir a pasta.
+> Se preferir instalar apenas em um projeto, copie as pastas do Centaur **e** `clean-code` para `.claude/skills/` na raiz do projeto. Preserve `references/`, `scripts/` e `assets/` da dependência; copiar apenas o `SKILL.md` não basta. Registre também Graphify no projeto com `graphify install --platform claude --project` (para Codex, `graphify install --platform agents --project`, em `.agents/skills/`). Se as dependências já estiverem instaladas, confira suas versões e recursos antes de substituir pastas.
 
 ### Contrato da dependência
 
-As skills de desenvolvimento declaram `metadata.dependencies: clean-code`. A skill `centaur-driven-graphify` depende do CLI `graphify` (pacote oficial `graphifyy`) e da skill oficial Graphify. No Codex, o destino equivalente é `~/.codex/skills/` ou o diretório de skills do projeto.
+Todas as skills declaram Graphify em `metadata.dependencies`; as de desenvolvimento também declaram `clean-code`. Esse metadado documenta o contrato, não instala pacotes automaticamente. O CLI e a skill oficial devem estar disponíveis no ambiente do agente. O [contrato de contexto](centaur-driven-graphify/references/context.md) define consultas, fontes canônicas, atualização e recuperação de falhas.
 
 - `start-project` e `spec` usam os critérios de responsabilidade e direção de dependências na documentação e no planejamento.
 - `implement`, `tdd` e `deploy` aplicam os critérios ao escrever e revisar código, testes, workflows e scripts.
 - `run` e `mcp` garantem o carregamento também pelos executores.
 - `check` e `update` usam os critérios na análise, preservando seus limites de leitura e documentação.
 
-As instruções do usuário e do projeto prevalecem. O Centaur mantém seu roteamento entre TDD e modo direto, com validação proporcional ao risco. `AGENTS.md` e `.centaur/` continuam sendo seu contexto e histórico; `.clean/`, quando já existe, é consultado sem escritas por estes fluxos. Carregar `clean-code` não inicia auditoria ou refatoração geral.
+As instruções do usuário e do projeto prevalecem. O Centaur mantém seu roteamento entre TDD e modo direto, com validação proporcional ao risco. Graphify é o caminho principal de recuperação de contexto; `AGENTS.md`, `.centaur/` e `docs/system/` preservam instruções, decisões e histórico canônicos; `.clean/`, quando já existe, é consultado sem escritas por estes fluxos. Carregar `clean-code` não inicia auditoria ou refatoração geral.
 
-Projetos já documentados recebem a seção de qualidade do novo template por `/centaur-driven-update`.
+Projetos já documentados recebem o contrato de contexto do novo template por `/centaur-driven-update`.
+
+### Contexto com menos leitura
+
+Após ler as instruções de `AGENTS.md`, a IA consulta `graphify query "<objetivo da tarefa>" --budget 1500` e abre as fontes relevantes. Decisões duráveis ficam nos documentos canônicos e entram no índice para recuperação em outras sessões. Histórico completo, grafo JSON e relatórios extensos não são carregados em toda tarefa. Código atual e validação confirmam o comportamento; o grafo pode conter planos ou inferências.
+
+A inicialização gera o índice; os fluxos que alteram código ou documentação o atualizam após salvar os registros. Após cada `implement` ou `tdd` com alterações, a atualização é obrigatória na mesma tarefa, incluindo código, testes e registros, com consulta de verificação. No `run`, somente o coordenador sincroniza, cobrindo cada implementação ao fim da onda, antes da próxima onda ou da entrega. Consultas com `check` permanecem somente leitura. Falhas ou índice desatualizado geram uma limitação explícita e leitura direta focada; trabalho validado é preservado. O orçamento de consulta não garante um percentual de economia de tokens.
+
+`centaur-driven-graphify` continua como manutenção do índice e autoria de mapas, drafts e perspectivas. Recuperar contexto já faz parte de cada skill, sem exigir uma invocação manual adicional.
 
 ## As skills
 
@@ -52,7 +67,7 @@ Projetos já documentados recebem a seção de qualidade do novo template por `/
 | `/centaur-driven-implement` | Mudanças pontuais **estruturais, de configuração ou de UI** — e projetos sem infraestrutura de teste |
 | `/centaur-driven-spec` | Decompõe uma demanda grande em tasks atômicas por camada, cada uma marcada como TDD ou direta, salvas em `.centaur/specs/` |
 | `/centaur-driven-run` | Executa uma spec: lança um subagente por task conforme o Modo, paraleliza as independentes e consolida o resultado |
-| `/centaur-driven-graphify` | Sincroniza código e documentos no Graphify e mantém visão geral, drafts, fluxos e perspectivas |
+| `/centaur-driven-graphify` | Inicializa, sincroniza e repara o índice; cria mapas, drafts e perspectivas sob demanda |
 | `/centaur-driven-mcp` | Busca a documentação de uma API externa em um MCP server e roteia a requisição para tdd, implement ou spec com esse contexto anexado |
 | `/centaur-driven-deploy` | Configura deploy contínuo para uma VPS (GitHub Actions + SSH + rsync): gera a chave, valida o acesso, cadastra os secrets e acompanha o primeiro run |
 | `/centaur-driven-update` | Manutenção da documentação: migra o `AGENTS.md` quando as skills evoluem, audita o histórico, resolve contradições e consolida para agentes novos |
@@ -65,18 +80,18 @@ Projetos já documentados recebem a seção de qualidade do novo template por `/
 /centaur-driven-start-project
 ```
 
-A skill varre o projeto, faz perguntas sobre o que não está evidente no código (propósito, arquitetura, convenções, restrições) e cria:
+A skill reutiliza o grafo existente para descobrir a estrutura e confirma as fontes atuais. Sem índice, faz uma inspeção focada de manifestos, documentação e pontos de entrada. Pergunta apenas sobre decisões e lacunas materiais, como intenção, restrições e colaboração ainda não definida.
 
-- `AGENTS.md` na raiz — contexto do projeto, lido pelas skills centaur no início de cada chat
-- `.centaur/implements/status.md` — histórico de implementações
-- `.centaur/specs/index.md` — índice de specs planejadas
-- `docs/system/` — mapa e documentação humana visíveis no Obsidian; `graphify-out/` — índice técnico consultável pela IA
+O fluxo estabelece:
 
-Entre as perguntas está a **stack de testes** (framework, comando de rodar a suíte, local e convenção dos arquivos, meta de cobertura) — é o que decide se uma mudança futura vai por TDD ou não. Se o projeto ainda não tem testes, a skill pergunta se você quer adotar TDD dali em diante e com qual framework.
+- `AGENTS.md` curto na raiz — regras, comandos essenciais, limites arquiteturais e recuperação de contexto.
+- `.centaur/workspace.json` e índices de specs/implementações — escopos, responsáveis e registros, preservando o que já existe.
+- Documentos detalhados somente quando necessários — preferindo fontes existentes; arquitetura, operação, glossário e decisões podem ficar em `docs/system/`.
+- `graphify-out/` — índice de código e documentos, gerado ou atualizado após salvar as fontes e verificado com consultas.
 
-Outra pergunta é o **idioma e o vocabulário do código**: em que língua ficam identificadores, comentários e commits, e quais são os termos do domínio — a palavra oficial de cada conceito, com as variações que **não** devem ser usadas. Isso vira uma seção do `AGENTS.md` que as skills de implementação consultam antes de nomear qualquer coisa nova, para o projeto não acumular três nomes para a mesma entidade.
+As seções **Arquitetura de Camadas**, **Testes** e **Vocabulário e Idioma do Código** continuam no `AGENTS.md` como instruções concisas e referências. A skill preserva a arquitetura real; ausência de testes é registrada sem obrigar adoção de framework ou meta de cobertura. Detalhes são consultados conforme a tarefa.
 
-Também entre as perguntas está a **Arquitetura de Camadas**: se o projeto já segue um padrão (models, DTOs, handlers, repositories, services...), ela é documentada; se não segue, a skill propõe uma separação adequada à stack para você aprovar. O resultado vira uma tabela no `AGENTS.md` dizendo, para cada camada, sua pasta, sua responsabilidade e o que é proibido nela — e todas as implementações futuras obedecem a essa tabela.
+Mapas, perspectivas, glossários e pastas de drafts são criados quando há conteúdo ou necessidade concreta. O índice funciona com as fontes existentes. Um `AGENTS.md` anterior é preservado; projetos já inicializados seguem para `update` dentro do escopo autorizado.
 
 ### 2. Para mudanças com comportamento testável, use tdd
 
@@ -86,7 +101,7 @@ Também entre as perguntas está a **Arquitetura de Camadas**: se o projeto já 
 
 Regra de negócio, validação com consequência, cálculo, correção de bug — o que tem comportamento com regra real entra por aqui, e **o teste vem antes do código**. Ser tecnicamente testável não basta: mapeamento direto, passthrough e fiação sem lógica vão pelo `implement`.
 
-A skill lê o contexto, detecta a stack de testes, transforma a solicitação em **critérios de aceite proporcionais ao risco** — caminho crítico (dinheiro, auth, validação) ganha bateria completa de caminho feliz, erros e bordas; comportamento comum ganha só o que tem chance real de acontecer; trivial ganha 1-2 testes —, tira todas as dúvidas e então roda os ciclos: **RED** (escreve o teste, roda, vê falhar — teste que passa de primeira é teste errado), **GREEN** (o mínimo de código de produção para passar), **REFACTOR** (limpa com a suíte verde, sob o mesmo critério de clareza do `implement`). Um ciclo por comportamento. No fim, analisa cobertura, valida lint, camadas e clareza, documenta em `.centaur/implements/XXXX/README.md` e sincroniza código e documentos no Graphify quando configurado.
+A skill lê o contexto, detecta a stack de testes, transforma a solicitação em **critérios de aceite proporcionais ao risco** — caminho crítico (dinheiro, auth, validação) ganha bateria completa de caminho feliz, erros e bordas; comportamento comum ganha só o que tem chance real de acontecer; trivial ganha 1-2 testes —, tira todas as dúvidas e então roda os ciclos: **RED** (escreve o teste, roda, vê falhar — teste que passa de primeira é teste errado), **GREEN** (o mínimo de código de produção para passar), **REFACTOR** (limpa com a suíte verde, sob o mesmo critério de clareza do `implement`). Um ciclo por comportamento. No fim, analisa cobertura, valida lint, camadas e clareza, documenta em `.centaur/implements/XXXX/README.md` e sincroniza código e documentos no Graphify após salvar os registros.
 
 ### 3. Para mudanças estruturais, use implement
 
@@ -94,7 +109,7 @@ A skill lê o contexto, detecta a stack de testes, transforma a solicitação em
 /centaur-driven-implement renomear a pasta de handlers para controllers
 ```
 
-O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `AGENTS.md` (regra de negócio em service, query em repository, handler fino), **revisa a clareza do que escreveu** (nomes que revelam intenção, vocabulário do domínio, sem número mágico nem comentário que narra a linha), valida (testes, lint e revisão de violação de camadas) e entrega `.centaur/implements/XXXX/README.md`, atualizando o Graphify quando configurado.
+O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `AGENTS.md` (regra de negócio em service, query em repository, handler fino), **revisa a clareza do que escreveu** (nomes que revelam intenção, vocabulário do domínio, sem número mágico nem comentário que narra a linha), valida (testes, lint e revisão de violação de camadas) e entrega `.centaur/implements/XXXX/README.md`, atualizando o Graphify após salvar os registros.
 
 Se a mudança pedida tiver regra de negócio relevante, ele mesmo redireciona para o `/centaur-driven-tdd`. Se a demanda for grande demais (muitas camadas, mais de ~4 arquivos), recusa e orienta a usar spec + run.
 
@@ -130,7 +145,7 @@ O run é o orquestrador — e é **restrito a tasks de specs**: não implementa 
 /centaur-driven-check o que ainda falta na spec 0001?
 ```
 
-Responde com base no `AGENTS.md`, no histórico de implementações, nas specs e no código real — apontando arquivo e linha quando fizer sentido.
+Consulta primeiro o Graphify e confirma a resposta nas instruções, registros e trechos atuais pertinentes — apontando arquivo e linha quando fizer sentido.
 
 ### 7. Para integrar com API externa, use mcp
 
@@ -171,7 +186,7 @@ O `update` resolve as duas. Ele lê o **carimbo de schema** na última linha do 
 
 Depois vem a parte que importa no dia a dia: audita a integridade dos registros (pasta sem README, linha fantasma no `status.md`, spec com todas as tasks feitas mas ainda `Em andamento`), cruza as implementações pelos arquivos afetados para achar onde uma desfez a outra, e detecta o que a documentação afirma e o código desmente. Cada conflito é apresentado com **evidência** — o que a doc diz, o que é verdade, e onde está a prova. Sem evidência não é conflito, é palpite.
 
-Por fim consolida para quem chega depois: promove para o `AGENTS.md` o conhecimento que estava preso dentro de um README de implementação (o cliente HTTP padrão, a estratégia de mock, a convenção estabelecida no meio do caminho) e arquiva as linhas antigas do `status.md` em `.centaur/implements/arquivo.md`, marcando o que foi superado. Como toda skill lê `AGENTS.md` e `status.md` no primeiro passo, índice enxuto é contexto economizado em **toda** execução futura.
+Por fim consolida para quem chega depois: promove regras essenciais para o `AGENTS.md` e detalhes duráveis para documentos vinculados (como estratégias de mock e glossários) e arquiva as linhas antigas do `status.md` em `.centaur/implements/arquivo.md`, marcando o que foi superado. As skills leem as instruções de `AGENTS.md`, consultam o Graphify e abrem histórico sob demanda; manter instruções curtas e índices focados reduz leituras repetidas.
 
 Ele **não toca em código**: bug ou violação de camada que encontrar vira relatório com a skill certa para resolver. E nunca apaga pasta de implementação ou de spec — arquivar é mover linha de índice, o registro fica.
 
@@ -188,12 +203,7 @@ A skill usa o Graphify como índice para a IA localizar conceitos, arquivos e re
 
 Specs e implements permanecem nos escopos de `.centaur/workspace.json`, com status nos READMEs e índices. O quadro visual foi removido. A sincronização inclui código e documentos: atualização AST isolada não atualiza specs/implements. As skills consolidam os registros primeiro e depois atualizam o Graphify serialmente; falhas semânticas são reportadas como pendências.
 
-Instale a dependência conforme a [documentação oficial](https://github.com/Graphify-Labs/graphify):
-
-```bash
-uv tool install graphifyy
-graphify install --platform codex
-```
+O CLI e a skill oficial são dependências do conjunto; siga a seção Instalação acima e a [documentação oficial](https://github.com/Graphify-Labs/graphify).
 
 No Codex, a skill oficial é invocada como `$graphify`. A integração Centaur orienta sua utilização e verifica se os diretórios ocultos de `.centaur/` entraram no corpus. O CLI local de referência é 0.9.65. Para migrar projetos existentes, `/centaur-driven-update` segue a [migração](centaur-driven-graphify/references/migration.md), preservando textos e registros legados.
 
@@ -207,14 +217,16 @@ As skills de execução tratam o código como a documentação principal do proj
 
 Quem abre o fonte não lê `.centaur/`, e o README envelhece enquanto o código muda — por isso o README nunca substitui código claro.
 
-O `implement` tem uma etapa dedicada a isso (revisar a clareza antes de validar) e o `tdd` aplica o mesmo critério no ciclo REFACTOR: nome que revela intenção, vocabulário do domínio vindo do `AGENTS.md`, função que faz uma coisa só, sem número mágico, sem aninhamento profundo, sem comentário que narra a linha seguinte, sem código morto. E a regra que resume: **nome que precisa de comentário para ser entendido é nome errado — troque o nome**.
+O `implement` tem uma etapa dedicada a isso (revisar a clareza antes de validar) e o `tdd` aplica o mesmo critério no ciclo REFACTOR: nome que revela intenção, vocabulário do domínio vindo do `AGENTS.md` ou do glossário vinculado, função que faz uma coisa só, sem número mágico, sem aninhamento profundo, sem comentário que narra a linha seguinte, sem código morto. E a regra que resume: **nome que precisa de comentário para ser entendido é nome errado — troque o nome**.
 
 ## Estrutura gerada no projeto
 
 ```
 projeto/
-├── AGENTS.md                        # Contexto do projeto (lido pelas skills a cada chat)
+├── AGENTS.md                        # Instruções essenciais e referências para contexto
 │                                    # Última linha: carimbo de schema, usado pelo update
+├── docs/system/                    # Detalhes e mapas quando necessários
+├── graphify-out/                   # Índice derivado de código e documentos
 └── .centaur/
     ├── workspace.json              # Escopos, caminhos e responsáveis
     ├── modules/
@@ -228,7 +240,7 @@ projeto/
     ├── specs/
     │   ├── index.md                 # Tabela com todas as specs
     │   └── 0001/README.md           # Spec com tasks, dependências e checklist
-    └── system/                      # Visão geral, drafts, fluxos, perspectivas e decisões
+    └── system/                      # sync.md: cobertura e pendências do índice
 ```
 
 ## Ciclo de vida

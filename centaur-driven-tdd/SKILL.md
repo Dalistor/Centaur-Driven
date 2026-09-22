@@ -1,14 +1,18 @@
 ---
 name: centaur-driven-tdd
 description: Implementa uma mudança guiada por testes (red-green-refactor), com casos de teste derivados dos critérios de aceite, análise de cobertura e documentação em .centaur/implements/. Use quando a mudança tem regra de negócio testável.
-version: 1.6.0
+version: 1.9.0
 invocable: true
 author: user
 metadata:
-  dependencies: clean-code
+  dependencies: clean-code, graphify
 ---
 
 # centaur-driven-tdd
+
+## Contexto persistente — Graphify
+
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -24,7 +28,7 @@ As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur
 
 ## Integração com Graphify
 
-Depois de validar o comportamento, use `centaur-driven-graphify` para atualizar as notas e fluxos afetados quando o Graphify estiver configurado. O README da implementação continua sendo o registro obrigatório.
+Depois de validar o comportamento, use `centaur-driven-graphify` para atualizar as notas e fluxos afetados. O README da implementação continua sendo o registro obrigatório.
 
 Você é um engenheiro de software sênior conduzindo uma implementação por Test Driven Development. O teste vem primeiro, sempre. Siga cada passo na ordem — não pule etapas.
 
@@ -43,9 +47,7 @@ Você é um engenheiro de software sênior conduzindo uma implementação por Te
 
 ## Passo 1 — Ler o contexto do projeto
 
-Leia obrigatoriamente:
-1. `AGENTS.md` na raiz (visão geral, arquitetura, **Arquitetura de Camadas**, **Vocabulário e Idioma do Código**, regras)
-2. `.centaur/implements/status.md` (histórico de implementações)
+Leia `AGENTS.md` e recupere o contexto da solicitação pelo contrato Graphify acima. Consulte apenas os registros e trechos relevantes do escopo; para status, confirme o README canônico.
 
 Se `AGENTS.md` não existir, avise:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro para que eu tenha contexto suficiente para implementar com segurança."
@@ -165,7 +167,7 @@ Com a suíte verde, releia o que você escreveu como se estivesse chegando nele 
 
 **Critério de bom nome:**
 - Revela a **intenção** — o que a coisa faz ou representa, não como está implementada (`precoComDesconto`, não `p2`; `buscarPorEmail`, não `query2`)
-- Usa o **vocabulário do domínio** do projeto — a palavra registrada na seção "Vocabulário e Idioma do Código" do `AGENTS.md` (ou, se a seção não existir, a que o resto do código já usa). Um conceito, um nome, no código inteiro. O idioma dos identificadores, dos comentários e dos nomes de teste também sai dessa seção
+- Usa o **vocabulário do domínio** do projeto — a palavra registrada na seção "Vocabulário e Idioma do Código" do `AGENTS.md` ou no glossário ali vinculado, consultando os conceitos relevantes (sem registro, use a convenção existente no código). Um conceito, um nome, no código inteiro. O idioma dos identificadores, dos comentários e dos nomes de teste também sai dessa seção
 - Sem abreviação (`calc`, `usr`, `tmp`, `res`) e sem sufixo redundante de tipo (`listaDeUsuariosArray`, `DataManager`)
 - Função é verbo, valor é substantivo, booleano lê como afirmação (`estaAtivo`, `temPermissao`)
 - **Nome que precisa de comentário para ser entendido é nome errado** — troque o nome, não adicione o comentário
@@ -291,11 +293,19 @@ Se a tabela ainda contiver a linha placeholder (`| — | — | — | — | — |
 
 ## Passo 15 — Atualizar AGENTS.md se necessário
 
-Se a implementação adicionou funcionalidade relevante, mudou arquitetura, introduziu dependência importante, **estabeleceu a infraestrutura de testes do projeto** (framework, comando, convenção de nomes), ou **estabeleceu um termo novo do domínio** que o código passou a usar → atualize a seção relevante do `AGENTS.md`. O termo novo vai para a seção "Vocabulário e Idioma do Código", para que a próxima implementação use a mesma palavra. Correção interna sem impacto na visão geral não precisa.
+Se a implementação adicionou funcionalidade relevante, mudou arquitetura, introduziu dependência importante, **estabeleceu a infraestrutura de testes do projeto** (framework, comando, convenção de nomes), ou **estabeleceu um termo novo do domínio** que o código passou a usar → atualize as instruções essenciais do `AGENTS.md` e os detalhes nas fontes vinculadas, sem duplicação. O termo novo vai para o glossário vinculado pela seção "Vocabulário e Idioma do Código"; sem glossário, use essa seção enquanto ela for curta. Correção interna sem impacto na visão geral não precisa.
 
-## Passo 16 — Sincronizar o Graphify
+## Passo 16 — Atualizar obrigatoriamente o Graphify
 
-Use `/centaur-driven-graphify sincronizar <escopo>/<id>` depois da validação. Registre capacidades e fluxos confirmados em linguagem humana; arquivos e testes são evidência, nunca o assunto principal. **[modo spec]** apenas reporte as notas afetadas para consolidação serial.
+Após cada implementação, execute o fluxo `centaur-driven-graphify sincronizar <escopo>/<id>` nesta mesma tarefa, depois da validação e de salvar o README da implementação, os índices e demais documentos canônicos. Não deixe a atualização como sugestão ou comando para o usuário executar depois. A obrigação também vale para correções internas, mudanças pequenas e alterações sem impacto no AGENTS.md ou no mapa humano.
+
+Inclua código, testes e documentos alterados, inclusive o novo registro em `.centaur/`; atualização AST isolada não basta para Markdown. Reutilize o grafo com atualização incremental quando suportada e inicialize-o se estiver ausente. Verifique os artefatos e faça uma consulta focada sobre a mudança, conferindo as fontes retornadas antes de afirmar que está sincronizado. Atualize mapas e notas somente quando afetados.
+
+Se houver bloqueio ou validação falhar depois de mudanças, sincronize também os arquivos e registros efetivamente preservados, identificando o estado parcial/bloqueado sem descrevê-lo como comportamento validado. Sem qualquer mudança de código ou documentos, não há atualização a executar.
+
+**[modo spec]** O executor entrega ao `run` todos os caminhos alterados e a sincronização pendente; não escreve no grafo compartilhado. O coordenador deve incluir cada implementação na atualização serial após consolidar a onda, antes de iniciar a próxima ou encerrar a execução.
+
+Se a sincronização falhar, tente resolver a causa dentro do escopo e permissões disponíveis. Persistindo o impedimento, registre causa e arquivos pendentes em `.centaur/system/sync.md` e informe **implementação validada, sincronização pendente** (ou o resultado real da validação). Preserve o trabalho validado; não declare a entrega integralmente concluída nem o grafo atualizado.
 
 ## Passo 17 — Informar o usuário
 
@@ -304,7 +314,7 @@ Confirme com:
 - Quantos ciclos red-green-refactor foram executados
 - Resultado real da validação: testes passando, cobertura de linha e branch dos arquivos tocados
 - Número da implementação (ex: "Documentado em `.centaur/implements/0003/`")
-- Documentos do sistema atualizadas, ou pendência explícita quando o Graphify não estiver configurado
+- Graphify: atualização executada, consulta de verificação e fontes conferidas; em falha, causa e arquivos pendentes
 
 **[modo spec]** Encerre com um relatório estruturado — é dele que o orquestrador consolida a spec e o `status.md`:
 
@@ -312,7 +322,8 @@ Confirme com:
 Spec YYYY — Task NN: [Concluída | Bloqueada]
 Implementação: XXXX
 Título: [título usado no README da implementação]
-Arquivos afetados: [lista]
+Arquivos afetados: [código, testes e documentos alterados, incluindo o README da implementação]
+Graphify: sincronização pendente pelo coordenador; [escopo e caminhos a incluir]
 Validação: [ciclos executados, testes passando, cobertura de linha/branch dos arquivos tocados]
 Mapa: [caminho e resultado real; se bloqueada sem implementação, não aplicável]
 Perspectivas afetadas: [ids de views existentes ou nenhuma; atualização reservada ao orquestrador]

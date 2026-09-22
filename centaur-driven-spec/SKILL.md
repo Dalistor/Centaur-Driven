@@ -1,14 +1,18 @@
 ---
 name: centaur-driven-spec
 description: Decompõe uma demanda grande em tasks atômicas por camada, salvas em .centaur/specs/, prontas para execução orquestrada com centaur-driven-run
-version: 1.9.1
+version: 1.11.0
 invocable: true
 author: user
 metadata:
-  dependencies: clean-code
+  dependencies: clean-code, graphify
 ---
 
 # centaur-driven-spec
+
+## Contexto persistente — Graphify
+
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -18,7 +22,7 @@ Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphif
 
 Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
 
-Leia `references/architecture.md` da dependência para decompor responsabilidades e explicitar a direção das dependências. Registre no contexto técnico da spec que cada executor deve carregar `clean-code`. Preserve os modos TDD/direto e planeje apenas as camadas necessárias à demanda.
+Leia `references/architecture.md` da dependência para decompor responsabilidades e explicitar a direção das dependências. Registre no contexto técnico da spec que cada executor deve carregar `clean-code` e `graphify`, consultar o grafo e confirmar as fontes atuais. Preserve os modos TDD/direto e planeje apenas as camadas necessárias à demanda.
 
 As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
@@ -26,14 +30,12 @@ Você é um engenheiro sênior responsável por decompor uma solicitação compl
 
 ## Passo 1 — Ler o contexto do projeto
 
-Leia obrigatoriamente:
-1. `AGENTS.md` na raiz do projeto (visão geral, arquitetura, regras, restrições)
-2. `.centaur/implements/status.md` (histórico de implementações — evita duplicar o que já foi feito). Se existir `.centaur/implements/arquivo.md`, o histórico antigo está lá; consulte quando a demanda parecer tocar área já mexida no passado
+Leia `AGENTS.md` e recupere o contexto da solicitação pelo contrato Graphify acima. Consulte apenas os registros e trechos relevantes do escopo; para status, confirme o README canônico.
 
 Se `AGENTS.md` não existir, avise o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro."
 
-Dê atenção especial a duas seções do `AGENTS.md`: **Arquitetura de Camadas**, que guia a decomposição no Passo 5, e **Vocabulário e Idioma do Código**, cujos termos você deve usar ao escrever as instruções das tasks — o subagente nomeia o código com as palavras que a instrução usar. Se a seção não existir, sugira ao usuário rodar `/centaur-driven-start-project` para formalizá-la antes de criar a spec (ou acorde as camadas com ele agora e inclua no contexto técnico da spec).
+Dê atenção especial a duas seções do `AGENTS.md`: **Arquitetura de Camadas**, que guia a decomposição no Passo 5, e **Vocabulário e Idioma do Código**, incluindo o glossário nela vinculado. Consulte os termos relevantes e use-os ao escrever as instruções das tasks — o subagente nomeia o código com as palavras que a instrução usar. Se a seção não existir, sugira ao usuário rodar `/centaur-driven-start-project` para formalizá-la antes de criar a spec (ou acorde as camadas com ele agora e inclua no contexto técnico da spec).
 
 ## Passo 2 — Entender a solicitação
 
@@ -44,7 +46,7 @@ Leia com atenção o que o usuário pediu. Identifique:
 
 ## Passo 3 — Explorar o código relevante
 
-Antes de explorar o código, leia `docs/system/Visão geral.md` e os Drafts, Fluxos, Perspectivas e Decisões relevantes, quando existirem. Eles são a referência humana da demanda; use o Graphify para localizar arquivos candidatos, confirme detalhes no código e separe hipótese de comportamento implementado. Registre no contexto técnico da própria `.centaur/specs/YYYY/README.md` quais notas originaram a spec. Após salvar a spec e seu índice, sincronize os documentos no Graphify; o README continua sendo a fonte canônica de status.
+Consulte primeiro o Graphify e leia apenas a Visão geral, Drafts, Fluxos, Perspectivas e Decisões pertinentes à demanda em `docs/system/`. Eles são a referência humana da demanda; use o Graphify para localizar arquivos candidatos, confirme detalhes no código e separe hipótese de comportamento implementado. Registre no contexto técnico da própria `.centaur/specs/YYYY/README.md` quais notas originaram a spec. Após salvar a spec e seu índice, sincronize os documentos no Graphify; o README continua sendo a fonte canônica de status.
 
 Localize e leia os arquivos que fornecem contexto suficiente para decompor a solicitação:
 - Pontos de entrada relacionados

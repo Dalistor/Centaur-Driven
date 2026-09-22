@@ -1,14 +1,18 @@
 ---
 name: centaur-driven-mcp
 description: Ponte dinâmica entre um MCP server e o fluxo centaur - consulta a documentação/tools do MCP informado, extrai o que é relevante para a requisição do usuário e roteia para centaur-driven-tdd, centaur-driven-implement ou centaur-driven-spec com esse contexto anexado. Também instala o MCP no escopo global quando recebe uma URL no lugar do nome. Uso - /centaur-driven-mcp <Nome do MCP | URL do MCP> [Requisição do usuário]. Não depende de nenhum MCP específico - descobre os disponíveis em tempo de execução.
-version: 1.3.0
+version: 1.4.0
 invocable: true
 author: user
 metadata:
-  dependencies: clean-code
+  dependencies: clean-code, graphify
 ---
 
 # centaur-driven-mcp
+
+## Contexto persistente — Graphify
+
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -97,10 +101,7 @@ Se o usuário não informou nome nenhum, liste os MCPs de `claude mcp list` e pe
 
 ## Passo 2 — Ler o contexto do projeto
 
-Leia obrigatoriamente:
-1. `AGENTS.md` na raiz do projeto (arquitetura, camadas, convenções, restrições)
-2. `.centaur/implements/status.md` (histórico — o serviço do MCP pode já ter sido integrado antes)
-3. `.centaur/specs/index.md`, se existir
+Leia `AGENTS.md` e recupere o contexto da solicitação pelo contrato Graphify acima. Consulte apenas os registros e trechos relevantes do escopo; para status, confirme o README canônico.
 
 Se `AGENTS.md` não existir, avise:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro — sem isso não consigo decidir em qual camada a integração entra."
@@ -171,7 +172,7 @@ Invoque a skill [centaur-driven-tdd | centaur-driven-implement] com a seguinte s
 
 [dossiê completo do Passo 4]
 
-Carregue a dependência clean-code nesta sessão, conforme as instruções da skill de destino, preservando o escopo solicitado e o modo de execução.
+Carregue as dependências clean-code e graphify e siga o contrato de contexto nesta sessão, conforme as instruções da skill de destino, preservando o escopo solicitado e o modo de execução.
 
 Este contexto veio da documentação oficial via MCP. Trate-o como fonte de verdade sobre a API externa e não invente campos, endpoints ou comportamentos fora dele. Se precisar de algo que está listado em "Não encontrado no MCP", pare e reporte em vez de assumir.
 ```

@@ -1,14 +1,18 @@
 ---
 name: centaur-driven-update
 description: Atualiza a documentação centaur de um projeto existente - migra AGENTS.md, histórico e grafo Graphify, verifica as dependências da skill e do CLI Graphify, audita conflitos e consolida a verdade. Não toca em código.
-version: 1.4.1
+version: 1.6.0
 invocable: true
 author: user
 metadata:
-  dependencies: clean-code
+  dependencies: clean-code, graphify
 ---
 
 # centaur-driven-update
+
+## Contexto persistente — Graphify
+
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -18,7 +22,7 @@ Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphif
 
 Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
 
-Use os critérios da dependência para identificar divergências de responsabilidades e camadas com evidência. Ao migrar o template, inclua a dependência na seção de qualidade do `AGENTS.md`. Preserve o escopo documental: achados no código são reportados, não corrigidos.
+Use os critérios da dependência para identificar divergências de responsabilidades e camadas com evidência. Ao migrar o template, inclua a dependência nas regras de qualidade do `AGENTS.md`. Preserve o escopo documental: achados no código são reportados, não corrigidos.
 
 As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
@@ -30,7 +34,7 @@ Sua tarefa tem duas metades: **migrar o schema** e **consolidar a verdade**.
 
 ## Restrições absolutas
 
-1. **Você NÃO toca em código do projeto.** Seu escopo é `AGENTS.md` e `.centaur/`. Se encontrar bug, código morto ou violação de camada, **reporte** e oriente (`/centaur-driven-tdd`, `/centaur-driven-implement` ou `/centaur-driven-spec`) — não corrija.
+1. **Você NÃO toca em código do projeto.** Seu escopo é `AGENTS.md`, `.centaur/`, `docs/system/` e os artefatos derivados em `graphify-out/`. Se encontrar bug, código morto ou violação de camada, **reporte** e oriente (`/centaur-driven-tdd`, `/centaur-driven-implement` ou `/centaur-driven-spec`) — não corrija.
 2. **Você nunca apaga uma pasta de implementação nem de spec.** `.centaur/implements/XXXX/` e `.centaur/specs/YYYY/` são registro permanente. Compactação mexe em **índices**, nunca no registro.
 3. **Você não reescreve README de implementação concluída nem de spec concluída.** São registro histórico do que se sabia na época, não documento vivo. Documentos vivos são: `AGENTS.md`, `.centaur/implements/status.md`, `.centaur/specs/index.md` e as specs ainda `Pendente`/`Em andamento`.
 4. **Conflito com duas leituras plausíveis é pergunta, não decisão sua.** Você só resolve sozinho o que o código prova (arquivo existe ou não existe, script existe ou não existe).
@@ -78,17 +82,17 @@ _Documentação centaur — schema `1.4.0`, gerada em `2026-08-28`. Atualize com
 
 Leia o template de `AGENTS.md` dentro do `centaur-driven-start-project` instalado (o bloco do Passo 4 daquela skill) e compare com o `AGENTS.md` do projeto:
 
-1. **Seções que o template tem e o projeto não** → faltando; precisam ser criadas e preenchidas.
+1. **Instruções essenciais que o template tem e o projeto não** → acrescente somente o necessário ao projeto. Referências para documentos existentes podem atender os detalhes; não crie conteúdo vazio para preencher títulos.
 2. **Seções que o projeto tem e o template não** → mantenha. São customizações do usuário; nunca apague seção só porque saiu do template.
 3. **Seções com formato mudado** (ex: virou tabela) → reformate preservando o conteúdo.
 
 Faça o mesmo com a estrutura `.centaur/`: compare `implements/status.md` e `specs/index.md` contra os templates do Passo 5 do `start-project`. Cabeçalho de tabela que ganhou coluna nova precisa ganhar a coluna (com as células antigas preenchidas com `—` quando o dado não existir).
 
-Compare também `docs/system/` com a estrutura de `centaur-driven-graphify`; crie apenas o que faltar. Migre documentos legados de `.centaur/system/` conforme `references/migration.md`, preservando conteúdo e links. Atualize a seção do sistema no AGENTS.md e reporte o estado real do índice.
+Aplique o Passo 5 de `start-project`: reutilize documentos existentes e crie detalhes em `docs/system/` apenas quando houver conteúdo útil. A lista de documentos de `centaur-driven-graphify` é um catálogo de possibilidades; não exige mapas, glossários ou pastas vazias. Migre documentos legados de `.centaur/system/` conforme `references/migration.md`, preservando conteúdo e links. Migre a seção antiga “Sistema no Graphify” para “Contexto persistente com Graphify” do template instalado, incluindo a dependência obrigatória, consultas com orçamento, confirmação das fontes e modo degradado. Preserve regras customizadas e reporte o estado real do índice. Para compactar o AGENTS.md legado, transfira detalhes de arquitetura, operação e vocabulário para documentos apropriados somente no plano autorizado, preserve todo o conteúdo válido e substitua os trechos transferidos por resumos e links verificáveis. Não apague conteúdo por ter saído do template.
 
 **Seções que exigem informação que não está em lugar nenhum** — tipicamente as mais novas — viram perguntas para o usuário. Levante primeiro o que der para inferir do código e apresente já preenchido, para ele só confirmar. Exemplos do que costuma faltar em documentação antiga:
 
-- **Arquitetura de Camadas** → mapeie as pastas reais e proponha a tabela (camada, pasta, responsabilidade, o que é proibido)
+- **Arquitetura de Camadas** → documente limites e dependências reais; use tabela curta quando útil e não imponha novas camadas
 - **Testes** → leia `package.json`/`pytest.ini`/`Makefile` e preencha framework, comandos e convenção de nome
 - **Vocabulário e Idioma do Código** → levante os termos do domínio realmente usados no código e o idioma dos identificadores e comentários; leve para o usuário confirmar quais são as palavras oficiais e quais são variações a evitar
 
@@ -136,10 +140,10 @@ Aqui está o valor da skill: encontrar onde a documentação **mente**.
 Cruze as implementações pelos **arquivos afetados** no `status.md`. Onde duas ou mais tocaram o mesmo arquivo, leia os READMEs delas em ordem: a mais recente que mudou aquele comportamento é a verdade atual. Sinalize quando uma implementação antiga descreve como verdade presente algo que uma posterior desfez — o problema não é o registro antigo (ele é histórico legítimo), é o `AGENTS.md` ou o índice ainda repetirem a versão velha.
 
 **5c. Implementação contra `AGENTS.md`**:
-As skills de execução só atualizam o `AGENTS.md` quando julgam a mudança relevante — decisão sujeita a erro. Procure implementações que mudaram arquitetura, estrutura de pastas, dependência importante, forma de rodar ou de deployar e **não** se refletem no `AGENTS.md`. Cada uma dessas é uma atualização faltando.
+As skills de execução só atualizam o `AGENTS.md` quando julgam a mudança relevante — decisão sujeita a erro. Procure implementações que mudaram arquitetura, estrutura de pastas, dependência importante, forma de rodar ou de deployar e **não** se refletem nas instruções essenciais do `AGENTS.md` ou nos documentos vinculados pertinentes. Cada uma dessas é uma atualização faltando; não duplique no AGENTS.md os detalhes já documentados corretamente.
 
 **5d. Conhecimento preso no histórico**:
-Regra ou convenção que virou permanente mas só existe dentro de um `implements/XXXX/README.md` — cliente HTTP padrão do projeto, estratégia de tratamento de erro, padrão de mock, convenção de nomenclatura estabelecida no meio do caminho. Um agente novo lê o `AGENTS.md`, não vasculha 30 READMEs. Isso precisa **subir** para o `AGENTS.md`.
+Regra ou convenção que virou permanente mas só existe dentro de um `implements/XXXX/README.md` — cliente HTTP padrão do projeto, estratégia de tratamento de erro, padrão de mock, convenção de nomenclatura estabelecida no meio do caminho. Um agente novo lê o `AGENTS.md`, não vasculha 30 READMEs. Promova regras essenciais para `AGENTS.md` e detalhes para a documentação canônica vinculada, recuperável pelo Graphify. Uma estratégia específica de mock ou glossário extenso não precisa ser lida em toda sessão.
 
 Para cada conflito, registre: o que a documentação diz, o que é verdade, e a evidência (arquivo, implementação, comando). Sem evidência não é conflito, é palpite.
 
@@ -163,14 +167,14 @@ Execute o plano confirmado, nesta ordem:
 2. Aplicar as correções de integridade nos índices
 3. Migrar as seções do `AGENTS.md` (crie as que faltam, reformate as que mudaram, **preserve as customizadas**)
 4. Corrigir os pontos onde a documentação contradizia o código
-5. Promover para o `AGENTS.md` o conhecimento que estava preso no histórico
+5. Promover regras essenciais para `AGENTS.md` e detalhes duráveis para documentos vinculados, preservando os registros históricos
 6. Inicializar ou completar `docs/system/` e sincronizar código e documentos no Graphify conforme o plano
 
 Edite cirurgicamente: mantenha o texto que continua correto com as palavras originais do usuário. Reescrever seção inteira que estava certa só troca a redação dele pela sua.
 
 ## Passo 8 — Otimizar para agentes novos
 
-Toda skill centaur lê `AGENTS.md` e `status.md` no primeiro passo. O que estiver aí custa contexto em **toda** execução futura — logo, o critério aqui é: o que um agente que chega precisa saber para agir corretamente?
+Toda skill centaur lê as instruções de `AGENTS.md` e recupera o contexto relevante pelo Graphify; `status.md` é consultado sob demanda. O que estiver no `AGENTS.md` custa contexto em **toda** execução futura — logo, o critério aqui é: o que um agente que chega precisa saber para agir corretamente?
 
 **`AGENTS.md` — preciso e curto:**
 - Cada seção descreve o estado **atual**, no presente. Nada de "antes era X, agora é Y" (isso é histórico, mora no `implements/`)
@@ -179,7 +183,7 @@ Toda skill centaur lê `AGENTS.md` e `status.md` no primeiro passo. O que estive
 - Se o `AGENTS.md` estiver longo a ponto de esconder o essencial, proponha mover o detalhe profundo para um arquivo dedicado (`docs/`) e deixar o resumo com o ponteiro
 
 **`status.md` — trilha recente:**
-Índice que cresce sem limite é lido inteiro toda vez. Quando passar de ~40 linhas (ou quando o usuário achar cedo demais), proponha arquivar:
+Consulte o índice por escopo e assunto; o arquivamento mantém sua navegação manejável, sem exigir leitura integral em toda sessão. Quando passar de ~40 linhas (ou quando o usuário achar cedo demais), proponha arquivar:
 
 1. Crie `.centaur/implements/arquivo.md` com o mesmo formato de tabela
 2. Mova para lá as linhas antigas, mantendo no `status.md` as mais recentes

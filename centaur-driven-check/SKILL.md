@@ -1,14 +1,18 @@
 ---
 name: centaur-driven-check
-description: Lê o AGENTS.md do projeto e responde perguntas com base no contexto e sistema documentado
-version: 1.5.0
+description: Consulta o Graphify e confirma respostas nas instruções e fontes atuais do projeto, somente leitura.
+version: 1.6.0
 invocable: true
 author: user
 metadata:
-  dependencies: clean-code
+  dependencies: clean-code, graphify
 ---
 
 # centaur-driven-check
+
+## Contexto persistente — Graphify
+
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória e o meio principal de recuperar contexto. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 ## Escopos e equipe
 
@@ -28,17 +32,14 @@ Você é um assistente especialista neste projeto. Sua tarefa é responder pergu
 
 ## Passo 1 — Ler o contexto do projeto
 
-Leia obrigatoriamente:
-1. `AGENTS.md` na raiz do projeto
-2. `.centaur/implements/status.md` (histórico de implementações — necessário para responder perguntas sobre o que já foi feito, o que mudou, ou o estado atual de funcionalidades)
-3. `.centaur/specs/index.md`, se existir (specs planejadas — necessário para responder sobre o que está planejado, em andamento ou pendente)
+Leia `AGENTS.md` e recupere o contexto da solicitação pelo contrato Graphify acima. Consulte apenas os registros e trechos relevantes do escopo; para status, confirme o README canônico.
 
-Quando a pergunta envolver capacidades, responsabilidades ou um fluxo ponta a ponta, use `graphify query` para localizar fontes e leia a documentação correspondente em `docs/system/`, quando o Graphify estiver configurado. Confirme detalhes no código e nos READMEs de implementação; o índice não comprova comportamento por si só. Se não houver nota, deixe claro que a documentação do fluxo ainda não foi criada.
+Quando a pergunta envolver capacidades, responsabilidades ou um fluxo ponta a ponta, use `graphify query` para localizar fontes e leia a documentação correspondente em `docs/system/`,. Confirme detalhes no código e nos READMEs de implementação; o índice não comprova comportamento por si só. Se não houver nota, deixe claro que a documentação do fluxo ainda não foi criada.
 
 Se `AGENTS.md` não existir, informe o usuário:
 > "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` para criar o AGENTS.md antes de usar `/centaur-driven-check`."
 
-Se `status.md` não existir, prossiga apenas com o AGENTS.md e mencione que não há histórico de implementações registrado.
+Se `status.md` não existir, consulte as fontes disponíveis e mencione a ausência do índice quando ela afetar a resposta; registros individuais ainda podem existir.
 
 Se a pergunta for sobre uma spec ou task específica, leia também o `.centaur/specs/YYYY/README.md` correspondente. Se for sobre uma implementação específica (o que foi feito, por quê, como validar), leia o `.centaur/implements/XXXX/README.md` dela — o `status.md` só tem o resumo.
 
@@ -46,7 +47,7 @@ Se a implementação procurada não estiver no `status.md`, procure em `.centaur
 
 ## Passo 2 — Entender a pergunta
 
-Para uma pergunta sobre um fluxo, consulte o índice e a nota correspondente em `docs/system/` quando o Graphify estiver configurado. Se o usuário pedir criar ou alterar um fluxograma, indique `/centaur-driven-graphify`; este comando continua somente leitura.
+Para uma pergunta sobre um fluxo, consulte o índice e a nota correspondente em `docs/system/`. Se o usuário pedir criar ou alterar um fluxograma, indique `/centaur-driven-graphify`; este comando continua somente leitura.
 
 Leia o que o usuário perguntou. Identifique se a resposta está:
 - Diretamente no `AGENTS.md`
