@@ -132,6 +132,8 @@ Planejamentos de implementações complexas, decompostos em tasks para subagente
 _Atualizado automaticamente pelas skills `/centaur-driven-spec`, `/centaur-driven-tdd`, `/centaur-driven-implement` e `/centaur-driven-run`_
 ```
 
+Gere `.centaur/andamento.html` com o script `scripts/render-dashboard.py` da skill `centaur-driven-graphify` após criar `workspace.json` e os índices. Passe a raiz do projeto como argumento. A página mostra todos os escopos, specs e tarefas pendentes a partir dos READMEs existentes; a área de notas é local ao navegador. Regere-a após mudanças nas specs conforme o contrato de contexto.
+
 ## Passo 6 — Indexar, verificar e entregar
 
 Após salvar as fontes canônicas, siga **Inicializar e sincronizar** de `centaur-driven-graphify`. Reutilize o grafo existente e atualize apenas o necessário quando suportado. Na primeira execução, gere o índice de código e a extração semântica dos documentos; inclua AGENTS.md, documentação existente e registros de todos os escopos, verificando explicitamente a cobertura de `.centaur/`. Inicializar o índice não exige gerar mapas ou HTML.

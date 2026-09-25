@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Andamento · Centaur</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; background: #f5f4f0; color: #202824; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 1100px; margin: auto; padding: 32px 20px 64px; }
+    header { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 28px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -.04em; margin-bottom: 8px; }
+    h2 { font-size: 1.35rem; margin-bottom: 4px; }
+    h3 { font-size: 1.1rem; }
+    .eyebrow { color: #47705c; font-size: .7rem; font-weight: 800; letter-spacing: .16em; margin-bottom: 10px; }
+    .muted, .meta { color: #617069; font-size: .9rem; }
+    .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+    .summary div, .module, .attention { background: white; border: 1px solid #dce3db; border-radius: 14px; box-shadow: 0 2px 10px #18291a08; }
+    .summary div { padding: 20px; }
+    .summary strong { display: block; font-size: 2rem; line-height: 1; margin-bottom: 8px; }
+    .summary span { color: #617069; font-size: .85rem; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+    .modules { display: grid; gap: 16px; }
+    .module { padding: 22px; }
+    .module-head, .spec-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+    .module-head { border-bottom: 1px solid #e9ede8; margin-bottom: 10px; }
+    .module-head strong { white-space: nowrap; color: #396a4e; }
+    .spec { padding: 16px 0; border-bottom: 1px solid #edf0ec; }
+    .spec:last-child { border-bottom: 0; padding-bottom: 0; }
+    .spec a, .attention a { color: #20563a; font-weight: 700; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .spec p { margin: 8px 0; }
+    .spec ul, .attention ul { padding-left: 20px; margin: 8px 0 0; }
+    li { margin: 5px 0; line-height: 1.4; }
+    .badge { border-radius: 999px; padding: 4px 9px; white-space: nowrap; font-size: .75rem; font-weight: 700; }
+    .badge.active { background: #e9f0e8; color: #305b3e; }
+    .badge.blocked { background: #fff0dd; color: #855019; }
+    .badge.done { background: #e6f4ed; color: #226444; }
+    .attention { padding: 22px; position: sticky; top: 20px; }
+    .attention li { font-size: .9rem; }
+    label { display: block; font-weight: 700; margin: 24px 0 8px; }
+    textarea { width: 100%; min-height: 160px; resize: vertical; border: 1px solid #b9cabe; border-radius: 8px; padding: 12px; font: inherit; color: inherit; }
+    .note-help { margin: 8px 0 0; font-size: .8rem; color: #617069; }
+    .empty { color: #617069; margin-bottom: 0; }
+    @media (max-width: 760px) { header { display: block; } .layout { grid-template-columns: 1fr; } .attention { position: static; } }
+    @media (max-width: 480px) { .summary { grid-template-columns: 1fr 1fr; } .summary div:last-child { grid-column: span 2; } .module-head, .spec-head { flex-wrap: wrap; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header><div><p class="eyebrow">CENTAUR / PROJETO</p><h1>Andamento</h1><p class="muted">Módulos, trabalho restante e pontos que pedem atenção.</p></div><p class="meta">Gerado em {{UPDATED}}</p></header>
+    <div class="summary" aria-label="Resumo"><div><strong>{{MODULE_COUNT}}</strong><span>escopos</span></div><div><strong>{{SPEC_COUNT}}</strong><span>specs</span></div><div><strong>{{PENDING_COUNT}}</strong><span>specs por concluir</span></div></div>
+    <div class="layout">
+      <div class="modules">{{MODULES}}</div>
+      <aside class="attention"><p class="eyebrow">ATENÇÃO</p><h3>Bloqueios</h3><ul>{{ATTENTION}}</ul><label for="notes">Minhas notas</label><textarea id="notes" placeholder="Anote aqui o que precisa acompanhar..."></textarea><p class="note-help" id="note-help">Notas salvas neste navegador. Não alteram as specs.</p></aside>
+    </div>
+  </main>
+  <script>
+    const notes = document.getElementById('notes');
+    const help = document.getElementById('note-help');
+    const key = 'centaur-notes:' + location.pathname;
+    try {
+      notes.value = localStorage.getItem(key) || '';
+      notes.addEventListener('input', () => localStorage.setItem(key, notes.value));
+    } catch (_) {
+      help.textContent = 'Armazenamento local indisponível. Copie suas notas antes de fechar a página.';
+    }
+  </script>
+</body>
+</html>

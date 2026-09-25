@@ -111,6 +111,7 @@ O fluxo estabelece:
 
 - `AGENTS.md` curto na raiz — regras, comandos essenciais, limites arquiteturais e recuperação de contexto.
 - `.centaur/workspace.json` e índices de specs — escopos, responsáveis e backend de registros; índices de implementações somente em `files`, preservando os existentes.
+- `.centaur/andamento.html` — painel local de módulos, specs, tarefas pendentes e bloqueios, gerado a partir dos READMEs das specs. As notas digitadas na página ficam no navegador.
 - Documentos detalhados somente quando necessários — preferindo fontes existentes; arquitetura, operação, glossário e decisões podem ficar em `docs/system/`.
 - `graphify-out/` — índice de código e documentos, gerado ou atualizado após salvar as fontes e verificado com consultas.
 
@@ -272,6 +273,7 @@ projeto/
 ├── graphify-out/                   # Índice derivado de código e documentos
 └── .centaur/
     ├── workspace.json              # Escopos, caminhos e responsáveis
+    ├── andamento.html              # Painel local de andamento
     ├── modules/
     │   ├── frontend/               # specs/index.md e implements/status.md próprios
     │   └── backend/                # specs/index.md e implements/status.md próprios

@@ -222,6 +222,8 @@ Adicione uma linha:
 
 Se a tabela ainda contiver uma linha placeholder (`| — | — | — | — | — |`), remova-a ao inserir a primeira linha real.
 
+Após salvar o README e o índice, regenere `.centaur/andamento.html` conforme o contrato de contexto, para que o novo trabalho apareça no painel local.
+
 ## Passo 9 — Informar o usuário
 
 Confirme a criação com:
