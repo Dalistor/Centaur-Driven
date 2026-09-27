@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-check
 description: Consulta o Graphify e confirma respostas nas instruções e fontes atuais do projeto, somente leitura.
-version: 1.7.0
+version: 4.0.0
 invocable: true
 author: user
 metadata:
@@ -10,6 +10,10 @@ metadata:
 ---
 
 # centaur-driven-check
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ## Memória de implementações
 
@@ -31,41 +35,18 @@ Use os critérios da dependência quando a pergunta envolver qualidade, localiza
 
 As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
-Você é um assistente especialista neste projeto. Sua tarefa é responder perguntas com base no que está documentado e no código real — não em suposições genéricas.
+Responder sobre comportamento, realização e próximos passos com base nas fontes atuais. Esta skill é somente leitura: não editar contratos, estado, specs, código, grafo ou HTML.
 
-**Restrição absoluta: esta skill é somente leitura.** Não edite nenhum arquivo do projeto nem de `.centaur/` — nem para "aproveitar e corrigir" algo que encontrar. Se o usuário pedir uma mudança, oriente: `/centaur-driven-tdd` (comportamento testável), `/centaur-driven-implement` (estrutural/config) ou `/centaur-driven-spec` (demanda grande).
+## Consultar
 
-## Passo 1 — Ler o contexto do projeto
+1. Ler AGENTS.md e resolver escopo. Recuperar contexto pelo Graphify e histórico pelo backend configurado quando necessário; confirmar as fontes atuais.
+2. Para "o que faz", ler contrato aprovado e implementação pertinente. Distinguir desejo, hipótese e comportamento observado. Contrato não prova código.
+3. Para "o que está feito", usar `scripts/validate-lifecycle.py` e a projeção em memória `load_project` de `scripts/volante.py` (ambos só leitura), conferindo fontes e evidências. Separar implementação, verificação e entrega registrada. Gate estrutural verde não significa projeto pronto. Não confiar num HTML antigo ou checklist.
+4. Para "próximos passos", aplicar a tabela do ciclo: decisão material, dependência, implementação, prova, integração ou publicação sob autorização. Mostrar primeiro o bloqueio que o usuário precisa resolver e a próxima ação independente da IA. Não inventar planejamento fora do objetivo.
+5. Para impacto de mudança, consultar relações no Graphify e confirmar consumidores, regras, testes/configuração e evidências afetados; relações inferidas precisam ser rotuladas. Apontar o que deve ser revalidado.
 
-Leia `AGENTS.md` e recupere o contexto da solicitação pelo contrato Graphify acima. Consulte apenas os registros e trechos relevantes do escopo; para status, confirme o README canônico.
+## Responder
 
-Quando a pergunta envolver capacidades, responsabilidades ou um fluxo ponta a ponta, use `graphify query` para localizar fontes e leia a documentação correspondente em `docs/system/`,. Confirme detalhes no código e nos READMEs de implementação; o índice não comprova comportamento por si só. Se não houver nota, deixe claro que a documentação do fluxo ainda não foi criada.
+Apresentar a capacidade e suas três dimensões, referência da regra/versão, prova disponível, limitações e próximo passo. Evidência válida para fontes selecionadas não garante ausência de efeitos indiretos. Specs legadas sem contrato ficam com verificação desconhecida, mesmo concluídas historicamente.
 
-Se `AGENTS.md` não existir, informe o usuário:
-> "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` para criar o AGENTS.md antes de usar `/centaur-driven-check`."
-
-No backend ai-memory, leia a página indicada e a fila relevante; ausência de `implements/status.md` é esperada. As consultas a `implements/` abaixo servem ao histórico legado. No backend files, se `status.md` não existir, consulte as fontes disponíveis e mencione a ausência do índice quando ela afetar a resposta; registros individuais ainda podem existir.
-
-Se a pergunta for sobre uma spec ou task específica, leia também o `.centaur/specs/YYYY/README.md` correspondente. Se for sobre uma implementação específica (o que foi feito, por quê, como validar), leia o `.centaur/implements/XXXX/README.md` dela — o `status.md` só tem o resumo.
-
-Se a implementação procurada não estiver no `status.md`, procure em `.centaur/implements/arquivo.md`: implementações antigas têm o índice arquivado lá por `/centaur-driven-update`, mas a pasta `XXXX/` continua no lugar.
-
-## Passo 2 — Entender a pergunta
-
-Para uma pergunta sobre um fluxo, consulte o índice e a nota correspondente em `docs/system/`. Se o usuário pedir criar ou alterar um fluxograma, indique `/centaur-driven-graphify`; este comando continua somente leitura.
-
-Leia o que o usuário perguntou. Identifique se a resposta está:
-- Diretamente no `AGENTS.md`
-- No código (precisa ler arquivos adicionais)
-- Em ambos
-
-Se precisar de mais contexto do código para responder com precisão, leia os arquivos relevantes antes de responder.
-
-## Passo 3 — Responder
-
-Responda de forma direta e específica para este projeto. Não dê respostas genéricas.
-
-- Se a pergunta for sobre como algo funciona → explique com base no código e na arquitetura documentada
-- Se for sobre onde algo está → aponte o arquivo e linha
-- Se for sobre uma decisão técnica → explique o que está documentado e, se não estiver, diga claramente que não foi documentado
-- Se a pergunta revelar algo que deveria estar no `AGENTS.md` mas não está → responda e sugira ao usuário atualizar a documentação com `/centaur-driven-start-project` ou manualmente
+Apontar o Volante existente como navegação e informar se a captura está antiga. Para regenerar ou registrar alterações, encaminhar ao fluxo de escrita já autorizado (`graphify`, `update`, `spec`, `implement`/`tdd`), sem executar esse trabalho numa consulta pura. Não exigir inicialização ou migração para responder o que as fontes já comprovam.

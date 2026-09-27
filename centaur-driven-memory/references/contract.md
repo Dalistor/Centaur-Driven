@@ -51,7 +51,7 @@ Na retomada, consulte o caminho salvo e a fila antes de relançar trabalho. Uma 
 
 ## Execução de specs
 
-- O coordenador passa backend, identidade, ID/caminho da página, escopo e caminho absoluto da spec para cada executor, além da instrução verbatim. Registra o ID e estado de memória na task antes de iniciar, para recuperação após interrupção.
+- O coordenador passa backend, identidade, ID/caminho da página, escopo e caminho absoluto da spec para cada executor, além da instrução vigente da task e dos limites do contrato. Registra o ID e estado de memória na task antes de iniciar, para recuperação após interrupção.
 - No backend ai-memory, executores escrevem apenas sua fila local e entregam o registro completo; não chamam `memory_write_page`, não atualizam índices ou specs. Em worktrees isolados, o coordenador recolhe os arquivos da fila ou o corpo do relatório antes de encerrar o worktree.
 - O coordenador publica serialmente por execução ao consolidar a onda, verifica leitura/checkpoint e escreve a referência na task. O checklist registra validação do código; a task mantém separadamente `Memória: confirmada | pendente` e o destino/fila. Memória indisponível não marca código como falho nem torna a spec integralmente entregue sem reportar a pendência.
 - Falha sem relatório exige inspecionar diff, fila e referência previamente atribuída; não marque concluída nem relance automaticamente. Nenhuma busca ou handoff substitui a posse da task e o lock da spec.
@@ -62,3 +62,7 @@ Na retomada, consulte o caminho salvo e a fila antes de relançar trabalho. Uma 
 - `start-project`: registre o backend verificado e gere specs/índices. Crie `implements/status.md` apenas em `files`; no modo ai-memory, o campo `implements` dos escopos pode ser omitido quando não houver histórico. Não crie fila vazia nem registros fictícios.
 - `update`: preserve backend e histórico. Audite arquivos legados somente se existirem, e páginas/fila relevantes no modo ai-memory. Não trate ausência de `implements/` como corrupção nesse modo. Migração explícita segue `centaur-driven-memory`; não reinstale hooks para atualizar documentação.
 - Regras obrigatórias permanecem em `AGENTS.md`, planejamento/checklist em specs e arquitetura atual em documentos do projeto. A wiki guarda histórico e aprendizados; esses registros não substituem as fontes versionadas que a equipe precisa para trabalhar.
+
+## Contratos e estado atual
+
+O [ciclo por contratos](../../centaur-driven-graphify/references/lifecycle.md) governa a realização. Contratos versionados, estado e evidências locais existem também no backend ai-memory: são fontes operacionais do projeto, não duplicação da wiki. Páginas de memória registram IDs/referências, decisões e histórico. Não transformar relato recuperado em prova nem copiar todo o histórico para o Volante.

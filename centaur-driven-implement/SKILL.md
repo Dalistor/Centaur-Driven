@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-implement
 description: Implementa mudanças pontuais e diretas sem TDD (estruturais, config, UI, ou projetos sem testes) - lê o contexto, tira dúvidas, aplica, valida e registra no backend de memória configurado. Para comportamento testável use centaur-driven-tdd; para demandas grandes use centaur-driven-spec + centaur-driven-run.
-version: 1.14.0
+version: 4.0.0
 invocable: true
 author: user
 metadata:
@@ -10,6 +10,10 @@ metadata:
 ---
 
 # centaur-driven-implement
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ## Memória de implementações
 
@@ -37,11 +41,21 @@ Depois da validação, use `centaur-driven-graphify` para registrar as notas e f
 
 Você é um engenheiro de software sênior executando uma implementação documentada. Siga cada passo na ordem — não pule etapas.
 
-**Escopo desta skill: mudanças pontuais e diretas** — uma correção, um ajuste, uma feature pequena contida em poucas camadas. Se a solicitação for grande (afeta muitas camadas, exige vários passos independentes, mexeria em mais de ~4 arquivos distintos), **não implemente**: oriente o usuário a planejar com `/centaur-driven-spec` e executar com `/centaur-driven-run`.
+**Escopo desta skill: mudanças pontuais e diretas** — uma correção, um ajuste, uma feature pequena contida em poucas camadas. Se a solicitação for grande (exige vários comportamentos independentes, decisões de produto ou integração que precisam de planejamento), **não implemente**: oriente o usuário a planejar com `/centaur-driven-spec` e executar com `/centaur-driven-run`.
 
 **Exceção:** em modo spec (solicitação com prefixo `Spec YYYY — Task NN`), execute sempre — a task já foi dimensionada na criação da spec.
 
 **Roteamento para TDD:** se a mudança tem **regra de negócio relevante** (decisão, validação com consequência, cálculo, correção de bug) **e** o projeto tem infraestrutura de teste, use `/centaur-driven-tdd` no lugar desta skill — o teste vem antes do código. Continue aqui quando a mudança for estrutural (renomear, mover arquivo), de configuração, só de UI/estilo, **comportamento trivial mesmo que testável** (mapeamento direto de campos, passthrough, fiação sem lógica), ou quando o projeto não tiver testes automatizados. Ser tecnicamente testável não obriga TDD — teste desnecessário custa em toda execução futura da suíte. Em modo spec, obedeça ao que a task manda: se a instrução da task pedir TDD, invoque `/centaur-driven-tdd`.
+
+## Vínculo obrigatório à realização do contrato
+
+Antes de editar, identificar contrato/versão/regras, limites herdados e autorização. Mudança pequena pode reutilizar contrato existente; sem contrato pertinente, registrar o molde mínimo pela spec (o pedido inequívoco serve de autorização), sem exigir planejamento extenso. Em legado, preservar histórico; evidência e estado novos não são inferidos de checklists antigos.
+
+Executar uma entrega por comportamento, podendo atravessar camadas dentro da arquitetura e do escopo. Escolher detalhes técnicos dentro de `autonomy`. Mudança de regra, permissão, compatibilidade ou limite exige decisão/nova versão; não ajustar contrato ou testes para encobrir divergência.
+
+Após validar, registrar fontes com caminhos/linhas e evidências conforme o ciclo normativo; incluir arquivos de produção, testes e configurações que sustentam o resultado. Manter implementação, verificação e entrega separadas. Sem prova, declarar não verificada. Não marcar integração/publicação a partir de execução local.
+
+No modo direto, atualizar estado e gerar Volante. Em modo spec, produzir evidência individual imutável e delta de estado no relatório; somente o coordenador consolida `.centaur/state/`, specs, índices e visor. Antes de integrar, aplicar o gate `--ready` de cada regra e os checks reais. Ausência de Graphify não autoriza omitir estado ou evidência.
 
 ## Passo 1 — Ler o contexto do projeto
 
@@ -76,11 +90,11 @@ Mapeie exatamente o que precisa mudar e onde.
 
 ## Passo 4 — Tirar todas as dúvidas
 
-Antes de escrever qualquer código, liste todas as dúvidas que ainda existem. Se houver qualquer ambiguidade sobre comportamento, edge cases, integração com outras partes, ou preferências de implementação — pergunte agora.
+Antes de escrever, consulte contrato e fontes. Pergunte apenas sobre lacunas materiais de comportamento, limites ou integração que não estejam resolvidas; detalhes delegados pertencem à autonomia da IA.
 
 Apresente as dúvidas de forma clara e objetiva. Aguarde as respostas do usuário antes de continuar.
 
-Se não houver dúvidas, confirme o plano de implementação em uma ou duas frases e pergunte se pode prosseguir.
+Se não houver dúvidas materiais e o pedido já autorizar a mudança, informe o comportamento e prossiga sem reconfirmação.
 
 <!-- [modo spec] Mantenha este bloco sincronizado com centaur-driven-tdd, Passo 5 -->
 **[modo spec]** Não pergunte nada — as decisões já foram resolvidas quando a spec foi criada, e como subagente você não tem canal com o usuário. Se a instrução da task for suficiente, prossiga direto. Se encontrar uma ambiguidade que **realmente impede** a implementação (conflito com o código atual, dependência não concluída), **pare sem implementar**:
@@ -114,8 +128,8 @@ No backend ai-memory, registre o bloqueio na fila e encerre com o relatório do 
 
 Com todas as dúvidas resolvidas, execute a implementação:
 - Siga as convenções e regras definidas no `AGENTS.md`
-- **Respeite a Arquitetura de Camadas do `AGENTS.md`**: cada responsabilidade na sua camada (validação de forma em DTOs, regra de negócio em services, acesso a dados em repositories, orquestração de requisição em handlers). Nunca atravesse camadas — se precisar de algo de outra camada, injete/chame pela interface dela
-- Se a camada necessária ainda não existe no projeto (ex: primeira repository), crie-a na pasta definida pelo `AGENTS.md`, seguindo o padrão da tabela de camadas
+- **Respeite a arquitetura real registrada no `AGENTS.md` e no contrato**: manter responsabilidades e direção de dependências. DTO/services/repositories/handlers são exemplos quando adotados pelo projeto, não camadas obrigatórias
+- Criar uma responsabilidade/camada nova somente se prevista pelo contrato e pela arquitetura autorizada; não introduzir repository ou service só para cumprir um exemplo
 - Se o `AGENTS.md` não tiver a seção "Arquitetura de Camadas", siga o padrão dos arquivos vizinhos e sugira ao usuário rodar `/centaur-driven-start-project` para formalizar a arquitetura
 - **Escreva para quem vai ler**: siga o princípio de expressividade do Passo 7 enquanto escreve, não só na revisão
 - Faça mudanças cirúrgicas — não refatore o que não está no escopo
@@ -158,7 +172,7 @@ Após implementar, tente validar nesta ordem:
 1. **Testes**: verifique se existe script de test no package.json, pytest.ini, Makefile ou similar. Se existir, execute. Se não existir, registre "projeto sem testes automatizados" e siga. Se a mudança acabou introduzindo comportamento testável sem teste, aplique proporcionalidade: **regra de negócio relevante** ganha o teste agora (e registre no README que ele veio depois do código, não por TDD); **comportamento trivial** (mapeamento direto, passthrough, formatação simples) não precisa — registre "sem teste — comportamento trivial" no README e siga. Não escreva teste por ritual.
 2. **Lint / type-check**: verifique se existe script de lint ou type-check. Se existir, execute. Se não existir, registre e siga.
 3. **Revisão manual**: leia o código implementado uma última vez e confirme que não há bugs óbvios, casos não tratados ou regressões.
-4. **Revisão de camadas**: confirme que nenhuma mudança violou a Arquitetura de Camadas — sem regra de negócio em handler, sem query fora de repository, sem DTO vazando para o domínio. Se violou, corrija antes de documentar.
+4. **Revisão de arquitetura**: conferir as fronteiras e dependências efetivamente adotadas pelo projeto. Em arquitetura em camadas, verificar suas separações; em organização por capacidades ou outro modelo, aplicar os limites correspondentes. Não inventar camadas nem refatorar arquitetura fora do contrato.
 
 Se encontrar problemas na validação, corrija antes de documentar. Se nenhum mecanismo de validação existir no projeto, documente isso explicitamente no README da implementação.
 
@@ -193,7 +207,7 @@ Em `files`, crie `.centaur/implements/XXXX/README.md`. Em `ai-memory`, use este 
 # [XXXX] [Título curto e descritivo da implementação]
 
 **Data:** [saída de `date +%F`]
-**Status:** Concluído
+**Status:** [Concluído ou Bloqueado, conforme resultado real]
 **Modo:** direto
 **Spec:** [se veio de uma spec: `.centaur/specs/YYYY/` — Task NN. Caso contrário, omita esta linha]
 
@@ -219,6 +233,9 @@ Em `files`, crie `.centaur/implements/XXXX/README.md`. Em `ai-memory`, use este 
 ## Como validar
 [Como testar/verificar manualmente que funciona]
 
+## Contrato e realização
+[Contrato/versão/regras; fontes com linhas; IDs de evidências; implementação/verificação/entrega; decisões autônomas, impacto previsto × real e próximo passo]
+
 ## Resultado da validação
 [O que foi executado e o resultado: testes passando, sem erros de lint, etc]
 ```
@@ -236,6 +253,8 @@ Somente em `files`, adicione uma linha na tabela de `.centaur/implements/status.
 Se a tabela ainda contiver a linha placeholder (`| — | — | — | — | — |`), remova-a ao inserir a primeira linha real.
 
 ## Passo 12 — Atualizar AGENTS.md se necessário
+
+**Modo spec:** só editar AGENTS.md, glossário ou documento compartilhado se a task possuir esses arquivos explicitamente. Caso contrário entregar o delta documental ao coordenador; não criar obrigação implícita de escrita concorrente.
 
 Se a implementação:
 - Adicionou uma funcionalidade nova relevante para o projeto
@@ -276,6 +295,10 @@ Implementação: XXXX
 Título: [título usado no README da implementação]
 Arquivos afetados: [código, testes e documentos alterados, incluindo o README da implementação]
 Graphify: sincronização pendente pelo coordenador; [escopo e caminhos a incluir]
+Contrato/regras: [IDs e versão]
+Realização: [implementação, evidências selecionadas, entrega local e delta de estado]
+Impacto: [previsto × real, decisões e desvios]
+Próximo passo: [ação ou decisão necessária]
 Validação: [resultado resumido]
 Mapa: [caminho e resultado real; se bloqueada sem implementação, não aplicável]
 Perspectivas afetadas: [ids de views existentes ou nenhuma; atualização reservada ao orquestrador]

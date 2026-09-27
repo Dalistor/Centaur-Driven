@@ -2,12 +2,16 @@
 name: centaur-driven-commitAndPush
 description: Cria commit do trabalho solicitado e publica na main após buscar a main remota, simular a integração e validar o resultado; interrompe se houver conflitos e sugere como resolvê-los.
 metadata:
-  version: 1.2.0
+  version: 4.0.0
   dependencies: graphify
   optional-dependencies: ai-memory
 ---
 
 # centaur-driven-commitAndPush
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ## Memória de implementações
 
@@ -18,6 +22,12 @@ Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) j
 Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
 
 Use quando o usuário pedir commit e push na `main`. Criar ou editar esta skill não autoriza publicar o repositório. Uma invocação explícita para publicar já autoriza commit, integração limpa e push normal no escopo pedido; não peça confirmação repetida. Respeite permissões do ambiente e proteção de branch.
+
+## Evidências e integração de contratos
+
+Para mudanças vinculadas a contratos, identificar regras afetadas e executar `validate-lifecycle.py <worktree> --ready <contrato/REGRA>` junto dos checks reais no resultado integrado. Revalidar provas cujos arquivos mudaram na integração; não transportar um aprovado do checkout anterior sem conferir hashes. Specs legadas sem vínculo exigem os gates existentes, com limitação explícita, sem migração automática como efeito colateral.
+
+Esta skill publica no Git, não comprova deploy. Após confirmar push, registrar a integração das regras no estado com revisão, destino, data e referência real, quando esse registro fizer parte do escopo autorizado. O registro posterior referencia o commit de código já confirmado, não o próprio commit que o registra. Publicar o registro em commit subsequente com a mesma checagem normal, ou reportar estado pendente quando isso não estiver autorizado; nunca afirmar atualização que não foi salva. Regenerar Volante após atualizar estado; Graphify continua somente leitura neste fluxo.
 
 ## Preparar o candidato
 

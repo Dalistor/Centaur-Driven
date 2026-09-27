@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-run
-description: Orquestra a execução de uma spec, lançando subagentes por task com centaur-driven-tdd ou centaur-driven-implement conforme o Modo da task, e respeitando dependências. Restrito a tasks de specs — não executa nada fora delas.
-version: 1.9.0
+description: Coordena entregas de specs dentro de contratos aprovados, com execução adaptativa, evidências, integração e próximos passos; funciona com um ou vários agentes e modelos.
+version: 4.0.0
 invocable: true
 author: user
 metadata:
@@ -10,6 +10,10 @@ metadata:
 ---
 
 # centaur-driven-run
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ## Memória de implementações
 
@@ -27,105 +31,49 @@ Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphif
 
 Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
 
-Verifique a disponibilidade da dependência antes de iniciar as ondas. Cada subagente deve carregá-la na própria sessão; não presuma que herdou sua leitura. Preserve a instrução da task verbatim e o modo definido na spec. A dependência não autoriza o orquestrador a implementar.
+Verifique a disponibilidade da dependência antes de iniciar as ondas. Cada subagente deve carregá-la na própria sessão; não presuma que herdou sua leitura. Preserve o objetivo, os critérios e o modo da task. Adaptações técnicas dentro da autonomia devem ser registradas; o coordenador só executa diretamente no modo de agente único, pela skill adequada.
 
 As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
-Você é um orquestrador de execução de specs. Sua única função é lançar subagentes para executar as tasks de uma spec existente, na ordem correta, e consolidar o resultado.
+Você coordena entregas verificáveis de uma spec existente. Execute com um agente ou vários conforme as ferramentas, risco e orçamento; mantenha responsabilidade explícita e um único escritor dos registros compartilhados.
 
-## Restrições absolutas
+## Passo 1 — Retomar pelo estado real
 
-1. **Você NÃO implementa código.** Nunca edite arquivos do projeto diretamente. Toda implementação acontece dentro dos subagentes via `/centaur-driven-tdd` ou `/centaur-driven-implement`.
-2. **Você só executa tasks definidas na spec.** Se o usuário pedir qualquer mudança que não seja uma task da spec ("aproveita e ajusta X"), recuse e oriente:
-   - Mudança pontual com comportamento testável → `/centaur-driven-tdd`
-   - Mudança pontual estrutural ou de configuração → `/centaur-driven-implement`
-   - Mudança grande → `/centaur-driven-spec` para planejar primeiro
-3. **Você não altera as instruções das tasks.** Passe cada instrução ao subagente exatamente como está escrita na spec. Se uma instrução parecer errada ou desatualizada, pare e pergunte ao usuário — não "corrija" por conta própria.
-4. **Você é o único que escreve na spec e no `status.md` durante a execução.** Os subagentes em modo spec não tocam nesses arquivos (escritas paralelas se sobrescreveriam) — eles apenas reportam. Toda consolidação (checklist, status da spec, `index.md`, linhas do `status.md`) é sua, feita ao fim de cada onda a partir dos relatórios.
+Resolver ID qualificado, ler spec, contrato fixado e versão vigente, estado, evidências e registros anteriores. Adquirir a reserva da spec pelo contrato de equipe. Ausência de spec pede seleção das pendentes. Spec legada continua utilizável; antes de novas afirmações de comportamento validado, vincular contrato conforme a migração normativa, preservando o histórico.
 
-**Convenção de numeração:** em todas as skills centaur, `YYYY` é o número da spec e `XXXX` o número de uma implementação.
+Se a spec referencia versão superada, comparar mudanças e replanejar com rastreabilidade antes de executar; não substituir o contrato silenciosamente. Não reexecutar código validado por falta de memória, documento ou grafo: resolver só a pendência. Checklist não substitui verificação de estado nem integração.
 
-## Passo 1 — Identificar a spec
+## Passo 2 — Delimitar autonomia e a próxima entrega
 
-O usuário deve informar o ID qualificado da spec (ex: `/centaur-driven-run frontend/0001`); números legados devem ser resolvidos entre todos os escopos. Adquira a reserva da spec conforme o contrato de equipe antes de executar. O usuário pode informar o número da spec (ex: `/centaur-driven-run 0001`).
+Confirmar contrato aprovado, lacunas materiais resolvidas e dependências necessárias integradas no checkout. Rodar `validate-lifecycle.py`; corrigir referências ausentes/ciclos antes das tasks afetadas. Apresentar comportamento da entrega, impacto previsto, verificações e eventuais decisões humanas. Autorização já presente permite prosseguir sem confirmação repetida.
 
-- Se não informou: leia os índices de todos os escopos e liste as specs ainda não concluídas, com IDs qualificados e bloqueios, para selecionar qual retomar
-- Se a spec não existir: informe e liste as disponíveis
-- Se não existir `.centaur/specs/`: informe que não há specs e sugira `/centaur-driven-spec`
+Replanejar detalhes técnicos dentro dos limites delegados, registrando motivo e diff do plano; não alterar critérios de aceite ou limites. Pedido adicional dentro do contrato pode virar nova task documentada; fora dele, preparar proposta de contrato pela spec e pedir somente a decisão material ainda não autorizada. Não responder a toda descoberta com recusa ou recomeço.
 
-## Passo 2 — Ler a spec e montar o plano de execução
+## Passo 3 — Executar com isolamento proporcional
 
-Antes de relançar tasks, confira registros vinculados de execuções anteriores, páginas ai-memory e fila pendente conforme o backend. Resolva persistência pendente sem reexecutar código validado. Se código e validação já foram concluídos e restou apenas documentação no Graphify, sincronize as notas; não reexecute a implementação nem reserve outro número.
+Agrupar tasks por dependências e interferência em arquivos/contratos compartilhados. Usar branches/worktrees se necessário. Selecionar skill por modo TDD/direto e executor/modelo por capacidade, risco, incerteza e orçamento disponível. Não exigir ferramenta `Agent`, nome comercial ou paralelismo. Sem subagentes, executar sequencialmente pela skill adequada e separar execução/consolidação.
 
-Leia `.centaur/specs/YYYY/README.md` por completo. Monte o plano:
+Cada executor recebe: spec/task, contrato/versão/regras, objetivo observável, fontes atuais, limites/autonomia, posse de arquivos, dependências integradas, modo, critérios de aceite e destino do registro. Carregar clean-code/graphify na própria sessão quando aplicáveis. Preservar o sentido das instruções; registrar adaptações técnicas autorizadas. Nunca relaxar o contrato para acomodar resultado.
 
-1. Ignore tasks já marcadas `[x]` no checklist (execução retomada)
-2. Se **todas** estiverem concluídas, confira também specs filhas e critérios de integração. Se faltar revisão ou integração, mantenha `Em revisão` e reporte a pendência; só encerre como `Concluída` quando todos os critérios do contrato estiverem atendidos. Uma mestre sem tasks próprias ainda precisa orquestrar suas filhas pendentes
-3. Agrupe as tasks pendentes em **ondas** de execução:
-   - Uma task entra na onda quando todas as suas dependências já foram concluídas (em execuções anteriores ou em ondas anteriores desta execução)
-   - Tasks sem dependência e sem sobreposição de arquivos na mesma onda podem rodar **em paralelo**, respeitando posse e isolamento definidos no contrato
-4. Se houver task pendente cuja dependência está bloqueada, ela fica fora do plano (será reportada ao final)
+Executores não alteram contrato aprovado, spec, índices, estado consolidado ou grafo compartilhado. Escrevem só arquivos sob sua responsabilidade e registros/evidências individuais com IDs únicos. Reportam deltas para o coordenador. Sem canal direto com usuário, ambiguidade que mude contrato volta como bloqueio com alternativas e consequências.
 
-Apresente o plano ao usuário em formato curto (ondas, tasks, o que roda em paralelo) e confirme antes de iniciar.
+## Passo 4 — Consolidar cada entrega/onda
 
-## Passo 3 — Atualizar status da spec
+1. Conferir diff, fontes e resultados reais; relatório de executor isolado não é prova. Falha sem relatório exige inspecionar trabalho preservado antes de qualquer tentativa nova.
+2. Registrar decisões técnicas e comparar impacto previsto/real. Desvio de limite bloqueia a parte afetada; manter trabalho independente.
+3. Consolidar memória conforme backend (`files`: README/índice; ai-memory: publicar fila serialmente e verificar). Memória pendente é separada do estado do código.
+4. Atualizar `.centaur/state/<id>.json`, vincular evidências individuais correntes e preservar histórico. Regra só recebe implementada se fontes atuais sustentarem; verificação é derivada por hashes e resultados. Não inferir entrega de um teste verde.
+5. Atualizar tasks e índice da spec. Marcar task executada não conclui automaticamente a capacidade. Em falta de validação/integração, usar Em revisão; bloqueio registra causa, dependências e decisão necessária.
+6. Rodar validação de registros e regenerar Volante. Sincronizar Graphify serialmente, incluindo contratos, estado e evidências, excluindo HTML gerado e filas. Falha em índice/visor deve aparecer separadamente, sem reexecutar código pronto.
 
-Se a spec estiver `Pendente`, mude para `Em andamento` no README da spec e em `.centaur/specs/index.md`.
+## Passo 5 — Demonstrar e integrar
 
-## Passo 4 — Executar as ondas
+Apresentar antes/depois, critérios atendidos, evidências, limitações, decisões autônomas e desvios. Para cada regra da entrega, executar `validate-lifecycle.py <raiz> --ready <contrato/REGRA>` e os gates reais do projeto no candidato integrado. Evidência inválida ou desatualizada impede declarar pronta para integração.
 
-No backend ai-memory, atribua UUID/caminho por execução e salve a referência na task antes de iniciar. Acrescente backend, identidade explícita e destino ao contexto do executor, sem alterar a instrução da task. O executor grava somente sua fila; a publicação cabe ao coordenador.
+Integrar apenas conforme autorização existente; quando não houver, preparar candidato revisável e apresentar a ação concreta. Registrar `delivery.stage: integrated` só depois de confirmar revisão e destino; incluir referência/data. Publicação permanece separada e depende do pedido, nunca da conclusão automática das tasks. Não disparar deploy como consequência de atualizar estado.
 
-Para cada onda, lance **um subagente por task** com a ferramenta **Agent** (tipo `general-purpose`). Para as tasks da mesma onda rodarem de fato em paralelo, envie **todas as chamadas de Agent da onda em uma única mensagem** — chamadas em mensagens separadas executam em sequência.
+## Passo 6 — Encerrar e apontar o próximo passo
 
-A skill invocada depende do campo `**Modo:**` da task:
+`Concluída` exige todas as tasks e dependências entregues, critérios do contrato verificados e integração confirmada, inclusive specs filhas. Publicação só é requisito se estiver no aceite. Caso contrário usar Em revisão/Bloqueada/Em andamento conforme o ciclo; nunca concluir pela última checkbox.
 
-- `Modo: TDD` → `centaur-driven-tdd`
-- `Modo: direto` ou campo ausente → `centaur-driven-implement`
-
-O prompt de cada subagente deve ser exatamente:
-
-```
-Invoque a skill [centaur-driven-tdd | centaur-driven-implement] com a seguinte solicitação:
-
-[instrução da task copiada verbatim da spec, incluindo o prefixo "Spec YYYY — Task NN"]
-
-Carregue as dependências clean-code e graphify e siga o contrato de contexto da skill de destino. Consulte o grafo e confirme as fontes atuais; não atualize o índice compartilhado. Preserve o Modo da task, registre decisões no destino do backend configurado (README em files; fila individual em ai-memory) e reporte os documentos do sistema afetados; não escreva em .clean/ nem nos índices compartilhados.
-```
-
-Você escolhe a skill pelo campo `Modo`, mas **não altera a instrução** — ela vai verbatim.
-
-Aguarde **todos** os subagentes da onda terminarem antes de iniciar a próxima.
-
-## Passo 5 — Consolidar cada onda
-
-**Backend ai-memory:** recolha os registros/filas dos executores e publique serialmente pelo contrato de memória. Marque tasks pelo resultado validado e salve `(workspace, project, path)` e `Memória: confirmada | pendente` separadamente. No checklist, use essa referência em vez de `implements/XXXX`. Não crie nem atualize `implements/status.md`. Falha sem relatório exige conferir diff, fila e página atribuída, sem relançar automaticamente. As quatro instruções abaixo detalham o backend `files`; a sincronização Graphify posterior aplica-se a ambos.
-
-Ao fim de cada onda, **você** registra o resultado de cada task — os subagentes não escrevem na spec nem no `status.md`. Para cada task da onda, com base no relatório final do subagente:
-
-1. **Task concluída** → marque no checklist `- [x] Task NN — [Título] → implements/XXXX`. Uma pendência de documentação não reabre código validado.
-2. **Task bloqueada** → registre o motivo ao lado dela no checklist, remova do plano as tasks que dependem dela e continue com as demais ondas que não são afetadas
-3. **Subagente falhou sem reportar** → trate como bloqueada; não relance automaticamente. Confira se ficou pasta órfã em `.centaur/implements/` (número reservado sem README) e anote no relatório final
-4. Adicione em `.centaur/implements/status.md` uma linha por implementação criada na onda (concluída ou bloqueada), com os dados do relatório: `| XXXX | [Título] | [data] | [Concluído|Bloqueado] | [arquivos] |`. Remova a linha placeholder da tabela se ainda existir
-
-Após consolidar os registros da onda no backend selecionado, execute obrigatoriamente `centaur-driven-graphify` para sincronizar código, testes e documentos de cada implementação, inclusive os READMEs e índices locais existentes em `.centaur/`, excluindo `memory-pending/` e a wiki externa. Faça essa atualização serial antes da próxima onda ou da entrega final; os subagentes não escrevem no grafo compartilhado. Verifique com consultas focadas e registre a cobertura das implementações. Em falha, tente resolver a causa; persistindo o impedimento, registre os arquivos pendentes e comunique a limitação aos próximos executores para conferirem as fontes atuais. Não reexecute código validado nem declare sincronização concluída.
-
-Se um subagente tiver editado a spec ou o `status.md` por conta própria (não deveria), confira o resultado e conserte inconsistências.
-
-## Passo 6 — Finalizar
-
-Após a última onda:
-
-1. Se todas as tasks do checklist estiverem `[x]`: aplique os critérios de integração do contrato: use `Em revisão` até integrar e validar, então `Concluída` no README e no `index.md`
-2. Se houver impedimento que paralisa a spec, use `Bloqueada` e registre motivo; havendo trabalho independente em execução, mantenha `Em andamento` e liste os bloqueios
-
-Reporte ao usuário:
-- Tasks concluídas nesta execução (com a referência da página e estado da memória, ou o número da implementação em `files`)
-- Tasks bloqueadas e o motivo de cada uma
-- Tasks não executadas por dependência bloqueada
-- Status final da spec
-- Se houver bloqueios: o que o usuário precisa decidir para destravar (depois basta rodar `/centaur-driven-run YYYY` de novo — a execução retoma de onde parou)
-
-Ao consolidar cada onda e finalizar, sincronize código e documentos no Graphify, recalcule o estado da spec mestre com base nas filhas e libere apenas a reserva desta sessão. Inclua IDs qualificados e caminhos completos nos prompts e relatórios.
-
-Se a finalização alterar status ou documentos após a sincronização da última onda, atualize esses documentos no Graphify antes da resposta final. Reporte o resultado real da sincronização e pendências por implementação.
+Regenerar Volante após o estado final e liberar somente a reserva da sessão. Entregar resumo por comportamento: implementação, verificação, entrega, decisões que faltam, próximo passo executável e links para fontes/evidências. Informar limitações de memória/grafo/visor separadamente. Selecionar próxima lacuna pelo ciclo normativo, sem criar tarefas especulativas.

@@ -2,12 +2,16 @@
 name: centaur-driven-graphify
 description: Inicializa, sincroniza e repara o índice Graphify do Centaur; mantém mapas, drafts e perspectivas humanos. Use para manutenção do contexto persistente ou documentação visual. Consultas cotidianas já fazem parte de todas as skills Centaur.
 metadata:
-  version: 3.5.0
+  version: 4.0.0
   dependencies: graphify
   optional-dependencies: ai-memory
 ---
 
 # centaur-driven-graphify
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ## Memória de implementações
 
@@ -17,7 +21,7 @@ Leia o [contrato de contexto](references/context.md), aplicado por todas as skil
 
 Use Graphify como índice técnico para a IA localizar arquivos, conceitos e relações antes de ler as fontes. Os registros em `AGENTS.md`, `.centaur/` e `docs/system/` são canônicos; o grafo é derivado e não decide status de entrega. Código e validação comprovam comportamento implementado. Leia [módulos e equipe](references/team-workspace.md) para resolver escopos e IDs.
 
-O mapa apresentado ao usuário deve explicar **módulos → funcionalidades ou páginas → processos → etapas relevantes**. Use o grafo técnico do Graphify para investigar e sustentar essa leitura. Antes de gerar ou atualizar mapas e perspectivas, leia [mapas legíveis](references/readable-maps.md). Para pedidos de mapa ou visão visual, a entrega é o mapa funcional sintetizado em `docs/system/Mapa do sistema.md`, visível ao abrir a raiz do projeto como vault do Obsidian; a visualização bruta fica como evidência técnica opcional.
+O mapa apresentado ao usuário deve explicar **módulos → funcionalidades ou páginas → processos → etapas relevantes**. Use o grafo técnico do Graphify para investigar e sustentar essa leitura. Antes de gerar ou atualizar mapas e perspectivas, leia [mapas legíveis](references/readable-maps.md). Para pedidos de mapa ou visão visual, a entrada principal de inspeção é `.centaur/volante.html`; mapas de arquitetura/fluxos permanecem em `docs/system/Mapa do sistema.md`, também acessíveis em Documentos no visor e no Obsidian; a visualização bruta fica como evidência técnica opcional.
 
 ## Dependência e instalação
 
@@ -38,7 +42,7 @@ Crie somente os documentos necessários, preservando conteúdo existente:
 - `docs/system/Decisões/<slug>.md`: decisões confirmadas e seus motivos.
 - `graphify-out/graph.json`: índice técnico gerado; `GRAPH_REPORT.md`: análise técnica. Gere HTML técnico apenas quando solicitado para exploração visual.
 
-Use links Markdown relativos e registre caminhos/linhas de evidência. Não gere quadro, Kanban ou cards de status. Consulte status nas specs e nos registros do backend configurado (wiki ou READMEs legados). Mantenha documentos humanos em `docs/system/`, fora de `graphify-out/` e da pasta oculta `.centaur/`. Ao abrir a raiz como vault no Obsidian, o usuário encontra a nota no explorador; abrir o vault não seleciona automaticamente essa nota. Não crie nem altere `.obsidian/` para forçar uma página inicial.
+Use links Markdown relativos e registre caminhos/linhas de evidência. Não criar um segundo quadro de status nos documentos humanos. O Volante concentra a projeção de andamento, contratos e evidências; documentos de arquitetura explicam relações e processos. Consulte status nas fontes definidas no ciclo normativo. Mantenha documentos humanos em `docs/system/`, fora de `graphify-out/` e da pasta oculta `.centaur/`. Ao abrir a raiz como vault no Obsidian, o usuário encontra a nota no explorador; abrir o vault não seleciona automaticamente essa nota. Não crie nem altere `.obsidian/` para forçar uma página inicial.
 
 ## Inicializar e sincronizar
 
@@ -47,11 +51,12 @@ Use links Markdown relativos e registre caminhos/linhas de evidência. Não gere
 1. Leia `AGENTS.md`, `.centaur/workspace.json`, as specs e implementações relevantes e o código necessário para confirmar as mudanças. Para sincronização geral, percorra todos os escopos; IDs isolados precisam ser desambiguados.
 2. Atualize Visão Geral, Fluxos, Decisões e Perspectivas afetados. Registre separadamente conteúdo planejado, implementado, histórico superado e inferência. Preserve READMEs de implementações concluídas como histórico.
 3. Execute o pipeline da skill oficial `graphify` para o projeto na primeira execução e o modo `--update` da **skill** nas seguintes. No Codex, a invocação é `$graphify <raiz>` ou `$graphify <raiz> --update`; isso não é um comando de shell. Siga o fluxo oficial de extração AST e semântica, construção e relatório. Quando a versão permitir, omita a visualização HTML automática (`--no-viz`); preserve `graph.json` para consultas.
-4. Garanta que o corpus contém **código + AGENTS.md + docs/system/ + specs/implements de todos os escopos**, inclusive arquivos ocultos de `.centaur/`. Confira o resultado da detecção e as origens no grafo; não suponha que escanear a raiz incluiu pastas ocultas. Quando necessário, forneça explicitamente os diretórios configurados ao fluxo multipasta da skill oficial (`references/github-and-merge.md`), mantendo caminhos de origem corretos. Não remova ignores globalmente para incluir a documentação. Não incorpore a wiki externa do ai-memory ao corpus: consulte-a pelo contrato de memória. Exclua `.centaur/memory-pending/`, `.git`, credenciais, backups, artefatos gerados, `.obsidian/` e arquivos legados já migrados do corpus ativo.
+4. Garanta que o corpus contém **código + AGENTS.md + docs/system/ + contratos/estado/evidências + specs/implements de todos os escopos**, inclusive arquivos ocultos de `.centaur/`. Confira o resultado da detecção e as origens no grafo; não suponha que escanear a raiz incluiu pastas ocultas. Quando necessário, forneça explicitamente os diretórios configurados ao fluxo multipasta da skill oficial (`references/github-and-merge.md`), mantendo caminhos de origem corretos. Não remova ignores globalmente para incluir a documentação. Não incorpore a wiki externa do ai-memory ao corpus: consulte-a pelo contrato de memória. Exclua HTML gerado (`volante.html`, `andamento.html`), `.centaur/memory-pending/`, `.git`, credenciais, backups, artefatos gerados, `.obsidian/` e arquivos legados já migrados do corpus ativo.
 5. **Código e documentos têm atualizações distintas.** `graphify update <raiz>` é atualização de código via AST; não basta para alterações de specs, implements ou Markdown. Use a extração semântica da skill oficial para esses documentos. A alternativa headless é `graphify extract <raiz> --backend <backend-configurado>`, somente com backend configurado para o projeto. Não invente credenciais nem envie documentos para um provedor diferente do autorizado. Sem extração semântica disponível, reporte explicitamente quais documentos ficaram pendentes.
 6. Verifique os artefatos reais e consulte conceitos representativos do escopo alterado com `graphify query`. Confira se os resultados apontam para arquivos de código, uma spec e uma implementação do escopo com origem correta, quando existirem; abra essas fontes antes de afirmar comportamento. Arquivos vazios, fontes ausentes, nós removidos ainda presentes ou falhas de extração são pendências; não diga que está sincronizado apenas porque o comando terminou. Remoções exigem conferir a reconstrução conforme o help da versão instalada. Com o índice atualizado, revise o Mapa do sistema se existir e for afetado, conforme a hierarquia funcional; uma mudança interna sem efeito no processo não precisa criar novos nós no mapa humano.
-7. Se o usuário pedir navegação técnica visual, gere `graphify tree --graph graphify-out/graph.json --output graphify-out/GRAPH_TREE.html` quando disponível. A árvore organiza arquivos e símbolos; ela não substitui o mapa funcional. Use `graph.html` apenas para investigar relações específicas.
-8. Registre em `.centaur/system/sync.md` a versão do CLI, a revisão Git (e se havia mudanças locais), raízes incluídas, atualização de código/documentos, consultas de verificação e pendências. Não registre segredos. Exclua esse relatório operacional do corpus para evitar realimentação.
+7. Depois de consolidar as fontes, execute `scripts/validate-lifecycle.py <raiz>` e `scripts/render-volante.py <raiz>` mesmo se a indexação estiver indisponível. Inspecione navegação, trechos e avisos do HTML; não invente vínculos para preencher a tela. Fontes explícitas no estado são o código exibido; nunca despejar repositório, segredos ou grafo inteiro no HTML. Falha da geração exige reportar snapshot desatualizado.
+8. Se o usuário pedir navegação técnica visual adicional ao Volante, gere `graphify tree --graph graphify-out/graph.json --output graphify-out/GRAPH_TREE.html` quando disponível. A árvore organiza arquivos e símbolos; ela não substitui o mapa funcional. Use `graph.html` apenas para investigar relações específicas.
+9. Registre em `.centaur/system/sync.md` a versão do CLI, a revisão Git (e se havia mudanças locais), raízes incluídas, atualização de código/documentos, consultas de verificação e pendências. Não registre segredos. Exclua esse relatório operacional do corpus para evitar realimentação.
 
 Em execução paralela, executores reportam arquivos/documentos afetados. O coordenador primeiro consolida specs, índices e implementações, depois sincroniza o grafo serialmente. Uma falha de sincronização não reabre código validado nem cria outra implementação.
 
@@ -61,7 +66,7 @@ Em execução paralela, executores reportam arquivos/documentos afetados. O coor
 
 `perspectiva <objetivo>` começa com `graphify query "<objetivo>"` para localizar conceitos e arquivos candidatos. Use `graphify path "A" "B"` ou `graphify explain "X"` quando a pergunta exigir caminhos ou detalhes. Confirme afirmações importantes nos arquivos apontados e registre a perspectiva em Markdown, com links para documentos, escopo e evidências. Marque inferências; uma relação extraída de uma spec planejada não comprova implementação. Se o grafo estiver ausente ou desatualizado, sincronize ou explicite a limitação antes de responder.
 
-Exemplos: jornada do usuário, autenticação, fluxo de dados entre frontend/backend, dependências de um módulo e impacto de uma mudança. Gere um diagrama Mermaid legível na perspectiva solicitada, usando a referência de mapas; mantenha arquivos, símbolos e linhas na seção Evidências. Aponte primeiro para `docs/system/Mapa do sistema.md` ou para a perspectiva funcional. HTMLs do Graphify são opcionais e técnicos. A síntese funcional é trabalho do agente apoiado no índice; a exportação automática não garante essa organização.
+Exemplos: jornada do usuário, autenticação, fluxo de dados entre frontend/backend, dependências de um módulo e impacto de uma mudança. Gere um diagrama Mermaid legível na perspectiva solicitada, usando a referência de mapas; mantenha arquivos, símbolos e linhas na seção Evidências. Aponte primeiro para o Volante e, para relações/fluxos detalhados, o Mapa do sistema ou a perspectiva funcional. HTMLs do Graphify são opcionais e técnicos. A síntese funcional é trabalho do agente apoiado no índice; a exportação automática não garante essa organização.
 
 ## Drafts e execução
 

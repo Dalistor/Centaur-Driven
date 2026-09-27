@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-mcp
 description: Ponte dinâmica entre um MCP server e o fluxo centaur - consulta a documentação/tools do MCP informado, extrai o que é relevante para a requisição do usuário e roteia para centaur-driven-tdd, centaur-driven-implement ou centaur-driven-spec com esse contexto anexado. Também instala o MCP no escopo global quando recebe uma URL no lugar do nome. Uso - /centaur-driven-mcp <Nome do MCP | URL do MCP> [Requisição do usuário]. Não depende de nenhum MCP específico - descobre os disponíveis em tempo de execução.
-version: 1.5.0
+version: 4.0.0
 invocable: true
 author: user
 metadata:
@@ -10,6 +10,10 @@ metadata:
 ---
 
 # centaur-driven-mcp
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ## Memória de implementações
 
@@ -156,7 +160,7 @@ Decida o destino:
 | Usuário só perguntou (como funciona, quais campos, existe suporte a X) | Responda direto no Passo 6a |
 | Mudança pontual com regra de negócio real (cálculo, validação com consequência, tratamento de erro com decisão) **e** projeto tem testes | `/centaur-driven-tdd` |
 | Mudança pontual estrutural/config (adicionar client, variável de ambiente, tipagem), mapeamento trivial de payload, ou projeto sem testes | `/centaur-driven-implement` |
-| Integração grande (vários endpoints, webhooks, persistência, mais de ~4 arquivos) | `/centaur-driven-spec` |
+| Integração grande (múltiplos comportamentos, decisões de produto ou dependências que exigem planejamento) | `/centaur-driven-spec` |
 
 Apresente ao usuário: o dossiê do Passo 4, a classificação e o destino escolhido. **Confirme antes de seguir.** Se ele discordar do destino, use o que ele mandar.
 

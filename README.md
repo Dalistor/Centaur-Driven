@@ -1,10 +1,10 @@
 # Centaur
 
-Conjunto de skills para Codex e [Claude Code](https://claude.com/claude-code) que cria um fluxo de desenvolvimento documentado e rastreável: todo projeto tem contexto persistente, mudanças ficam registradas em ai-memory ou arquivos, o fluxograma semântico evolui junto do código e demandas grandes são decompostas em tasks executadas por subagentes.
+Conjunto de skills para Codex e [Claude Code](https://claude.com/claude-code) que cria um fluxo de desenvolvimento documentado e rastreável: o humano define contratos de comportamento, limites e autonomia; a IA implementa entregas verificáveis e registra o estado com evidências. O Volante é o visor local de contratos, código, provas e próximos passos. Memória e Graphify sustentam contexto e rastreabilidade.
 
 ## Por que "centaur"?
 
-Centauro: metade humano, metade máquina. Você toma as decisões — o Claude executa com contexto completo e deixa trilha de tudo o que fez.
+Centauro: metade humano, metade máquina. Você define e evolui o molde do sistema; a IA executa dentro dele, comprova resultados e apresenta as decisões que ultrapassam sua autonomia. O método funciona com diferentes agentes, modelos e ferramentas.
 
 ## Instalação
 
@@ -90,8 +90,8 @@ A inicialização gera o índice; os fluxos que alteram código ou documentaçã
 | `/centaur-driven-security` | Audita projeto ou diff, verifica achados e variantes e entrega relatório com evidências; não corrige código |
 | `/centaur-driven-tdd` | Mudanças pontuais com **regra de negócio real**: teste antes do código, ciclo red-green-refactor, testes mínimos por risco e manutenção da suíte existente |
 | `/centaur-driven-implement` | Mudanças pontuais **estruturais, de configuração ou de UI** — e projetos sem infraestrutura de teste |
-| `/centaur-driven-spec` | Decompõe uma demanda grande em tasks atômicas por camada, cada uma marcada como TDD ou direta, salvas em `.centaur/specs/` |
-| `/centaur-driven-run` | Executa uma spec: lança um subagente por task conforme o Modo, paraleliza as independentes e consolida o resultado |
+| `/centaur-driven-spec` | Define contratos versionados e planeja entregas pequenas por comportamento, com tasks TDD/diretas em `.centaur/specs/` |
+| `/centaur-driven-run` | Executa uma entrega dentro do contrato, com um ou vários agentes, verifica evidências e consolida estado, integração e próximos passos |
 | `/centaur-driven-graphify` | Inicializa, sincroniza e repara o índice; cria mapas, drafts e perspectivas sob demanda |
 | `/centaur-driven-mcp` | Busca a documentação de uma API externa em um MCP server e roteia a requisição para tdd, implement ou spec com esse contexto anexado |
 | `/centaur-driven-deploy` | Configura deploy contínuo para uma VPS (GitHub Actions + SSH + rsync): gera a chave, valida o acesso, cadastra os secrets e acompanha o primeiro run |
@@ -111,7 +111,7 @@ O fluxo estabelece:
 
 - `AGENTS.md` curto na raiz — regras, comandos essenciais, limites arquiteturais e recuperação de contexto.
 - `.centaur/workspace.json` e índices de specs — escopos, responsáveis e backend de registros; índices de implementações somente em `files`, preservando os existentes.
-- `.centaur/andamento.html` — painel local de módulos, specs, tarefas pendentes e bloqueios, gerado a partir dos READMEs das specs. As notas digitadas na página ficam no navegador.
+- `.centaur/volante.html` — visor navegável de módulos, capacidades, contratos, fontes de código, evidências, decisões e próximos passos; inclui specs legadas. É um snapshot offline, com notas no navegador e exportação de contexto para a IA.
 - Documentos detalhados somente quando necessários — preferindo fontes existentes; arquitetura, operação, glossário e decisões podem ficar em `docs/system/`.
 - `graphify-out/` — índice de código e documentos, gerado ou atualizado após salvar as fontes e verificado com consultas.
 
@@ -139,34 +139,29 @@ Durante o ciclo, roda a seleção afetada; antes de entregar, executa a suíte e
 /centaur-driven-implement renomear a pasta de handlers para controllers
 ```
 
-O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **tira todas as dúvidas antes de escrever qualquer linha**, implementa respeitando a Arquitetura de Camadas do `AGENTS.md` (regra de negócio em service, query em repository, handler fino), **revisa a clareza do que escreveu** (nomes que revelam intenção, vocabulário do domínio, sem número mágico nem comentário que narra a linha), valida (testes, lint e revisão de violação de camadas) e entrega um registro verificado no backend configurado, atualizando o Graphify após salvar os registros.
+O implement cobre o que não faz sentido testar primeiro: renomear, mover arquivo, configuração, scaffold, mudança só de UI/estilo — e projetos que ainda não têm infraestrutura de teste. Lê o contexto, explora o código afetado, **resolve lacunas materiais do contrato**, implementa respeitando a arquitetura real do `AGENTS.md` e os limites autorizados, **revisa a clareza do que escreveu** (nomes que revelam intenção, vocabulário do domínio, sem número mágico nem comentário que narra a linha), valida (testes, lint e revisão dos limites arquiteturais) e entrega um registro verificado no backend configurado, atualizando o Graphify após salvar os registros.
 
-Se a mudança pedida tiver regra de negócio relevante, ele mesmo redireciona para o `/centaur-driven-tdd`. Se a demanda for grande demais (muitas camadas, mais de ~4 arquivos), recusa e orienta a usar spec + run.
+Se a mudança pedida tiver regra de negócio relevante, ele mesmo redireciona para o `/centaur-driven-tdd`. Se houver vários comportamentos independentes ou decisões de produto a resolver, planeja a entrega com spec + run; número de arquivos não define complexidade.
 
-### 4. Para demandas grandes, use spec
-
-```
-/centaur-driven-spec migrar autenticação de sessão para JWT
-```
-
-A skill explora o código, resolve as ambiguidades com você **antes** de planejar e gera `.centaur/specs/YYYY/README.md` com tasks atômicas e ordenadas. A decomposição segue as camadas do projeto, de dentro para fora — models, DTOs, repositories, services, handlers, testes de integração — e cada task declara quais camadas toca e proíbe tocar as demais, o que permite paralelizar tasks de camadas independentes. Cada instrução é autocontida, com todas as decisões já tomadas.
-
-Cada task carrega também um campo **`Modo`**: `TDD` para as que têm **regra de negócio real** (o teste nasce dentro da própria task, junto do código) e `direto` para as estruturais e para o que é trivial mesmo sendo testável — mapeamento de campos, fiação, CRUD sem regra. Testes de integração só entram como task quando há fluxo ponta a ponta que valha. Por isso não existe task de "escrever os testes da camada X" — o teste pertence à task que implementa o comportamento. Tasks `TDD` trazem critérios observáveis, riscos e compatibilidade a preservar. O executor pode reaproveitar ou atualizar testes existentes, mantendo esses critérios; a spec não exige uma quantidade fixa de testes novos.
-
-### 5. Para executar a spec, use run
+### 4. Defina o molde com spec
 
 ```
-/centaur-driven-run 0001
+/centaur-driven-spec permitir reserva sem duplicidade de horário
 ```
 
-O run é o orquestrador — e é **restrito a tasks de specs**: não implementa nada por conta própria e recusa qualquer pedido fora do que está planejado. Ele:
+A skill identifica comportamento, aceite, limites, autonomia e decisões materiais. Cria ou evolui `.centaur/contracts/<id>/vNNN.json`. Pedido explícito pode autorizar regras; inferências são rascunhos. Versões aprovadas são imutáveis e herança fixa contratos gerais. Regras têm IDs estáveis.
 
-- Monta o plano em ondas — tasks com dependências satisfeitas rodam em paralelo, o resto aguarda — e apresenta o plano para você confirmar antes de iniciar
-- Lança um subagente por task, escolhendo a skill pelo `Modo` da task (`TDD` → `/centaur-driven-tdd`, `direto` → `/centaur-driven-implement`) e passando a instrução da spec **verbatim** com o prefixo `Spec YYYY — Task NN`
-- Esse prefixo ativa o **modo spec** da skill de execução dentro do subagente: não faz perguntas (as decisões já foram tomadas na spec) e encerra com um relatório estruturado, sem tocar nos arquivos compartilhados
-- Se uma task bloquear, pula as dependentes, continua as demais e reporta o que precisa da sua decisão
-- Execução paralela é segura: em ai-memory, o coordenador atribui UUIDs e publica os registros que os executores entregam na fila; em `files`, cada executor reserva seu número via `mkdir`. **Só o run escreve** no checklist da spec e nos índices compartilhados — a consolidação acontece ao fim de cada onda, a partir dos relatórios, com um coordenador responsável por consolidar os registros compartilhados
-- Execução é retomável: rodar `/centaur-driven-run 0001` de novo continua de onde parou
+A próxima entrega é um comportamento demonstrável de ponta a ponta, podendo atravessar camadas. Tasks internas respeitam arquitetura, responsabilidade e dependências; não há divisão obrigatória por camada ou quota de arquivos. A spec fixa contrato/versão/regras, impacto previsto, modos TDD/direto, evidência esperada e destino de integração.
+
+### 5. Execute e comprove com run
+
+```
+/centaur-driven-run master/0001
+```
+
+O coordenador lê o estado real, seleciona a próxima lacuna e executa com um ou vários agentes conforme ferramentas, risco e orçamento. Escolha de modelo é dinâmica; não exige um fornecedor ou API específica. Pode replanejar detalhes dentro da autonomia e registra a diferença entre plano e resultado; mudança de contrato retorna como decisão humana.
+
+Após cada entrega/onda, consolida fontes, evidências e estado; confere gates e atualiza o Volante. Falha de memória/grafo não reabre código validado. Conclusão exige aceite, evidência corrente e integração; checklist sozinho não conclui. Publicação é separada, sob autorização existente.
 
 ### 6. Para consultar, use check
 
@@ -241,7 +236,7 @@ Ele **não toca em código**: bug ou violação de camada que encontrar vira rel
 /centaur-driven-graphify sincronizar frontend/0007
 ```
 
-A skill usa o Graphify como índice para a IA localizar conceitos, arquivos e relações; depois confirma as respostas nas fontes. A visão geral, os fluxos, as decisões e as perspectivas humanas ficam em `docs/system/`. O mapa principal é `docs/system/Mapa do sistema.md`, organizado por **módulo → funcionalidade/página → processo**, com diagramas Mermaid pequenos e links para detalhes. Ao abrir a raiz do projeto como vault no Obsidian, essa nota aparece no explorador e o Mermaid é renderizado; abrir o vault não seleciona automaticamente o mapa. HTMLs técnicos do Graphify são opcionais para investigação.
+A skill usa o Graphify como índice para a IA localizar conceitos, arquivos e relações; depois confirma as respostas nas fontes. A visão geral, os fluxos, as decisões e as perspectivas humanas ficam em `docs/system/`. A entrada de inspeção é `.centaur/volante.html`; o mapa de arquitetura permanece em `docs/system/Mapa do sistema.md`, organizado por **módulo → funcionalidade/página → processo**, com diagramas Mermaid pequenos e links para detalhes. Ao abrir a raiz do projeto como vault no Obsidian, essa nota aparece no explorador e o Mermaid é renderizado; abrir o vault não seleciona automaticamente o mapa. HTMLs técnicos do Graphify são opcionais para investigação.
 
 Specs permanecem nos escopos de `.centaur/workspace.json`, com estado nos READMEs e índices. Implementações seguem o backend configurado; diretórios implements existentes são preservados. O quadro visual foi removido. A sincronização inclui código e documentos: atualização AST isolada não atualiza specs/implements. As skills consolidam os registros primeiro e depois atualizam o Graphify serialmente; falhas semânticas são reportadas como pendências.
 
@@ -273,7 +268,10 @@ projeto/
 ├── graphify-out/                   # Índice derivado de código e documentos
 └── .centaur/
     ├── workspace.json              # Escopos, caminhos e responsáveis
-    ├── andamento.html              # Painel local de andamento
+    ├── volante.html                # Visor local de contratos, código e evidências
+    ├── contracts/                  # Versões imutáveis do molde
+    ├── state/                      # Realização atual por contrato
+    ├── evidence/                   # Registros imutáveis de verificação
     ├── modules/
     │   ├── frontend/               # specs/index.md e implements/status.md próprios
     │   └── backend/                # specs/index.md e implements/status.md próprios
@@ -288,46 +286,42 @@ projeto/
     └── system/                      # sync.md: cobertura e pendências do índice
 ```
 
-## Ciclo de vida
+## Ciclo de vida por contratos
 
-No diagrama, `registro` significa página ai-memory verificada ou README numerado no backend `files`. A manutenção de índices `implements/` aplica-se somente ao histórico em arquivos.
+**Definir o molde → planejar uma entrega → implementar → comprovar → integrar → observar e escolher a próxima lacuna.**
 
-```
-/centaur-driven-start-project          (uma vez por projeto)
-        │
-        ├── depende de API externa ──► /centaur-driven-mcp ──► dossiê da doc oficial
-        │                                       │
-        │                                       └── anexa o dossiê e roteia para um dos três abaixo
-        │
-        ├── pontual + testável ──► /centaur-driven-tdd ──────► registro
-        │
-        ├── pontual estrutural ──► /centaur-driven-implement ─► registro
-        │
-        ├── demanda grande ──► /centaur-driven-spec ──► .centaur/specs/YYYY/
-        │                               │
-        │                               └── /centaur-driven-run YYYY
-        │                                       │
-        │                                       ├── N subagentes (modo spec), por Modo da task
-        │                                       │       ├── Modo TDD    ──► /centaur-driven-tdd
-        │                                       │       ├── Modo direto ──► /centaur-driven-implement
-        │                                       │       │
-        │                                       │       └── implementa, documenta e reporta
-        │                                       │
-        │                                       └── consolida checklist, status da spec e registros
-        │
-        ├── desenhar/refinar sistema ──► /centaur-driven-graphify ──► Grafo, documentos e perspectivas
-        │
-        ├── subir para a VPS ──► /centaur-driven-deploy ──► .github/workflows/ + registro
-        │
-        └── doc envelhecida ──► /centaur-driven-update ──► AGENTS.md migrado e consolidado
-                                        │
-                                        ├── migra o schema (carimbo vs skill instalada)
-                                        ├── audita integridade dos registros
-                                        ├── resolve conflitos doc × código × histórico
-                                        └── arquiva índice antigo em implements/arquivo.md
+| Fonte | O que representa |
+|---|---|
+| `.centaur/contracts/<id>/vNNN.json` | Contrato versionado: intenção, regras, aceite, limites, autonomia, decisões e aprovação |
+| `.centaur/state/<id>.json` | Implementação por regra, fontes e linhas, evidências selecionadas e entrega registrada |
+| `.centaur/evidence/<id>.json` | Resultado imutável e hashes de contrato/fontes da verificação |
+| Spec | Plano finito de uma entrega, tasks e integração; histórico preservado |
+| `.centaur/volante.html` | Visor derivado e offline; não é fonte de verdade |
+
+Implementação (`ausente/parcial/implementada`), verificação (`não verificada/aprovada/falhou/desatualizada`) e entrega (`local/integrada/publicada`) são independentes. Evidência precisa corresponder à regra, versão e arquivos atuais. Hashes invalidam provas quando fontes selecionadas mudam; não descobrem todas as dependências indiretas nem garantem ausência de bugs.
+
+Specs usam `Pendente`, `Em andamento`, `Bloqueada`, `Em revisão`, `Concluída` e `Cancelada`. Somente aceite, validação e integração confirmadas permitem concluir; publicar é requisito apenas quando previsto no aceite. A fonte normativa única é [ciclo por contratos e evidências](centaur-driven-graphify/references/lifecycle.md), com exemplos completos e migração.
+
+## Volante: visor do código
+
+```bash
+python3 /caminho/centaur-driven-graphify/scripts/render-volante.py /raiz/do/projeto
 ```
 
-Specs seguem os status `Pendente`, `Em andamento`, `Bloqueada`, `Em revisão` e `Concluída`; conclusão exige validação e integração. Cada implementação referencia a spec/task de origem, e cada task concluída aponta para a implementação — trilha completa nos dois sentidos.
+Abra `.centaur/volante.html` no navegador. Navegue módulos → capacidades → regras → trechos/evidências. Use busca, filtro por módulo, decisões abertas e próximos passos derivados das lacunas. Specs e documentos existentes permanecem acessíveis. Exporte notas e contexto para enviar à IA; o HTML não executa comandos, não altera contratos e não tem agente conectado.
+
+O snapshot mostra data/revisão e precisa ser regenerado após mudanças. Funciona sem servidor ou CDN. Incorpora somente trechos explicitamente vinculados no estado, com limites de tamanho e bloqueio de caminhos externos/arquivos reservados; ainda é necessário revisar fontes para não incluir segredos. Não publicar o visor como efeito colateral.
+
+`render-dashboard.py` permanece compatível e gera o Volante. O nome antigo `andamento.html` recebe um atalho quando era uma página gerada conhecida (arquivos personalizados são preservados); notas reutilizam a chave anterior do navegador. Contratos/estado/evidências são locais nos backends files e ai-memory; a wiki continua histórica.
+
+```bash
+# Integridade dos registros; não equivale a projeto pronto
+python3 /caminho/centaur-driven-graphify/scripts/validate-lifecycle.py /raiz/do/projeto
+# Prontidão de uma regra específica para integração
+python3 /caminho/centaur-driven-graphify/scripts/validate-lifecycle.py /raiz/do/projeto --ready agendamento/RES-01
+```
+
+Conectar esses checks ao CI quando autorizado. Specs legadas continuam visíveis, sem ganhar aprovação ou verificação inventada. A migração é incremental pela área em trabalho.
 
 ## Módulos e colaboração
 
@@ -344,3 +338,19 @@ Trabalho paralelo usa posse explícita de tasks e branches/worktrees por executo
 Use `/centaur-driven-commitAndPush` para publicar o trabalho solicitado. A skill revisa o escopo, cria o commit, busca a main remota, simula a integração e valida o resultado em worktree temporário. Se houver conflito, informa os arquivos e propõe resolução em branch de trabalho. Se estiver limpo, faz push normal do resultado validado para main; não força histórico nem ignora proteção de branch. Uma atualização concorrente exige nova checagem.
 
 O nome `centaur-driven-commitAndPush` foi preservado conforme solicitado; validadores que exigem nomes exclusivamente em minúsculas com hífens podem rejeitá-lo.
+
+## Verificar o desenvolvimento do harness
+
+O gerador e os gates usam Python 3.10+ e somente biblioteca padrão:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+A verificação interativa usa Playwright (instale-o no ambiente de desenvolvimento com `npm install --no-save playwright` e `npx playwright install chromium`):
+
+```bash
+node tests/volante-browser.cjs
+```
+
+O teste cria um projeto temporário fictício, gera HTML offline e verifica navegação, código/evidências, notas/exportação, filtros, teclado, mobile, armazenamento indisponível e conteúdo hostil. `VOLANTE_CHROMIUM` permite indicar um Chromium já instalado; `VOLANTE_SCREENSHOTS` define o destino das capturas. Não usa projetos nem serviços de produção.

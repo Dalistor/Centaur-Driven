@@ -2,11 +2,15 @@
 name: centaur-driven-memory
 description: Integra ai-memory ao Centaur para consultar decisões, registrar mudanças e migrar o histórico de implements sem apagar registros existentes. Use para configurar a memória do projeto, recuperar contexto histórico ou reenviar registros pendentes.
 metadata:
-  version: 1.0.0
+  version: 4.0.0
   dependencies: ai-memory
 ---
 
 # centaur-driven-memory
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 Use [ai-memory](https://github.com/akitaonrails/ai-memory) para memória histórica e Graphify para localizar relações no código atual. Leia o [contrato de memória](references/contract.md) antes de operar. Instruções e specs continuam no repositório; a wiki não decide o estado atual do código.
 

@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-update
 description: Atualiza a documentação centaur de um projeto existente - migra AGENTS.md, histórico e grafo Graphify, verifica as dependências da skill e do CLI Graphify, audita conflitos e consolida a verdade. Não toca em código.
-version: 1.7.0
+version: 4.0.0
 invocable: true
 author: user
 metadata:
@@ -10,6 +10,10 @@ metadata:
 ---
 
 # centaur-driven-update
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ## Memória de implementações
 
@@ -41,7 +45,7 @@ Sua tarefa tem duas metades: **migrar o schema** e **consolidar a verdade**.
 
 1. **Você NÃO toca em código do projeto.** Seu escopo é `AGENTS.md`, `.centaur/`, `docs/system/` e os artefatos derivados em `graphify-out/`. Se encontrar bug, código morto ou violação de camada, **reporte** e oriente (`/centaur-driven-tdd`, `/centaur-driven-implement` ou `/centaur-driven-spec`) — não corrija.
 2. **Você nunca apaga uma pasta de implementação nem de spec.** `.centaur/implements/XXXX/` e `.centaur/specs/YYYY/` são registro permanente. Compactação mexe em **índices**, nunca no registro.
-3. **Você não reescreve README de implementação concluída nem de spec concluída.** São registro histórico do que se sabia na época, não documento vivo. Documentos vivos são: `AGENTS.md`, `.centaur/implements/status.md`, `.centaur/specs/index.md` e as specs ainda `Pendente`/`Em andamento`.
+3. **Você não reescreve README de implementação concluída nem de spec concluída.** São registro histórico do que se sabia na época, não documento vivo. Documentos vivos incluem AGENTS.md, índices, estado e specs ainda abertas. Contratos aprovados/evidências são imutáveis: correções geram novas versões/registros; não reescrever o passado. Contrato é vivo por versionamento, não por edição da versão aprovada.
 4. **Conflito com duas leituras plausíveis é pergunta, não decisão sua.** Você só resolve sozinho o que o código prova (arquivo existe ou não existe, script existe ou não existe).
 
 ## Passo 1 — Verificar pré-condições
@@ -59,7 +63,7 @@ Resolva o backend antes da auditoria. Em ai-memory, ausência de `implements/` e
 git status --porcelain
 ```
 
-Você vai reescrever documentação. Se houver mudanças não commitadas, avise o usuário e pergunte se quer commitar antes — com a árvore limpa, desfazer é `git checkout`.
+Preserve mudanças não commitadas e staging alheio. Isole a atualização quando necessário; pergunte apenas se houver sobreposição ambígua, sem exigir commit prévio de mudanças não relacionadas.
 
 4. Verifique `centaur-driven-graphify`, sua referência de equipe, a skill oficial `graphify` e `graphify --version`. Confira `docs/system/`, o legado em `.centaur/system/` e os artefatos em `graphify-out/`. Ausência do CLI ou extração semântica pendente deve ser reportada sem bloquear a documentação já validada. Para projetos antigos, leia `references/migration.md` de `centaur-driven-graphify` antes de migrar os documentos.
 
@@ -104,6 +108,14 @@ Aplique o Passo 5 de `start-project`: reutilize documentos existentes e crie det
 - **Vocabulário e Idioma do Código** → levante os termos do domínio realmente usados no código e o idioma dos identificadores e comentários; leve para o usuário confirmar quais são as palavras oficiais e quais são variações a evitar
 
 Não invente conteúdo para preencher seção: seção sem informação real fica com o texto explícito de que não foi definida, e vira pergunta.
+
+## Migrar para contratos e Volante
+
+Aplicar a migração incremental de `lifecycle.md`. Preservar histórico, IDs, backend e registros concluídos. Não converter automaticamente cada spec antiga em contrato aprovado. Na área solicitada, extrair requisitos autorizados com referências e manter inferências como rascunho. Adicionar lifecycle 1 ao workspace e instruções curtas ao AGENTS.md.
+
+Verificar versões, herança, IDs e dependências; comparar estado/evidências com contrato e fontes atuais. Reportar provas desatualizadas e mudanças indiretas que os hashes selecionados não capturam. Revalidar comportamento pertence ao fluxo de implementação/verificação autorizado, não inventar resultado durante manutenção documental. Preservar publicação histórica mesmo quando a prova atual envelhecer.
+
+Trocar a referência humana para `.centaur/volante.html`; manter a entrada CLI antiga e notas do navegador. Não apagar HTML personalizado do usuário. Regenerar pelo novo script após consolidar e distinguir falha do visor de falha do código/grafo.
 
 ## Passo 4 — Auditar a integridade dos registros
 
@@ -164,7 +176,7 @@ Antes de escrever qualquer coisa, mostre em formato curto:
 - **Consolidação**: o que vai subir para o `AGENTS.md` e o que vai ser arquivado
 - **Perguntas em aberto**: tudo que você não pode decidir sozinho, de uma vez só
 
-Aguarde a confirmação. Se o usuário discordar de um item, tire-o do plano — não insista.
+Se a atualização já estiver autorizada e não mudar decisões de produto, prossiga. Peça confirmação somente para decisões novas, contraditórias ou fora do escopo; apresente alternativas e consequências concretas.
 
 ## Passo 7 — Aplicar
 
@@ -175,7 +187,7 @@ Execute o plano confirmado, nesta ordem:
 3. Migrar as seções do `AGENTS.md` (crie as que faltam, reformate as que mudaram, **preserve as customizadas**)
 4. Corrigir os pontos onde a documentação contradizia o código
 5. Promover regras essenciais para `AGENTS.md` e detalhes duráveis para documentos vinculados, preservando os registros históricos
-6. Inicializar ou completar `docs/system/` e sincronizar código e documentos no Graphify conforme o plano
+6. Inicializar ou completar `docs/system/`, validar contratos/estado/evidências, gerar Volante e sincronizar código/documentos no Graphify conforme o plano
 
 Edite cirurgicamente: mantenha o texto que continua correto com as palavras originais do usuário. Reescrever seção inteira que estava certa só troca a redação dele pela sua.
 
