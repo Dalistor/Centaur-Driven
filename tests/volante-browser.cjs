@@ -25,6 +25,10 @@ const { pathToFileURL } = require('node:url');
   try {
     await page.goto(pageUrl);
     await page.getByRole('heading', { name: 'O que o sistema faz' }).waitFor();
+    await page.emulateMedia({ colorScheme: 'dark' });
+    assert.match(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), /only light|light only/);
+    assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(246, 247, 249)');
+    await page.emulateMedia({ colorScheme: 'light' });
     assert.equal(await page.getByRole('link', { name: /Reservar e cancelar consultas/ }).count(), 1);
     const shots = process.env.VOLANTE_SCREENSHOTS || os.tmpdir();
     fs.mkdirSync(shots, { recursive: true });
@@ -51,6 +55,7 @@ const { pathToFileURL } = require('node:url');
     assert.match(text, /não altera aprovações/);
 
     await page.getByRole('navigation').getByRole('link', { name: 'Contratos', exact: true }).click();
+    await page.getByRole('heading', { name: 'Contratos', exact: true }).waitFor();
     await page.getByLabel('Buscar no visor').fill('nenhum-resultadotest');
     await page.getByRole('heading', { name: 'Nenhum contrato encontrado' }).waitFor();
     await page.getByRole('button', { name: 'Limpar busca' }).click();
@@ -64,8 +69,10 @@ const { pathToFileURL } = require('node:url');
 
     for (const label of ['Código', 'Evidências', 'Próximos passos', 'Specs', 'Documentos', 'Visão geral']) {
       await page.getByRole('navigation').getByRole('link', { name: label, exact: true }).click();
+      await page.waitForFunction(expected => document.querySelector('nav [aria-current="page"]')?.textContent.trim() === expected, label);
       assert.equal(await page.locator('main h1').count(), 1);
     }
+    await page.getByRole('heading', { name: 'O que o sistema faz' }).waitFor();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByLabel('Módulo', { exact: true }).focus();
     await page.keyboard.press('ArrowDown');

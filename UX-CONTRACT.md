@@ -20,3 +20,5 @@ Nenhum resultado é inventado em vazio. Registros inválidos produzem aviso vis�
 Documento principal usa scroll natural; código e documentos extensos têm scroll próprio e limites de prévia. Links e details nativos operam por teclado. O foco de navegação chega ao conteúdo; há skip link, nomes acessíveis e status de exportação. Conteúdo importado é texto escapado. Não abrir paths externos ao projeto ou arquivos reservados no gerador.
 
 Menu, chips, evidências e estados compartilham primitivas em todas as visões. Verificar contrato, código e evidências como telas irmãs; versão mobile mantém as mesmas ações. Datas usam pt-BR no fuso do navegador, com data ISO preservada na exportação. O snapshot informa explicitamente que não acompanha o checkout em tempo real.
+
+O resumo da visão geral oferece links reais para contratos, código e evidências, preservando filtros. Segmentos do mapa representam a quantidade real de regras e não uma porcentagem de conclusão; o texto informa a contagem verificada. Decisões apontam ao contrato correspondente. SVGs decorativos ficam ocultos de tecnologias assistivas.
