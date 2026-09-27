@@ -3,12 +3,16 @@ name: centaur-driven-security
 description: Audita segurança de código, configuração ou diffs e verifica vulnerabilidades suspeitas com evidências, análise de falsos positivos e busca de variantes. Use para auditoria de segurança, revisão de PR com foco em segurança ou validação de achados; entrega relatório sem corrigir o código.
 license: CC-BY-SA-4.0; atribuição e fontes em references/security-review.md
 metadata:
-  version: 1.0.0
+  version: 4.0.0
   dependencies: graphify
   optional-dependencies: ai-memory
 ---
 
 # centaur-driven-security
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 Produza achados acionáveis e rastreáveis ao código atual. Diferencie vulnerabilidade demonstrada, hipótese pendente e recomendação de proteção adicional. Ausência de achados não é certificação de segurança.
 

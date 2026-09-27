@@ -1,0 +1,11 @@
+{
+  "profile": "product-admin",
+  "sourceRoots": ["centaur-driven-graphify/scripts"],
+  "locale": "pt-BR",
+  "canonicalMap": "UX-CONTRACT.md",
+  "requiredCapabilities": ["Select/Listbox", "Scrollbar", "Toast", "Form"],
+  "ownership": {"Select/Listbox": "native"},
+  "requiredCommands": ["unit", "e2e"],
+  "commands": {"unit": "python3 -m unittest discover -s tests -v", "e2e": "node tests/volante-browser.cjs"},
+  "evidence": {"failurePaths": "tests/volante-browser.cjs"}
+}

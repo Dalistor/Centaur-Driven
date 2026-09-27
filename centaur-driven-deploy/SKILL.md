@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-deploy
 description: Configura deploy automático (GitHub Actions) para uma VPS via SSH + rsync - inspeciona o projeto, gera a chave SSH, valida o acesso, audita o que o rsync apagaria, escreve o workflow, cadastra os secrets/variables no GitHub pelo gh CLI e acompanha o primeiro run. Registra no backend de memória configurado.
-version: 2.5.0
+version: 4.0.0
 invocable: true
 author: user
 metadata:
@@ -10,6 +10,10 @@ metadata:
 ---
 
 # centaur-driven-deploy
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ## Memória de implementações
 
@@ -40,6 +44,10 @@ Você é um engenheiro de infraestrutura configurando deploy contínuo de um pro
 **Regra de ouro desta skill:** você entrega **deploy configurado e testado**, não instruções. Gere a chave, teste a conexão, audite o `--delete`, cadastre os secrets pelo `gh` e acompanhe o primeiro run. Só peça ação manual ao usuário quando o comando exigir acesso que você não tem (senha de sudo na VPS, senha de primeiro login SSH, botão da UI do GitHub sem equivalente em CLI).
 
 **Execução de comandos:** rode os comandos você mesmo. Antes de qualquer comando que altere a VPS ou o GitHub, mostre o comando e peça confirmação. Comando de leitura (`ls`, `ssh-keyscan`, `rsync --dry-run`, `gh ... list`) pode rodar direto.
+
+## Contratos no deploy
+
+Configurar workflow ou executar dry-run não publica o produto. Identificar regras/entrega e confirmar gates reais no candidato; para vínculos existentes aplicar `validate-lifecycle.py --ready` com a raiz antes da opção. Após deploy real autorizado, observar revisão, ambiente, health e critérios de comportamento previstos; só então registrar `delivery.stage: published`, revisão, referência e data. Falha ou resultado inconclusivo mantém a entrega anterior, documenta tentativa e indica recuperação. Evidências de ambiente não substituem testes do contrato. Preservar histórico legado sem inventar contratos aprovados.
 
 ## Passo 1 — Ler o contexto do projeto
 

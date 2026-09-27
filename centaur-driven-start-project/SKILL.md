@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-start-project
 description: Inicializa o contexto de um projeto existente com AGENTS.md curto, registros Centaur e índice Graphify; reutiliza fontes e documenta detalhes sob demanda.
-version: 3.5.0
+version: 4.0.0
 invocable: true
 author: user
 metadata:
@@ -10,6 +10,10 @@ metadata:
 ---
 
 # centaur-driven-start-project
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ## Memória de implementações
 
@@ -65,6 +69,9 @@ Decisões ficam em documentos canônicos, indexados para próximas sessões. Có
 ## Memória de decisões e mudanças
 [Backend confirmado em `.centaur/workspace.json`: files ou ai-memory.]
 Com ai-memory, siga `centaur-driven-memory`: use workspace/projeto explícitos da `.ai-memory.toml`, consulte decisões relevantes e registre mudanças na wiki com leitura de confirmação. Sem serviço, preserve o registro em `.centaur/memory-pending/` e reporte pendência. Não crie novas pastas implements nesse modo. Memória histórica não substitui código, testes, regras ou o estado das specs.
+
+## Contratos e realização
+Contratos em `.centaur/contracts/<id>/vNNN.json` definem o comportamento desejado e a autonomia. Estado em `.centaur/state/` e evidências em `.centaur/evidence/` registram a realização; o ciclo normativo de `centaur-driven-graphify` define formatos e gates. Contratos aprovados são versionados, não reescritos. Antes de editar, consultar apenas as regras e limites pertinentes. Checklist de spec não comprova comportamento. O visor `.centaur/volante.html` é um snapshot derivado; regenerá-lo após consolidar mudanças, sem editá-lo manualmente.
 
 ## Comandos essenciais
 [Comandos reais para executar, construir e validar, com diretório quando necessário. Link para instruções detalhadas de ambiente/deploy já existentes.]
@@ -132,7 +139,9 @@ Planejamentos de implementações complexas, decompostos em tasks para subagente
 _Atualizado automaticamente pelas skills `/centaur-driven-spec`, `/centaur-driven-tdd`, `/centaur-driven-implement` e `/centaur-driven-run`_
 ```
 
-Gere `.centaur/andamento.html` com o script `scripts/render-dashboard.py` da skill `centaur-driven-graphify` após criar `workspace.json` e os índices. Passe a raiz do projeto como argumento. A página mostra todos os escopos, specs e tarefas pendentes a partir dos READMEs existentes; a área de notas é local ao navegador. Regere-a após mudanças nas specs conforme o contrato de contexto.
+Defina com o usuário o molde geral: responsabilidades dos módulos, invariantes, limites e decisões delegadas. Reutilize autorização explícita; inferências sobre o código são rascunhos. Registre o primeiro contrato útil pelo formato de `references/lifecycle.md`; não crie contratos vazios nem marque comportamento existente como verificado sem evidência. Acrescente `"lifecycle": 1` ao workspace preservando campos. Contratos/estado/evidências pertencem ao repositório em ambos os backends de memória.
+
+Gere `.centaur/volante.html` com `scripts/render-volante.py` da skill `centaur-driven-graphify`, passando a raiz real. O visor funciona também sem contratos, mostrando specs legadas e lacunas explícitas. Leia o snapshot: módulos, capacidades, regras, fontes, evidências e decisões. Não publicar o HTML como efeito colateral. Notas ficam no navegador; exportação de contexto não executa tarefas. Regenerar conforme o ciclo normativo.
 
 ## Passo 6 — Indexar, verificar e entregar
 

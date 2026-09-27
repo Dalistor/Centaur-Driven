@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-tdd
 description: Implementa uma mudança guiada por testes (red-green-refactor), com ciclos mínimos, reaproveitamento e manutenção dos testes existentes e registro no backend de memória configurado. Use quando a mudança tem regra de negócio testável.
-version: 1.11.0
+version: 4.0.0
 invocable: true
 author: user
 metadata:
@@ -10,6 +10,10 @@ metadata:
 ---
 
 # centaur-driven-tdd
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ## Memória de implementações
 
@@ -47,6 +51,16 @@ A referência de processo é o [TDD do Superpowers](https://github.com/obra/supe
 - Teste o contrato observado pelo consumidor. Uma mudança interna que preserva esse contrato não deveria obrigar reescrever a suíte.
 - Falha de teste exige diagnóstico. Mudar a expectativa é correto quando o requisito mudou; afrouxá-la para esconder um defeito não é.
 - Reporte somente execuções e resultados observados. Não declare suíte verde a partir de um teste isolado.
+
+## Vínculo obrigatório à realização do contrato
+
+Antes de editar, identificar contrato/versão/regras, limites herdados e autorização. Mudança pequena pode reutilizar contrato existente; sem contrato pertinente, registrar o molde mínimo pela spec (o pedido inequívoco serve de autorização), sem exigir planejamento extenso. Em legado, preservar histórico; evidência e estado novos não são inferidos de checklists antigos.
+
+Executar uma entrega por comportamento, podendo atravessar camadas dentro da arquitetura e do escopo. Escolher detalhes técnicos dentro de `autonomy`. Mudança de regra, permissão, compatibilidade ou limite exige decisão/nova versão; não ajustar contrato ou testes para encobrir divergência.
+
+Após validar, registrar fontes com caminhos/linhas e evidências conforme o ciclo normativo; incluir arquivos de produção, testes e configurações que sustentam o resultado. Manter implementação, verificação e entrega separadas. Sem prova, declarar não verificada. Não marcar integração/publicação a partir de execução local.
+
+No modo direto, atualizar estado e gerar Volante. Em modo spec, produzir evidência individual imutável e delta de estado no relatório; somente o coordenador consolida `.centaur/state/`, specs, índices e visor. Antes de integrar, aplicar o gate `--ready` de cada regra e os checks reais. Ausência de Graphify não autoriza omitir estado ou evidência.
 
 ## Passo 1 — Recuperar contexto e identificar modo spec
 
@@ -200,6 +214,9 @@ Em `files`, crie `.centaur/implements/XXXX/README.md`. Em `ai-memory`, use este 
 ## Como validar
 [Comando exato para rodar os testes desta implementação]
 
+## Contrato e realização
+[Contrato/versão/regras; fontes com linhas; IDs de evidências; implementação/verificação/entrega; decisões autônomas, impacto previsto × real e próximo passo]
+
 ## Resultado da validação
 [Comandos e resultados reais, incluindo suíte/gates, falhas e limitações. Cobertura somente se medida.]
 ```
@@ -217,6 +234,8 @@ Somente em `files`, adicione uma linha na tabela de `.centaur/implements/status.
 Se a tabela ainda contiver a linha placeholder (`| — | — | — | — | — |`), remova-a ao inserir a primeira linha real.
 
 ## Passo 15 — Atualizar AGENTS.md se necessário
+
+**Modo spec:** só editar AGENTS.md, glossário ou documento compartilhado se a task possuir esses arquivos explicitamente. Caso contrário entregar o delta documental ao coordenador; não criar obrigação implícita de escrita concorrente.
 
 Se a implementação adicionou funcionalidade relevante, mudou arquitetura, introduziu dependência importante, **estabeleceu a infraestrutura de testes do projeto** (framework, comando, convenção de nomes), ou **estabeleceu um termo novo do domínio** que o código passou a usar → atualize as instruções essenciais do `AGENTS.md` e os detalhes nas fontes vinculadas, sem duplicação. O termo novo vai para o glossário vinculado pela seção "Vocabulário e Idioma do Código"; sem glossário, use essa seção enquanto ela for curta. Correção interna sem impacto na visão geral não precisa.
 
@@ -249,6 +268,10 @@ Implementação: XXXX
 Título: [título usado no README da implementação]
 Arquivos afetados: [código, testes e documentos alterados, incluindo o README da implementação]
 Graphify: sincronização pendente pelo coordenador; [escopo e caminhos a incluir]
+Contrato/regras: [IDs e versão]
+Realização: [implementação, evidências selecionadas, entrega local e delta de estado]
+Impacto: [previsto × real, decisões e desvios]
+Próximo passo: [ação ou decisão necessária]
 Validação: [evidências RED/GREEN, suíte/gates, falhas e limitações]
 Testes mantidos/atualizados/removidos: [motivos e proteção preservada]
 Mapa: [caminho e resultado real; se bloqueada sem implementação, não aplicável]

@@ -1,7 +1,7 @@
 ---
 name: centaur-driven-spec
-description: Decompõe uma demanda grande em tasks atômicas por camada, salvas em .centaur/specs/, prontas para execução orquestrada com centaur-driven-run
-version: 1.13.0
+description: Define ou evolui contratos de comportamento, limites e autonomia; planeja entregas verticais pequenas com critérios de aceite, rastreabilidade e próximos passos.
+version: 4.0.0
 invocable: true
 author: user
 metadata:
@@ -10,6 +10,10 @@ metadata:
 ---
 
 # centaur-driven-spec
+
+## Ciclo por contratos — obrigatório
+
+Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ## Memória de implementações
 
@@ -31,210 +35,91 @@ Leia `references/architecture.md` da dependência para decompor responsabilidade
 
 As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
-Você é um engenheiro sênior responsável por decompor uma solicitação complexa em tasks atômicas e independentes, documentadas em um arquivo de spec que será executado por subagentes via `/centaur-driven-tdd` (tasks com comportamento testável) ou `/centaur-driven-implement` (tasks estruturais).
+Você ajuda o humano a definir o molde e planeja a próxima entrega verificável. Não implemente código nesta skill.
 
-## Passo 1 — Ler o contexto do projeto
+## Passo 1 — Entender o sistema e a intenção
 
-Leia `AGENTS.md` e recupere o contexto da solicitação pelo contrato Graphify acima. Consulte apenas os registros e trechos relevantes do escopo; para status, confirme o README canônico.
+Leia AGENTS.md, workspace e os contratos pertinentes. Consulte Graphify e confirme fontes atuais. Separe: comportamento existente, desejo explícito, hipótese e lacuna. Leia somente o histórico necessário. Identifique o objetivo, atores, permissões, falhas relevantes, compatibilidade e limites arquiteturais. Preserve o backend e os caminhos dos escopos.
 
-Se `AGENTS.md` não existir, avise o usuário:
-> "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro."
+## Passo 2 — Definir ou evoluir o contrato
 
-Dê atenção especial a duas seções do `AGENTS.md`: **Arquitetura de Camadas**, que guia a decomposição no Passo 5, e **Vocabulário e Idioma do Código**, incluindo o glossário nela vinculado. Consulte os termos relevantes e use-os ao escrever as instruções das tasks — o subagente nomeia o código com as palavras que a instrução usar. Se a seção não existir, sugira ao usuário rodar `/centaur-driven-start-project` para formalizá-la antes de criar a spec (ou acorde as camadas com ele agora e inclua no contexto técnico da spec).
+Use o formato e versionamento do ciclo normativo. Para uma capacidade nova, escreva `.centaur/contracts/<id>/v001.json`; para mudança em contrato aprovado, crie a próxima versão. Reutilize contratos gerais com herança fixada. Cada regra tem ID estável, descrição, aceite observável e dependências qualificadas quando necessárias.
 
-## Passo 2 — Entender a solicitação
+Preencha `boundaries`, `autonomy` e `decisions` com o que importa ao produto. Apresente apenas dúvidas que alteram o comportamento, limites ou escopo e não estejam respondidas. Decisões de organização interna delegadas não exigem nova aprovação. Pedido inequívoco já autoriza as regras nele expressas; registre a referência real. Escolhas novas ainda não autorizadas ficam em rascunho. Não aprovar inferências nem completar lacunas com preferências próprias.
 
-Leia com atenção o que o usuário pediu. Identifique:
-- O objetivo final (o que deve existir/funcionar ao término)
-- O escopo: quais partes do sistema serão afetadas
-- Dependências conhecidas entre as partes
+Quando houver duas alternativas de produto, mostrar consequência, recomendação e a decisão necessária. Uma decisão material aberta bloqueia somente o contrato afetado; separar capacidades independentes quando adequado. Não executar contrato não aprovado.
 
-## Passo 3 — Explorar o código relevante
+## Passo 3 — Comparar contrato e realização
 
-Consulte primeiro o Graphify e leia apenas a Visão geral, Drafts, Fluxos, Perspectivas e Decisões pertinentes à demanda em `docs/system/`. Eles são a referência humana da demanda; use o Graphify para localizar arquivos candidatos, confirme detalhes no código e separe hipótese de comportamento implementado. Registre no contexto técnico da própria `.centaur/specs/YYYY/README.md` quais notas originaram a spec. Após salvar a spec e seu índice, sincronize os documentos no Graphify; o README continua sendo a fonte canônica de status.
+Leia estado e evidências da versão vigente e confira código relevante. Identifique regras ausentes, parciais, sem prova ou desatualizadas; não reimplemente o que já está validado. Registre impacto previsto em módulos, dados, interfaces e compatibilidade. Arquivos são rastreabilidade técnica; progresso humano é comportamento demonstrável.
 
-Localize e leia os arquivos que fornecem contexto suficiente para decompor a solicitação:
-- Pontos de entrada relacionados
-- Módulos, serviços ou componentes que serão afetados
-- Testes existentes na área
+## Passo 4 — Planejar uma entrega vertical pequena
 
-Não implemente nada ainda — apenas mapeie o território.
+Escolha a menor capacidade demonstrável de ponta a ponta. Uma entrega pode atravessar domínio, persistência, API e interface, respeitando seus limites. Não decomponha obrigatoriamente por camada nem use número de arquivos como limiar de tamanho. Divida por risco, dependências e possibilidade de validação/integracão independente.
 
-## Passo 4 — Tirar todas as dúvidas
+Dentro da entrega, tasks têm responsável, posse de arquivos, dependências e modo. `TDD` para regra de negócio relevante com infraestrutura disponível; `direto` para estrutura, UI, configuração ou ausência de infraestrutura. Cada task carrega critérios observáveis, limites e testes existentes; teste novo deve cobrir lacuna concreta. Tasks técnicas internas não viram marcos humanos de conclusão.
 
-Antes de criar a spec, liste todas as ambiguidades:
-- Comportamentos não especificados
-- Decisões de design que dependem de preferência do usuário
-- Edge cases que mudam o escopo
+Preserve instruções essenciais, mas permita ao executor escolher detalhes dentro da autonomia. Registre mudanças de plano e impactos reais. Mudança de contrato exige nova versão/decisão, nunca alteração silenciosa do objetivo. Paralelismo é opcional e depende de interfaces, arquivos e isolamento, não só de tasks sem dependência nominal.
 
-Apresente as dúvidas de uma vez e aguarde as respostas antes de continuar.
+## Passo 5 — Salvar a spec da entrega
 
-## Passo 5 — Decompor em tasks
-
-Com todas as dúvidas resolvidas, quebre a solicitação em tasks **atômicas e executáveis**:
-
-Critérios para uma boa task:
-- Tem um único objetivo claro
-- Pode ser implementada sem depender de tasks ainda não concluídas (ou tem dependência explícita)
-- Pode ser descrita em 2-4 frases que, ao serem passadas à skill de execução (`/centaur-driven-tdd` ou `/centaur-driven-implement`), produzem o resultado esperado
-- Não é grande demais (evite tasks que mexem em mais de ~4 arquivos distintos — o mesmo limiar que faz `/centaur-driven-implement` recusar uma solicitação)
-
-**Decomponha ao longo da Arquitetura de Camadas do `AGENTS.md`.** Uma feature vertical vira uma sequência de tasks por camada, de dentro para fora — a ordem natural de dependência:
-
-1. Models / entidades de domínio
-2. DTOs / contratos de entrada e saída
-3. Repositories / acesso a dados (migrations incluídas)
-4. Services / regras de negócio
-5. Handlers / controllers / rotas
-6. Testes de integração da feature completa
-
-**Marque cada task como TDD ou direta — com proporcionalidade.** `**Modo:** TDD` é reservado a tasks com **regra de negócio real**: decisão, cálculo, validação com consequência, correção de bug. Ser tecnicamente testável não basta — mapeamento direto de campos, fiação de rota, scaffold, migration, config e CRUD sem regra vão de `**Modo:** direto` para `/centaur-driven-implement`, mesmo que dê para escrever teste. Teste desnecessário custa em toda execução futura da suíte.
-
-Não crie tasks separadas de "escrever testes da camada X": o teste pertence à task que implementa o comportamento. A task de **testes de integração é opcional** — inclua só quando existe um fluxo ponta a ponta com valor real que nenhuma task unitária cobre (ex: requisição atravessando handler → service → repository com regra no meio). Não a inclua por hábito.
-
-Toda task TDD deve trazer os **critérios de aceite em forma de comportamentos observáveis**, os riscos concretos e o que deve permanecer compatível. Aponte testes existentes relevantes e autorize sua manutenção nos arquivos da task. Critérios não impõem uma quantidade de testes novos: o executor reaproveita proteção existente, atualiza casos quando a regra muda e acrescenta somente lacunas distintas. Não prescreva baterias genéricas de erros/bordas, testes por camada ou metas de cobertura novas. Casos explicitamente exigidos continuam obrigatórios; dúvidas sobre o contrato bloqueiam a task, não autorizam remover proteção.
-
-Nem toda spec precisa de todas as camadas — inclua só as afetadas. Tasks de camadas independentes (ex: dois repositories que não se tocam) podem ser marcadas como paralelizáveis. Cada task deve declarar quais camadas toca, e a instrução deve proibir explicitamente tocar camadas fora do escopo dela.
-
-Ordene as tasks pela sequência de execução recomendada. Marque dependências explicitamente quando existirem.
-
-## Passo 6 — Determinar número da spec
-
-Em todas as skills centaur, `YYYY` é o número da spec e `XXXX` o número de uma implementação.
-
-Para IDs sequenciais legados, este comando encontra o último número; adapte o caminho ao escopo. Em clones independentes use o sufixo único definido no contrato:
-
-```
-ls .centaur/specs/ 2>/dev/null | grep -E '^[0-9]{4}$' | sort | tail -1
-```
-
-- Se retornar um número (ex: `0002`), o próximo é esse + 1 (ex: `0003`)
-- Se retornar vazio ou o diretório não existir, começa em `0001`
-- Formate a base numérica com 4 dígitos: `0001`, `0002`, `0042`, `0100`
-
-Crie o diretório `.centaur/specs/` se não existir.
-
-## Passo 7 — Criar o arquivo de spec
-
-Obtenha a data de hoje com `date +%F` — não a preencha de memória.
-
-Reserve atomicamente a pasta `.centaur/specs/YYYY/` com `mkdir` sem `-p` (se existir, escolha outro ID). Crie então o arquivo `.centaur/specs/YYYY/README.md`:
+Reserve o ID por mkdir atômico conforme o contrato de equipe. Preserve IDs legados e use escopo qualificado. Specs continuam nos diretórios configurados, distintas dos contratos vivos.
 
 ```markdown
-# [YYYY] [Título curto e descritivo]
+# [YYYY] [Comportamento entregue]
 
-**Data:** [saída de `date +%F`]
+**Data:** [data real]
 **Status:** Pendente
 **Escopo:** [escopo]
 **Responsável:** [pessoa/equipe]
-**Spec mestre:** [ID qualificado ou —]
-**Specs filhas:** [IDs qualificados ou —]
-**Dependências:** [IDs qualificados ou —]
-**Solicitação original:** [o que o usuário pediu, com as palavras dele]
+**Contrato:** [id@versão]
+**Regras:** [IDs estáveis]
+**Spec mestre:** [ID ou —]
+**Specs filhas:** [IDs ou —]
+**Dependências:** [IDs ou —]
+**Solicitação original:** [pedido]
 
-## Objetivo
+## Objetivo e demonstração
+[Antes/depois observável e como demonstrar a entrega]
 
-[O que deve existir/funcionar ao término de todas as tasks]
+## Impacto previsto
+[Módulos, dados, interfaces, compatibilidade; limites herdados]
+
+## Autonomia e decisões
+[Referências às cláusulas; decisões abertas e origem das autorizações]
 
 ## Contexto técnico
-
-[Arquivos, módulos e decisões relevantes para quem vai executar as tasks]
-
-**Dependência de execução:** cada executor deve carregar a skill `clean-code` e as referências pertinentes, seguindo o contrato de `/centaur-driven-tdd` ou `/centaur-driven-implement`. Preserve o Modo de cada task e registre decisões em `.centaur/`, sem escritas em `.clean/`.
+[Fontes atuais, testes existentes, decisões, dependências clean-code/graphify]
 
 ## Tasks
 
-### Task 01 — [Título]
-
-**Objetivo:** [O que esta task entrega]
-**Camadas:** [ex: Models, DTOs]
+### Task 01 — [Objetivo interno necessário à entrega]
+**Regras:** [IDs]
 **Modo:** [TDD | direto]
-**Depende de:** —
-**Instrução para o subagente:**
-> Spec YYYY — Task 01: [Instrução completa e autocontida. Como o subagente não pode fazer perguntas, inclua TODAS as decisões já tomadas: comportamento esperado, riscos/limites relevantes, compatibilidade a preservar, arquivos de código/testes envolvidos e critério de sucesso. Se `Modo: TDD`, liste os critérios de aceite como comportamentos observáveis — conforme o Passo 5, permitindo reaproveitar/atualizar testes sem mudar requisitos — e comece a instrução com "Implemente por TDD:". Termine com: "Toque apenas nas camadas [X]; não modifique arquivos de outras camadas."]
+**Responsável:** [executor ou a atribuir]
+**Arquivos:** [posse prevista e limites arquiteturais]
+**Depende de:** [tasks/regras ou —]
+**Instrução para o executor:**
+> Spec escopo/YYYY — Task 01: [Objetivo, contrato fixado, aceite, fontes, limites, autonomia e validação. Permitir decisões técnicas internas, sem mudar o comportamento. Reportar fontes, evidências e deltas; não escrever estado compartilhado, índices ou grafo.]
 
----
+## Validação e integração
+[Critérios da entrega, regras para --ready, checks reais, destino e autorização de integração; publicação separada]
 
-### Task 02 — [Título]
-
-**Objetivo:** [O que esta task entrega]
-**Camadas:** [ex: Services]
-**Modo:** [TDD | direto]
-**Depende de:** Task 01
-**Instrução para o subagente:**
-> Spec YYYY — Task 02: [Instrução completa e autocontida, com todas as decisões já tomadas e a restrição de camadas.]
-
----
-
-[... demais tasks ...]
-
-## Como executar
-
-Recomendado — orquestração automática:
-
-```
-/centaur-driven-run YYYY
-```
-
-O run lança um subagente por task, paraleliza as independentes, respeita as dependências e consolida checklist, status e `status.md` ao fim de cada onda.
-
-Alternativa manual — para cada task, abra um subagente e invoque a skill correspondente ao `Modo` da task:
-
-```
-/centaur-driven-tdd [instrução da task, se Modo: TDD]
-/centaur-driven-implement [instrução da task, se Modo: direto]
-```
-
-Execute as tasks na ordem indicada, respeitando as dependências. Na execução manual, o subagente **não** escreve neste README nem no `status.md` — ao fim de cada task, quem orquestra marca o checklist, registra a referência da página (ai-memory) ou a linha no `status.md` (files) e atualiza o status da spec com base no relatório do subagente.
-
-## Ciclo de vida
-
-- `Pendente` → nenhuma task iniciada
-- `Em andamento` → definido por quem orquestra (`/centaur-driven-run` ao montar o plano, ou quem executa manualmente ao iniciar a primeira task)
-- `Concluída` → definido por quem orquestra quando a última task do checklist for marcada
-- Tasks bloqueadas ficam anotadas no checklist com o motivo
+## Diferença entre plano e resultado
+[Atualizada pelo coordenador: decisões técnicas, impacto real e desvios]
 
 ## Checklist de conclusão
-
-_Atualizado por quem orquestra a execução (`/centaur-driven-run` ou execução manual), a partir do relatório de cada subagente._
-
 - [ ] Task 01 — [Título]
-- [ ] Task 02 — [Título]
-[... demais tasks ...]
+
+## Execução
+/centaur-driven-run escopo/YYYY
+
+## Estado
+O ciclo normativo define o estado. Checkboxes não concluem a spec: exigir aceite, prova corrente e integração, inclusive das filhas. Publicação só se fizer parte do aceite.
 ```
 
-## Passo 8 — Atualizar o índice de specs
+Criar/atualizar `specs/index.md` apenas no escopo correspondente, sem apagar histórico. Demandas entre módulos podem usar mestre e filhas com IDs e critérios de integração recíprocos, sem duplicar tasks. Não criar hierarquia de specs quando uma entrega pequena em master bastar.
 
-Se não existir, crie `.centaur/specs/index.md`:
+## Passo 6 — Validar registros e entregar direção
 
-```markdown
-# Specs
-
-| # | Título | Data | Status | Tasks |
-|---|--------|------|--------|-------|
-```
-
-Adicione uma linha:
-
-```
-| YYYY | [Título] | [data] | Pendente | [N tasks] |
-```
-
-Se a tabela ainda contiver uma linha placeholder (`| — | — | — | — | — |`), remova-a ao inserir a primeira linha real.
-
-Após salvar o README e o índice, regenere `.centaur/andamento.html` conforme o contrato de contexto, para que o novo trabalho apareça no painel local.
-
-## Passo 9 — Informar o usuário
-
-Confirme a criação com:
-- Número e título da spec (ex: "Spec criada em `.centaur/specs/0001/`")
-- Quantas tasks foram criadas e a ordem de execução recomendada
-- Como executar: `/centaur-driven-run YYYY` orquestra tudo automaticamente (subagentes, paralelismo, dependências, checklist). A alternativa manual é abrir um subagente por task com a skill do `Modo` dela (`/centaur-driven-tdd` ou `/centaur-driven-implement`) e a instrução da task
-
-Exemplo de mensagem final:
-
-> Spec `0001` criada com 4 tasks (Task 02 e 03 paralelizáveis). Para executar:
->
-> `/centaur-driven-run 0001`
-
-Ao concluir o planejamento, sincronize os documentos pela skill Graphify. Para demandas entre módulos, registre primeiro a mestre e as filhas com links recíprocos; só libere execução após conferir todas as referências.
+Rodar `validate-lifecycle.py` e corrigir estrutura inválida; rascunho legítimo não é aprovação. Sincronizar documentos no Graphify e gerar `volante.html` conforme o ciclo. Informar: contrato e versão, decisões humanas pendentes, primeira entrega, o que a IA pode executar agora e o que falta comprovar. O planejamento não executa nem publica a entrega.
