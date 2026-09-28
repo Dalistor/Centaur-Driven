@@ -45,7 +45,7 @@ Avenir Next/Segoe em títulos compactos, Segoe/system em leitura, Cascadia/Conso
 
 ## Layout
 
-Navegação lateral persistente, busca/filtro global, leitura principal e contexto lateral. Abaixo de 1000px o contexto vai para baixo; abaixo de 700px a navegação se torna horizontal com quebra. Na visão geral, a assinatura é um mapa pontilhado com capacidades agrupadas por módulo e segmentos que representam regras reais. Módulos sem contratos no recorte não ocupam cartões vazios. O resumo tem links para contratos, código e evidências; decisões abertas recebem destaque lateral. O fundo pontilhado delimita o mapa, sem sugerir dependências inexistentes. Scroll natural do documento, código/documentos com overflow próprio. Conteúdo longo deve quebrar sem esconder decisões ou caminhos. Listas extensas usam Mostrar mais, 18 itens por lote.
+Navegação lateral persistente, busca/filtro global, leitura principal e contexto lateral. Abaixo de 1000px o contexto vai para baixo; abaixo de 700px a navegação se torna horizontal com quebra. Na visão geral, a assinatura é um mapa pontilhado com capacidades agrupadas por módulo e segmentos que representam regras reais. Módulos sem contratos no recorte não ocupam cartões vazios. O resumo tem links para contratos, código e evidências; decisões abertas recebem destaque lateral. O fundo pontilhado delimita o mapa, sem sugerir dependências inexistentes. Scroll natural do documento, código/documentos com overflow próprio. Conteúdo longo deve quebrar sem esconder decisões ou caminhos. Listas extensas usam Mostrar mais, 18 itens por lote. Contratos mostram uma linha por capacidade com intenção e progresso; Código começa por arquivos e só expande trechos do arquivo selecionado. Casos de uso apresentam grafo com passos e conexões editáveis em painel lateral, mantendo o canvas com rolagem própria em telas estreitas.
 
 ## Elevation & Depth
 
@@ -59,13 +59,13 @@ Painéis 12px, controles 7px. Ícones SVG de traço 1.6px compartilham geometria
 
 Modelo B: os tokens CSS são canônicos; este documento espelha os valores aceitos. Tokens CSS em `centaur-driven-graphify/scripts/volante-template.html` são a implementação canônica dos valores acima: background→--bg, surface→--surface, ink→--ink, muted→--muted, line→--line, primary→--brand, rail→--rail e estados→tokens homônimos. Fontes→--display/--sans/--mono; panel→--radius; control→--control-radius; base→--space; desktopContent→padding de .content/.topbar. Tokens derivados --soft, --brand-soft, --warn-soft e --bad-soft pertencem ao mesmo :root e alimentam todos os estados, sem redefinições por tela. Alterar documento e tokens juntos. Cores derivadas claras nos badges não redefinem intenção.
 
-Funções `icon`, `chip`, `trace`, `source`, `evidence`, `empty` e `title` são as primitivas compartilhadas. Cada ação tem hover, focus-visible e semântica nativa. Scrollbar global visível com estados hover/active e fallback forced-colors. Filtros usam select nativo, aceitando popup do sistema. Details nativo abre código, evidências e histórico; links navegam pelo hash.
+Funções `icon`, `chip`, `trace`, `source`, `evidence`, `empty`, `graph` e `title` são as primitivas compartilhadas. Cada ação tem hover, focus-visible e semântica nativa. Scrollbar global visível com estados hover/active e fallback forced-colors. Filtros usam select nativo, aceitando popup do sistema. Details nativo abre código, evidências e histórico; links navegam pelo hash.
 
 ## Do's and Don'ts
 
 - Mostrar data/revisão do snapshot e limitações das provas.
 - Nunca confundir implementado, verificado e publicado.
-- Evitar botões que simulem executar agente, salvar contrato ou publicar.
+- Ações de salvar fluxo ou iniciar agente só aparecem habilitadas quando seu hospedeiro realmente oferece essa capacidade. Nenhuma delas aprova contrato ou integra código.
 - Usar dados reais; demonstrações devem dizer que são fictícias.
 - Exibir código como texto escapado. Não executar Markdown/HTML importado.
 - Notas são locais, exportação é explícita e não concede novas permissões.
@@ -73,3 +73,5 @@ Funções `icon`, `chip`, `trace`, `source`, `evidence`, `empty` e `title` são 
 ## Revisão visual
 
 Redesenho solicitado em 2026-09-27 após avaliação do usuário. Sai a navegação naval e o agrupamento de caixas equivalentes; entram navegação neutra, mapa com nós de capacidade e decisões em destaque. Preservados estados, limites do snapshot, filtros, notas locais e fontes escapadas. Não há novos estados de negócio.
+
+A extensão hospeda o mesmo template no VS Code com política de recursos restrita. A versão avulsa baixa JSON; a versão hospedada salva em arquivo de projeto após validação de versão, e mostra execuções de agentes configurados. O fluxo em nós usa as mesmas cores e tipografia do mapa de capacidades; arestas exprimem apenas conexões registradas no JSON.

@@ -36,13 +36,40 @@ const { pathToFileURL } = require('node:url');
 
     await page.getByRole('link', { name: /Reservar e cancelar consultas/ }).click();
     await page.getByRole('heading', { name: 'Reservar e cancelar consultas' }).waitFor();
-    await page.locator('#rule-RES-01').getByText('Código relacionado · 1 fontes', { exact: true }).click();
-    await page.locator('#rule-RES-01 .source summary').click();
-    assert.match(await page.locator('#rule-RES-01 .source code').innerText(), /def horarios_disponiveis/);
-    await page.locator('#rule-RES-01').getByText('Evidências · 1 registros', { exact: true }).click();
-    assert.match(await page.locator('#rule-RES-01 .evidence').innerText(), /Evidência fictícia/);
+    await page.locator('#rule-RES-01').getByRole('link', { name: /Ver código/ }).click();
+    await page.getByRole('heading', { name: 'Código', exact: true }).waitFor();
+    assert.equal(await page.locator('.source').count(), 2);
+    await page.locator('.source summary').first().click();
+    assert.match(await page.locator('.source code').first().innerText(), /def horarios_disponiveis/);
+    await page.locator('#navigation').getByRole('link', { name: 'Contratos', exact: true }).click();
+    await page.getByRole('heading', { name: 'Contratos', exact: true }).waitFor();
+    await page.getByRole('link', { name: /Reservar e cancelar consultas/ }).click();
+    await page.locator('#rule-RES-01').getByRole('link', { name: /Ver evidências/ }).click();
+    await page.getByRole('heading', { name: 'O que foi comprovado' }).waitFor();
+    assert.match(await page.locator('.evidence').innerText(), /Evidência fictícia/);
     await page.screenshot({ path: path.join(shots, 'volante-contract.png'), fullPage: true });
 
+    await page.locator('#navigation').getByRole('link', { name: 'Casos de uso', exact: true }).click();
+    await page.getByRole('heading', { name: 'Casos de uso', exact: true }).waitFor();
+    assert.equal(await page.locator('.flow-node').count(), 6);
+    await page.getByRole('button', { name: 'Editar passo Horário ainda disponível?' }).click();
+    await page.getByLabel('Título', { exact: true }).fill('Há vaga no momento da confirmação?');
+    await page.getByRole('button', { name: 'Aplicar ao passo' }).click();
+    assert.equal(await page.getByLabel('Título', { exact: true }).inputValue(), 'Há vaga no momento da confirmação?');
+    await page.getByRole('button', { name: 'Adicionar passo' }).click();
+    assert.equal(await page.locator('.flow-node').count(), 7);
+    const flowDownload = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Salvar JSON no projeto' }).click();
+    const flow = JSON.parse(fs.readFileSync(await (await flowDownload).path(), 'utf8'));
+    assert.equal(flow.nodes.length, 7);
+    assert.equal(flow.nodes.find(n => n.id === 'livre').label, 'Há vaga no momento da confirmação?');
+    assert.equal(flow.contract, 'reservas');
+    await page.screenshot({ path: path.join(shots, 'volante-use-case.png'), fullPage: true });
+
+    await page.locator('#navigation').getByRole('link', { name: 'Contratos', exact: true }).click();
+    await page.getByRole('heading', { name: 'Contratos', exact: true }).waitFor();
+    await page.getByRole('link', { name: /Reservar e cancelar consultas/ }).click();
+    await page.getByRole('heading', { name: 'Reservar e cancelar consultas' }).waitFor();
     await page.getByLabel('Suas notas').fill('Ajustar prazo de cancelamento.');
     await page.reload();
     assert.equal(await page.getByLabel('Suas notas').inputValue(), 'Ajustar prazo de cancelamento.');
@@ -54,7 +81,7 @@ const { pathToFileURL } = require('node:url');
     assert.match(text, /reservas\/RES-01/);
     assert.match(text, /não altera aprovações/);
 
-    await page.getByRole('navigation').getByRole('link', { name: 'Contratos', exact: true }).click();
+    await page.locator('#navigation').getByRole('link', { name: 'Contratos', exact: true }).click();
     await page.getByRole('heading', { name: 'Contratos', exact: true }).waitFor();
     await page.getByLabel('Buscar no visor').fill('nenhum-resultadotest');
     await page.getByRole('heading', { name: 'Nenhum contrato encontrado' }).waitFor();
@@ -67,8 +94,8 @@ const { pathToFileURL } = require('node:url');
     assert.equal(await page.getByLabel('Módulo', { exact: true }).inputValue(), 'notificacoes');
     await page.getByLabel('Módulo', { exact: true }).selectOption('');
 
-    for (const label of ['Código', 'Evidências', 'Próximos passos', 'Specs', 'Documentos', 'Visão geral']) {
-      await page.getByRole('navigation').getByRole('link', { name: label, exact: true }).click();
+    for (const label of ['Código', 'Evidências', 'Próximos passos', 'Specs', 'Documentos', 'Agentes', 'Visão geral']) {
+      await page.locator('#navigation').getByRole('link', { name: label, exact: true }).click();
       await page.waitForFunction(expected => document.querySelector('nav [aria-current="page"]')?.textContent.trim() === expected, label);
       assert.equal(await page.locator('main h1').count(), 1);
     }
@@ -82,9 +109,9 @@ const { pathToFileURL } = require('node:url');
     await page.screenshot({ path: path.join(shots, 'volante-mobile.png'), fullPage: true });
     await page.getByRole('link', { name: /Reservar e cancelar consultas/ }).click();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-    await page.locator('#rule-RES-02 > details').first().locator('summary').first().focus();
+    await page.locator('#rule-RES-02 .rule-actions a').first().focus();
     await page.keyboard.press('Enter');
-    assert.equal(await page.locator('#rule-RES-02 > details').first().getAttribute('open'), '');
+    await page.getByRole('heading', { name: 'Código', exact: true }).waitFor();
     await page.emulateMedia({ reducedMotion: 'reduce' });
     assert.notEqual(await page.evaluate(() => getComputedStyle(document.documentElement).scrollbarColor), 'auto');
 
@@ -109,7 +136,7 @@ const { pathToFileURL } = require('node:url');
     assert.match(await page.locator('main').innerText(), /desatualizada/);
     assert.deepEqual(errors, []);
     assert.deepEqual(network, []);
-    console.log('PASS: navigation, code/evidence drilldown, export, notes, storage failure, search/filter persistence, keyboard, mobile, XSS, stale evidence, offline.');
+    console.log('PASS: navigation, code/evidence drilldown, use-case graph editing/JSON, export, notes, storage failure, filters, keyboard, mobile, XSS, stale evidence, offline.');
     console.log('Screenshots: ' + shots);
   } finally {
     await browser.close();

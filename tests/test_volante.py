@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from support import SCRIPTS, fixture, write
-from volante import load_project, project_path
+from volante import load_project, project_path, validate_use_case
 
 
 class LifecycleTests(unittest.TestCase):
@@ -21,6 +21,19 @@ class LifecycleTests(unittest.TestCase):
 
     def rule(self, key='reservas/RES-01'):
         return next(r for c in load_project(self.root)['contracts'] for r in c['rules'] if r['key'] == key)
+
+    def test_use_case_is_projected_separately_and_rejects_broken_links(self):
+        project = load_project(self.root)
+        self.assertEqual(project['use_cases'][0]['contract'], 'reservas')
+        self.assertEqual(len(project['use_cases'][0]['nodes']), 6)
+        case = copy.deepcopy(project['use_cases'][0])
+        case['edges'].append({'from': 'missing', 'to': 'fim', 'label': ''})
+        with self.assertRaisesRegex(ValueError, 'inexistente'):
+            validate_use_case(case, next(c for c in project['contracts'] if c['id'] == 'reservas'))
+        write(self.root, '.centaur/use-cases/reservas.json', case)
+        broken = load_project(self.root)
+        self.assertFalse(broken['use_cases'])
+        self.assertTrue(any('inexistente' in w for w in broken['warnings']))
 
     def cli(self, script, *args):
         return subprocess.run([sys.executable, str(SCRIPTS/script), str(self.root), *args], capture_output=True, text=True)

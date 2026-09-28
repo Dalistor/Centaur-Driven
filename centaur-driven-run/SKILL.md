@@ -77,3 +77,7 @@ Integrar apenas conforme autorização existente; quando não houver, preparar c
 `Concluída` exige todas as tasks e dependências entregues, critérios do contrato verificados e integração confirmada, inclusive specs filhas. Publicação só é requisito se estiver no aceite. Caso contrário usar Em revisão/Bloqueada/Em andamento conforme o ciclo; nunca concluir pela última checkbox.
 
 Regenerar Volante após o estado final e liberar somente a reserva da sessão. Entregar resumo por comportamento: implementação, verificação, entrega, decisões que faltam, próximo passo executável e links para fontes/evidências. Informar limitações de memória/grafo/visor separadamente. Selecionar próxima lacuna pelo ciclo normativo, sem criar tarefas especulativas.
+
+## Execução pelo Volante
+
+Se a execução for iniciada no painel VS Code, trate o perfil de CLI e o worktree isolado como executor da task. Confirme o contrato e a revisão no worktree, mantenha posse explícita dos arquivos, e recolha diff, testes e evidências antes de consolidar. Encerrar o processo ou ver status "concluído" no painel não integra a branch, não aprova regra e não publica.
