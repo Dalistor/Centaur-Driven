@@ -297,6 +297,7 @@ projeto/
 | `.centaur/evidence/<id>.json` | Resultado imutável e hashes de contrato/fontes da verificação |
 | Spec | Plano finito de uma entrega, tasks e integração; histórico preservado |
 | `.centaur/volante.html` | Visor derivado e offline; não é fonte de verdade |
+| `.centaur/use-cases/<id>.json` | Fluxo de caso de uso editável, separado da aprovação do contrato |
 
 Implementação (`ausente/parcial/implementada`), verificação (`não verificada/aprovada/falhou/desatualizada`) e entrega (`local/integrada/publicada`) são independentes. Evidência precisa corresponder à regra, versão e arquivos atuais. Hashes invalidam provas quando fontes selecionadas mudam; não descobrem todas as dependências indiretas nem garantem ausência de bugs.
 
@@ -308,7 +309,9 @@ Specs usam `Pendente`, `Em andamento`, `Bloqueada`, `Em revisão`, `Concluída` 
 python3 /caminho/centaur-driven-graphify/scripts/render-volante.py /raiz/do/projeto
 ```
 
-Abra `.centaur/volante.html` no navegador. Navegue módulos → capacidades → regras → trechos/evidências. Use busca, filtro por módulo, decisões abertas e próximos passos derivados das lacunas. Specs e documentos existentes permanecem acessíveis. Exporte notas e contexto para enviar à IA; o HTML não executa comandos, não altera contratos e não tem agente conectado.
+Abra `.centaur/volante.html` no navegador para inspecionar contratos em linhas concisas, arquivos por função, evidências e casos de uso. Em Casos de uso, edite passos e conexões e baixe o JSON para `.centaur/use-cases/<id>.json`. Esse arquivo é um rascunho de fluxo e não aprova contrato ou comprova código. O HTML avulso não executa agentes; para usar IA, gravar JSON e iniciar agentes dentro do VS Code, instale a extensão.
+
+A extensão está em [`vscode-extension/`](vscode-extension/README.md). Gere `centaur-volante.vsix` com `npm install && npm run package` nessa pasta; no VS Code use **Extensions: Install from VSIX...** e depois **Centaur: Abrir Volante**. A página Casos de uso pode propor um fluxo por um modelo disponível no VS Code, sempre revisável antes de salvar. Em Agentes, configure perfis de CLI com executável e argumentos explícitos; cada execução aprovada cria branch/worktree separado e aparece no canal de saída. Worktrees são preservados para revisão; nenhum merge ou publicação é automático.
 
 O snapshot mostra data/revisão e precisa ser regenerado após mudanças. Funciona sem servidor ou CDN. Incorpora somente trechos explicitamente vinculados no estado, com limites de tamanho e bloqueio de caminhos externos/arquivos reservados; ainda é necessário revisar fontes para não incluir segredos. Não publicar o visor como efeito colateral.
 

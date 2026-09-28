@@ -1,0 +1,91 @@
+{
+  "name": "centaur-volante",
+  "displayName": "Centaur Volante",
+  "description": "Painel de contratos, código, casos de uso e agentes para projetos Centaur.",
+  "version": "0.1.0",
+  "publisher": "dalistor",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "activationEvents": [
+    "onCommand:centaurVolante.open"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "centaurVolante.open",
+        "title": "Centaur: Abrir Volante"
+      }
+    ],
+    "configuration": {
+      "title": "Centaur Volante",
+      "properties": {
+        "centaurVolante.python": {
+          "type": "string",
+          "default": "python3",
+          "description": "Executável Python 3 para gerar o snapshot local."
+        },
+        "centaurVolante.agentProfiles": {
+          "type": "array",
+          "default": [],
+          "description": "Executores locais configurados por você. Use argumentos separados, sem shell. Marcadores: {prompt}, {workspace}, {contract}, {rule}.",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "label",
+              "command",
+              "args"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Identificador único"
+              },
+              "label": {
+                "type": "string",
+                "description": "Nome mostrado no painel"
+              },
+              "command": {
+                "type": "string",
+                "description": "Executável local (ex.: codex)"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Argumentos para o processo (ex.: [\"exec\", \"{prompt}\"])"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "node --test test/*.test.js",
+    "package": "npm run build && vsce package --no-dependencies --out centaur-volante.vsix"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.6.0"
+  },
+  "files": [
+    "extension.js",
+    "flow-store.js",
+    "agent-runner.js",
+    "dist/**",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dalistor/Centaur-Driven.git"
+  }
+}

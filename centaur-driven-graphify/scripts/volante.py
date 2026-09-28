@@ -8,6 +8,7 @@ from pathlib import Path
 
 SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 RULE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+FLOW_ID = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]{0,39}$")
 TEXT_EXT = {'.py', '.js', '.ts', '.tsx', '.jsx', '.go', '.rs', '.java', '.kt', '.vue', '.svelte', '.css', '.html', '.md', '.json', '.yaml', '.yml', '.sql', '.toml', '.sh', '.dart', '.cs', '.rb', '.php', '.txt'}
 DENIED = {'.git', 'node_modules', '.venv', 'venv', 'memory-pending'}
 
@@ -151,6 +152,35 @@ def legacy_specs(root, scopes, warnings):
     return records
 
 
+def validate_use_case(value, contract):
+    """Constrain editable diagrams; a use case is a draft, never contract approval."""
+    require(isinstance(value, dict) and value.get('schema') == 1, 'Caso de uso exige schema 1')
+    require(value.get('contract') == contract['id'] and value.get('version') == contract['version'], 'Caso de uso deve apontar ao contrato vigente')
+    for field in ('title', 'summary'):
+        require(isinstance(value.get(field), str) and 0 < len(value[field].strip()) <= 500, f'{field} inválido')
+    nodes, edges = value.get('nodes'), value.get('edges')
+    require(isinstance(nodes, list) and 1 <= len(nodes) <= 32, 'Fluxo exige entre 1 e 32 passos')
+    require(isinstance(edges, list) and len(edges) <= 64, 'Fluxo excede 64 conexões')
+    ids = set()
+    for node in nodes:
+        require(isinstance(node, dict) and isinstance(node.get('id'), str) and FLOW_ID.fullmatch(node['id']), 'ID de passo inválido')
+        require(node['id'] not in ids, 'Passo duplicado')
+        ids.add(node['id'])
+        require(node.get('kind') in ('start', 'action', 'decision', 'end'), 'Tipo de passo inválido')
+        require(isinstance(node.get('label'), str) and 0 < len(node['label'].strip()) <= 120, 'Título de passo inválido')
+        require(isinstance(node.get('detail', ''), str) and len(node.get('detail', '')) <= 500, 'Descrição de passo inválida')
+    require(any(n['kind'] == 'start' for n in nodes), 'Fluxo exige um início')
+    seen = set()
+    for edge in edges:
+        require(isinstance(edge, dict) and edge.get('from') in ids and edge.get('to') in ids, 'Conexão aponta a passo inexistente')
+        require(edge['from'] != edge['to'], 'Conexão para o próprio passo')
+        require(isinstance(edge.get('label', ''), str) and len(edge.get('label', '')) <= 80, 'Rótulo de conexão inválido')
+        key = (edge['from'], edge['to'], edge.get('label', ''))
+        require(key not in seen, 'Conexão duplicada')
+        seen.add(key)
+    return value
+
+
 def load_project(root):
     root = root.resolve()
     workspace = read_json(readable_path(root, '.centaur/workspace.json'))
@@ -290,4 +320,15 @@ def load_project(root):
                 documents.append({'path': str(path.relative_to(root)), 'title': path.stem, 'body': path.read_text(encoding='utf-8')})
         except (ValueError, OSError, UnicodeError) as error:
             warnings.append(str(error))
-    return {'schema': 1, 'project': str(workspace.get('name') or root.name), 'generated_at': datetime.now(timezone.utc).isoformat(), 'revision': git(root, 'rev-parse', 'HEAD'), 'dirty': bool(git(root, 'status', '--porcelain', '--untracked-files=normal', '--', '.', ':(exclude).centaur/volante.html', ':(exclude).centaur/andamento.html')), 'scopes': [{'id': k, 'owner': v.get('owner', 'Não definido'), 'code': v.get('code', '.')} for k, v in scopes.items()], 'contracts': contracts, 'specs': legacy_specs(root, scopes, warnings), 'documents': documents, 'warnings': warnings}
+    use_cases = []
+    for path in sorted(project_path(root, '.centaur/use-cases').glob('*.json')):
+        try:
+            readable_path(root, str(path.relative_to(root)))
+            case = read_json(path)
+            contract = next((c for c in contracts if c['id'] == path.stem), None)
+            require(contract is not None, 'Contrato do caso de uso ausente')
+            validate_use_case(case, contract)
+            use_cases.append({**case, 'file_hash': digest(path)})
+        except (ValueError, OSError, TypeError) as error:
+            warnings.append(f'{path.relative_to(root)}: {error}')
+    return {'schema': 1, 'project': str(workspace.get('name') or root.name), 'generated_at': datetime.now(timezone.utc).isoformat(), 'revision': git(root, 'rev-parse', 'HEAD'), 'dirty': bool(git(root, 'status', '--porcelain', '--untracked-files=normal', '--', '.', ':(exclude).centaur/volante.html', ':(exclude).centaur/andamento.html')), 'scopes': [{'id': k, 'owner': v.get('owner', 'Não definido'), 'code': v.get('code', '.')} for k, v in scopes.items()], 'contracts': contracts, 'use_cases': use_cases, 'specs': legacy_specs(root, scopes, warnings), 'documents': documents, 'warnings': warnings}

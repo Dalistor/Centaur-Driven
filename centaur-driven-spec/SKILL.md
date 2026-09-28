@@ -123,3 +123,7 @@ Criar/atualizar `specs/index.md` apenas no escopo correspondente, sem apagar his
 ## Passo 6 — Validar registros e entregar direção
 
 Rodar `validate-lifecycle.py` e corrigir estrutura inválida; rascunho legítimo não é aprovação. Sincronizar documentos no Graphify e gerar `volante.html` conforme o ciclo. Informar: contrato e versão, decisões humanas pendentes, primeira entrega, o que a IA pode executar agora e o que falta comprovar. O planejamento não executa nem publica a entrega.
+
+## Fluxo de caso de uso
+
+Quando um fluxo em `.centaur/use-cases/<id>.json` ajuda a explicar a jornada, propose ou revise passos e conexões a partir do contrato. Use a página Casos de uso do Volante para inspeção. Trate geração por IA como rascunho editável; não derive uma aprovação nova nem altere critérios de aceite a partir do desenho.
