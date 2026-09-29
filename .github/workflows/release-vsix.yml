@@ -1,0 +1,61 @@
+name: Release Centaur Volante VSIX
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+
+      - name: Check tag against extension version
+        working-directory: vscode-extension
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          if [[ "$RELEASE_TAG" != "v$version" ]]; then
+            echo "::error::Tag $RELEASE_TAG does not match extension version v$version"
+            exit 1
+          fi
+
+      - name: Install locked dependencies
+        working-directory: vscode-extension
+        run: npm ci
+
+      - name: Run extension tests
+        working-directory: vscode-extension
+        run: npm test
+
+      - name: Package VSIX
+        working-directory: vscode-extension
+        run: npm run package
+
+      - name: Create GitHub release with VSIX
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          test -s vscode-extension/centaur-volante.vsix
+          gh release create "$RELEASE_TAG" vscode-extension/centaur-volante.vsix \
+            --verify-tag \
+            --title "$RELEASE_TAG" \
+            --generate-notes
