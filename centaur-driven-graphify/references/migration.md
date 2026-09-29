@@ -1,9 +1,13 @@
-# Migração da documentação do sistema
+# Migração para .centaur
 
-A migração põe as notas humanas em uma pasta visível para o Obsidian e mantém o Graphify como índice técnico. Preserve registros e textos do usuário.
+Execute a migração pela skill `centaur-driven-update`, preservando conteúdo durável e validando antes de remover origens.
 
-1. Faça inventário de `.centaur/obsidian/Sistema/`, `.centaur/system/`, `docs/system/` e dos registros de todos os escopos. Preserve notas e configurações existentes até confirmar conteúdo e links migrados.
-2. Mova Visão geral, Mapa do sistema, Glossário, Drafts, Fluxos, Perspectivas e Decisões em Markdown para `docs/system/`, conservando estado e contexto. Se o destino já existir, compare e preserve divergências para revisão, sem sobrescrever o trabalho do usuário. Corrija links relativos conforme o destino real e registre links não resolvidos. Mantenha `.centaur/system/sync.md` como relatório operacional, fora do corpus.
-3. Para perspectivas em Canvas, preserve o arquivo original e transcreva textos e relações úteis para Markdown/Mermaid quando não existir nota equivalente. Não trate exportação automática do grafo como conversão de Canvas. Não migre `Quadro de specs.canvas` ou seu resumo gerado como documentação de domínio. Specs e implements continuam nos caminhos originais.
-4. Atualize AGENTS.md e referências ativas para `docs/system/` e `centaur-driven-graphify`. Remova a skill antiga da descoberta ativa do projeto quando essa substituição estiver autorizada, guardando backup fora das pastas de skills. Não altere plugins de outras aplicações nem `.obsidian/`.
-5. Exclua do corpus ativo o vault legado, backups e saídas geradas. Extraia código e documentos com a skill oficial e verifique origens, consultas e links. Registre em `.centaur/system/sync.md` itens migrados, conflitos preservados e pendências. Conclua a migração somente quando toda leitura humana relevante tiver destino ou pendência identificada.
+- `graphify-out/` → `.centaur/graphify/`, reaproveitando índice e caches.
+- `.ai-memory.toml` → `.centaur/ai-memory/config.toml`; passar identidade explícita aos clientes, sem depender da descoberta automática na raiz.
+- `.centaur/memory-pending/` → `.centaur/ai-memory/pending/`.
+- Documentação gerada em `docs/system/` e notas Centaur legadas → `.centaur/system/`, somente após confirmar a propriedade dos arquivos; preservar documentos independentes.
+- Remover páginas de acompanhamento geradas conhecidas (`andamento.html`/`acompanhamento.html`); HTML personalizado não deve ser apagado pelo nome.
+
+Atualize links relativos, referências e configurações; trate conflitos sem sobrescrever divergências. Backups e relatórios ficam dentro de `.centaur/`. Não mova o store global de um serviço ai-memory compartilhado nem configure outro projeto como efeito colateral.
+
+Não recrie índice como parte da migração. Valide caminhos e consultas quando houver índice; a documentação continua utilizável sem Graphify. Não altere `.obsidian/` nem exija que o Obsidian exiba diretórios ocultos: o editor é a entrada principal.

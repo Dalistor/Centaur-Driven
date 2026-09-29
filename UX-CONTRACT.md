@@ -1,4 +1,6 @@
-# Contrato de interface do Volante
+# Contrato de interface do Centaur
+
+A entrada principal é a árvore nativa **Centaur · Funcionalidades** no VS Code: contrato → regra → fontes/testes/evidências, com navegação para arquivo/linha e atualização após alterações salvas. A base conceitual inclui RF/RNF, casos de uso e dados. Testing, Debug e SCM permanecem ferramentas do editor. Autocomplete é opcional por sessão, com seleção de modelo e contexto limitado. O restante deste documento rege o painel secundário de fluxos/agentes e a exportação HTML, não uma etapa obrigatória do desenvolvimento.
 
 Fontes de negócio: pedido de tornar o HTML visor do código e molde da IA; protocolo em `centaur-driven-graphify/references/lifecycle.md`. A interface projeta regras desse protocolo; não inventa autoridade ou muda estado do produto.
 

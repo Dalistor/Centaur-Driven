@@ -1,15 +1,17 @@
 ---
 name: centaur-driven-start-project
-description: Inicializa o contexto de um projeto existente com AGENTS.md curto, registros Centaur e índice Graphify; reutiliza fontes e documenta detalhes sob demanda.
-version: 4.0.0
-invocable: true
-author: user
+description: Inicializa o contexto de um projeto existente com AGENTS.md curto, registros e especificação Centaur; usa busca direta e Graphify opcional sob demanda.
 metadata:
-  dependencies: clean-code, graphify
-  optional-dependencies: ai-memory
+  version: 5.0.0
+  dependencies: clean-code
+  optional-dependencies: graphify, ai-memory
 ---
 
 # centaur-driven-start-project
+
+## Base conceitual
+
+Leia a [especificação do sistema](../centaur-driven-graphify/references/specification.md). Registre requisitos funcionais e não funcionais em `rules`, e atores, casos de uso e modelo de dados em `specification` no contrato. Evite duplicar a definição; conecte regras a código, testes e evidências.
 
 ## Ciclo por contratos — obrigatório
 
@@ -19,7 +21,7 @@ Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references
 
 Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements/status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
 
-Estabeleça as instruções e fontes persistentes que os agentes consultarão nas próximas sessões. Documente o projeto existente, sem refatorar código nem impor uma arquitetura nova. Mantenha o contexto obrigatório curto e os detalhes recuperáveis pelo Graphify.
+Estabeleça as instruções e fontes persistentes que os agentes consultarão nas próximas sessões. Documente o projeto existente, sem refatorar código nem impor uma arquitetura nova. Mantenha o contexto obrigatório curto e os detalhes vinculados em .centaur/.
 
 ## Passo 1 — Verificar projeto e dependências
 
@@ -27,17 +29,15 @@ Verifique se há código, configurações ou documentação de projeto. Se o dir
 
 Leia as instruções aplicáveis em `AGENTS.md`, se existir, e preserve documentos e registros existentes. Se o projeto já foi inicializado pelo Centaur, siga `centaur-driven-update` para atualização dentro do pedido autorizado. Um `AGENTS.md` sem Centaur não impede a inicialização: acrescente apenas o necessário, preservando suas regras. Não recrie nem substitua conteúdo existente sem solicitação explícita.
 
-Leia o [contrato de contexto](../centaur-driven-graphify/references/context.md) e o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Localize as skills oficiais `graphify` e `clean-code` no catálogo do agente, leia seus `SKILL.md` uma vez na sessão e confira `graphify --version`. Consulte apenas as referências necessárias ao modo em uso; use `references/architecture.md` de `clean-code` ao documentar responsabilidades. Se a dependência de qualidade estiver ausente, informe a instalação faltante antes do trabalho dependente dela. Para Graphify indisponível, aplique o modo degradado do contrato e reporte a indexação pendente.
+Leia o [contrato de contexto](../centaur-driven-graphify/references/context.md) e o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Localize e carregue `clean-code` uma vez na sessão; use sua referência de arquitetura ao documentar responsabilidades. Graphify é opcional: carregue sua skill e verifique o CLI somente se for usar o índice. Ausência de Graphify não bloqueia a inicialização.
 
 As instruções do usuário e do projeto prevalecem. Consulte `.clean/` se existir, sem criar ou atualizar essa estrutura. Não instale hooks globais como efeito colateral.
 
 ## Passo 2 — Descobrir a estrutura
 
-Se `graphify-out/graph.json` existir, consulte-o primeiro com perguntas focadas sobre módulos, responsabilidades e pontos de entrada, usando o orçamento do contrato. Confirme os resultados nos arquivos atuais; um índice antigo ou parcial exige busca focada para as lacunas.
+Use `rg --files`, símbolos e leituras focadas de manifestos, configurações, documentação e pontos de entrada. Para relações amplas, consulte o índice existente sob demanda com `graphify-local.py`. Confirme os resultados no código. Não tente ler todo o negócio nem inicialize índice como efeito colateral.
 
-Sem grafo, use `rg --files` com filtros para localizar manifestos, configurações, READMEs e pontos de entrada, excluindo dependências e artefatos gerados. Leia os manifestos raiz e dos módulos reais, comandos declarados e trechos pertinentes da documentação. Abra código representativo somente quando necessário para confirmar limites arquiteturais ou conceitos; não tente ler todo o negócio. Não limite a descoberta aos primeiros arquivos de uma listagem nem apenas à raiz de um monorepo.
-
-Identifique stack, comandos de execução e testes, responsabilidades dos módulos e convenções comprovadas. Reutilize documentação válida e registre fontes para as conclusões. Pare quando houver evidência suficiente para inicializar o contexto. Sem grafo inicial, construa-o no Passo 6, depois de salvar os documentos, evitando duas extrações completas no mesmo fluxo.
+Identifique stack, comandos de execução e testes, responsabilidades dos módulos e convenções comprovadas. Reutilize documentação válida e registre fontes para as conclusões. Pare quando houver evidência suficiente para inicializar o contexto. A inicialização não exige construir grafo.
 
 ## Passo 3 — Resolver decisões e lacunas
 
@@ -62,16 +62,15 @@ Adapte o template abaixo à estrutura real. Remova placeholders, não invente co
 ## Visão Geral
 [Propósito e stack em poucas linhas. Link para visão detalhada existente, se necessário.]
 
-## Contexto persistente com Graphify
-Graphify é dependência do Centaur: CLI `graphify` (pacote `graphifyy`) e skill oficial `graphify`. Após ler estas instruções, consulte da raiz `graphify query "<objetivo da tarefa>" --budget 1500` e abra as fontes relevantes. Confirme conteúdo atual antes de editar; não carregue o grafo ou histórico completos. Sem índice confiável, informe a limitação e use busca focada.
-Decisões ficam em documentos canônicos, indexados para próximas sessões. Código e validação comprovam comportamento; o grafo pode conter planos e inferências. Após mudanças e registros, sincronize pelo fluxo `centaur-driven-graphify`; em paralelo, somente o coordenador atualiza o índice. Consultas somente leitura não sincronizam.
+## Recuperação de contexto
+Priorize busca e símbolos do editor. Graphify é opcional para relações amplas; consulte `.centaur/graphify/graph.json` pelo adaptador da skill apenas quando útil. Confirme fontes atuais. Não indexe automaticamente após mudanças. Decisões e documentação gerada ficam em `.centaur/`; código e testes comprovam comportamento.
 
 ## Memória de decisões e mudanças
 [Backend confirmado em `.centaur/workspace.json`: files ou ai-memory.]
-Com ai-memory, siga `centaur-driven-memory`: use workspace/projeto explícitos da `.ai-memory.toml`, consulte decisões relevantes e registre mudanças na wiki com leitura de confirmação. Sem serviço, preserve o registro em `.centaur/memory-pending/` e reporte pendência. Não crie novas pastas implements nesse modo. Memória histórica não substitui código, testes, regras ou o estado das specs.
+Com ai-memory, siga `centaur-driven-memory`: use workspace/projeto explícitos da `.centaur/ai-memory/config.toml`, consulte decisões relevantes e registre mudanças na wiki com leitura de confirmação. Sem serviço, preserve o registro em `.centaur/ai-memory/pending/` e reporte pendência. Não crie novas pastas implements nesse modo. Memória histórica não substitui código, testes, regras ou o estado das specs.
 
 ## Contratos e realização
-Contratos em `.centaur/contracts/<id>/vNNN.json` definem o comportamento desejado e a autonomia. Estado em `.centaur/state/` e evidências em `.centaur/evidence/` registram a realização; o ciclo normativo de `centaur-driven-graphify` define formatos e gates. Contratos aprovados são versionados, não reescritos. Antes de editar, consultar apenas as regras e limites pertinentes. Checklist de spec não comprova comportamento. O visor `.centaur/volante.html` é um snapshot derivado; regenerá-lo após consolidar mudanças, sem editá-lo manualmente.
+Contratos em `.centaur/contracts/<id>/vNNN.json` definem o comportamento desejado e a autonomia. Estado em `.centaur/state/` e evidências em `.centaur/evidence/` registram a realização; o ciclo normativo de `centaur-driven-graphify` define formatos e gates. Contratos aprovados são versionados, não reescritos. Antes de editar, consultar apenas as regras e limites pertinentes. Checklist de spec não comprova comportamento. Use o explorador nativo do editor para navegar entre funcionalidades, fontes e evidências. HTML é exportação opcional.
 
 ## Comandos essenciais
 [Comandos reais para executar, construir e validar, com diretório quando necessário. Link para instruções detalhadas de ambiente/deploy já existentes.]
@@ -94,16 +93,18 @@ Carregue `clean-code` e as referências pertinentes ao planejar, implementar ou 
 Consulte `.centaur/workspace.json` para escopos, caminhos e responsáveis. Specs ficam nos diretórios configurados; implementações seguem o backend de memória, preservando os diretórios legados; leia seus índices sob demanda e confirme status nos READMEs canônicos. Use IDs qualificados ao trabalhar com módulos.
 
 ---
-_Documentação centaur — schema `[versão desta skill, do frontmatter]`, gerada em `[saída de date +%F]`. Atualize com `/centaur-driven-update`._
+_Documentação centaur — schema `[metadata.version desta skill]`, gerada em `[saída de date +%F]`. Atualize com `/centaur-driven-update`._
 ```
 
-O carimbo usa a versão do frontmatter desta skill, para `update` detectar migrações. Não remova regras customizadas para atingir um tamanho arbitrário; elimine duplicações e extraia detalhes preservando o significado.
+O carimbo usa metadata.version desta skill, para `update` detectar migrações. Não remova regras customizadas para atingir um tamanho arbitrário; elimine duplicações e extraia detalhes preservando o significado.
 
 ## Passo 5 — Salvar detalhes e registros
 
-Prefira atualizar ou vincular documentação existente a duplicá-la. Crie documentos em `docs/system/` somente quando houver conteúdo durável que não caiba nas instruções curtas: visão geral, arquitetura, operação, glossário ou decisões com motivos. Registre evidências e distinga fatos, planos e lacunas. Use caminhos reais e links Markdown relativos; mantenha esses documentos no corpus do Graphify. Se houver glossário, ele é a fonte dos termos e variações proibidas, acessada pela referência em AGENTS.md.
+Prefira atualizar ou vincular documentação existente a duplicá-la. Crie documentos em `.centaur/system/` somente quando houver conteúdo durável que não caiba nas instruções curtas: visão geral, arquitetura, operação, glossário ou decisões com motivos. Registre evidências e distinga fatos, planos e lacunas. Use caminhos reais e links Markdown relativos; mantenha esses documentos no corpus do Graphify. Se houver glossário, ele é a fonte dos termos e variações proibidas, acessada pela referência em AGENTS.md.
 
-Mapa do sistema, Fluxos e Perspectivas são criados quando solicitados ou quando explicam relações que o texto não esclarece; siga a referência de mapas legíveis de `centaur-driven-graphify` nesses casos. Não gere pastas vazias de Drafts, Fluxos, Perspectivas ou Decisões, nem glossários e mapas apenas para cumprir uma estrutura. Preserve os que já existirem. A inicialização do índice funciona sem `docs/system/` quando as fontes existentes bastarem.
+Mapa do sistema, Fluxos e Perspectivas são criados quando solicitados ou quando explicam relações que o texto não esclarece; siga a referência de mapas legíveis de `centaur-driven-graphify` nesses casos. Não gere pastas vazias de Drafts, Fluxos, Perspectivas ou Decisões, nem glossários e mapas apenas para cumprir uma estrutura. Preserve os que já existirem. A inicialização do índice funciona sem `.centaur/system/` quando as fontes existentes bastarem.
+
+Adicione ao `.gitignore`, preservando regras existentes, os diretórios operacionais gerados: `.centaur/tmp/`, `backups/`, `build/`, `graphify/`, `worktrees/`, `ai-memory/pending/` e diretórios privados de deploy (todos sob `.centaur/`). Nunca versione chaves, caches ou backups. Definições e evidências duráveis continuam versionadas.
 
 Crie ou complete `.centaur/workspace.json` conforme o contrato de módulos e equipe, preservando caminhos e registros. Registre `master` e os módulos reais, colaboração e responsáveis. Crie os índices abaixo em cada escopo somente quando ausentes; não sobrescreva histórico nem mova pastas existentes. Os caminhos dos exemplos representam o escopo selecionado.
 
@@ -139,16 +140,12 @@ Planejamentos de implementações complexas, decompostos em tasks para subagente
 _Atualizado automaticamente pelas skills `/centaur-driven-spec`, `/centaur-driven-tdd`, `/centaur-driven-implement` e `/centaur-driven-run`_
 ```
 
+Leia também a [base conceitual](../centaur-driven-graphify/references/specification.md) e integre requisitos funcionais/não funcionais, casos de uso e relações de dados ao contrato, sem duplicar regras. Comece por uma funcionalidade.
+
 Defina com o usuário o molde geral: responsabilidades dos módulos, invariantes, limites e decisões delegadas. Reutilize autorização explícita; inferências sobre o código são rascunhos. Registre o primeiro contrato útil pelo formato de `references/lifecycle.md`; não crie contratos vazios nem marque comportamento existente como verificado sem evidência. Acrescente `"lifecycle": 1` ao workspace preservando campos. Contratos/estado/evidências pertencem ao repositório em ambos os backends de memória.
 
-Gere `.centaur/volante.html` com `scripts/render-volante.py` da skill `centaur-driven-graphify`, passando a raiz real. O visor funciona também sem contratos, mostrando specs legadas e lacunas explícitas. Leia o snapshot: módulos, capacidades, regras, fontes, evidências e decisões. Não publicar o HTML como efeito colateral. Notas ficam no navegador; exportação de contexto não executa tarefas. Regenerar conforme o ciclo normativo.
+Valide os registros com `validate-lifecycle.py`. No editor, use o explorador Centaur para navegar entre regras, fontes e testes. Gere HTML somente a pedido.
 
-## Passo 6 — Indexar, verificar e entregar
+## Passo 6 — Verificar e entregar
 
-Após salvar as fontes canônicas, siga **Inicializar e sincronizar** de `centaur-driven-graphify`. Reutilize o grafo existente e atualize apenas o necessário quando suportado. Na primeira execução, gere o índice de código e a extração semântica dos documentos; inclua AGENTS.md, documentação existente e registros de todos os escopos, verificando explicitamente a cobertura de `.centaur/`. Inicializar o índice não exige gerar mapas ou HTML.
-
-Confira os artefatos reais, os links do AGENTS.md e os caminhos de workspace. Faça consultas representativas sobre uma responsabilidade do código e uma decisão/regra documentada, abrindo as fontes retornadas. Consulte specs/implementações se já existirem; índices vazios de um projeto novo não exigem registros fictícios. Registre cobertura e pendências em `.centaur/system/sync.md`, fora do corpus.
-
-Se a indexação falhar ou ficar parcial, entregue os documentos preservados e diga quais fontes ainda não estão recuperáveis pelo grafo. Não declare contexto sincronizado apenas porque os arquivos foram criados.
-
-Na entrega, informe arquivos criados/alterados, resultado das consultas e pendências. Indique somente os próximos comandos úteis ao pedido: `check` para consultar, `implement`/`tdd` para mudanças pontuais ou `spec`/`run` para demandas maiores. `update` mantém a documentação; `centaur-driven-graphify` mantém o índice e cria mapas e perspectivas sob demanda.
+Confira links, caminhos do workspace e registros reais. Não crie evidências fictícias nem inicialize Graphify automaticamente. Entregue arquivos alterados e pendências, com próximos comandos pertinentes. Indexação e mapas permanecem sob demanda.

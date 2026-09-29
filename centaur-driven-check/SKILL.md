@@ -1,12 +1,10 @@
 ---
 name: centaur-driven-check
 description: Consulta o Graphify e confirma respostas nas instruções e fontes atuais do projeto, somente leitura.
-version: 4.0.0
-invocable: true
-author: user
 metadata:
-  dependencies: clean-code, graphify
-  optional-dependencies: ai-memory
+  version: 5.0.0
+  dependencies: clean-code
+  optional-dependencies: graphify, ai-memory
 ---
 
 # centaur-driven-check
@@ -21,7 +19,7 @@ Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) j
 
 ## Contexto persistente — Graphify
 
-Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Priorize busca textual e símbolos do editor. Graphify é opcional e sob demanda para relações amplas; consulte o índice existente apenas quando útil, confirmando as fontes atuais. Não inicialize nem sincronize o grafo como consequência de implementar ou consultar. Para histórico e decisões, consulte ai-memory quando configurado.
 
 ## Escopos e equipe
 

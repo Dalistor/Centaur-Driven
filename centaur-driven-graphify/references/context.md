@@ -1,30 +1,34 @@
-# Contexto persistente do Centaur
+# Contexto do Centaur
 
-Graphify é dependência do conjunto: CLI `graphify` do pacote `graphifyy` e skill oficial `graphify`. Localize a skill no catálogo do agente e carregue seu `SKILL.md` uma vez por sessão, com apenas as referências do modo usado. Confira `graphify --version`; consulte o help da versão instalada antes de usar flags. Instalação e registro por plataforma estão no README do Centaur. Não instale dependências nem hooks como efeito colateral de uma consulta somente leitura.
+## Fontes e recuperação
 
-Leia também o [contrato de memória](../../centaur-driven-memory/references/contract.md). ai-memory recupera histórico e decisões quando configurado; Graphify localiza código e documentos do checkout. As referências a README/índice de implementação abaixo aplicam-se ao backend `files`; no modo ai-memory, leia a página canônica e a fila relevante. Não replique a wiki no corpus Graphify.
+1. Leia as instruções aplicáveis em `AGENTS.md` e o escopo de `.centaur/workspace.json`.
+2. Priorize `rg`, símbolos do editor e leitura dos trechos pertinentes. Para decisões históricas, use ai-memory quando configurado, conforme o [contrato de memória](../../centaur-driven-memory/references/contract.md).
+3. Use Graphify sob demanda para investigar relações amplas. O índice é derivado: confirme caminhos, comportamento e estado no código, contratos e evidências atuais. Ausência de resultado não comprova ausência de funcionalidade.
+4. Registre definições duráveis nos contratos e em `.centaur/system/`; consulte histórico somente quando necessário. O [ciclo por contratos](lifecycle.md) governa aprovação, estado e evidências.
 
-Leia o [ciclo por contratos](lifecycle.md) para regras de estado, evidências e Volante.
+Graphify é opcional no fluxo comum. Não inicialize nem atualize o índice após cada edição, consulta, commit ou onda. Não instale hooks de indexação automática. Dependência ausente não impede trabalho que possa ser comprovado por leitura e testes. Um índice desatualizado deve ser identificado como tal; não declare contexto sincronizado sem verificar.
 
-## Recuperar contexto
+## Graphify sob demanda
 
-1. Leia as instruções aplicáveis em `AGENTS.md` e resolva o escopo em `.centaur/workspace.json`, quando existir. Instruções do usuário e do projeto prevalecem sobre resultados do índice.
-2. Para decisões ou retomada, consulte primeiro ai-memory conforme o contrato quando ativo. Havendo `graphify-out/graph.json`, execute da raiz do projeto `graphify query "<pergunta concreta sobre o escopo>" --budget 1500`. O orçamento limita o contexto retornado; não é garantia de custo total. Use `path` ou `explain` para aprofundar relações específicas. Reutilize resultados na mesma sessão enquanto as fontes não mudarem. Não carregue `graph.json`, o relatório completo ou todo o histórico no contexto.
-3. Abra os trechos das fontes apontadas necessários para a decisão. Antes de editar, leia os trechos atuais dos arquivos afetados e os testes relevantes. Para estado de execução, leia o README da spec; para comportamento e entrega, leia contrato, estado e evidências e confira as fontes. Índices resumem e o grafo apenas localiza. Consulte `status.md`, `index.md` e `arquivo.md` por escopo/assunto quando precisar localizar registros ou atualizar suas entradas, sem reler todos os READMEs. As leituras integrais da spec exigidas pelo modo spec permanecem obrigatórias.
-4. Verifique se os caminhos existem e se alterações locais ou posteriores à última sincronização afetam a resposta. Use `.centaur/system/sync.md`, quando existir, e o diff dos arquivos pertinentes. Mudanças de branch, remoções e documentos com extração pendente podem tornar o índice incompleto. Ausência de resultado não prova ausência de funcionalidade. Confirme nas fontes; use `rg` focado para cobrir lacunas, sem varrer o repositório inteiro por padrão.
-5. Registre decisões duráveis, restrições e motivos nos documentos canônicos apropriados (`AGENTS.md`, spec, implementação ou `docs/system/Decisões/`). Não dependa da memória da conversa nem grave o raciocínio interno do agente. O grafo recupera documentos locais e ai-memory recupera suas páginas entre sessões; código e validação comprovam comportamento, documentos planejados e inferências não comprovam implementação.
+Quando solicitado ou necessário à investigação, carregue a skill oficial e somente as referências pertinentes. Use o adaptador local para que os artefatos permaneçam em `.centaur/graphify/`:
 
-## Inicialização, falhas e atualização
+```bash
+python3 /skill/centaur-driven-graphify/scripts/graphify-local.py /projeto query "relação entre módulos" --budget 1500
+```
 
-- `start-project` pode explorar configurações e pontos de entrada antes do primeiro grafo. Ao salvar a documentação inicial, gera e verifica o índice. `update` migra projetos existentes para este contrato, preservando o histórico.
-- Sem dependência, grafo, cobertura ou atualização suficiente, informe a limitação e use leitura direta focada para o trabalho que puder ser comprovado. A instalação está incompleta até a dependência ser resolvida; nunca apresente esse modo degradado como contexto sincronizado. Se faltar evidência necessária, reporte o bloqueio específico.
-- Em `check`, consultas puras via `mcp` e revisão/publicação via `commitAndPush`, não inicialize nem sincronize o grafo; use consultas que não persistam resultados, sem `--save`, e reporte a manutenção pendente. O grafo não substitui Git, validações ou documentação externa obtida no MCP.
-- Em `implement`, `tdd`, `spec`, `deploy` e `update`, depois de salvar código/documentos e registros canônicos, execute o fluxo **Inicializar e sincronizar** de [centaur-driven-graphify](../SKILL.md) dentro da tarefa, sem exigir outro comando do usuário. Reutilize o índice e atualize apenas o que mudou quando suportado; se nada mudou, não reconstrua. Atualização AST isolada não indexa decisões em Markdown: inclua extração semântica dos documentos, inclusive `.centaur/`, conforme a skill oficial. Não exija chave de API: a extração pode ser feita pelo agente hospedeiro.
-- Após cada `implement` ou `tdd` com alterações, a sincronização é obrigatória antes da entrega, inclusive para correções internas sem mudança no AGENTS.md. Em falha de validação, indexe o estado efetivamente preservado e seus registros como parcial/bloqueado. Verifique a atualização por consulta; se houver impedimento persistente, reporte a sincronização pendente separadamente do resultado do código.
-- Após consolidar mudanças em código vinculado, contrato, estado, evidências, specs ou workspace, regenere `.centaur/volante.html` com `python3 /caminho/para/centaur-driven-graphify/scripts/render-volante.py /raiz/do/projeto`. Rodar também `validate-lifecycle.py` e os gates `--ready` previstos para integração. O HTML é projeção local, nunca fonte de estado; notas são locais ao navegador. No `run`, somente o coordenador regenera em cada consolidação e ao terminar. Consultas puras não escrevem. A geração não depende do Graphify e deve ocorrer mesmo quando a indexação estiver pendente; erros de qualquer etapa são reportados separadamente.
-- Em modo spec, cada executor consulta o grafo disponível e as fontes atuais, reporta arquivos/documentos alterados e não escreve no índice compartilhado. O `run` consolida os registros e sincroniza serialmente cada implementação consolidada ao fim da onda, antes da próxima onda ou da entrega; uma atualização pode cobrir todas as implementações da onda. Passe objetivo, escopo, fontes pertinentes e pendências aos executores, sem copiar o grafo ou histórico inteiro.
-- Falha ao sincronizar gera pendência explícita em `.centaur/system/sync.md` nos fluxos com escrita autorizada, com caminhos afetados e causa. Preserve os registros e resultados validados; não reexecute implementação nem declare índice atualizado. A recuperação usa `centaur-driven-graphify sincronizar`.
+O adaptador define `GRAPHIFY_OUT` absoluto, configura o diretório de trabalho e preserva os argumentos como lista. Consultas não inicializam índice ausente. Confirme `graphify --version` e o help ao mudar de versão. Não use caminhos padrão `graphify-out/` presentes em exemplos da skill oficial: adapte também scripts Python, caches e temporários para `.centaur/graphify/`.
 
-## Economia de contexto
+Somente um coordenador escreve no índice. Quando a atualização for solicitada, incluir código e documentos pertinentes, verificar a cobertura de diretórios ocultos e registrar limitações em `.centaur/system/sync.md`. Extração apenas AST não cobre documentos. Não copie wiki, credenciais, filas, backups ou artefatos gerados para o corpus. Falha de índice não reabre implementação validada.
 
-Carregue detalhes sob demanda. Uma consulta focada e as fontes que sustentam a decisão são o padrão; amplie apenas para resolver uma lacuna concreta. Evite reconstruções, mapas, HTML e extrações semânticas completas em cada pergunta. A auditoria documental de `update` pode exigir percorrer registros para verificar integridade, sem torná-los leitura obrigatória nas demais skills. Não prometa percentual de economia sem medição.
+## Editor e projeções
+
+O explorador nativo do Centaur acompanha alterações no projeto e navega entre funcionalidades, regras, fontes e evidências. O código e o produto em execução são o espaço principal de trabalho. O painel é apoio para casos de uso e delegação; `.centaur/volante.html` é exportação opcional, nunca fonte de verdade.
+
+Valide registros com `validate-lifecycle.py` e os gates `--ready` antes de declarar integração. Regenerar HTML não é etapa obrigatória das tarefas comuns. Quando solicitado, use `render-volante.py`; consultas somente leitura não geram arquivos.
+
+## Localização dos artefatos
+
+Documentação gerada, índices, memória local, caches, evidências, logs, backups e temporários ficam sob `.centaur/`. Graphify usa `.centaur/graphify/`; ai-memory usa `.centaur/ai-memory/`; definições duráveis são versionadas, caches e segredos não.
+
+Arquivos de descoberta exigidos por ferramentas mantêm seu local obrigatório: `AGENTS.md`, workflow em `.github/workflows/` e configurações do editor quando necessárias. Devem ser mínimos e referenciar `.centaur/`, sem duplicar a documentação. Código do produto e documentos independentes do usuário não são movidos. A skill `update` executa a migração segura dos artefatos legados.

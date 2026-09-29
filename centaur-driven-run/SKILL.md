@@ -1,12 +1,10 @@
 ---
 name: centaur-driven-run
 description: Coordena entregas de specs dentro de contratos aprovados, com execução adaptativa, evidências, integração e próximos passos; funciona com um ou vários agentes e modelos.
-version: 4.0.0
-invocable: true
-author: user
 metadata:
-  dependencies: clean-code, graphify
-  optional-dependencies: ai-memory
+  version: 5.0.0
+  dependencies: clean-code
+  optional-dependencies: graphify, ai-memory
 ---
 
 # centaur-driven-run
@@ -21,7 +19,7 @@ Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) j
 
 ## Contexto persistente — Graphify
 
-Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Priorize busca textual e símbolos do editor. Graphify é opcional e sob demanda para relações amplas; consulte o índice existente apenas quando útil, confirmando as fontes atuais. Não inicialize nem sincronize o grafo como consequência de implementar ou consultar. Para histórico e decisões, consulte ai-memory quando configurado.
 
 ## Escopos e equipe
 
@@ -64,7 +62,7 @@ Executores não alteram contrato aprovado, spec, índices, estado consolidado ou
 3. Consolidar memória conforme backend (`files`: README/índice; ai-memory: publicar fila serialmente e verificar). Memória pendente é separada do estado do código.
 4. Atualizar `.centaur/state/<id>.json`, vincular evidências individuais correntes e preservar histórico. Regra só recebe implementada se fontes atuais sustentarem; verificação é derivada por hashes e resultados. Não inferir entrega de um teste verde.
 5. Atualizar tasks e índice da spec. Marcar task executada não conclui automaticamente a capacidade. Em falta de validação/integração, usar Em revisão; bloqueio registra causa, dependências e decisão necessária.
-6. Rodar validação de registros e regenerar Volante. Sincronizar Graphify serialmente, incluindo contratos, estado e evidências, excluindo HTML gerado e filas. Falha em índice/visor deve aparecer separadamente, sem reexecutar código pronto.
+6. Rodar validação de registros; exportar HTML somente se solicitado. Atualizar Graphify somente quando solicitado; nesse caso, o coordenador é o único escritor do índice. Falha em índice/visor deve aparecer separadamente, sem reexecutar código pronto.
 
 ## Passo 5 — Demonstrar e integrar
 
@@ -76,7 +74,7 @@ Integrar apenas conforme autorização existente; quando não houver, preparar c
 
 `Concluída` exige todas as tasks e dependências entregues, critérios do contrato verificados e integração confirmada, inclusive specs filhas. Publicação só é requisito se estiver no aceite. Caso contrário usar Em revisão/Bloqueada/Em andamento conforme o ciclo; nunca concluir pela última checkbox.
 
-Regenerar Volante após o estado final e liberar somente a reserva da sessão. Entregar resumo por comportamento: implementação, verificação, entrega, decisões que faltam, próximo passo executável e links para fontes/evidências. Informar limitações de memória/grafo/visor separadamente. Selecionar próxima lacuna pelo ciclo normativo, sem criar tarefas especulativas.
+Validar registros após o estado final e liberar somente a reserva da sessão. Entregar resumo por comportamento: implementação, verificação, entrega, decisões que faltam, próximo passo executável e links para fontes/evidências. Informar limitações de memória/grafo/visor separadamente. Selecionar próxima lacuna pelo ciclo normativo, sem criar tarefas especulativas.
 
 ## Execução pelo Volante
 

@@ -1,12 +1,10 @@
 ---
 name: centaur-driven-tdd
 description: Implementa uma mudança guiada por testes (red-green-refactor), com ciclos mínimos, reaproveitamento e manutenção dos testes existentes e registro no backend de memória configurado. Use quando a mudança tem regra de negócio testável.
-version: 4.0.0
-invocable: true
-author: user
 metadata:
-  dependencies: clean-code, graphify
-  optional-dependencies: ai-memory
+  version: 5.0.0
+  dependencies: clean-code
+  optional-dependencies: graphify, ai-memory
 ---
 
 # centaur-driven-tdd
@@ -21,7 +19,7 @@ Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) j
 
 ## Contexto persistente — Graphify
 
-Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Priorize busca textual e símbolos do editor. Graphify é opcional e sob demanda para relações amplas; consulte o índice existente apenas quando útil, confirmando as fontes atuais. Não inicialize nem sincronize o grafo como consequência de implementar ou consultar. Para histórico e decisões, consulte ai-memory quando configurado.
 
 ## Escopos e equipe
 
@@ -60,7 +58,7 @@ Executar uma entrega por comportamento, podendo atravessar camadas dentro da arq
 
 Após validar, registrar fontes com caminhos/linhas e evidências conforme o ciclo normativo; incluir arquivos de produção, testes e configurações que sustentam o resultado. Manter implementação, verificação e entrega separadas. Sem prova, declarar não verificada. Não marcar integração/publicação a partir de execução local.
 
-No modo direto, atualizar estado e gerar Volante. Em modo spec, produzir evidência individual imutável e delta de estado no relatório; somente o coordenador consolida `.centaur/state/`, specs, índices e visor. Antes de integrar, aplicar o gate `--ready` de cada regra e os checks reais. Ausência de Graphify não autoriza omitir estado ou evidência.
+No modo direto, atualizar estado e evidências; o explorador do editor acompanha os arquivos. HTML é opcional. Em modo spec, produzir evidência individual imutável e delta de estado no relatório; somente o coordenador consolida `.centaur/state/`, specs, índices e visor. Antes de integrar, aplicar o gate `--ready` de cada regra e os checks reais. Ausência de Graphify não autoriza omitir estado ou evidência.
 
 ## Passo 1 — Recuperar contexto e identificar modo spec
 
@@ -153,7 +151,7 @@ Compare o resultado aos critérios e riscos identificados. Prossiga somente se h
 
 **Backend files:** siga a reserva abaixo.
 
-<!-- Mantenha este passo sincronizado com centaur-driven-implement (Passo 9) e centaur-driven-deploy (Passo 16) -->
+<!-- Mantenha este passo sincronizado com centaur-driven-implement (Passo 9) -->
 Execute exatamente este comando para encontrar o último número:
 
 ```
@@ -239,17 +237,9 @@ Se a tabela ainda contiver a linha placeholder (`| — | — | — | — | — |
 
 Se a implementação adicionou funcionalidade relevante, mudou arquitetura, introduziu dependência importante, **estabeleceu a infraestrutura de testes do projeto** (framework, comando, convenção de nomes), ou **estabeleceu um termo novo do domínio** que o código passou a usar → atualize as instruções essenciais do `AGENTS.md` e os detalhes nas fontes vinculadas, sem duplicação. O termo novo vai para o glossário vinculado pela seção "Vocabulário e Idioma do Código"; sem glossário, use essa seção enquanto ela for curta. Correção interna sem impacto na visão geral não precisa.
 
-## Passo 16 — Atualizar obrigatoriamente o Graphify
+## Passo 16 — Consolidar documentação e contexto
 
-Após cada implementação, execute o fluxo `centaur-driven-graphify sincronizar <escopo>/<id>` nesta mesma tarefa, depois da validação e de salvar o registro no backend configurado e os documentos locais pertinentes. Não deixe a atualização como sugestão ou comando para o usuário executar depois. A obrigação também vale para correções internas, mudanças pequenas e alterações sem impacto no AGENTS.md ou no mapa humano.
-
-Inclua código, testes e documentos alterados, inclusive os registros locais quando existirem, excluindo a fila `memory-pending/`; atualização AST isolada não basta para Markdown. Reutilize o grafo com atualização incremental quando suportada e inicialize-o se estiver ausente. Verifique os artefatos e faça uma consulta focada sobre a mudança, conferindo as fontes retornadas antes de afirmar que está sincronizado. Atualize mapas e notas somente quando afetados.
-
-Se houver bloqueio ou validação falhar depois de mudanças, sincronize também os arquivos e registros efetivamente preservados, identificando o estado parcial/bloqueado sem descrevê-lo como comportamento validado. Sem qualquer mudança de código ou documentos, não há atualização a executar.
-
-**[modo spec]** O executor entrega ao `run` todos os caminhos alterados e a sincronização pendente; não escreve no grafo compartilhado. O coordenador deve incluir cada implementação na atualização serial após consolidar a onda, antes de iniciar a próxima ou encerrar a execução.
-
-Se a sincronização falhar, tente resolver a causa dentro do escopo e permissões disponíveis. Persistindo o impedimento, registre causa e arquivos pendentes em `.centaur/system/sync.md` e informe **implementação validada, sincronização pendente** (ou o resultado real da validação). Preserve o trabalho validado; não declare a entrega integralmente concluída nem o grafo atualizado.
+Atualize documentação, estado e evidências afetados. Graphify permanece opcional: não inicialize nem sincronize após cada implementação. Quando houver pedido explícito de indexação, siga `centaur-driven-graphify`, registre cobertura e falhas separadamente e mantenha um único escritor no coordenador. Ausência de índice não impede concluir código validado.
 
 ## Passo 17 — Informar o usuário
 
@@ -258,7 +248,7 @@ Confirme com:
 - Comportamentos validados e manutenção relevante dos testes existentes
 - Resultado real da suíte/gates; cobertura somente quando medida e limitações explícitas
 - Referência da página e estado da memória, ou número/README no backend `files`
-- Graphify: atualização executada, consulta de verificação e fontes conferidas; em falha, causa e arquivos pendentes
+- Graphify, se solicitado: resultado da consulta/atualização e limitações
 
 **[modo spec]** Em ai-memory, use o relatório com `Registro` e `Fila` definido no contrato. Em `files`, encerre com o relatório abaixo, usado pelo orquestrador para consolidar a spec e o `status.md`:
 
@@ -267,7 +257,7 @@ Spec YYYY — Task NN: [Concluída | Bloqueada]
 Implementação: XXXX
 Título: [título usado no README da implementação]
 Arquivos afetados: [código, testes e documentos alterados, incluindo o README da implementação]
-Graphify: sincronização pendente pelo coordenador; [escopo e caminhos a incluir]
+Graphify: não solicitado | consultado | atualizado | pendente após solicitação explícita
 Contrato/regras: [IDs e versão]
 Realização: [implementação, evidências selecionadas, entrega local e delta de estado]
 Impacto: [previsto × real, decisões e desvios]

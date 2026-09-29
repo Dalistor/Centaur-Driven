@@ -1,452 +1,100 @@
 ---
 name: centaur-driven-deploy
-description: Configura deploy automático (GitHub Actions) para uma VPS via SSH + rsync - inspeciona o projeto, gera a chave SSH, valida o acesso, audita o que o rsync apagaria, escreve o workflow, cadastra os secrets/variables no GitHub pelo gh CLI e acompanha o primeiro run. Registra no backend de memória configurado.
-version: 4.0.0
-invocable: true
-author: user
+description: Prepara GitHub Actions para deploy limpo em VPS, com integridade, transferência com retry, ativação sem interrupção e rollback; configura acessos disponíveis e orienta os próximos passos, sem publicar.
 metadata:
-  dependencies: clean-code, graphify
-  optional-dependencies: ai-memory
+  version: 5.0.0
+  dependencies: clean-code
 ---
 
-# centaur-driven-deploy
+# Preparar deploy via GitHub Actions
 
-## Ciclo por contratos — obrigatório
+Entregue o workflow, os scripts necessários e instruções específicas para o projeto. **Não conecte à VPS, não faça deploy direto, não dispare Actions e não faça commit/push como parte desta skill.** Uma solicitação separada e explícita pode autorizar essas ações. Configurar Environment, variables e secrets no GitHub faz parte da preparação quando houver autenticação e permissões suficientes.
 
-Leia o [ciclo por contratos e evidências](../centaur-driven-graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
+## 1. Entender o projeto e escolher o gatilho
 
-## Memória de implementações
+Carregue a skill `clean-code` e suas referências pertinentes ao escrever workflows/scripts. Leia `AGENTS.md`, configuração de build, testes, runtime e infraestrutura. Use busca local; Graphify é opcional, sob demanda, sem indexação obrigatória. Respeite o contrato de memória vigente e registre a preparação em `.centaur/`.
 
-Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements/status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
+Pergunte se o usuário quer **push na `main` ou execução manual (`workflow_dispatch`)**, exceto se já tiver respondido nesta sessão. Não escolha automaticamente por ele. Manual contém somente `workflow_dispatch`; automático adiciona `push: branches: [main]` e pode manter execução manual.
 
-## Contexto persistente — Graphify
+Obtenha somente os dados ainda desconhecidos: repositório GitHub, Environment, host, usuário/porta SSH, raiz de releases, runtime, testes/build, URL de health e estratégia atual de tráfego. Determine onde ficam banco, uploads e configuração persistente. Não invente valores nem chame simples lint de teste de integridade quando houver testes de comportamento.
 
-Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
+## 2. Definir uma estratégia compatível com ausência de downtime
 
-## Escopos e equipe
+**Estáticos:** use `templates/deploy-vps.yml` e os scripts desta skill. O servidor existente serve `<VPS_PATH>/current`, um link simbólico trocado por rename atômico no mesmo filesystem. Cada release contém somente o build limpo e recebe diretório próprio. O script verifica checksums, inicia um servidor HTTP candidato em loopback, verifica seu conteúdo, troca o link e verifica um marcador exclusivo pela URL servida. Falha restaura o link anterior e verifica a recuperação; releases antigos são preservados.
 
-Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphify/references/team-workspace.md). Ele define resolução de caminhos, IDs qualificados, responsabilidade, concorrência e estados. Os exemplos legados abaixo usam o escopo selecionado; aplique o contrato também aos comandos e templates.
+Pré-requisitos a entregar ao usuário, sem executá-los na VPS:
 
-## Dependência obrigatória — clean-code
+- Linux com Bash, GNU coreutils (`mv -T`), `flock`, Python 3, curl e rsync; usuário com escrita apenas na raiz de releases.
+- Servidor já configurado para `<VPS_PATH>/current`, com uma versão anterior funcional e `centaur-release.txt` identificando-a. Primeira instalação sem serviço existente é bootstrap e deve ser tratada explicitamente como pendência, não chamada de troca sem downtime.
+- `HEALTH_URL` aponta para `https://dominio/centaur-release.txt`, sem cache e acessível da VPS. O marcador verifica qual release está atendendo; acrescente smoke tests específicos do produto antes e depois da ativação.
+- Assets imutáveis devem usar URLs versionadas e permanecer acessíveis às páginas abertas da versão anterior (por exemplo, rota de assets por release). Só manter pastas antigas não garante isso: configure/teste a rota no servidor/CDN antes de afirmar continuidade. Considere cache e service workers.
+- Configuração, uploads e dados ficam em `shared/` ou serviços externos, fora de `releases/`. O template não copia segredos nem limpa essas áreas.
 
-Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+**Serviços dinâmicos:** não use `activate-static.sh`. Gere e valide scripts específicos do runtime: iniciar candidato em outra porta/slot, health/readiness interno, troca de upstream atômica com reload gracioso, health após troca, restauração do upstream se falhar e drenagem de conexões antigas antes de desligar o slot anterior. Preserve sessões, WebSockets, workers e jobs conforme a aplicação. Em Nginx, valide configuração antes do reload e confirme o tráfego após ele; processo iniciado não é evidência de saúde. Nunca use `compose down`, reinício do serviço ativo ou `rsync --delete` no diretório em produção como estratégia sem downtime.
 
-Leia também `references/session-protocol.md` da dependência ao escrever workflows e scripts. Aplique seus critérios de responsabilidade, configuração, erros e segredos aos artefatos de deploy, com validação proporcional. Preserve o escopo e as confirmações para operações externas deste fluxo.
+Se infraestrutura não permitir duas versões simultâneas, deixe a publicação bloqueada e explique a preparação necessária. Migrações de banco devem permitir coexistência (expand/contract); não executar migração destrutiva automaticamente nem prometer que rollback do código reverte dados.
 
-As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
+## 3. Reutilizar acesso SSH ou gerar somente o que faltar
 
-Você é um engenheiro de infraestrutura configurando deploy contínuo de um projeto para uma VPS. Siga cada passo na ordem — não pule etapas.
-
-**Escopo desta skill:** deploy de uma branch para **uma VPS que o usuário controla**, por SSH. O runner do GitHub envia o código e executa o comando de subir a aplicação lá. Cobre projetos em Docker/Docker Compose e também comandos de processo direto (systemd, pm2).
-
-**Fora do escopo:** deploy em PaaS (Vercel, Railway, Fly), Kubernetes, registry de imagem, blue-green, rollback automático. Se o usuário pedir isso, diga que esta skill não cobre e ofereça planejar com `/centaur-driven-spec`.
-
-**Regra de ouro desta skill:** você entrega **deploy configurado e testado**, não instruções. Gere a chave, teste a conexão, audite o `--delete`, cadastre os secrets pelo `gh` e acompanhe o primeiro run. Só peça ação manual ao usuário quando o comando exigir acesso que você não tem (senha de sudo na VPS, senha de primeiro login SSH, botão da UI do GitHub sem equivalente em CLI).
-
-**Execução de comandos:** rode os comandos você mesmo. Antes de qualquer comando que altere a VPS ou o GitHub, mostre o comando e peça confirmação. Comando de leitura (`ls`, `ssh-keyscan`, `rsync --dry-run`, `gh ... list`) pode rodar direto.
-
-## Contratos no deploy
-
-Configurar workflow ou executar dry-run não publica o produto. Identificar regras/entrega e confirmar gates reais no candidato; para vínculos existentes aplicar `validate-lifecycle.py --ready` com a raiz antes da opção. Após deploy real autorizado, observar revisão, ambiente, health e critérios de comportamento previstos; só então registrar `delivery.stage: published`, revisão, referência e data. Falha ou resultado inconclusivo mantém a entrega anterior, documenta tentativa e indica recuperação. Evidências de ambiente não substituem testes do contrato. Preservar histórico legado sem inventar contratos aprovados.
-
-## Passo 1 — Ler o contexto do projeto
-
-Leia `AGENTS.md` e recupere o contexto da solicitação pelo contrato Graphify acima. Consulte apenas os registros e trechos relevantes do escopo; para status, confirme o README canônico.
-
-Se `AGENTS.md` não existir, avise:
-> "Este projeto ainda não foi documentado. Execute `/centaur-driven-start-project` primeiro para que eu tenha contexto suficiente para configurar o deploy com segurança."
-
-No backend `files`, se `.centaur/implements/status.md` não existir, crie a estrutura.
-
-Se já existir workflow de deploy em `.github/workflows/`, leia antes de criar outro — pode ser caso de ajustar o existente, não duplicar.
-
-## Passo 2 — Inspecionar o projeto (antes de perguntar qualquer coisa)
-
-Levante sozinho o máximo de fatos. Cada resposta obtida aqui é uma pergunta a menos no Passo 4.
-
-Verifique:
-- **Como a aplicação sobe:** `docker-compose*.yml`, `Dockerfile*`, `Procfile`, unidades systemd, `ecosystem.config.js` do pm2, scripts de `package.json`/`Makefile`. Se houver mais de um compose (dev e prod), identifique qual é o de produção pelas portas e pelo nome.
-- **Portas publicadas** por serviço, no compose de produção.
-- **Rota de health:** procure no código do servidor (`/health`, `/healthz`, `/api/health`, `/ping`). Se não houver nenhuma, o health check vai bater na raiz (`/`) — anote isso como limitação.
-- **Arquivos de ambiente:** rode `git ls-files` nos `.env*` para separar **versionado** de **não versionado**. Todo `.env` não versionado vive na VPS e **precisa entrar nos `--exclude` do rsync**.
-- **Variáveis de build time** (ex: `VITE_*`, `NEXT_PUBLIC_*`): se são embutidas no bundle, mudá-las exige commit — não adianta editar na VPS. Anote.
-- **Migrations:** o boot da aplicação roda migrations sozinho? Se não, o deploy também não vai rodar — anote como passo manual.
-- **Artefatos de build versionados por engano** (`dist/`, `build/`, `.next/`): se estão no repositório eles vão para a VPS; se não estão e a VPS precisa deles, o build tem de rodar lá. Decida qual dos dois e anote.
-- **Documentação de deploy existente:** `deploy/`, `docs/deploy*`, seção "Deploy" do `AGENTS.md`. Se já houver domínio, portas e nginx documentados, use esses valores em vez de perguntar.
-
-## Passo 3 — Checar o ferramental local
-
-Antes de prometer automação, confirme o que existe na máquina:
+Inspecione nomes de secrets e configuração local, sem imprimir valores sensíveis. Reutilize uma chave dedicada adequada; não substitua credenciais remotas que já funcionam. Se já existir chave privada local, obtenha sua pública com `ssh-keygen -y` quando necessário. Se faltar completamente, gere em `.centaur/deploy/private/` (ignorado pelo Git), com diretório 700 e arquivos privados 600:
 
 ```bash
-gh --version && gh auth status
-git remote -v
-ssh -V && rsync --version | head -1
+ssh-keygen -t ed25519 -C 'github-actions-PROJETO' -f .centaur/deploy/private/id_ed25519 -N ''
 ```
 
-- **`gh` autenticado** → você cadastra secrets e variables por CLI (Passo 12) e dispara o primeiro run (Passo 13). É o caminho padrão.
-- **`gh` ausente ou sem escopo** → siga tudo igual, mas o Passo 12 vira uma tabela para o usuário colar na UI. Diga isso na hora, não no fim.
-- **Sem remote no GitHub** → pare: não há onde cadastrar secret nem rodar Actions.
+Substitua `PROJETO` pelo identificador real. Verifique existência antes: não sobrescrever arquivo, não usar chave pessoal como default. Não exponha a privada no chat, logs ou documentação. Se a chave existe apenas no secret GitHub, ela não pode ser recuperada; preserve-a e informe que a identidade precisa ser validada pelo operador.
 
-Guarde `owner/repo` a partir do remote — todo comando `gh` deste fluxo usa `-R <owner>/<repo>` explícito, porque o diretório de trabalho pode não ser o repositório do deploy.
-
-## Passo 4 — Tirar as dúvidas que sobraram
-
-Pergunte **apenas o que não deu para inferir**. Apresente o que você já descobriu junto com a pergunta, para o usuário só confirmar ou corrigir.
-
-O conjunto mínimo que você precisa ter no fim deste passo:
-
-| Fato | Como obter |
-|---|---|
-| Host/IP da VPS | usuário |
-| Usuário SSH | usuário |
-| Porta SSH | usuário (default 22) |
-| Diretório do projeto na VPS | usuário (ex: `/opt/projects/<nome>`) |
-| Branch que dispara o deploy | usuário |
-| Nome do GitHub Environment | usuário (ou "nível de repositório") |
-| Comando que sobe a aplicação | inferido no Passo 2, confirmar |
-| Arquivo de env de produção na VPS | inferido no Passo 2, confirmar o **nome exato** |
-| URL interna de health | inferido no Passo 2, confirmar |
-
-**Confirme o nome exato do arquivo de env.** `.env` e `.env.production` não são intercambiáveis: o `env_file` do compose aponta para um nome específico, e errar isso quebra o `up` no primeiro deploy.
-
-Pergunte também se a VPS **já tem o projeto rodando** e se algum arquivo foi **editado à mão lá dentro**. Isso decide o Passo 10.
-
-## Passo 5 — Confirmar o desenho do deploy
-
-Antes de escrever o workflow, exponha em 3-4 linhas: o gatilho, o transporte, o que roda na VPS e como o sucesso é verificado. Peça confirmação.
-
-**Transporte — default é rsync do runner**, não `git pull` na VPS:
-- a VPS não precisa de credencial do repositório nem de clone
-- o que é deployado é exatamente o que o runner checou out
-- `git pull` na VPS só se justifica se o usuário quiser histórico git lá dentro; nesse caso ele precisa configurar deploy key ou token na VPS, e você deve dizer isso explicitamente
-
-## Passo 6 — Gerar a chave SSH
-
-A chave **não** se gera no GitHub — gera na máquina do usuário; o GitHub só guarda a privada como secret.
+Quando autorização na VPS ainda faltar, forneça ao usuário o comando com valores reais:
 
 ```bash
-ssh-keygen -t ed25519 -C "github-actions-<projeto>-<branch>" -f ~/.ssh/<projeto>_deploy -N ""
+ssh-copy-id -i .centaur/deploy/private/id_ed25519.pub -p PORTA USUARIO@HOST
 ```
 
-`-N ""` (sem passphrase) é obrigatório: o runner não tem como digitar senha. Chave dedicada ao deploy, nunca a chave pessoal do usuário — assim revogar o deploy não derruba o acesso dele.
+Entregue também o comando de verificação com `IdentitiesOnly=yes`, `BatchMode=yes`, `StrictHostKeyChecking=yes` e known_hosts validado. O usuário o executa. Para coletar a host key, entregue `ssh-keyscan -p PORTA HOST` e a comparação de fingerprint com `/etc/ssh/ssh_host_ed25519_key.pub` por console confiável. Não trate `ssh-keyscan` sozinho como validação. Reutilize known_hosts já verificado; nunca desabilite a checagem de host.
 
-Se o arquivo já existir, **não sobrescreva**: pergunte se é para reusar a chave existente ou gerar com outro nome.
+## 4. Gerar e validar os arquivos
 
-## Passo 7 — Instalar a chave pública na VPS
+- Workflow: `.github/workflows/deploy-vps.yml` (exceção necessária ao layout `.centaur/`, exigida pelo GitHub).
+- Scripts versionados: `.centaur/deploy/seal-static.sh`, `.centaur/deploy/activate-static.sh` e `.centaur/deploy/retry-transfer.sh`, ou equivalentes específicos do runtime.
+- Instruções: `.centaur/deploy/README.md` com gatilho escolhido, pré-requisitos, acessos configurados, pendências, execução, health, rollback, retenção e revogação.
+- Builds, chaves, logs e temporários: `.centaur/deploy/build/`, `artifact/`, `private/`, `logs/`, `tmp/`, ignorados pelo Git.
+
+O template é uma base deliberadamente bloqueada até substituir a etapa de integridade por instalação com lockfile, testes pertinentes e build limpo **reais do projeto**. Adapte a saída para `.centaur/deploy/build/site/`, evitando resíduos de builds anteriores. Não entregue esse `exit 1` como configuração concluída; quando faltarem decisões, mantenha-o e reporte a pendência.
+
+Empacote somente a saída pública através de `seal-static.sh`: arquivos extras da pasta de build não entram no artefato; links e nomes comuns de credenciais são recusados. Isso não detecta segredos embutidos em JavaScript ou arquivos com nomes arbitrários: confira as variáveis de build e rode a inspeção pertinente ao projeto.
+
+Dois jobs: `integrity` produz um único artefato testado; `publish` declara `needs: integrity` e usa esse artefato, sem recompilar outro conteúdo. Variáveis entram por `env`, nunca interpoladas como comandos. Segredos ficam somente no job com Environment e são limpos do runner ao final. Use `contents: read`, concorrência por ambiente e `cancel-in-progress: false`.
+
+Retry aplica-se **somente à transferência idempotente para a release isolada**: três tentativas, esperas de 5 e 10 segundos e falha explícita ao esgotar. Nunca repetir ativação ou migrações indiscriminadamente. Cada tentativa de execução do Actions usa um ID novo, incluindo `run_attempt`, preservando releases anteriores. `--delete` fica restrito à nova release. Limpeza de versões é posterior à validação, exclui ativa/anterior e respeita janela de cache e drenagem; o template preserva todas por padrão até definir a política.
+
+Valide YAML com parser disponível, `bash -n` nos scripts e `actionlint` quando disponível. Rode os testes do projeto e testes locais das transições/falhas dos scripts. Não confunda essas verificações com um deploy remoto validado.
+
+## 5. Configurar o GitHub quando houver permissão
+
+Descubra `owner/repo` pelo remote e use `-R OWNER/REPO` em todos os comandos `gh`. `git` local ou push funcionando não comprovam permissão de administrar Environment/secrets. Consulte `gh auth status`, o Environment e suas políticas existentes. Crie o Environment se ausente, sem apagar revisores, tempos de espera ou proteções de um existente. Configure restrição à branch autorizada consultando políticas atuais antes de adicionar; não duplique nem amplie permissões. O modo manual também deve restringir referências que podem publicar.
+
+Cadastre valores disponíveis e confirmados. Se faltar acesso/permissão ou valor, forneça a instrução correspondente e mantenha a pendência explícita:
 
 ```bash
-ssh-copy-id -i ~/.ssh/<projeto>_deploy.pub -p <porta> <usuario>@<host>
+gh secret set VPS_SSH_KEY -R OWNER/REPO --env production < .centaur/deploy/private/id_ed25519
+gh secret set VPS_KNOWN_HOSTS -R OWNER/REPO --env production < .centaur/deploy/private/known_hosts
+gh variable set VPS_HOST -R OWNER/REPO --env production --body 'HOST'
+gh variable set VPS_USER -R OWNER/REPO --env production --body 'USUARIO'
+gh variable set VPS_PORT -R OWNER/REPO --env production --body 'PORTA'
+gh variable set VPS_PATH -R OWNER/REPO --env production --body '/opt/PROJETO'
+gh variable set HEALTH_URL -R OWNER/REPO --env production --body 'https://DOMINIO/centaur-release.txt'
 ```
 
-`ssh-copy-id` só funciona se a VPS aceitar o login atual (senha ou outra chave já instalada). Se ela for key-only e você não tiver acesso, o usuário instala manualmente — entregue a linha exata:
+Esses comandos são modelos: substitua valores e Environment pelo que foi descoberto; preserve secrets existentes quando estiver reutilizando-os. Liste somente nomes para confirmar cadastro (`gh secret list`, `gh variable list`). Nunca grave placeholders no GitHub.
 
-```bash
-# saída de: cat ~/.ssh/<projeto>_deploy.pub
-# na VPS, com um acesso que já funcione:
-echo '<conteúdo da .pub>' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
-```
+## 6. Entregar próximos passos, sem publicar
 
-Teste **antes** de mexer no GitHub — se isto falhar, o workflow também falha:
+Informe exatamente o que foi gerado, validado localmente, configurado no GitHub e o que ainda depende do operador. Forneça os comandos para autorizar a chave, preparar a infraestrutura, publicar o workflow e executá-lo/acompanhá-lo (`gh workflow run`, `gh run list`, `gh run watch`), **sem executá-los**. Avise que push na main dispara publicação quando esse for o gatilho escolhido. Não declare ausência de downtime comprovada sem ensaio no ambiente alvo.
 
-```bash
-ssh -i ~/.ssh/<projeto>_deploy -o IdentitiesOnly=yes -o BatchMode=yes -p <porta> <usuario>@<host> "<comando_que_verifica_o_runtime>"
-```
+Documente recuperação manual pelo link/upstream anterior, nomes de releases preservadas, limites do rollback e revogação (remover somente a chave pública dedicada do `authorized_keys` e apagar o secret correspondente). Registre o resultado como **preparação concluída** ou **preparação com pendências**, nunca deploy realizado. Nenhuma atualização Graphify obrigatória.
 
-`IdentitiesOnly=yes` importa: sem ele o `ssh` pode autenticar com outra chave do agente e você conclui que a chave nova funciona quando não funciona. `BatchMode=yes` faz falhar na hora em vez de pedir senha.
+## Referências oficiais
 
-## Passo 8 — Coletar o known_hosts
-
-```bash
-ssh-keyscan -p <porta> <host> > /tmp/<projeto>_known_hosts
-cat /tmp/<projeto>_known_hosts
-```
-
-A saída tem 2-3 linhas (ed25519, rsa, ecdsa) — todas vão no secret. Com porta diferente de 22 o formato sai como `[host]:porta`; é o formato correto, não editar. Guarde o arquivo: é **ele** que vai para o secret no Passo 12 — não rode `ssh-keyscan` de novo lá, senão o conteúdo gravado não é o que foi conferido aqui.
-
-Confira o fingerprint contra o servidor real antes de gravar (isso é o que impede fixar a host key de um intermediário):
-
-```bash
-ssh-keygen -lf /tmp/<projeto>_known_hosts
-# e, por um canal já confiável, na VPS:
-ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
-```
-
-## Passo 9 — Checklist da VPS
-
-Com a chave funcionando, rode as verificações por SSH você mesmo e mostre a saída. Só peça ao usuário o que exige sudo:
-
-```bash
-# leitura — você roda
-ssh -i ~/.ssh/<projeto>_deploy -p <porta> <usuario>@<host> \
-  "ls -la <VPS_PATH> 2>/dev/null; id; <COMANDO_QUE_VERIFICA_O_RUNTIME>"
-```
-
-```bash
-# escrita/sudo — o usuário roda na VPS
-sudo mkdir -p <VPS_PATH> && sudo chown $USER <VPS_PATH>
-sudo usermod -aG docker $USER    # exige relogar para valer
-test -f <VPS_PATH>/<ARQUIVO_ENV> && echo ok
-```
-
-O runtime tem de responder **sem sudo** para o usuário do deploy: o runner não tem tty para senha. Se `docker ps` só funciona com sudo, resolva isto agora — é falha garantida no primeiro run.
-
-## Passo 10 — Auditar o `--delete` do rsync
-
-⚠️ **Este passo é obrigatório e não pode ser resumido.**
-
-O rsync usa `--delete`: o diretório na VPS passa a ser um espelho do repositório. Qualquer arquivo que exista lá e não no repo é **apagado**; qualquer arquivo editado à mão na VPS é **sobrescrito**. Arquivo listado em `--exclude` fica protegido das duas coisas.
-
-Não pergunte o que existe lá — **meça**. Com a chave já instalada, rode o mesmo rsync do workflow em modo simulação:
-
-```bash
-rsync -az --delete --dry-run -i \
-  -e "ssh -i ~/.ssh/<projeto>_deploy -o IdentitiesOnly=yes -p <porta>" \
-  --exclude '.git/' --exclude '.github/' --exclude 'node_modules/' \
-  <DEMAIS_EXCLUDES> \
-  ./ <usuario>@<host>:<VPS_PATH>/
-```
-
-Toda linha começando com `*deleting` é um arquivo que **some da VPS no primeiro deploy real**. Liste essas linhas para o usuário e, para cada uma, decida com ele: **entra nos `--exclude`** ou **passa a ser versionado**. Não deixe nenhum item indefinido. Depois de ajustar os `--exclude`, rode o dry-run de novo até a lista de `*deleting` conter só o que pode morrer.
-
-Se o compose ou qualquer config foi editado à mão na VPS, a edição precisa ir para o repositório **antes** do primeiro deploy — senão ela morre no primeiro rsync. `rsync --dry-run -i` também mostra isso: linhas `>f.st....` num arquivo de config são sobrescrita de conteúdo.
-
-## Passo 11 — Escrever o workflow
-
-Use `templates/deploy-vps.yml` desta skill como base. Coloque em `.github/workflows/deploy-<branch>-vps.yml`.
-
-Regras que o workflow **precisa** respeitar:
-
-1. **`environment: <nome>` no job** se os secrets estiverem num GitHub Environment. Secret/variable de Environment é invisível para job que não o declara — os valores chegam **vazios**. O template trata isso com uma checagem explícita de valor vazio no primeiro step, com mensagem apontando o Environment; mantenha essa checagem, ela transforma o erro mais comum desta configuração num erro legível.
-2. **Sensível em `secrets.`, o resto em `vars.`** Chave privada e known_hosts são secrets; host, usuário, porta e path são variables (aparecem nos logs, o que ajuda a depurar). Usar o contexto errado devolve string vazia em silêncio — confira que cada nome está no contexto certo.
-3. **Secret e variable entram por `env:` do step**, nunca interpolados no corpo do `run:`. Valor interpolado direto vira código shell; via `env:` ele é só dado.
-4. **Conexão configurada uma vez em `~/.ssh/config`**, com `BatchMode yes`, `IdentitiesOnly yes`, `ConnectTimeout` e `ServerAliveInterval`. Sem `BatchMode` um problema de chave vira job pendurado até o timeout; sem `ServerAliveInterval` build longo derruba a sessão no meio. Os steps seguintes usam só o alias (`ssh deploy-target`).
-5. **`concurrency` sem `cancel-in-progress`.** Cancelar um deploy no meio de um build de container deixa a VPS em estado indefinido.
-6. **`permissions: contents: read`** no topo. O workflow só lê o repositório.
-7. **Checar pré-requisitos antes do rsync**: o arquivo de env existe? o runtime responde? Falhar aqui não deixa o projeto meio atualizado.
-8. **`workflow_dispatch` com input `dry_run`**, que roda o rsync em `--dry-run -i` e pula os steps de subir e de health check. É como se audita o `--delete` depois que o workflow já existe, sem tocar na VPS.
-9. **Health check por dentro da VPS**, contra o endereço interno (`127.0.0.1:<porta>`), com retry (30 tentativas de 5s) — container demora a subir. Em caso de falha, imprimir status e as últimas linhas de log dos serviços.
-10. **`printf '%s\n'`** para escrever a chave privada, nunca `echo` — a chave OpenSSH precisa da quebra de linha final ou o `ssh` responde `error in libcrypto`.
-11. **Nada de segredo em `run:` que ecoe.** Não faça `echo` do conteúdo de secret; o mascaramento do GitHub não cobre todas as transformações.
-12. **Apagar as credenciais do runner no fim**, com `if: always()`.
-
-Valide o YAML depois de escrever:
-
-```bash
-python3 -c "import yaml; yaml.safe_load(open('.github/workflows/<arquivo>.yml')); print('yaml ok')"
-```
-
-Se `actionlint` estiver disponível, rode também — ele pega expressão `${{ }}` inválida e contexto inexistente, que o parser YAML aceita:
-
-```bash
-command -v actionlint >/dev/null && actionlint .github/workflows/<arquivo>.yml
-```
-
-O `yaml.safe_load` mostra a chave `on` como `True`: é o YAML 1.1 lendo `on` como booleano. Não é erro e o GitHub não se importa.
-
-## Passo 12 — Cadastrar secrets e variables
-
-**Com `gh` autenticado (padrão), cadastre você mesmo.** Isso elimina a fonte mais comum de erro: chave colada pela metade, sem a linha `END`, ou sem a quebra de linha final.
-
-Crie o Environment (idempotente) e restrinja à branch do deploy:
-
-```bash
-# cria o Environment já habilitando política de branch customizada
-gh api -X PUT repos/<owner>/<repo>/environments/<ENVIRONMENT> \
-  -F 'deployment_branch_policy[protected_branches]=false' \
-  -F 'deployment_branch_policy[custom_branch_policies]=true'
-
-# só a branch do deploy pode usar este Environment
-gh api -X POST repos/<owner>/<repo>/environments/<ENVIRONMENT>/deployment-branch-policies \
-  -f name='<branch>' -f type='branch'
-```
-
-Sem essa restrição, o workflow copiado para outra branch alcança a mesma VPS.
-
-A política de branch só é aceita se o Environment estiver com `deployment_branch_policy` customizado; se a chamada acima falhar, ajuste em **Settings → Environments → `<ENVIRONMENT>` → Deployment branches and tags → Selected branches and tags** e siga.
-
-Cadastre os valores:
-
-```bash
-gh secret set VPS_SSH_KEY     -R <owner>/<repo> --env <ENVIRONMENT> < ~/.ssh/<projeto>_deploy
-gh secret set VPS_KNOWN_HOSTS -R <owner>/<repo> --env <ENVIRONMENT> < /tmp/<projeto>_known_hosts
-
-gh variable set VPS_HOST -R <owner>/<repo> --env <ENVIRONMENT> --body '<host>'
-gh variable set VPS_USER -R <owner>/<repo> --env <ENVIRONMENT> --body '<usuario>'
-gh variable set VPS_PORT -R <owner>/<repo> --env <ENVIRONMENT> --body '<porta>'
-gh variable set VPS_PATH -R <owner>/<repo> --env <ENVIRONMENT> --body '<path>'
-```
-
-Ler chave e known_hosts por redirecionamento (`< arquivo`) preserva o conteúdo byte a byte — e o known_hosts gravado é exatamente o que teve o fingerprint conferido no Passo 8. Sem Environment, troque `--env <ENVIRONMENT>` por nada (vai para o nível do repositório).
-
-Confirme o que ficou gravado — `gh` lista nome e data, nunca o valor do secret:
-
-```bash
-gh secret list   -R <owner>/<repo> --env <ENVIRONMENT>
-gh variable list -R <owner>/<repo> --env <ENVIRONMENT>
-```
-
-**Sem `gh`**, entregue a tabela para o usuário colar na UI, com os valores **reais** já preenchidos:
-
-| Nome | Tipo | Onde | Valor |
-|---|---|---|---|
-| `VPS_SSH_KEY` | secret | Environment `<nome>` | conteúdo de `~/.ssh/<projeto>_deploy` |
-| `VPS_KNOWN_HOSTS` | secret | Environment `<nome>` | *(a saída real do ssh-keyscan)* |
-| `VPS_HOST` | variable | Environment `<nome>` | `<valor real>` |
-| `VPS_USER` | variable | Environment `<nome>` | `<valor real>` |
-| `VPS_PORT` | variable | Environment `<nome>` | `<valor real>` (omitir se 22) |
-| `VPS_PATH` | variable | Environment `<nome>` | `<valor real>` |
-
-Para a chave privada nesse caminho manual, o default é entregar o comando, não o conteúdo:
-
-```bash
-cat ~/.ssh/<projeto>_deploy
-```
-
-O transcrito da conversa é armazenado e pode ser exportado; chave colada nele fica fora do cofre de secrets, num lugar sem revogação. **Se o usuário disser explicitamente que pode exibir a chave no chat, exiba** — é decisão dele, e a chave é dedicada ao deploy e revogável pelo Passo 15. Ao colar na UI, tem de incluir as linhas `-----BEGIN OPENSSH PRIVATE KEY-----` e `-----END OPENSSH PRIVATE KEY-----` e a quebra de linha final.
-
-Onde cadastrar na UI: **Settings → Environments → `<nome>` → Add environment secret / Add environment variable** (ou, sem Environment, Settings → Secrets and variables → Actions).
-
-## Passo 13 — Rodar o primeiro deploy em simulação
-
-Commite e faça push do workflow (pergunte antes). Depois valide **sem tocar na VPS**:
-
-```bash
-gh workflow run <arquivo>.yml -R <owner>/<repo> --ref <branch> -f dry_run=true
-gh run watch -R <owner>/<repo> $(gh run list -R <owner>/<repo> -w <arquivo>.yml -L1 --json databaseId -q '.[0].databaseId')
-```
-
-Este run prova o que mais quebra na estreia: Environment enxergado, chave válida, host key aceita, pré-requisitos na VPS. E o log do rsync mostra de novo a lista de `*deleting` — agora com o conteúdo real da branch.
-
-Se falhar, leia o log do step:
-
-```bash
-gh run view -R <owner>/<repo> <run-id> --log-failed
-```
-
-Só depois dispare o deploy real (push na branch ou `gh workflow run` sem `dry_run`) e acompanhe com `gh run watch`.
-
-## Passo 14 — Avisar o que o deploy NÃO faz
-
-Liste explicitamente, com base no Passo 2:
-- **Migrations** — se o boot não as roda, o deploy também não. Diga qual comando rodar à mão.
-- **Variáveis de build time** — mudar exige commit na branch, não edição na VPS.
-- **Segredos da VPS** — nunca são enviados nem sobrescritos; mudança neles é manual e não passa pelo Git.
-- **Rollback** — não existe. Voltar é reverter o commit e deixar o push disparar de novo.
-- **Nginx do host / TLS** — fora do container, não é tocado pelo deploy.
-- **Backup** — o `--delete` não guarda cópia do que apagou.
-
-## Passo 15 — Deixar registrado como revogar
-
-Deploy configurado sem caminho de revogação é dívida. Entregue as duas linhas:
-
-```bash
-# na VPS: remove a linha da chave de deploy do authorized_keys
-ssh <usuario>@<host> "grep -v 'github-actions-<projeto>-<branch>' ~/.ssh/authorized_keys > /tmp/ak && mv /tmp/ak ~/.ssh/authorized_keys"
-
-# no GitHub: apaga o secret
-gh secret delete VPS_SSH_KEY -R <owner>/<repo> --env <ENVIRONMENT>
-```
-
-Rotacionar é repetir os Passos 6, 7 e 12 com um nome de arquivo novo e depois revogar o antigo.
-
-## Passo 16 — Determinar número da implementação
-
-**Backend ai-memory:** use o UUID e o caminho do contrato de memória, sem reservar pasta. O template do próximo passo fornece o corpo da página/fila. Pule a etapa de `status.md` e informe a referência da página no lugar do número. Em modo spec, grave a fila e reporte ao coordenador; inclusive em bloqueios, não crie README local nem publique diretamente.
-
-**Backend files:** siga a reserva abaixo.
-
-<!-- Mantenha este passo sincronizado com centaur-driven-implement (Passo 9) e centaur-driven-tdd (Passo 12) -->
-```
-ls .centaur/implements/ | grep -E '^[0-9]{4}$' | sort | tail -1
-```
-
-- Se retornar um número (ex: `0003`), o próximo é esse + 1
-- Se retornar vazio, começa em `0001`
-- Sempre 4 dígitos
-
-Reserve o número imediatamente com `mkdir .centaur/implements/XXXX` (sem `-p`). Se falhar porque já existe, incremente e tente de novo.
-
-## Passo 17 — Documentar
-
-Obtenha a data de hoje com `date +%F` — não a preencha de memória.
-
-Em `files`, crie `.centaur/implements/XXXX/README.md`. Em `ai-memory`, use este conteúdo no registro do contrato, com o ID atribuído:
-
-```markdown
-# [XXXX] Deploy automático da branch [branch] na VPS [ambiente]
-
-**Data:** [saída de `date +%F`]
-**Status:** Concluído
-**Modo:** direto
-
-## Solicitação
-[O que o usuário pediu, com as palavras dele]
-
-## Contexto
-[Como o deploy era feito antes; por que automatizar]
-
-## O que foi feito
-[Gatilho, transporte, o que roda na VPS, como o sucesso é verificado]
-
-## Arquivos criados
-- `.github/workflows/[arquivo].yml` — [gatilho e o que faz]
-
-## Arquivos modificados
-- `caminho/do/arquivo.ext` — [o que mudou]
-
-## Configuração fora do repositório
-- GitHub Environment `[nome]` — secrets `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS`; variables `VPS_HOST`, `VPS_USER`, [demais]
-- Restrição de branch do Environment: `[branch]`
-- Chave SSH: `~/.ssh/[nome]` na máquina do dev, pública em `~/.ssh/authorized_keys` da VPS
-- Na VPS: `[VPS_PATH]/[arquivo de env]` criado à mão, fora do Git
-
-## Decisões técnicas
-[rsync vs git pull e por quê; o que entrou nos --exclude e por quê; secrets vs variables; sem cancel-in-progress]
-
-## Auditoria do --delete
-[O que o `rsync --dry-run` apontou como `*deleting` e o destino de cada item: excluído ou versionado]
-
-## O que o deploy não faz
-[migrations, build-time vars, segredos, rollback, nginx/TLS, backup]
-
-## Como revogar
-[Remover a chave do authorized_keys da VPS; apagar o secret no GitHub]
-
-## Como validar
-[Run com dry_run=true; push na branch; acompanhar o run; conferir o health check]
-
-## Resultado da validação
-[YAML validado; conexão SSH testada; resultado do dry-run e do primeiro run real]
-```
-
-## Passo 18 — Atualizar status.md
-
-Somente em `files`, adicione a linha na tabela de `.centaur/implements/status.md`:
-
-```
-| XXXX | Deploy automático da branch [branch] na VPS [ambiente] | [data] | Concluído | .github/workflows/[arquivo].yml |
-```
-
-Se a tabela ainda contiver a linha placeholder (`| — | — | — | — | — |`), remova-a ao inserir a primeira linha real.
-
-## Passo 19 — Atualizar AGENTS.md
-
-Deploy sempre entra no `AGENTS.md` — muda como o projeto é publicado. Atualize a seção "Como Fazer Deploy" (crie se não existir) com: gatilho, transporte, onde ficam os secrets, como rodar em `dry_run`, o que é manual (migrations, env da VPS) e o aviso do `--delete` do rsync.
-
-Se houver documentação de deploy dedicada (`deploy/README.md` ou similar), acrescente lá a seção detalhada e mantenha o `AGENTS.md` com o resumo apontando para ela.
-
-## Passo 20 — Sincronizar o Graphify
-
-Use `centaur-driven-graphify` para atualizar o fluxo de publicação, registrando o que foi confirmado sobre responsabilidades externas e de servidor. Se o Graphify não estiver configurado, reporte a pendência sem bloquear o deploy validado.
-
-## Passo 21 — Informar o usuário
-
-Encerre com:
-- Resumo em 2-3 linhas do que foi configurado
-- **O que já está cadastrado no GitHub** (saída de `gh secret list` / `gh variable list`) ou, sem `gh`, a tabela de valores do Passo 12
-- Resultado do run de `dry_run` e o que ele mostrou de `*deleting`
-- O checklist da VPS que ainda estiver pendente
-- Referência da página e estado da memória, ou número/README no backend `files`
-- Documentos do sistema atualizadas, ou pendência explícita do Graphify
-- Aviso de que o push na branch dispara o deploy na hora — e pergunte se pode commitar/pushar
+- [Artefatos e dependências entre jobs](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/storing-and-sharing-data-from-a-workflow)
+- [GitHub Environments](https://docs.github.com/en/actions/concepts/workflows-and-actions/deployment-environments)
+- [Reload gracioso do Nginx](https://nginx.org/en/docs/control.html)

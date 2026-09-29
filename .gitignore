@@ -4,3 +4,20 @@ node_modules/
 premium-audit.json
 vscode-extension/dist/
 *.vsix
+
+# Centaur: persistent definitions are versioned; runtime artifacts are not.
+.centaur/tmp/
+.centaur/backups/
+.centaur/build/
+.centaur/graphify/
+.centaur/worktrees/
+.centaur/ai-memory/pending/
+.centaur/ai-memory/cache/
+.centaur/ai-memory/secrets/
+.centaur/deploy/build/
+.centaur/deploy/artifact/
+.centaur/deploy/keys/
+.centaur/volante.html
+.centaur/deploy/private/
+.centaur/deploy/logs/
+.centaur/deploy/tmp/

@@ -7,6 +7,8 @@ const {execFile} = require('node:child_process');
 const {promisify} = require('node:util');
 const {validate,saveFlow} = require('./flow-store');
 const {AgentRunner,validateProfile} = require('./agent-runner');
+const {registerEditor} = require('./editor-context');
+const {registerCompletion} = require('./completion');
 const exec = promisify(execFile);
 
 let panel, root, data, runner, output, pending;
@@ -89,16 +91,21 @@ async function handle(message){
 }
 function activate(context){
   output=vscode.window.createOutputChannel('Centaur Volante');context.subscriptions.push(output);
+  const projects=registerEditor(vscode,context,output);
+  registerCompletion(vscode,context,projects,output);
   context.subscriptions.push(vscode.commands.registerCommand('centaurVolante.open',async()=>{
     try{
       requireTrust();const target=await chooseRoot();if(!target)return;
-      if(panel&&root!==target){panel.dispose();panel=null;runner?.dispose();runner=null;}
+      if(root && root!==target){
+        if(runner?.list().some(run=>['em execução','interrompendo'].includes(run.status)))throw new Error('Há agentes ativos no projeto anterior. Reabra seu painel para interrompê-los antes de trocar de projeto.');
+        panel?.dispose();panel=null;runner?.dispose();runner=null;
+      }
       root=target;
       if(!panel){
         panel=vscode.window.createWebviewPanel('centaurVolante','Volante · '+path.basename(root),vscode.ViewColumn.One,{enableScripts:true,retainContextWhenHidden:true,localResourceRoots:[]});
         panel.webview.onDidReceiveMessage(handle,null,context.subscriptions);
-        panel.onDidDispose(()=>{panel=null;runner?.dispose();runner=null;},null,context.subscriptions);
-        runner=new AgentRunner(root,context.globalStorageUri.fsPath,output,()=>{try{profileState();}catch(e){output.appendLine(errorText(e));}});
+        panel.onDidDispose(()=>{panel=null;},null,context.subscriptions);
+        runner=runner||new AgentRunner(root,path.join(root,'.centaur'),output,()=>{try{profileState();}catch(e){output.appendLine(errorText(e));}});
       }else panel.reveal();
       await snapshot();
     }catch(e){vscode.window.showErrorMessage('Volante: '+errorText(e));}

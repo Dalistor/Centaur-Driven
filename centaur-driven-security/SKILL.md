@@ -3,9 +3,8 @@ name: centaur-driven-security
 description: Audita segurança de código, configuração ou diffs e verifica vulnerabilidades suspeitas com evidências, análise de falsos positivos e busca de variantes. Use para auditoria de segurança, revisão de PR com foco em segurança ou validação de achados; entrega relatório sem corrigir o código.
 license: CC-BY-SA-4.0; atribuição e fontes em references/security-review.md
 metadata:
-  version: 4.0.0
-  dependencies: graphify
-  optional-dependencies: ai-memory
+  version: 5.0.0
+  optional-dependencies: graphify, ai-memory
 ---
 
 # centaur-driven-security

@@ -37,7 +37,7 @@ def fixture(root):
     c2 = {**c, 'id': 'lembretes', 'title': 'Lembrar o paciente da consulta', 'scope': 'notificacoes', 'status': 'draft', 'intent': 'Enviar um lembrete antes da consulta, respeitando a preferência do paciente.', 'decisions': ['Com quantas horas de antecedência enviar o lembrete?'], 'rules': [{'id': 'LEM-01', 'description': 'Enviar lembrete no canal autorizado', 'acceptance': ['Enviar somente a pacientes que aceitaram o canal.'], 'depends_on': ['reservas/RES-02']}]}
     write(root, '.centaur/contracts/lembretes/v001.json', c2)
     write(root, '.centaur/specs/0001/README.md', '# [0001] Reserva com proteção de concorrência\n\n**Status:** Em andamento\n**Contrato:** reservas@1\n\n## Checklist de conclusão\n- [x] Task 01 — Consultar disponibilidade\n- [ ] Task 02 — Proteger reserva concorrente\n')
-    write(root, 'docs/system/Fluxos/Agendamento.md', '# Jornada de agendamento\n\nPaciente consulta horários → escolhe profissional → reserva → recebe confirmação.\n\nEste documento é fictício e descreve a intenção da demonstração.\n')
+    write(root, '.centaur/system/Fluxos/Agendamento.md', '# Jornada de agendamento\n\nPaciente consulta horários → escolhe profissional → reserva → recebe confirmação.\n\nEste documento é fictício e descreve a intenção da demonstração.\n')
     return c, state, e
 
 

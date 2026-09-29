@@ -33,6 +33,8 @@ components:
 
 ## Overview
 
+A experiência principal usa a árvore nativa do VS Code e os temas do editor, com navegação direta entre funcionalidade, regras, fontes e evidências. O editor e o produto em execução ficam no centro. Os tokens e componentes abaixo pertencem ao painel secundário de fluxos/agentes e à exportação HTML opcional.
+
 Volante é um instrumento de inspeção para quem dirige desenvolvimento feito por IA. O usuário parte de uma capacidade e encontra regra, código e prova. Registro de produto/ferramenta, em português brasileiro, offline e responsivo. O mapa de capacidades e a trilha de três estados são a assinatura: a realização do molde aparece ao lado de sua evidência, sem porcentagem fictícia de conclusão.
 
 ## Colors

@@ -33,10 +33,6 @@ def main():
     finally:
         if os.path.exists(tmp):
             os.unlink(tmp)
-    legacy = project_path(project, '.centaur/andamento.html')
-    old = legacy.read_text(encoding='utf-8') if legacy.exists() else ''
-    if not old or '<title>Andamento · Centaur</title>' in old or '<!-- centaur-volante-redirect -->' in old:
-        legacy.write_text('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=volante.html"><title>Volante · Centaur</title></head><body><!-- centaur-volante-redirect --><p>O visor mudou para <a href="volante.html">Volante</a>. Suas notas continuam disponíveis no mesmo navegador.</p></body></html>', encoding='utf-8')
     print(output)
 
 

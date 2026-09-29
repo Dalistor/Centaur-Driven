@@ -139,7 +139,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertNotIn('</script><img',html)
         self.assertIn('\\u003c/script',html)
         self.assertEqual(load_project(self.root)['specs'][0]['status'],'Em andamento')
-        self.assertTrue((self.root/'.centaur/andamento.html').exists())
+        self.assertFalse((self.root/'.centaur/andamento.html').exists())
 
     def test_old_entry_and_custom_html_are_preserved(self):
         write(self.root,'.centaur/andamento.html','CUSTOM USER HTML')

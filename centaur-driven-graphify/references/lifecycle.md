@@ -22,6 +22,10 @@ Contrato desejado e estado observado são separados. Código que contradiz um co
 
 Esses registros locais existem com ambos os backends. Não copiar a wiki ou todo o histórico para eles. Fontes canônicas de estado não são `graph.json`, índices ou HTML. Para contratos ligados a specs, o README registra a execução; o estado registra comportamento verificado. Checklist marcado não promove verificação ou publicação.
 
+## Base conceitual
+
+A [especificação](specification.md) integra conceito, requisitos funcionais/não funcionais, casos de uso e dados ao contrato. O campo opcional `specification` e `rules[].kind` são validados e entram no hash de evidências.
+
 ## Definir e versionar o molde
 
 - Usar IDs estáveis de capacidades (ex.: `agendamento`) e regras (`RES-01`). Uma regra removida não tem seu ID reutilizado com outro significado.
@@ -110,6 +114,7 @@ Para regra nova ou execução delegada sem estado consolidado, informar todos os
 ```bash
 python3 /skill/centaur-driven-graphify/scripts/validate-lifecycle.py /projeto
 python3 /skill/centaur-driven-graphify/scripts/validate-lifecycle.py /projeto --ready agendamento/RES-01
+# Exportação HTML opcional:
 python3 /skill/centaur-driven-graphify/scripts/render-volante.py /projeto
 ```
 
@@ -137,8 +142,8 @@ Ao migrar: preservar IDs, READMEs, aprovações e registros históricos; adicion
 
 ## Atualizar o Volante
 
-Regenerar após mudanças em contrato, estado, evidências, código vinculado, spec ou workspace. No `run`, atualizar em cada consolidação e no término; só o coordenador escreve. Consultas puras não alteram o visor. Falha de Graphify não impede a geração determinística; falha do visor não invalida código, mas deve ser reportada como snapshot desatualizado.
+O explorador nativo acompanha mudanças salvas nos contratos e fontes vinculadas. O HTML é exportação opcional, gerada ao abrir o painel de fluxos/agentes ou por pedido explícito. Consultas puras não escrevem arquivos; a validade de evidências é conferida nas fontes atuais, independentemente de exportação.
 
 O HTML avulso é autocontido e não executa comandos; a extensão VS Code é um hospedeiro opcional que oferece modelo de linguagem, persistência de casos de uso e executores locais. Contratos e Código priorizam resumos e permitem aprofundar somente quando solicitado; Casos de uso expõe fluxos salvos em `.centaur/use-cases/<id>.json`. Fluxos gerados por IA são rascunhos e exigem revisão antes de salvar. Um fluxo salvo não autoriza a execução de regra bloqueada nem comprova implementação. O painel também preserva specs e documentos. Trechos são explicitamente selecionados (até 120 linhas por fonte), nunca varrer/copiar todo o repositório ou incluir segredos. A IA revisa o conteúdo antes de vincular fontes. Não publicar o HTML automaticamente: contém código do projeto. Data/revisão visíveis e comparação de hashes ocorrem **na geração**, não enquanto a página está aberta.
 
-A extensão só inicia perfil de agente configurado após ação explícita em regra elegível, com um worktree/branch isolado por execução, sem integração ou publicação automática. O executor deve conferir o contrato fixado, limites e fontes; o operador revisa diff, evidências e resultado antes de consolidar. Notas continuam locais ao navegador; a chave antiga de `andamento.html` é reutilizada. Exportar contexto produz um pedido revisável com notas, limites, estado e fontes, sem alterar o projeto ou conceder autorização. `render-dashboard.py` permanece como entrada compatível para o novo gerador.
+A extensão só inicia perfil de agente configurado após ação explícita em regra elegível, com um worktree/branch isolado por execução, sem integração ou publicação automática. O executor deve conferir o contrato fixado, limites e fontes; o operador revisa diff, evidências e resultado antes de consolidar. Notas continuam locais ao navegador; a chave antiga de `andamento.html` é reutilizada. Exportar contexto produz um pedido revisável com notas, limites, estado e fontes, sem alterar o projeto ou conceder autorização. `render-dashboard.py` permanece como entrada compatível; não cria páginas de acompanhamento antigas.

@@ -10,7 +10,7 @@ SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 RULE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 FLOW_ID = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]{0,39}$")
 TEXT_EXT = {'.py', '.js', '.ts', '.tsx', '.jsx', '.go', '.rs', '.java', '.kt', '.vue', '.svelte', '.css', '.html', '.md', '.json', '.yaml', '.yml', '.sql', '.toml', '.sh', '.dart', '.cs', '.rb', '.php', '.txt'}
-DENIED = {'.git', 'node_modules', '.venv', 'venv', 'memory-pending'}
+DENIED = {'.git', 'node_modules', '.venv', 'venv', 'memory-pending', 'ai-memory', 'backups', 'tmp', 'graphify'}
 
 
 def project_path(root, relative):
@@ -57,6 +57,58 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def validate_specification(contract):
+    """Validate optional conceptual definitions against the contract's rule IDs."""
+    for rule in contract['rules']:
+        require(rule.get('kind', 'functional') in ('functional', 'non_functional'), 'kind deve ser functional ou non_functional')
+    spec = contract.get('specification')
+    if spec is None:
+        return
+    require(isinstance(spec, dict), 'specification deve ser objeto')
+
+    def texts(value, name, nonempty=False):
+        require(isinstance(value, list) and all(isinstance(x, str) and x.strip() for x in value), f'{name} deve ser lista de textos')
+        require(not nonempty or bool(value), f'{name} não pode ser vazio')
+
+    actors = spec.get('actors', [])
+    texts(actors, 'actors')
+    texts(spec.get('exclusions', []), 'exclusions')
+    require(len(set(actors)) == len(actors), 'Ator duplicado')
+    cases = spec.get('use_cases', [])
+    require(isinstance(cases, list), 'use_cases deve ser lista')
+    ids = set()
+    rules = {r['id'] for r in contract['rules']}
+    for case in cases:
+        require(isinstance(case, dict), 'Caso de uso deve ser objeto')
+        cid = case.get('id')
+        require(isinstance(cid, str) and RULE_ID.fullmatch(cid) and cid not in ids, 'ID de caso de uso inválido ou duplicado')
+        ids.add(cid)
+        require(isinstance(case.get('title'), str) and case['title'].strip(), 'Título de caso de uso obrigatório')
+        require(isinstance(case.get('actor'), str) and case['actor'] in actors, 'Ator do caso de uso não declarado')
+        for field in ('preconditions', 'main_flow', 'alternatives', 'postconditions', 'rules'):
+            texts(case.get(field, []), field, nonempty=field in ('main_flow', 'rules'))
+        require(set(case['rules']).issubset(rules), 'Caso de uso referencia regra desconhecida')
+    model = spec.get('data_model', {})
+    require(isinstance(model, dict), 'data_model deve ser objeto')
+    entities = model.get('entities', [])
+    require(isinstance(entities, list), 'entities deve ser lista')
+    names = set()
+    for entity in entities:
+        require(isinstance(entity, dict), 'Entidade deve ser objeto')
+        name = entity.get('name')
+        require(isinstance(name, str) and name.strip() and name not in names, 'Nome de entidade inválido ou duplicado')
+        names.add(name)
+        texts(entity.get('attributes', []), 'attributes')
+        texts(entity.get('invariants', []), 'invariants')
+    relations = model.get('relationships', [])
+    require(isinstance(relations, list), 'relationships deve ser lista')
+    for relation in relations:
+        require(isinstance(relation, dict), 'Relação deve ser objeto')
+        require(isinstance(relation.get('from'), str) and relation['from'] in names and isinstance(relation.get('to'), str) and relation['to'] in names, 'Relação referencia entidade desconhecida')
+        require(relation.get('cardinality') in ('1:1', '1:N', 'N:1', 'N:N'), 'Cardinalidade inválida')
+        texts(relation.get('invariants', []), 'invariants')
+
+
 def read_contract(path):
     c = read_json(path)
     require(isinstance(c, dict), 'Contrato deve ser um objeto')
@@ -84,6 +136,7 @@ def read_contract(path):
         require(isinstance(rule.get('depends_on', []), list) and all(isinstance(x, str) and x.strip() for x in rule.get('depends_on', [])), 'depends_on deve ser lista de IDs qualificados')
     for k in ('boundaries', 'autonomy', 'decisions'):
         require(isinstance(c.get(k, []), list) and all(isinstance(x, str) for x in c.get(k, [])), f'{k} deve ser lista de textos')
+    validate_specification(c)
     return c
 
 
@@ -312,7 +365,7 @@ def load_project(root):
         else:
             r['next'] = 'Observar funcionamento'
     documents = []
-    doc_dir = project_path(root, 'docs/system')
+    doc_dir = project_path(root, '.centaur/system')
     for path in sorted(doc_dir.rglob('*.md'))[:80]:
         try:
             readable_path(root, str(path.relative_to(root)))

@@ -1,15 +1,17 @@
 ---
 name: centaur-driven-spec
 description: Define ou evolui contratos de comportamento, limites e autonomia; planeja entregas verticais pequenas com critérios de aceite, rastreabilidade e próximos passos.
-version: 4.0.0
-invocable: true
-author: user
 metadata:
-  dependencies: clean-code, graphify
-  optional-dependencies: ai-memory
+  version: 5.0.0
+  dependencies: clean-code
+  optional-dependencies: graphify, ai-memory
 ---
 
 # centaur-driven-spec
+
+## Base conceitual
+
+Leia a [especificação do sistema](../centaur-driven-graphify/references/specification.md). Registre requisitos funcionais e não funcionais em `rules`, e atores, casos de uso e modelo de dados em `specification` no contrato. Evite duplicar a definição; conecte regras a código, testes e evidências.
 
 ## Ciclo por contratos — obrigatório
 
@@ -21,7 +23,7 @@ Leia o [contrato de memória](../centaur-driven-memory/references/contract.md) j
 
 ## Contexto persistente — Graphify
 
-Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Graphify (CLI `graphify` do pacote `graphifyy` + skill oficial `graphify`) é dependência obrigatória para localizar relações no código. Para histórico e decisões, consulte ai-memory quando configurado. Consulte o grafo antes de ampliar leituras; confirme as fontes relevantes. Aplique os limites de escrita e a sincronização definidos no contrato.
+Antes de explorar o projeto, siga o [contrato de contexto](../centaur-driven-graphify/references/context.md). Priorize busca textual e símbolos do editor. Graphify é opcional e sob demanda para relações amplas; consulte o índice existente apenas quando útil, confirmando as fontes atuais. Não inicialize nem sincronize o grafo como consequência de implementar ou consultar. Para histórico e decisões, consulte ai-memory quando configurado.
 
 ## Escopos e equipe
 
@@ -31,7 +33,7 @@ Antes do fluxo, leia o [contrato de módulos e equipe](../centaur-driven-graphif
 
 Antes de executar o fluxo, localize a skill `clean-code` no catálogo do agente (no Claude Code, `.claude/skills/clean-code/SKILL.md` ou `~/.claude/skills/clean-code/SKILL.md`) e leia seu `SKILL.md`. Resolva as referências a partir da pasta dela. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
 
-Leia `references/architecture.md` da dependência para decompor responsabilidades e explicitar a direção das dependências. Registre no contexto técnico da spec que cada executor deve carregar `clean-code` e `graphify`, consultar o grafo e confirmar as fontes atuais. Preserve os modos TDD/direto e planeje apenas as camadas necessárias à demanda.
+Leia `references/architecture.md` da dependência para decompor responsabilidades e explicitar a direção das dependências. Registre no contexto técnico da spec que cada executor deve carregar `clean-code`, confirmar as fontes atuais e usar Graphify somente quando necessário. Preserve os modos TDD/direto e planeje apenas as camadas necessárias à demanda.
 
 As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
@@ -39,7 +41,7 @@ Você ajuda o humano a definir o molde e planeja a próxima entrega verificável
 
 ## Passo 1 — Entender o sistema e a intenção
 
-Leia AGENTS.md, workspace e os contratos pertinentes. Consulte Graphify e confirme fontes atuais. Separe: comportamento existente, desejo explícito, hipótese e lacuna. Leia somente o histórico necessário. Identifique o objetivo, atores, permissões, falhas relevantes, compatibilidade e limites arquiteturais. Preserve o backend e os caminhos dos escopos.
+Leia AGENTS.md, workspace e os contratos pertinentes. Use busca e símbolos; consulte Graphify sob demanda e confirme fontes atuais. Separe: comportamento existente, desejo explícito, hipótese e lacuna. Leia somente o histórico necessário. Identifique o objetivo, atores, permissões, falhas relevantes, compatibilidade e limites arquiteturais. Preserve o backend e os caminhos dos escopos.
 
 ## Passo 2 — Definir ou evoluir o contrato
 
@@ -122,7 +124,7 @@ Criar/atualizar `specs/index.md` apenas no escopo correspondente, sem apagar his
 
 ## Passo 6 — Validar registros e entregar direção
 
-Rodar `validate-lifecycle.py` e corrigir estrutura inválida; rascunho legítimo não é aprovação. Sincronizar documentos no Graphify e gerar `volante.html` conforme o ciclo. Informar: contrato e versão, decisões humanas pendentes, primeira entrega, o que a IA pode executar agora e o que falta comprovar. O planejamento não executa nem publica a entrega.
+Rodar `validate-lifecycle.py` e corrigir estrutura inválida; rascunho legítimo não é aprovação. Documentação e evidências ficam acessíveis no explorador; Graphify e exportação HTML somente sob demanda. Informar: contrato e versão, decisões humanas pendentes, primeira entrega, o que a IA pode executar agora e o que falta comprovar. O planejamento não executa nem publica a entrega.
 
 ## Fluxo de caso de uso
 
