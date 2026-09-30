@@ -63,7 +63,7 @@ Audite índices contra registros, vínculos com código/testes, dependências en
 - Confira sintaxe dos JSON/TOML alterados, caminhos/links vivos, comandos e funcionamento das integrações configuradas. Use os validadores do ciclo instalados; não invente comandos.
 - Confira os diffs: nenhuma perda de conteúdo durável, nenhum arquivo independente movido e nenhum segredo adicionado ao Git.
 - Aplique somente o lote validado, após backup. Falha obrigatória deixa a instalação anterior utilizável; restaure o lote se houver falha na troca. Não apague backups automaticamente.
-- Abra a extensão e confira navegação funcionalidade → código → testes se esse componente fizer parte do update. O update não deve exigir abrir HTML nem indexação Graphify.
+- Confira os caminhos de navegação entre funcionalidade, código e testes nos registros atuais. O update não deve exigir abrir HTML nem indexação Graphify.
 - Preserve índice existente. Se documentos indexados mudarem de caminho, `.centaur/graphify/migration.json` sinaliza `needs_sync` e mapeia os destinos, sem reescrever IDs históricos. Sincronização/reindexação Graphify só quando explicitamente solicitada ou necessária a uma investigação autorizada.
 
 ## 5. Registrar e entregar

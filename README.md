@@ -24,11 +24,11 @@ master/0001  Em andamento    Validar busca
 master/0002  Bloqueada       Aguarda master/0001 — Task 02 integrada
 ```
 
-Os estados refletem os registros reais. Teste aprovado não equivale a integração, e checklist não comprova comportamento. Editor, extensão VS Code e HTML são recursos opcionais; o fluxo pelo terminal usa diretamente specs, fontes e evidências.
+Os estados refletem os registros reais. Teste aprovado não equivale a integração, e checklist não comprova comportamento. O fluxo pelo terminal usa diretamente specs, fontes e evidências.
 
 ## Instalação e atualização neste PC
 
-Requer Python 3.10+, Git e a skill completa [clean-code](https://github.com/btseee/clean-code-skills), incluindo suas referências. Node.js/npm são necessários somente para construir a extensão opcional do VS Code. Skills são instaladas no Codex em `~/.agents/skills/` e no Claude Code em `~/.claude/skills/`.
+Requer Python 3.10+, Git e a skill completa [clean-code](https://github.com/btseee/clean-code-skills), incluindo suas referências. Skills são instaladas no Codex em `~/.agents/skills/` e no Claude Code em `~/.claude/skills/`.
 
 ```bash
 git clone https://github.com/Dalistor/Centaur-Driven.git
@@ -44,18 +44,6 @@ O instalador substitui as skills Centaur nos destinos escolhidos, remove a antig
 Neste repositório de distribuição, `.centaur/` guarda somente o contexto local e fica fora do versionamento. Nos projetos que usam as skills, siga a política de versionamento das definições, specs e evidências descrita abaixo.
 
 Instale `clean-code` completo no mesmo diretório de skills, caso ausente; não copie apenas `SKILL.md`. Referência da integração: 3.2.0. Não é necessário instalar Graphify nem ai-memory para usar busca direta e registros em arquivos.
-
-Para a extensão opcional, veja [comandos do editor](vscode-extension/README.md):
-
-```bash
-cd vscode-extension
-npm ci
-npm test
-npm run package
-code --install-extension ../.centaur/build/centaur-volante.vsix --force
-```
-
-A instalação pelo mesmo identificador atualiza a extensão anterior. Recarregue a janela do VS Code após instalar.
 
 ## Skills
 
@@ -144,7 +132,7 @@ python3 /caminho/centaur-driven-update/scripts/migrate.py --root /projeto
 python3 /caminho/centaur-driven-update/scripts/migrate.py --root /projeto --apply
 ```
 
-As páginas de acompanhamento geradas antigas são removidas quando reconhecidas; HTML personalizado é preservado. `render-dashboard.py` continua compatível, mas só gera o Volante opcional.
+As páginas de acompanhamento geradas antigas são removidas quando reconhecidas; HTML personalizado é preservado.
 
 ## Deploy
 
@@ -156,9 +144,6 @@ O workflow testa a integridade antes da publicação, transfere uma release isol
 
 ```bash
 python3 -m unittest discover -s tests -v
-npm --prefix vscode-extension test
-npm --prefix vscode-extension run package
-node tests/volante-browser.cjs
 ```
 
-O teste de navegador requer Playwright disponível no ambiente. Testes de host VS Code usam mocks; modelo conectado, depurador e VPS reais dependem do ambiente de uso. O conjunto não alega deploy remoto ou execução de modelo real apenas por passar nos testes locais.
+VPS real depende do ambiente de uso. O conjunto não alega deploy remoto apenas por passar nos testes locais.

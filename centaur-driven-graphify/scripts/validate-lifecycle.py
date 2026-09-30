@@ -3,7 +3,7 @@
 import argparse
 import json
 from pathlib import Path
-from volante import load_project
+from lifecycle import load_project
 
 
 def main():

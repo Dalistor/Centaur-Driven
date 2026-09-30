@@ -1,4 +1,4 @@
-"""Canonical contract reader and conservative, offline Volante projection (stdlib only)."""
+"""Canonical contract reader and conservative lifecycle projection (stdlib only)."""
 import hashlib
 import json
 import re
@@ -384,4 +384,4 @@ def load_project(root):
             use_cases.append({**case, 'file_hash': digest(path)})
         except (ValueError, OSError, TypeError) as error:
             warnings.append(f'{path.relative_to(root)}: {error}')
-    return {'schema': 1, 'project': str(workspace.get('name') or root.name), 'generated_at': datetime.now(timezone.utc).isoformat(), 'revision': git(root, 'rev-parse', 'HEAD'), 'dirty': bool(git(root, 'status', '--porcelain', '--untracked-files=normal', '--', '.', ':(exclude).centaur/volante.html', ':(exclude).centaur/andamento.html')), 'scopes': [{'id': k, 'owner': v.get('owner', 'Não definido'), 'code': v.get('code', '.')} for k, v in scopes.items()], 'contracts': contracts, 'use_cases': use_cases, 'specs': legacy_specs(root, scopes, warnings), 'documents': documents, 'warnings': warnings}
+    return {'schema': 1, 'project': str(workspace.get('name') or root.name), 'generated_at': datetime.now(timezone.utc).isoformat(), 'revision': git(root, 'rev-parse', 'HEAD'), 'dirty': bool(git(root, 'status', '--porcelain', '--untracked-files=normal', '--', '.')), 'scopes': [{'id': k, 'owner': v.get('owner', 'Não definido'), 'code': v.get('code', '.')} for k, v in scopes.items()], 'contracts': contracts, 'use_cases': use_cases, 'specs': legacy_specs(root, scopes, warnings), 'documents': documents, 'warnings': warnings}

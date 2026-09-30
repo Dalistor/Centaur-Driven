@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from support import SCRIPTS, fixture, write
-from volante import load_project, project_path, validate_use_case
+from lifecycle import load_project, project_path, validate_use_case
 
 
 class LifecycleTests(unittest.TestCase):
@@ -74,7 +74,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertFalse(self.rule()['eligible'])
 
     def test_blocked_dependency_propagates_transitively(self):
-        from volante import object_digest
+        from lifecycle import object_digest
         # Give each rule a separate source, so only the first rule's evidence ages.
         rules = []
         self.contract['rules'] = []
@@ -87,7 +87,7 @@ class LifecycleTests(unittest.TestCase):
             self.state['rules'][rid] = {'implementation': 'implementada', 'sources': [{'path': f'src/r{n}.py'}], 'evidence': [], 'delivery': {'stage': 'integrated', 'revision': 'fixture', 'reference': 'fixture', 'at': '2026-09-27T03:00:00Z'}}
         write(self.root, '.centaur/contracts/reservas/v001.json', self.contract)
         write(self.root, '.centaur/state/reservas.json', self.state)
-        from volante import digest
+        from lifecycle import digest
         fingerprint = next(c for c in load_project(self.root)['contracts'] if c['id']=='reservas')['hash']
         for n in range(3):
             e = {**self.evidence, 'id': f'ev-r{n}', 'rule': f'R{n}', 'contract_hash': fingerprint, 'files': {f'src/r{n}.py': digest(self.root/f'src/r{n}.py')}}
@@ -123,29 +123,13 @@ class LifecycleTests(unittest.TestCase):
             self.state['rules']['RES-01']['sources']=[{'path':path}]
             write(self.root,'.centaur/state/reservas.json',self.state)
             self.assertEqual(self.cli('validate-lifecycle.py','--ready','reservas/RES-01').returncode,1)
-        outside=self.root.parent/'external-volante-test.py';outside.write_text('PRIVATE')
+        outside=self.root.parent/'external-lifecycle-test.py';outside.write_text('PRIVATE')
         try:
             (self.root/'src/link.py').symlink_to(outside)
             self.state['rules']['RES-01']['sources']=[{'path':'src/link.py'}]
             write(self.root,'.centaur/state/reservas.json',self.state)
             self.assertEqual(self.cli('validate-lifecycle.py').returncode,1)
         finally:outside.unlink()
-
-    def test_legacy_and_safe_html_serialization(self):
-        self.contract['title']='</script><img src=x onerror="window.hacked=1">'
-        write(self.root,'.centaur/contracts/reservas/v001.json',self.contract)
-        result=self.cli('render-volante.py');self.assertEqual(result.returncode,0,result.stderr)
-        html=(self.root/'.centaur/volante.html').read_text()
-        self.assertNotIn('</script><img',html)
-        self.assertIn('\\u003c/script',html)
-        self.assertEqual(load_project(self.root)['specs'][0]['status'],'Em andamento')
-        self.assertFalse((self.root/'.centaur/andamento.html').exists())
-
-    def test_old_entry_and_custom_html_are_preserved(self):
-        write(self.root,'.centaur/andamento.html','CUSTOM USER HTML')
-        self.assertEqual(self.cli('render-dashboard.py').returncode,0)
-        self.assertEqual((self.root/'.centaur/andamento.html').read_text(),'CUSTOM USER HTML')
-        self.assertTrue((self.root/'.centaur/volante.html').exists())
 
     def test_capture_runs_actual_command_and_keeps_state_unchanged(self):
         old=(self.root/'.centaur/state/reservas.json').read_bytes()

@@ -7,7 +7,7 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from volante import load_project, digest, readable_path, project_path
+from lifecycle import load_project, digest, readable_path, project_path
 
 
 def main():

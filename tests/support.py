@@ -5,7 +5,7 @@ from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parents[1] / 'centaur-driven-graphify/scripts'
 sys.path.insert(0, str(SCRIPTS))
-from volante import load_project
+from lifecycle import load_project
 
 
 def write(root, relative, content):
@@ -16,7 +16,7 @@ def write(root, relative, content):
 
 def fixture(root):
     write(root, '.centaur/workspace.json', {'name': 'Clínica Horizonte · demonstração fictícia', 'version': 1, 'lifecycle': 1, 'scopes': {'master': {'code': '.', 'specs': '.centaur/specs', 'owner': 'Diego'}, 'agenda': {'code': 'src', 'specs': '.centaur/modules/agenda/specs', 'owner': 'Produto'}, 'notificacoes': {'code': 'src', 'specs': '.centaur/modules/notificacoes/specs', 'owner': 'Integrações'}}})
-    c = {'schema': 1, 'id': 'reservas', 'version': 1, 'title': 'Reservar e cancelar consultas', 'scope': 'agenda', 'status': 'approved', 'intent': 'Pacientes encontram horários e reservam com segurança; profissionais mantêm o controle da agenda.', 'approval': {'by': 'Exemplo fictício', 'at': '2026-09-27T03:00:00Z', 'reference': 'Aprovação ilustrativa, somente para demonstrar o visor.'}, 'extends': [], 'boundaries': ['Preservar autenticação e política de cobrança.', 'A agenda deve impedir sobreposição de reservas.'], 'autonomy': ['Organizar funções e testes dentro do módulo de agenda.'], 'decisions': [], 'rules': [{'id': 'RES-01', 'description': 'Consultar horários disponíveis', 'acceptance': ['Exibir somente horários livres do profissional selecionado.'], 'depends_on': []}, {'id': 'RES-02', 'description': 'Impedir duas reservas no mesmo horário', 'acceptance': ['Duas solicitações concorrentes produzem apenas uma reserva.', 'A segunda pessoa recebe uma mensagem de indisponibilidade.'], 'depends_on': ['reservas/RES-01']}, {'id': 'RES-03', 'description': 'Cancelar somente a própria reserva', 'acceptance': ['Outro paciente não pode cancelar a reserva.'], 'depends_on': []}]}
+    c = {'schema': 1, 'id': 'reservas', 'version': 1, 'title': 'Reservar e cancelar consultas', 'scope': 'agenda', 'status': 'approved', 'intent': 'Pacientes encontram horários e reservam com segurança; profissionais mantêm o controle da agenda.', 'approval': {'by': 'Exemplo fictício', 'at': '2026-09-27T03:00:00Z', 'reference': 'Aprovação ilustrativa para os testes.'}, 'extends': [], 'boundaries': ['Preservar autenticação e política de cobrança.', 'A agenda deve impedir sobreposição de reservas.'], 'autonomy': ['Organizar funções e testes dentro do módulo de agenda.'], 'decisions': [], 'rules': [{'id': 'RES-01', 'description': 'Consultar horários disponíveis', 'acceptance': ['Exibir somente horários livres do profissional selecionado.'], 'depends_on': []}, {'id': 'RES-02', 'description': 'Impedir duas reservas no mesmo horário', 'acceptance': ['Duas solicitações concorrentes produzem apenas uma reserva.', 'A segunda pessoa recebe uma mensagem de indisponibilidade.'], 'depends_on': ['reservas/RES-01']}, {'id': 'RES-03', 'description': 'Cancelar somente a própria reserva', 'acceptance': ['Outro paciente não pode cancelar a reserva.'], 'depends_on': []}]}
     write(root, '.centaur/contracts/reservas/v001.json', c)
     write(root, '.centaur/use-cases/reservas.json', {'schema': 1, 'contract': 'reservas', 'version': 1, 'title': 'Reserva de uma consulta', 'summary': 'Exemplo fictício editável; o fluxo organiza a jornada sem aprovar o contrato.', 'nodes': [
         {'id': 'inicio', 'kind': 'start', 'label': 'Paciente inicia reserva', 'detail': ''},

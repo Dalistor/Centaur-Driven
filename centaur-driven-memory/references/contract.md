@@ -65,4 +65,4 @@ Na retomada, consulte o caminho salvo e a fila antes de relançar trabalho. Uma 
 
 ## Contratos e estado atual
 
-O [ciclo por contratos](../../centaur-driven-graphify/references/lifecycle.md) governa a realização. Contratos versionados, estado e evidências locais existem também no backend ai-memory: são fontes operacionais do projeto, não duplicação da wiki. Páginas de memória registram IDs/referências, decisões e histórico. Não transformar relato recuperado em prova nem copiar todo o histórico para o Volante.
+O [ciclo por contratos](../../centaur-driven-graphify/references/lifecycle.md) governa a realização. Contratos versionados, estado e evidências locais existem também no backend ai-memory: são fontes operacionais do projeto, não duplicação da wiki. Páginas de memória registram IDs/referências, decisões e histórico. Não transformar relato recuperado em prova nem copiar todo o histórico para uma projeção local.

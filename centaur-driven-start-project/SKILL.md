@@ -70,7 +70,7 @@ Priorize busca e símbolos do editor. Graphify é opcional para relações ampla
 Com ai-memory, siga `centaur-driven-memory`: use workspace/projeto explícitos da `.centaur/ai-memory/config.toml`, consulte decisões relevantes e registre mudanças na wiki com leitura de confirmação. Sem serviço, preserve o registro em `.centaur/ai-memory/pending/` e reporte pendência. Não crie novas pastas implements nesse modo. Memória histórica não substitui código, testes, regras ou o estado das specs.
 
 ## Contratos e realização
-Contratos em `.centaur/contracts/<id>/vNNN.json` definem o comportamento desejado e a autonomia. Estado em `.centaur/state/` e evidências em `.centaur/evidence/` registram a realização; o ciclo normativo de `centaur-driven-graphify` define formatos e gates. Contratos aprovados são versionados, não reescritos. Antes de editar, consultar apenas as regras e limites pertinentes. Checklist de spec não comprova comportamento. Consulte specs, fontes e evidências diretamente no terminal. Apresente resultado, validação e próxima ação com links; detalhes ficam nos registros. Editor e HTML são opcionais.
+Contratos em `.centaur/contracts/<id>/vNNN.json` definem o comportamento desejado e a autonomia. Estado em `.centaur/state/` e evidências em `.centaur/evidence/` registram a realização; o ciclo normativo de `centaur-driven-graphify` define formatos e gates. Contratos aprovados são versionados, não reescritos. Antes de editar, consultar apenas as regras e limites pertinentes. Checklist de spec não comprova comportamento. Consulte specs, fontes e evidências diretamente no terminal. Apresente resultado, validação e próxima ação com links; detalhes ficam nos registros.
 
 ## Comandos essenciais
 [Comandos reais para executar, construir e validar, com diretório quando necessário. Link para instruções detalhadas de ambiente/deploy já existentes.]
@@ -144,7 +144,7 @@ Leia também a [base conceitual](../centaur-driven-graphify/references/specifica
 
 Defina com o usuário o molde geral: responsabilidades dos módulos, invariantes, limites e decisões delegadas. Reutilize autorização explícita; inferências sobre o código são rascunhos. Registre o primeiro contrato útil pelo formato de `references/lifecycle.md`; não crie contratos vazios nem marque comportamento existente como verificado sem evidência. Acrescente `"lifecycle": 1` ao workspace preservando campos. Contratos/estado/evidências pertencem ao repositório em ambos os backends de memória.
 
-Valide os registros com `validate-lifecycle.py`. No terminal, apresente um resumo com os comandos essenciais e links para os registros criados. Gere HTML somente a pedido.
+Valide os registros com `validate-lifecycle.py`. No terminal, apresente um resumo com os comandos essenciais e links para os registros criados.
 
 ## Passo 6 — Verificar e entregar
 

@@ -3,7 +3,7 @@
 import argparse
 import json
 from pathlib import Path
-from volante import load_project
+from lifecycle import load_project
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)

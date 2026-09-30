@@ -31,9 +31,9 @@ Para várias specs, mostre uma linha por spec selecionada: ID, estado real e pr�
 
 ## Projeções opcionais
 
-Specs, contratos, fontes e evidências são acessíveis diretamente no terminal. O explorador do editor e o painel são apoios opcionais; `.centaur/volante.html` é exportação, nunca fonte de verdade. Não exija abrir editor, instalar extensão ou gerar HTML para planejar, executar ou consultar specs.
+Specs, contratos, fontes e evidências são acessíveis diretamente no terminal. Não exija abrir editor para planejar, executar ou consultar specs.
 
-Valide registros com `validate-lifecycle.py` e os gates `--ready` antes de declarar integração. Quando a exportação for solicitada, use `render-volante.py`; consultas somente leitura não geram arquivos.
+Valide registros com `validate-lifecycle.py` e os gates `--ready` antes de declarar integração. Consultas somente leitura não geram arquivos.
 
 ## Localização dos artefatos
 

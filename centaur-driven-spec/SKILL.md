@@ -124,8 +124,8 @@ Criar/atualizar `specs/index.md` apenas no escopo correspondente, sob a reserva 
 
 ## Passo 6 — Validar registros e entregar direção
 
-Rodar `validate-lifecycle.py` e corrigir estrutura inválida; rascunho legítimo não é aprovação. Documentação e evidências são consultadas diretamente pelos arquivos; Graphify e exportação HTML somente sob demanda. Entregar uma lista curta com ID, objetivo e próxima ação de cada spec criada, links para os planos e somente as decisões humanas pendentes. Não reproduzir templates, contratos ou todas as tasks na conversa. O planejamento não executa nem publica a entrega.
+Rodar `validate-lifecycle.py` e corrigir estrutura inválida; rascunho legítimo não é aprovação. Documentação e evidências são consultadas diretamente pelos arquivos; Graphify é usado somente sob demanda. Entregar uma lista curta com ID, objetivo e próxima ação de cada spec criada, links para os planos e somente as decisões humanas pendentes. Não reproduzir templates, contratos ou todas as tasks na conversa. O planejamento não executa nem publica a entrega.
 
 ## Fluxo de caso de uso
 
-Quando um fluxo em `.centaur/use-cases/<id>.json` ajuda a explicar a jornada, propose ou revise passos e conexões a partir do contrato. Descreva o fluxo em texto no terminal; use o Volante somente se a visualização for solicitada. Trate geração por IA como rascunho editável; não derive uma aprovação nova nem altere critérios de aceite a partir do desenho.
+Quando um fluxo em `.centaur/use-cases/<id>.json` ajuda a explicar a jornada, proponha ou revise passos e conexões a partir do contrato. Descreva o fluxo em texto no terminal. Trate geração por IA como rascunho editável; não derive uma aprovação nova nem altere critérios de aceite a partir do desenho.

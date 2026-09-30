@@ -62,7 +62,7 @@ Executores não alteram contrato aprovado, spec, índices, estado consolidado ou
 3. Consolidar memória conforme backend (`files`: README/índice; ai-memory: publicar fila serialmente e verificar). Memória pendente é separada do estado do código.
 4. Atualizar `.centaur/state/<id>.json`, vincular evidências individuais correntes e preservar histórico. Regra só recebe implementada se fontes atuais sustentarem; verificação é derivada por hashes e resultados. Não inferir entrega de um teste verde.
 5. Atualizar tasks e índice da spec com as reservas de spec, contrato e índice pertinentes; reler dados compartilhados antes de consolidar. Não manter a reserva do índice durante execução de código. Marcar task executada não conclui automaticamente a capacidade. Em falta de validação/integração, usar Em revisão; bloqueio registra causa, dependências e decisão necessária.
-6. Rodar validação de registros; exportar HTML somente se solicitado. Atualizar Graphify somente quando solicitado; nesse caso, o coordenador é o único escritor do índice. Falha em índice/visor deve aparecer separadamente, sem reexecutar código pronto.
+6. Rodar validação de registros. Atualizar Graphify somente quando solicitado; nesse caso, o coordenador é o único escritor do índice. Falha no índice deve aparecer separadamente, sem reexecutar código pronto.
 
 ## Passo 5 — Demonstrar e integrar
 
@@ -75,7 +75,3 @@ Integrar apenas conforme autorização existente; quando não houver, preparar c
 `Concluída` exige todas as tasks e dependências entregues, critérios do contrato verificados e integração confirmada, inclusive specs filhas. Publicação só é requisito se estiver no aceite. Caso contrário usar Em revisão/Bloqueada/Em andamento conforme o ciclo; nunca concluir pela última checkbox.
 
 Validar registros após o estado final e liberar somente as reservas da sessão quando seus executores tiverem encerrado ou devolvido a posse. Entregar o estado da spec executada e sua próxima ação/bloqueio, seguida da validação e links relevantes. Detalhes de regras, arquivos e evidências ficam nos registros; informar pendências materiais de memória ou ferramentas somente quando aplicáveis. Selecionar próxima lacuna pelo ciclo normativo, sem criar tarefas especulativas.
-
-## Execução pelo Volante
-
-Se a execução for iniciada no painel VS Code, trate o perfil de CLI e o worktree isolado como executor da task. Confirme o contrato e a revisão no worktree, mantenha posse explícita dos arquivos, e recolha diff, testes e evidências antes de consolidar. Encerrar o processo ou ver status "concluído" no painel não integra a branch, não aprova regra e não publica.

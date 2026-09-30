@@ -13,7 +13,7 @@ Leia [contexto](references/context.md), [ciclo](references/lifecycle.md) e [esco
 
 ## Quando usar
 
-Use para uma investigação ampla que se beneficie do grafo ou para pedido explícito de indexação/manutenção. Nas tarefas comuns, priorize busca e símbolos. Não gere índice, HTML ou extração semântica automaticamente após editar arquivos. Não instale hooks automáticos de indexação. Atualizações automáticas exigem medição de benefício e escolha do usuário.
+Use para uma investigação ampla que se beneficie do grafo ou para pedido explícito de indexação/manutenção. Nas tarefas comuns, priorize busca e símbolos. Não gere índice ou extração semântica automaticamente após editar arquivos. Não instale hooks automáticos de indexação. Atualizações automáticas exigem medição de benefício e escolha do usuário.
 
 ## Dependência e caminhos
 
@@ -31,7 +31,7 @@ python3 /skill/centaur-driven-graphify/scripts/graphify-local.py /projeto extrac
 ## Inicializar ou sincronizar quando solicitado
 
 1. Inventarie o corpus pertinente, índice e versão existentes. Preserve o índice antes de reconstrução que possa reduzi-lo; trate recusa de redução sem forçar silenciosamente.
-2. Inclua código, testes, AGENTS e definições relevantes em `.centaur/`, verificando a detecção de diretórios ocultos. Não desative ignores globalmente para isso. Exclua `.centaur/graphify/`, backups, temporários, filas ai-memory, segredos, HTML gerado e dependências.
+2. Inclua código, testes, AGENTS e definições relevantes em `.centaur/`, verificando a detecção de diretórios ocultos. Não desative ignores globalmente para isso. Exclua `.centaur/graphify/`, backups, temporários, filas ai-memory, segredos e dependências.
 3. Reutilize extrações quando suportado. `update` AST não substitui extração semântica de documentos; reporte a cobertura real. Para corpus misto, siga a extração oficial com os caminhos adaptados; sem provedor configurado, o agente hospedeiro pode extrair semântica. Não exija API key nem ative cobrança externa implicitamente.
 4. Um único escritor consolida o índice. Verifique integridade do JSON, origens e consultas representativas, abrindo os arquivos retornados.
 5. Após verificar a cobertura dos documentos migrados, remova `needs_sync` de `.centaur/graphify/migration.json` somente quando a sincronização efetiva os cobrir. Não limpe o marcador após atualização apenas AST. Registre cobertura, revisão, limitações e falhas em `.centaur/system/sync.md`, fora do corpus. Falha de indexação não reabre código validado. Sem índice, use leitura direta e não declare sincronização.
@@ -40,6 +40,6 @@ python3 /skill/centaur-driven-graphify/scripts/graphify-local.py /projeto extrac
 
 Quando necessária, crie em `.centaur/system/`: Visão geral, Mapa do sistema, Glossário, Fluxos, Perspectivas, Decisões e Drafts. Não crie pastas vazias. Reutilize fontes canônicas existentes e links relativos; mapas não duplicam status das specs.
 
-Leia [mapas legíveis](references/readable-maps.md) antes de diagramar. Explique módulos → funcionalidades → processos, com diagramas pequenos e evidências. Diferencie comportamento observado, intenção e inferência. O explorador do editor é a entrada principal; mapas e o painel são apoio contextual. HTML técnico e `.centaur/volante.html` são exportações opcionais.
+Leia [mapas legíveis](references/readable-maps.md) antes de diagramar. Explique módulos → funcionalidades → processos, com diagramas pequenos e evidências. Diferencie comportamento observado, intenção e inferência. Use somente os formatos solicitados para os mapas.
 
 Migrações seguem [migration.md](references/migration.md) e a skill `update`, sem apagar documentos independentes. Entregue fontes, resultado das verificações e limitações; não prometa economia de tokens sem medição.

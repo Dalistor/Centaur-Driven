@@ -53,7 +53,7 @@ Executar uma entrega por comportamento, podendo atravessar camadas dentro da arq
 
 Após validar, registrar fontes com caminhos/linhas e evidências conforme o ciclo normativo; incluir arquivos de produção, testes e configurações que sustentam o resultado. Manter implementação, verificação e entrega separadas. Sem prova, declarar não verificada. Não marcar integração/publicação a partir de execução local.
 
-No modo direto, atualizar estado e evidências; a consulta usa diretamente os arquivos no terminal. HTML é opcional. Em modo spec, produzir evidência individual imutável e delta de estado no relatório; somente o coordenador consolida `.centaur/state/`, specs, índices e visor. Antes de integrar, aplicar o gate `--ready` de cada regra e os checks reais. Ausência de Graphify não autoriza omitir estado ou evidência.
+No modo direto, atualizar estado e evidências; a consulta usa diretamente os arquivos no terminal. Em modo spec, produzir evidência individual imutável e delta de estado no relatório; somente o coordenador consolida `.centaur/state/`, specs e índices. Antes de integrar, aplicar o gate `--ready` de cada regra e os checks reais. Ausência de Graphify não autoriza omitir estado ou evidência.
 
 ## Passo 1 — Ler o contexto do projeto
 
