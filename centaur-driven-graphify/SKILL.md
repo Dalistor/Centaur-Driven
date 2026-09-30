@@ -2,7 +2,7 @@
 name: centaur-driven-graphify
 description: Consulta, inicializa ou atualiza Graphify sob demanda; cria mapas e perspectivas em .centaur/system. Não é pré-requisito das tarefas comuns.
 metadata:
-  version: 5.0.0
+  version: 5.1.0
   dependencies: graphify
   optional-dependencies: ai-memory
 ---

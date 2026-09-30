@@ -140,7 +140,9 @@ Specs são planos finitos e preservam histórico. Estados únicos: `Pendente`, `
 
 Ao migrar: preservar IDs, READMEs, aprovações e registros históricos; adicionar vínculos novos sem reescrever conclusões antigas. Spec legada sem contrato aparece com verificação desconhecida. Criar contratos inferidos como rascunho; reutilizar requisitos já autorizados apenas com referência. Não gerar contratos fictícios para preencher o visor. Evoluir primeiro a área solicitada; não exigir conversão integral antes de trabalhar.
 
-## Atualizar o Volante
+## Consulta no terminal e visualizações opcionais
+
+No fluxo padrão, consulte contratos, estado, specs e evidências diretamente nos arquivos e apresente a síntese definida no [contrato de contexto](context.md). A consulta e os gates não dependem do editor, extensão ou HTML.
 
 O explorador nativo acompanha mudanças salvas nos contratos e fontes vinculadas. O HTML é exportação opcional, gerada ao abrir o painel de fluxos/agentes ou por pedido explícito. Consultas puras não escrevem arquivos; a validade de evidências é conferida nas fontes atuais, independentemente de exportação.
 

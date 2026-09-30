@@ -2,7 +2,7 @@
 name: centaur-driven-tdd
 description: Implementa uma mudança guiada por testes (red-green-refactor), com ciclos mínimos, reaproveitamento e manutenção dos testes existentes e registro no backend de memória configurado. Use quando a mudança tem regra de negócio testável.
 metadata:
-  version: 5.0.0
+  version: 5.1.0
   dependencies: clean-code
   optional-dependencies: graphify, ai-memory
 ---
@@ -58,7 +58,7 @@ Executar uma entrega por comportamento, podendo atravessar camadas dentro da arq
 
 Após validar, registrar fontes com caminhos/linhas e evidências conforme o ciclo normativo; incluir arquivos de produção, testes e configurações que sustentam o resultado. Manter implementação, verificação e entrega separadas. Sem prova, declarar não verificada. Não marcar integração/publicação a partir de execução local.
 
-No modo direto, atualizar estado e evidências; o explorador do editor acompanha os arquivos. HTML é opcional. Em modo spec, produzir evidência individual imutável e delta de estado no relatório; somente o coordenador consolida `.centaur/state/`, specs, índices e visor. Antes de integrar, aplicar o gate `--ready` de cada regra e os checks reais. Ausência de Graphify não autoriza omitir estado ou evidência.
+No modo direto, atualizar estado e evidências; a consulta usa diretamente os arquivos no terminal. HTML é opcional. Em modo spec, produzir evidência individual imutável e delta de estado no relatório; somente o coordenador consolida `.centaur/state/`, specs, índices e visor. Antes de integrar, aplicar o gate `--ready` de cada regra e os checks reais. Ausência de Graphify não autoriza omitir estado ou evidência.
 
 ## Passo 1 — Recuperar contexto e identificar modo spec
 
@@ -242,6 +242,8 @@ Se a implementação adicionou funcionalidade relevante, mudou arquitetura, intr
 Atualize documentação, estado e evidências afetados. Graphify permanece opcional: não inicialize nem sincronize após cada implementação. Quando houver pedido explícito de indexação, siga `centaur-driven-graphify`, registre cobertura e falhas separadamente e mantenha um único escritor no coordenador. Ausência de índice não impede concluir código validado.
 
 ## Passo 17 — Informar o usuário
+
+Siga a saída curta do contrato de contexto: resultado, validação, pendência material e próximo passo, com link para o registro. O relatório de modo spec abaixo é destinado ao coordenador; mantenha-o no registro individual e envie sua referência com o delta necessário, sem reproduzir todos os campos para o humano. Omita Mapa/Perspectivas/Graphify quando não envolvidos.
 
 Confirme com:
 - O que foi feito (resumo de 2-3 linhas)

@@ -2,7 +2,7 @@
 name: centaur-driven-spec
 description: Define ou evolui contratos de comportamento, limites e autonomia; planeja entregas verticais pequenas com critérios de aceite, rastreabilidade e próximos passos.
 metadata:
-  version: 5.0.0
+  version: 5.1.0
   dependencies: clean-code
   optional-dependencies: graphify, ai-memory
 ---
@@ -65,7 +65,7 @@ Preserve instruções essenciais, mas permita ao executor escolher detalhes dent
 
 ## Passo 5 — Salvar a spec da entrega
 
-Reserve o ID por mkdir atômico conforme o contrato de equipe. Preserve IDs legados e use escopo qualificado. Specs continuam nos diretórios configurados, distintas dos contratos vivos.
+Crie uma spec por entrega verificável; várias specs independentes podem ficar no mesmo escopo. Reserve cada ID por mkdir atômico conforme o contrato de equipe. Para pedidos com várias entregas, registre dependências qualificadas e interferências em arquivos, sem criar uma mestre apenas para agrupar a lista. Preserve IDs legados e use escopo qualificado. Specs continuam nos diretórios configurados, distintas dos contratos vivos.
 
 ```markdown
 # [YYYY] [Comportamento entregue]
@@ -120,12 +120,12 @@ Reserve o ID por mkdir atômico conforme o contrato de equipe. Preserve IDs lega
 O ciclo normativo define o estado. Checkboxes não concluem a spec: exigir aceite, prova corrente e integração, inclusive das filhas. Publicação só se fizer parte do aceite.
 ```
 
-Criar/atualizar `specs/index.md` apenas no escopo correspondente, sem apagar histórico. Demandas entre módulos podem usar mestre e filhas com IDs e critérios de integração recíprocos, sem duplicar tasks. Não criar hierarquia de specs quando uma entrega pequena em master bastar.
+Criar/atualizar `specs/index.md` apenas no escopo correspondente, sob a reserva do índice definida no contrato de equipe e sem apagar histórico. Releia o índice após adquirir a reserva para preservar specs criadas por outra sessão. Demandas entre módulos podem usar mestre e filhas com IDs e critérios de integração recíprocos, sem duplicar tasks. Não criar hierarquia de specs quando uma entrega pequena em master bastar.
 
 ## Passo 6 — Validar registros e entregar direção
 
-Rodar `validate-lifecycle.py` e corrigir estrutura inválida; rascunho legítimo não é aprovação. Documentação e evidências ficam acessíveis no explorador; Graphify e exportação HTML somente sob demanda. Informar: contrato e versão, decisões humanas pendentes, primeira entrega, o que a IA pode executar agora e o que falta comprovar. O planejamento não executa nem publica a entrega.
+Rodar `validate-lifecycle.py` e corrigir estrutura inválida; rascunho legítimo não é aprovação. Documentação e evidências são consultadas diretamente pelos arquivos; Graphify e exportação HTML somente sob demanda. Entregar uma lista curta com ID, objetivo e próxima ação de cada spec criada, links para os planos e somente as decisões humanas pendentes. Não reproduzir templates, contratos ou todas as tasks na conversa. O planejamento não executa nem publica a entrega.
 
 ## Fluxo de caso de uso
 
-Quando um fluxo em `.centaur/use-cases/<id>.json` ajuda a explicar a jornada, propose ou revise passos e conexões a partir do contrato. Use a página Casos de uso do Volante para inspeção. Trate geração por IA como rascunho editável; não derive uma aprovação nova nem altere critérios de aceite a partir do desenho.
+Quando um fluxo em `.centaur/use-cases/<id>.json` ajuda a explicar a jornada, propose ou revise passos e conexões a partir do contrato. Descreva o fluxo em texto no terminal; use o Volante somente se a visualização for solicitada. Trate geração por IA como rascunho editável; não derive uma aprovação nova nem altere critérios de aceite a partir do desenho.

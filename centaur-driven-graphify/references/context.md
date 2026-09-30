@@ -21,11 +21,19 @@ O adaptador define `GRAPHIFY_OUT` absoluto, configura o diretório de trabalho e
 
 Somente um coordenador escreve no índice. Quando a atualização for solicitada, incluir código e documentos pertinentes, verificar a cobertura de diretórios ocultos e registrar limitações em `.centaur/system/sync.md`. Extração apenas AST não cobre documentos. Não copie wiki, credenciais, filas, backups ou artefatos gerados para o corpus. Falha de índice não reabre implementação validada.
 
-## Editor e projeções
+## Informação no terminal
 
-O explorador nativo do Centaur acompanha alterações no projeto e navega entre funcionalidades, regras, fontes e evidências. O código e o produto em execução são o espaço principal de trabalho. O painel é apoio para casos de uso e delegação; `.centaur/volante.html` é exportação opcional, nunca fonte de verdade.
+O terminal/chat é a entrada principal. Recupere apenas instruções, spec/task selecionada, regras pertinentes e fontes necessárias; não leia todo o histórico ou todas as specs a cada turno. Reutilize contexto já lido na sessão e reconfirme fontes antes de escrever. Índices servem para localizar trabalho, nunca para comprovar conclusão.
 
-Valide registros com `validate-lifecycle.py` e os gates `--ready` antes de declarar integração. Regenerar HTML não é etapa obrigatória das tarefas comuns. Quando solicitado, use `render-volante.py`; consultas somente leitura não geram arquivos.
+Na conversa, apresente resultado, validação, bloqueio/decisão e próximo passo, com links para detalhes. Omita campos sem conteúdo, listas completas de arquivos, logs extensos e o estado de ferramentas opcionais que não foram usadas. Perguntas técnicas podem receber o detalhe necessário; simplificar a saída não dispensa inspeção, evidências ou registro de limitações materiais.
+
+Para várias specs, mostre uma linha por spec selecionada: ID, estado real e próxima ação ou bloqueio. Informe mudanças de estado relevantes; não repita a fila inteira a cada task. Relatórios de executores mantêm os dados necessários à consolidação em seus registros; o coordenador resume para o humano.
+
+## Projeções opcionais
+
+Specs, contratos, fontes e evidências são acessíveis diretamente no terminal. O explorador do editor e o painel são apoios opcionais; `.centaur/volante.html` é exportação, nunca fonte de verdade. Não exija abrir editor, instalar extensão ou gerar HTML para planejar, executar ou consultar specs.
+
+Valide registros com `validate-lifecycle.py` e os gates `--ready` antes de declarar integração. Quando a exportação for solicitada, use `render-volante.py`; consultas somente leitura não geram arquivos.
 
 ## Localização dos artefatos
 

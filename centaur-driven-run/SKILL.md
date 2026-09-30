@@ -1,8 +1,8 @@
 ---
 name: centaur-driven-run
-description: Coordena entregas de specs dentro de contratos aprovados, com execução adaptativa, evidências, integração e próximos passos; funciona com um ou vários agentes e modelos.
+description: Coordena uma spec por execução pelo terminal, com posse explícita, execução adaptativa, evidências e integração conforme autorização.
 metadata:
-  version: 5.0.0
+  version: 5.1.0
   dependencies: clean-code
   optional-dependencies: graphify, ai-memory
 ---
@@ -33,11 +33,11 @@ Verifique a disponibilidade da dependência antes de iniciar as ondas. Cada suba
 
 As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur/` como contexto e registro do Centaur; leia `.clean/` se existir, sem criá-lo ou atualizá-lo neste fluxo. Em caso de divergência, reporte com evidência. Aplique a dependência ao escopo solicitado, sem iniciar auditoria ou limpeza geral.
 
-Você coordena entregas verificáveis de uma spec existente. Execute com um agente ou vários conforme as ferramentas, risco e orçamento; mantenha responsabilidade explícita e um único escritor dos registros compartilhados.
+Você coordena entregas verificáveis de uma spec por execução. A IA coordena; o Centaur fornece o protocolo. Siga a saída curta do contrato de contexto e consulte o contrato de equipe para posse, concorrência entre sessões e retomada. Execute com um agente ou vários conforme as ferramentas, risco e orçamento; mantenha responsabilidade explícita e um único escritor dos registros compartilhados.
 
 ## Passo 1 — Retomar pelo estado real
 
-Resolver ID qualificado, ler spec, contrato fixado e versão vigente, estado, evidências e registros anteriores. Adquirir a reserva da spec pelo contrato de equipe. Ausência de spec pede seleção das pendentes. Spec legada continua utilizável; antes de novas afirmações de comportamento validado, vincular contrato conforme a migração normativa, preservando o histórico.
+Resolver um único ID qualificado, por exemplo `/centaur-driven-run master/0001`. Se houver vários IDs, pedir a escolha de uma spec antes de executar. Ler a spec escolhida e as dependências pertinentes, contrato fixado e versão vigente, estado e evidências necessários. Adquirir sua reserva pelo contrato de equipe; se outra sessão já a possui, informar a espera sem executar outra spec automaticamente. Ausência de ID pede seleção curta das pendentes para escolher uma. Dependências e specs filhas são consultadas para verificar elegibilidade e integração; sua execução ocorre em chamadas próprias. Spec legada continua utilizável; antes de novas afirmações de comportamento validado, vincular contrato conforme a migração normativa, preservando o histórico.
 
 Se a spec referencia versão superada, comparar mudanças e replanejar com rastreabilidade antes de executar; não substituir o contrato silenciosamente. Não reexecutar código validado por falta de memória, documento ou grafo: resolver só a pendência. Checklist não substitui verificação de estado nem integração.
 
@@ -49,7 +49,7 @@ Replanejar detalhes técnicos dentro dos limites delegados, registrando motivo e
 
 ## Passo 3 — Executar com isolamento proporcional
 
-Agrupar tasks por dependências e interferência em arquivos/contratos compartilhados. Usar branches/worktrees se necessário. Selecionar skill por modo TDD/direto e executor/modelo por capacidade, risco, incerteza e orçamento disponível. Não exigir ferramenta `Agent`, nome comercial ou paralelismo. Sem subagentes, executar sequencialmente pela skill adequada e separar execução/consolidação.
+Agrupar as tasks da spec escolhida por dependências e interferência em arquivos/contratos compartilhados. Registrar posse e conferir tasks ativas de outras sessões antes de editar. Um bloqueio suspende apenas as tasks dependentes; continuar as independentes autorizadas dentro da mesma spec. Usar branches/worktrees se necessário. Selecionar skill por modo TDD/direto e executor/modelo por capacidade, risco, incerteza e orçamento disponível. Não exigir ferramenta `Agent`, nome comercial ou paralelismo. Sem subagentes, executar sequencialmente pela skill adequada e separar execução/consolidação.
 
 Cada executor recebe: spec/task, contrato/versão/regras, objetivo observável, fontes atuais, limites/autonomia, posse de arquivos, dependências integradas, modo, critérios de aceite e destino do registro. Carregar clean-code/graphify na própria sessão quando aplicáveis. Preservar o sentido das instruções; registrar adaptações técnicas autorizadas. Nunca relaxar o contrato para acomodar resultado.
 
@@ -61,7 +61,7 @@ Executores não alteram contrato aprovado, spec, índices, estado consolidado ou
 2. Registrar decisões técnicas e comparar impacto previsto/real. Desvio de limite bloqueia a parte afetada; manter trabalho independente.
 3. Consolidar memória conforme backend (`files`: README/índice; ai-memory: publicar fila serialmente e verificar). Memória pendente é separada do estado do código.
 4. Atualizar `.centaur/state/<id>.json`, vincular evidências individuais correntes e preservar histórico. Regra só recebe implementada se fontes atuais sustentarem; verificação é derivada por hashes e resultados. Não inferir entrega de um teste verde.
-5. Atualizar tasks e índice da spec. Marcar task executada não conclui automaticamente a capacidade. Em falta de validação/integração, usar Em revisão; bloqueio registra causa, dependências e decisão necessária.
+5. Atualizar tasks e índice da spec com as reservas de spec, contrato e índice pertinentes; reler dados compartilhados antes de consolidar. Não manter a reserva do índice durante execução de código. Marcar task executada não conclui automaticamente a capacidade. Em falta de validação/integração, usar Em revisão; bloqueio registra causa, dependências e decisão necessária.
 6. Rodar validação de registros; exportar HTML somente se solicitado. Atualizar Graphify somente quando solicitado; nesse caso, o coordenador é o único escritor do índice. Falha em índice/visor deve aparecer separadamente, sem reexecutar código pronto.
 
 ## Passo 5 — Demonstrar e integrar
@@ -74,7 +74,7 @@ Integrar apenas conforme autorização existente; quando não houver, preparar c
 
 `Concluída` exige todas as tasks e dependências entregues, critérios do contrato verificados e integração confirmada, inclusive specs filhas. Publicação só é requisito se estiver no aceite. Caso contrário usar Em revisão/Bloqueada/Em andamento conforme o ciclo; nunca concluir pela última checkbox.
 
-Validar registros após o estado final e liberar somente a reserva da sessão. Entregar resumo por comportamento: implementação, verificação, entrega, decisões que faltam, próximo passo executável e links para fontes/evidências. Informar limitações de memória/grafo/visor separadamente. Selecionar próxima lacuna pelo ciclo normativo, sem criar tarefas especulativas.
+Validar registros após o estado final e liberar somente as reservas da sessão quando seus executores tiverem encerrado ou devolvido a posse. Entregar o estado da spec executada e sua próxima ação/bloqueio, seguida da validação e links relevantes. Detalhes de regras, arquivos e evidências ficam nos registros; informar pendências materiais de memória ou ferramentas somente quando aplicáveis. Selecionar próxima lacuna pelo ciclo normativo, sem criar tarefas especulativas.
 
 ## Execução pelo Volante
 

@@ -1,18 +1,34 @@
 # Centaur
 
-Skills para Codex e Claude Code, com uma extensão VS Code para desenvolver com IA mantendo o código e o produto em execução no centro do trabalho. O humano define comportamentos e limites; a IA auxilia na edição ou executa mudanças delimitadas. Contratos, fontes e evidências permitem conferir o resultado.
+Harness de skills para guiar Codex e Claude Code pelos projetos, com uso principal no terminal. A IA coordena o trabalho; o humano define comportamentos e limites. Specs organizam entregas, contratos definem o aceite e evidências permitem conferir o resultado.
 
-## Desenvolvimento no editor
+## Uso no terminal
 
-Instale a extensão e abra **Centaur · Funcionalidades** no Explorer. A árvore acompanha alterações salvas e conecta funcionalidades, regras, código, testes e evidências. Clique em uma fonte para abrir o arquivo na linha correspondente. Os comandos de testes, depuração e revisão usam as ferramentas do editor; depuração exige os adaptadores/configurações do projeto.
+Peça o trabalho em linguagem natural ou invoque a skill. O Centaur apresenta um resumo do resultado, validação, bloqueios e próximo passo; detalhes ficam nos arquivos vinculados em `.centaur/`.
 
-**Centaur: Habilitar autocomplete IA nesta sessão** permite escolher um modelo conectado ao VS Code para a sessão. A integração envia um trecho limitado do arquivo ativo e as regras relacionadas. Ela é opcional, cancelável e não substitui aprovação de contratos. Sem modelo disponível, a navegação continua funcionando. A extensão não instala nem autentica um provedor automaticamente.
+```text
+/centaur-driven-spec Planeje a busca e a exportação como entregas independentes
+/centaur-driven-run master/0001
+/centaur-driven-check Qual o estado das specs e o próximo passo?
+```
 
-O painel **Centaur: Abrir fluxos e agentes** permanece para casos de uso e delegação. HTML é uma exportação opcional; a árvore não gera HTML nem indexa Graphify. Veja [extensão e comandos](vscode-extension/README.md).
+Essas são instruções para as skills dentro da sessão de IA, não comandos executáveis do shell. Também é possível pedir: “Retome a spec 0001 e use agentes nas tasks independentes”. A disponibilidade de agentes depende do cliente; um único agente pode executar as tasks sequencialmente. O run executa uma spec por chamada.
+
+Várias specs podem coexistir no mesmo projeto e no mesmo escopo. Cada uma mantém objetivo, aceite, responsável, arquivos previstos, dependências e estado próprios. Use spec mestre/filhas somente quando houver uma entrega conjunta a integrar. O coordenador reserva cada spec antes de executar, compara interferências entre tasks e consolida alterações compartilhadas serialmente. Em terminais separados, uma spec reservada por outra sessão aguarda; tarefas independentes continuam. Veja [concorrência e retomada](centaur-driven-graphify/references/team-workspace.md).
+
+Uma consulta de andamento pode ser tão curta quanto:
+
+```text
+Spec         Estado          Próximo passo
+master/0001  Em andamento    Validar busca
+master/0002  Bloqueada       Aguarda master/0001 — Task 02 integrada
+```
+
+Os estados refletem os registros reais. Teste aprovado não equivale a integração, e checklist não comprova comportamento. Editor, extensão VS Code e HTML são recursos opcionais; o fluxo pelo terminal usa diretamente specs, fontes e evidências.
 
 ## Instalação e atualização neste PC
 
-Requer Python 3.10+, Git e a skill completa [clean-code](https://github.com/btseee/clean-code-skills), incluindo suas referências. Node.js/npm são necessários para construir o pacote VS Code. Skills são instaladas no Codex em `~/.agents/skills/` e no Claude Code em `~/.claude/skills/`.
+Requer Python 3.10+, Git e a skill completa [clean-code](https://github.com/btseee/clean-code-skills), incluindo suas referências. Node.js/npm são necessários somente para construir a extensão opcional do VS Code. Skills são instaladas no Codex em `~/.agents/skills/` e no Claude Code em `~/.claude/skills/`.
 
 ```bash
 git clone https://github.com/Dalistor/Centaur-Driven.git
@@ -25,7 +41,11 @@ python3 scripts/install.py --root . --target ~/.agents/skills --target ~/.claude
 
 O instalador substitui as skills Centaur nos destinos escolhidos, remove a antiga `centaur-driven-commitAndPush` e preserva outras skills. Backups ficam em `.centaur/backups/`. Reinicie as sessões dos agentes para carregar as instruções novas.
 
+Neste repositório de distribuição, `.centaur/` guarda somente o contexto local e fica fora do versionamento. Nos projetos que usam as skills, siga a política de versionamento das definições, specs e evidências descrita abaixo.
+
 Instale `clean-code` completo no mesmo diretório de skills, caso ausente; não copie apenas `SKILL.md`. Referência da integração: 3.2.0. Não é necessário instalar Graphify nem ai-memory para usar busca direta e registros em arquivos.
+
+Para a extensão opcional, veja [comandos do editor](vscode-extension/README.md):
 
 ```bash
 cd vscode-extension
@@ -87,7 +107,7 @@ projeto/
     ├── ai-memory/               # Configuração e arquivos locais de memória
     ├── implements/              # Registros no backend files ou histórico legado
     ├── deploy/                  # Scripts e artefatos auxiliares de deploy
-    ├── worktrees/               # Execuções isoladas de agentes do painel
+    ├── worktrees/               # Execuções isoladas de agentes
     ├── backups/                 # Recuperação de migrações/instalações
     └── tmp/                     # Preparação temporária
 ```

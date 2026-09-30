@@ -1,8 +1,8 @@
 ---
 name: centaur-driven-check
-description: Consulta o Graphify e confirma respostas nas instruções e fontes atuais do projeto, somente leitura.
+description: Responde sobre o projeto e o andamento de uma ou várias specs pelas fontes atuais, somente leitura; Graphify sob demanda.
 metadata:
-  version: 5.0.0
+  version: 5.1.0
   dependencies: clean-code
   optional-dependencies: graphify, ai-memory
 ---
@@ -45,6 +45,8 @@ Responder sobre comportamento, realização e próximos passos com base nas font
 
 ## Responder
 
+Siga a saída curta do contrato de contexto. Para andamento de specs, mostre ID, estado canônico e próxima ação/bloqueio das specs solicitadas; consulte contratos/evidências quando a pergunta exigir comprovar realização. Não copie todas as regras, tasks e históricos para o terminal.
+
 Apresentar a capacidade e suas três dimensões, referência da regra/versão, prova disponível, limitações e próximo passo. Evidência válida para fontes selecionadas não garante ausência de efeitos indiretos. Specs legadas sem contrato ficam com verificação desconhecida, mesmo concluídas historicamente.
 
-Apontar o Volante existente como navegação e informar se a captura está antiga. Para regenerar ou registrar alterações, encaminhar ao fluxo de escrita já autorizado (`graphify`, `update`, `spec`, `implement`/`tdd`), sem executar esse trabalho numa consulta pura. Não exigir inicialização ou migração para responder o que as fontes já comprovam.
+Vincular os registros e fontes pertinentes; apontar o Volante apenas se solicitado, informando se a captura está antiga. Para regenerar ou registrar alterações, encaminhar ao fluxo de escrita já autorizado (`graphify`, `update`, `spec`, `implement`/`tdd`), sem executar esse trabalho numa consulta pura. Não exigir inicialização ou migração para responder o que as fontes já comprovam.
