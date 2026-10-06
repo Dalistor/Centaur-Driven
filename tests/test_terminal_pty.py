@@ -104,7 +104,14 @@ class TerminalPTYTests(unittest.TestCase):
                     self.assertTrue((root / '.centaur/chats' / (snapshot['chat']['id'] + '.json')).is_file())
                     self.assertIn(b'\x1b[?2004h', transcript)
                     send(b'\x11')
-                    process.wait(timeout=3)
+                    # BSD PTYs have smaller output buffers: consume curses teardown
+                    # while waiting, just as a real terminal emulator would.
+                    deadline = time.monotonic() + 6
+                    while process.poll() is None and time.monotonic() < deadline:
+                        if select.select([master], [], [], .03)[0]:
+                            try: transcript.extend(os.read(master, 65536))
+                            except OSError: pass
+                    self.assertIsNotNone(process.poll(), 'Terminal did not exit after Ctrl+Q')
                     self.assertEqual(process.returncode, 0)
                 finally:
                     if process.poll() is None: process.kill(); process.wait()
