@@ -33,6 +33,23 @@ Depois da configuração inicial do PyPI e da publicação bem-sucedida, também
 usar `pipx install centaur-cli` ou `python3 -m pip install centaur-cli`.
 Veja [publicação e novas versões](docs/publishing.md) e o [changelog](CHANGELOG.md).
 
+### Instalação diretamente pelo GitHub
+
+Com Git e pipx instalados, instale a versão da branch `main`:
+
+```bash
+pipx install 'git+https://github.com/Dalistor/Centaur-Driven.git@main'
+centaur .
+```
+
+Para atualizar essa instalação:
+
+```bash
+pipx upgrade centaur-cli
+```
+
+Se o comando `centaur` não aparecer, execute `pipx ensurepath` e reabra o terminal.
+
 ### Antes de iniciar a conversa
 
 Ao executar `centaur .`, escolha **Backend → Modelo padrão → Effort → Iniciar conversa**.
