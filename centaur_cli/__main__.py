@@ -5,6 +5,8 @@ import curses
 import sys
 from pathlib import Path
 
+from . import __version__
+
 from .history import ChatStore
 from .credentials import CredentialStore
 from .backends import BACKENDS, create_client, resolve_selection, resolve_effort
@@ -20,6 +22,7 @@ def main():
         return status_main(sys.argv[2:])
     parser = argparse.ArgumentParser(description='Centaur CLI experimental: OpenRouter, Codex e Claude',
                                      epilog='Status sem abrir o chat: centaur status [pasta] [--ai]')
+    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     parser.add_argument('path', nargs='?', default='.', help='Pasta do projeto (padrão: atual)')
     parser.add_argument('--backend', choices=BACKENDS, default=None,
                         help='Backend conectado: openrouter (padrão), codex ou claude')

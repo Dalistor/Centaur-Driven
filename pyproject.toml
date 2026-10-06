@@ -4,10 +4,31 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "centaur-cli"
-version = "0.1.0"
-description = "CLI experimental do Centaur com OpenRouter"
+dynamic = ["version"]
+description = "Harness de desenvolvimento assistido por IA com OpenRouter, Codex e Claude"
+readme = "README.pypi.md"
+authors = [{name = "Diego Cabral"}]
 requires-python = ">=3.10"
 dependencies = []
+keywords = ["ai", "cli", "harness", "codex", "claude", "openrouter"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console :: Curses",
+  "Intended Audience :: Developers",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development",
+]
+
+[project.urls]
+Repository = "https://github.com/Dalistor/Centaur-Driven"
+Documentation = "https://github.com/Dalistor/Centaur-Driven/tree/experimental/openrouter-cli"
+Issues = "https://github.com/Dalistor/Centaur-Driven/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "centaur_cli.__version__"}
 
 [project.scripts]
 centaur = "centaur_cli.__main__:main"

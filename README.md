@@ -15,6 +15,26 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 *Captura de uma sessão de demonstração local, com cliente simulado.*
 
+### Instalação da versão publicada
+
+A versão inicial é `0.1.0`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.1.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.1.0).
+Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
+
+```bash
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.1.0/centaur_cli-0.1.0-py3-none-any.whl
+centaur --version
+centaur /caminho/do/projeto
+```
+
+O mesmo wheel pode ser instalado com `python3 -m pip install URL_DO_WHEEL` em um ambiente
+Python que permita instalação. Se seu sistema gerencia o Python, use pipx ou um virtualenv.
+Depois da configuração inicial do PyPI e da publicação bem-sucedida, também será possível
+usar `pipx install centaur-cli` ou `python3 -m pip install centaur-cli`.
+Veja [publicação e novas versões](docs/publishing.md) e o [changelog](CHANGELOG.md).
+
+### Desenvolvimento local
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
