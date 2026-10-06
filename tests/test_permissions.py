@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import shlex
+import shutil
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -12,7 +13,7 @@ from unittest.mock import patch
 from centaur_cli.backends import resolve_approval_mode
 from centaur_cli.config import load_config, save_config
 from centaur_cli.history import ChatStore
-from centaur_cli.permissions import ordinary_path, query_command
+from centaur_cli.permissions import ordinary_path, query_command, TRUSTED_PATH
 from centaur_cli.settings import ConfigPicker
 from centaur_cli.startup import StartupPicker
 from centaur_cli.subagents import SubagentTools
@@ -105,6 +106,13 @@ class PermissionTests(unittest.TestCase):
                     'cat ' + shlex.quote(str(source))]
         for command in commands:
             with self.subTest(command=command):
+                if command.startswith('rg '):
+                    with patch('centaur_cli.permissions.shutil.which', return_value='/usr/bin/rg'):
+                        argv = query_command(self.root, command)
+                    self.assertIsNotNone(argv)
+                    self.assertEqual(argv[0:2], ['/usr/bin/rg', '--no-config'])
+                    if not shutil.which('rg', path=TRUSTED_PATH):
+                        continue
                 self.assertIn('Código de saída: 0', self.tools('auto').execute('run_command', {'command': command}))
         self.assertFalse(self.approvals)
         for command in ('sed -i 1d .centaur/specs/example.md', 'sed -n 1e .centaur/specs/example.md',
