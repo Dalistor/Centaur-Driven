@@ -135,7 +135,7 @@ class CredentialTests(unittest.TestCase):
 
     def test_first_launch_configures_key_and_next_launch_reuses_it(self):
         with patch.dict(os.environ, {'OPENROUTER_API_KEY': ''}), \
-                patch('sys.argv', ['centaur', str(self.root)]), \
+                patch('sys.argv', ['centaur', '--no-setup', str(self.root)]), \
                 patch('sys.stdin.isatty', return_value=True), patch('sys.stdout.isatty', return_value=True), \
                 patch('centaur_cli.backends.CredentialStore', return_value=self.store), \
                 patch('centaur_cli.__main__.curses.wrapper') as terminal, \
@@ -151,7 +151,7 @@ class CredentialTests(unittest.TestCase):
 
     def test_environment_key_takes_priority_without_being_persisted(self):
         with patch.dict(os.environ, {'OPENROUTER_API_KEY': self.key}), \
-                patch('sys.argv', ['centaur', str(self.root)]), \
+                patch('sys.argv', ['centaur', '--no-setup', str(self.root)]), \
                 patch('sys.stdin.isatty', return_value=True), patch('sys.stdout.isatty', return_value=True), \
                 patch('centaur_cli.backends.CredentialStore', return_value=self.store), \
                 patch('centaur_cli.__main__.curses.wrapper') as terminal, \

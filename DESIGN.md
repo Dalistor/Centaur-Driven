@@ -77,6 +77,12 @@ superfície e preserva o rascunho da conversa. Telas de edição em menos de 20 
 a área de conteúdo inteira; mensagens curtas não movem os controles de salvar/cancelar.
 Textos largos são recortados por células, incluindo a janela de entrada e seu cursor.
 
+`startup.StartupPicker` reutiliza `ConfigPicker` e o mesmo desenho para a sequência
+Backend → Modelo padrão → Effort → revisão. O rodapé explica o agente principal e a
+seleção de modelos por task; erros de conexão têm prioridade nessa área. A tela inicial
+requer 40 × 18 e preserva escolhas ao redimensionar. Autenticação acontece depois da revisão,
+fora de curses para manter entrada de chave oculta; o chat e sua animação começam em seguida.
+
 `graphics.Renderer` é o dono da geometria, projeção, profundidade e luminosidade;
 `WelcomeAnimation` é o dono do relógio de tempo visível. A abertura faz uma volta em 6 s,
 com easing quintic, fade de entrada e pose frontal estável ao terminar. Cadência alvo: 20 FPS

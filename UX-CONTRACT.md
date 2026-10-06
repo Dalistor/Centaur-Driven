@@ -8,6 +8,7 @@ rename e melhorias visuais; as regras de desenvolvimento vêm de
 | Capacidade | Dono canônico | Estados e contrato | Verificação |
 | --- | --- | --- | --- |
 | Select/Listbox | `settings.ConfigPicker`, `appearance.TerminalView.settings` | ↑/↓ selecionam; Enter abre/confirma; Esc volta/cancela; filtro local; salvar explícito | `tests/test_terminal_settings.py` |
+| Inicialização | `startup.StartupPicker`, `StartupWizard`, `__main__.main` | Backend → modelo → effort → revisão; escolhas antes de autenticar; cancelar não cria chat; falha permite tentar novamente | `tests/test_startup.py`, terminal real com PTY |
 | Form | `Terminal.handle_settings`, `Terminal.handle_rename` | Validação textual, valores preservados em falha; bloqueio de salvamento duplicado | `tests/test_terminal_settings.py` |
 | Feedback | `Terminal.notice`, `ConfigPicker.error`, `TerminalView.draw` | Mensagem no rodapé, erro permanece no seletor; não substituir erro por sucesso | `tests/test_terminal_settings.py` |
 | Chats | `history.ChatStore`, `Terminal` | IDs imutáveis, gravação atômica, retomada por seleção; rename lê conteúdo atual do disco | `tests/test_cli.py`, `tests/test_terminal_settings.py` |
@@ -55,3 +56,16 @@ A chamada adicional segue os custos do provedor, como documentado no README.
 
 Verificação: `tests/test_conversation.py` e teste de terminal real com PTY, incluindo
 resumo/detalhes, erro, recusa, resize, rename e título atrasado.
+
+## Seleção inicial
+
+A abertura padrão passa pelo seletor, com flags, ambiente e preferências pré-selecionados.
+`--no-setup` mantém a abertura direta. Modelo e effort são do agente principal; o rodapé
+explica que o Centaur escolhe modelos do mesmo backend por complexidade e risco nas tasks.
+Autenticação roda após sair de curses. Somente conexão válida permite salvar preferências
+e abrir o chat; falha retorna à revisão sem perder escolhas. Esc, Ctrl+C e Ctrl+Q cancelam
+sem gravar preferências ou criar conversa. Abaixo de 40 × 18, só resize e cancelamento
+ficam disponíveis. Catálogos atrasados não alteram escolhas de outro backend.
+
+Verificação com PTY: três backends, NO_COLOR, movimento reduzido, resize, cancelamento e
+falha de Codex seguida de troca para Claude, com autenticação e catálogo simulados.

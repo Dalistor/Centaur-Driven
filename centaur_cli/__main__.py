@@ -10,10 +10,11 @@ from . import __version__
 from .history import ChatStore
 from .credentials import CredentialStore
 from .backends import BACKENDS, create_client, resolve_selection, resolve_effort
-from .config import EFFORTS
+from .config import EFFORTS, save_config, validate
 from .setup import configure_key
 from .terminal import Terminal
 from .subagents import COST_TIERS
+from .startup import StartupWizard
 
 
 def main():
@@ -30,6 +31,8 @@ def main():
                         help='Modelo principal; subagentes podem escolher modelos do mesmo backend')
     parser.add_argument('--effort', choices=EFFORTS, default=None,
                         help='Esforço de raciocínio do modelo principal (padrão: do provedor)')
+    parser.add_argument('--no-setup', action='store_true',
+                        help='Abrir diretamente com flags/preferências, sem o seletor inicial')
     parser.add_argument('--configure-key', action='store_true',
                         help='Cadastrar ou substituir a chave com entrada oculta, sem abrir um chat')
     parser.add_argument('--configure-credits-key', action='store_true',
@@ -51,7 +54,28 @@ def main():
             return
         options.backend, model = resolve_selection(root, options.backend, options.model)
         effort = resolve_effort(root, options.backend, options.effort)
-        client = create_client(options.backend, model)
+        if options.no_setup:
+            client = create_client(options.backend, model)
+        else:
+            wizard = StartupWizard(options.backend, model, effort)
+            while True:
+                selection = curses.wrapper(wizard.run)
+                if selection is None:
+                    print('Inicialização cancelada.')
+                    return
+                backend, model, effort = selection
+                try:
+                    validate(backend, model, effort)
+                    # Leave curses before credential entry, preserving masked input.
+                    client = create_client(backend, model)
+                    if any(secret and secret in model for secret in getattr(client, 'secrets', ())):
+                        raise ValueError('Chave detectada no modelo; informe apenas o ID do modelo.')
+                    save_config(root, backend, model, effort)
+                except (RuntimeError, OSError, ValueError) as error:
+                    wizard.picker.error = str(error)
+                    wizard.picker.page, wizard.picker.row = 'fields', 3
+                    continue
+                break
         curses.wrapper(Terminal(root, model, ChatStore(root), client,
                                 options.max_subagent_tier, effort=effort).run)
     except (RuntimeError, ValueError) as error:

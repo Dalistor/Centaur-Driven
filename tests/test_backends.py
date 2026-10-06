@@ -152,7 +152,7 @@ class BackendTests(unittest.TestCase):
             self.assertEqual(set(client.model_catalog()), {'fast', 'fixed'})
 
     def test_cli_connects_native_without_openrouter_setup(self):
-        with patch('sys.argv', ['centaur', '--backend', 'claude', '--model', 'fixed', str(self.root)]), \
+        with patch('sys.argv', ['centaur', '--no-setup', '--backend', 'claude', '--model', 'fixed', str(self.root)]), \
                 patch('sys.stdin.isatty', return_value=True), patch('sys.stdout.isatty', return_value=True), \
                 patch('centaur_cli.native_client.shutil.which', return_value='/fake/claude'), \
                 patch.object(NativeClient, 'check_available'), patch.object(NativeClient, 'check_authentication'), \
