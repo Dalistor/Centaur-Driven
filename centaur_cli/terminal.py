@@ -14,6 +14,7 @@ from .agent import run_turn
 from .completion import SkillCompletion
 from .tools import ProjectTools
 from .appearance import TerminalView
+from .graphics import FRAME_SECONDS
 from .subagents import SubagentTools
 from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 
@@ -25,7 +26,7 @@ def display_lines(text, width):
             for line in (textwrap.wrap(paragraph, max(1, width)) or [''])]
 
 
-def read_key(screen):
+def read_key(screen, timeout=100):
     """Decode xterm Shift+Left when the terminal's terminfo lacks kLFT."""
     key = screen.get_wch()
     if key != '\x1b':
@@ -44,7 +45,7 @@ def read_key(screen):
         else:
             return curses.KEY_SLEFT
     finally:
-        screen.timeout(100)
+        screen.timeout(timeout)
     # Preserve unrelated keystrokes after a standalone Escape.
     for next_key in reversed(consumed):
         if isinstance(next_key, str):
@@ -487,6 +488,10 @@ class Terminal:
                     self.draft = ''
                     self.scroll = 0
             return
+        if key == curses.KEY_F5:
+            if not self.chat['messages'] and not self.busy and not self.draft:
+                self.view.animation.replay()
+            return
         self.completion.update(self.draft if self.cursor == len(self.draft) else '')
         if self.completion.visible:
             if key == curses.KEY_UP:
@@ -534,6 +539,7 @@ class Terminal:
         screen.keypad(True)
         screen.timeout(100)
         while True:
+            frame_start = time.monotonic()
             self.drain_events()
             self.request_credits()
             try:
@@ -542,8 +548,13 @@ class Terminal:
             except curses.error:
                 pass
             self.draw(screen)
+            # Render only while the welcome sequence moves. Idle work retains the
+            # existing 100 ms event cadence and does not reproject the mesh.
+            timeout = max(1, round((FRAME_SECONDS - (time.monotonic() - frame_start)) * 1000)) \
+                if self.view.animation.active else 100
+            screen.timeout(timeout)
             try:
-                key = read_key(screen)
+                key = read_key(screen, timeout)
             except curses.error:
                 continue
             if key == curses.KEY_RESIZE:

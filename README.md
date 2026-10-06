@@ -161,17 +161,30 @@ variáveis de ambiente (`CENTAUR_BACKEND`, `CENTAUR_MODEL` / `OPENROUTER_MODEL`,
 e effort salvos de outro backend não são reaproveitados. Cada chat novo registra o effort;
 retomar um chat preserva seu modelo e seu effort original. Chats antigos usam `default`.
 
-O terminal mantém a identidade do centauro arqueiro, com pulso discreto na seta da abertura,
-indicador animado de atividade, tempo decorrido, nome da conversa e estado de trabalho.
+O terminal desenha o centauro arqueiro com um renderizador gráfico próprio: geometria
+vetorial em relevo, perspectiva, profundidade, iluminação e rasterização Braille Unicode
+(8 pontos por célula). O corpo prateado gira e a seta mantém o verde da marca. A sequência
+dura 6 segundos, com cadência alvo de 20 FPS, e termina em uma pose frontal estável.
+F5 repete na abertura sem rascunho; digitar encerra o movimento. Seletores e histórico
+pausam o relógio; redimensionar preserva a fase. O renderizador usa apenas a biblioteca
+padrão do Python, com malha em cache e palco limitado para manter o custo previsível.
+
+![Renderizador Braille do Centaur em uma sessão de demonstração](docs/cli-graphics.gif)
+
+O CLI também mostra indicador de atividade, tempo decorrido, nome da conversa e estado de trabalho.
 As mensagens separam autor e conteúdo; seletores compartilham cores e seleção com o histórico.
 A animação indica atividade, não porcentagem de conclusão. Para reduzir movimento:
 
 ```bash
 CENTAUR_REDUCED_MOTION=1 centaur .
 NO_COLOR=1 centaur .
+# Usar o desenho estático anterior (por exemplo, fonte sem Braille):
+CENTAUR_GRAPHICS=0 centaur .
 ```
 
-`NO_COLOR` remove cores, mantendo seleção por inversão. O CLI preserva rascunho e posição do
+`CENTAUR_REDUCED_MOTION=1` usa a pose final sem giro. `NO_COLOR` remove cores, mantendo
+seleção por inversão e níveis de brilho por atributos. Terminais sem codificação Braille
+recebem o desenho estático Unicode/ASCII; cores usam ANSI 256 ou o fallback disponível. O CLI preserva rascunho e posição do
 cursor ao redimensionar. Em terminais que interceptem Shift+←, use `/chats`.
 
 Os chats ficam em `.centaur/chats/*.json` na pasta aberta, com gravação atômica e permissão

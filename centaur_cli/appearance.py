@@ -7,6 +7,7 @@ import time
 import unicodedata
 
 from .credits import credit_label
+from .graphics import WelcomeAnimation
 
 WORDMARK = 'C E N T A U R'
 TAGLINE = 'HUMAN INTENT. AMPLIFIED.'
@@ -108,6 +109,25 @@ def setup_heading():
 class Palette:
     def __init__(self):
         self.styles = {name: 0 for name in ('text', 'green', 'muted', 'line', 'blue', 'selected', 'warning')}
+        for accent in (False, True):
+            for shade in range(16):
+                self.styles[self.graphic_style(shade, accent)] = (
+                    curses.A_DIM if shade < 5 else curses.A_BOLD if shade > 12 else 0)
+
+    @staticmethod
+    def graphic_style(shade, accent):
+        return f'graphic_{"green" if accent else "silver"}_{shade}'
+
+    @staticmethod
+    def ansi_color(rgb):
+        levels = (0, 95, 135, 175, 215, 255)
+        cube = tuple(min(range(6), key=lambda i: abs(levels[i] - channel)) for channel in rgb)
+        index = 16 + cube[0] * 36 + cube[1] * 6 + cube[2]
+        gray = min(range(24), key=lambda i: sum((8 + i * 10 - channel) ** 2 for channel in rgb))
+        if sum((8 + gray * 10 - channel) ** 2 for channel in rgb) < sum(
+                (levels[i] - channel) ** 2 for i, channel in zip(cube, rgb)):
+            return 232 + gray
+        return index
 
     def initialize(self):
         if 'NO_COLOR' in os.environ or not curses.has_colors():
@@ -126,11 +146,25 @@ class Palette:
                              color if name == 'selected' else background)
             self.styles[name] = curses.color_pair(pair)
         self.styles['green'] |= curses.A_BOLD
+        # Existing runtime tokens own the light endpoints: text 252 and green 120.
+        for accent, target in ((False, (208, 208, 208)), (True, (135, 255, 135))):
+            for shade in range(16):
+                name = self.graphic_style(shade, accent)
+                pair = 8 + int(accent) * 16 + shade
+                if extended and pair < curses.COLOR_PAIRS:
+                    rgb = tuple(round(18 + (channel - 18) * shade / 15) for channel in target)
+                    curses.init_pair(pair, self.ansi_color(rgb), background)
+                    self.styles[name] = curses.color_pair(pair)
+                else:
+                    base = self.styles['green' if accent else 'text']
+                    self.styles[name] |= base
 
 
 class TerminalView:
     def __init__(self):
         self.palette = Palette()
+        self.animation = WelcomeAnimation()
+        self.graphic_visible = False
 
     def put(self, screen, row, column, text, style='text', limit=None):
         height, width = screen.getmaxyx()
@@ -143,7 +177,42 @@ class TerminalView:
         except curses.error:
             pass
 
-    def logo(self, screen, row, column, compact=False):
+    def logo(self, screen, row, column, compact=False, terminal=None):
+        self.graphic_visible = False
+        columns, rows = (26, 10) if compact else (36, 16)
+        if os.environ.get('CENTAUR_GRAPHICS') == '0':
+            self.animation.pause()
+            self.static_logo(screen, row, column, compact)
+            return
+        try:
+            '\u28ff'.encode(sys.stdout.encoding or 'utf-8')
+        except (UnicodeEncodeError, LookupError):
+            self.animation.pause()
+            self.static_logo(screen, row, column, compact)
+            return
+        frame = self.animation.frame(columns, rows, time.monotonic(),
+                                     reduced=os.environ.get('CENTAUR_REDUCED_MOTION') == '1',
+                                     editing=bool(terminal and terminal.draft))
+        self.graphic_visible = True
+        for y, line in enumerate(frame):
+            # Group adjacent cells sharing a shade to bound terminal writes.
+            x = 0
+            while x < columns:
+                cell = line[x]
+                if cell.glyph == ' ':
+                    x += 1
+                    continue
+                end = x + 1
+                while end < columns and (line[end].shade, line[end].accent) == (cell.shade, cell.accent):
+                    end += 1
+                self.put(screen, row + y, column + x,
+                         ''.join(value.glyph for value in line[x:end]),
+                         self.palette.graphic_style(cell.shade, cell.accent))
+                x = end
+        self.put(screen, row + rows + 1, column + (columns - len(WORDMARK)) // 2, WORDMARK)
+        self.put(screen, row + rows + 2, column + (columns - len(TAGLINE)) // 2, TAGLINE, 'muted')
+
+    def static_logo(self, screen, row, column, compact=False):
         symbol = COMPACT_CENTAUR if compact else CENTAUR
         try:
             ''.join(symbol).encode(sys.stdout.encoding or 'utf-8')
@@ -155,9 +224,7 @@ class TerminalView:
                 split = line.rindex('|') + 1
             if split >= 0:
                 self.put(screen, row + index, column, line[:split])
-                self.put(screen, row + index, column + split, line[split:],
-                         'green' if os.environ.get('CENTAUR_REDUCED_MOTION') == '1'
-                         or int(time.monotonic() * 4) % 12 < 4 else 'muted')
+                self.put(screen, row + index, column + split, line[split:], 'green')
             else:
                 self.put(screen, row + index, column, line)
         symbol_width = max(map(len, symbol))
@@ -166,17 +233,20 @@ class TerminalView:
 
     def welcome(self, screen, top, available, width, terminal):
         if available < 6:
+            self.animation.pause()
             self.put(screen, top, 3, 'Digite sua intenção. $ skills · Shift+← chats.', 'muted')
             return
         text_column = 3
         if width >= 76 and available >= 13:
             compact = width < 96 or available < 19
-            self.logo(screen, top, 5, compact)
+            self.logo(screen, top, 5, compact, terminal)
             text_column = 36 if compact else 44
         elif width < 76 and available >= 29:
-            self.logo(screen, top, 3, True)
+            self.logo(screen, top, 3, True, terminal)
             top += 14
             available -= 14
+        else:
+            self.animation.pause()
         commands = [('$spec', 'Planejar entrega'), ('$run master/0001', 'Executar spec'),
                     ('$check', 'Consultar projeto'), ('$skill', 'Instalar skill')]
         self.put(screen, top, text_column, 'Centaur CLI', 'green')
@@ -191,6 +261,9 @@ class TerminalView:
         if available >= 13 or available < 11:
             self.put(screen, top + min(12, available - 1), text_column,
                      '$ skills · @ adicionais · Shift+← chats', 'muted')
+        if (width >= 76 and available >= 15 and self.graphic_visible
+                and os.environ.get('CENTAUR_REDUCED_MOTION') != '1'):
+            self.put(screen, top + 14, text_column, 'F5 · Repetir animação', 'muted')
 
     def settings(self, screen, terminal, top, available, width):
         picker = terminal.settings
@@ -236,11 +309,18 @@ class TerminalView:
         return f'{marker} {label} · {elapsed}s'
 
     def draw(self, screen, terminal):
+        # Only the welcome surface owns animation time; hidden editors never advance it.
+        if (terminal.settings or terminal.rename_target or terminal.browser
+                or terminal.chat['messages'] or terminal.approval):
+            self.animation.pause()
+        self.animation.active = False
+        self.graphic_visible = False
         screen.bkgd(' ', self.palette.styles['text'])
         screen.erase()
         height, width = screen.getmaxyx()
         credits, credit_style = credit_label(terminal.credits, terminal.credits_status, width)
         if height < 12 or width < 40:
+            self.animation.pause()
             self.put(screen, 0, 0, WORDMARK, 'green')
             self.put(screen, 2, 0, 'Amplie o terminal para 40 × 12.', 'muted')
             if height >= 5:

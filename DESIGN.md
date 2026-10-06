@@ -30,9 +30,10 @@ assim que o usuário começa a trabalhar.
 ## Linguagem visual
 
 - Fundo escuro contínuo, sem painéis sobrepostos ou bordas decorativas em cada mensagem.
-- Palavra CENTAUR espaçada, ilustração com blocos Unicode (`█`, `▀`, `▄`), com silhueta em pixels e seta verde. O símbolo mantém
-  cabeça, braços, arco, corpo equino e quatro pernas legíveis; há fallback ASCII quando
-  a codificação do terminal não suporta os blocos Unicode. Não usa imagens nem fontes externas.
+- Palavra CENTAUR espaçada, centauro arqueiro em relevo renderizado com Braille Unicode
+  (2 × 4 pontos por célula), corpo prateado e seta verde. Geometria vetorial própria, quatro
+  pernas, arco e braço tensionado; perspectiva, bisel e iluminação calculados em CPU.
+  Mantém a silhueta anterior em blocos/ASCII como fallback. Não usa imagens nem fontes externas.
 - Branco para conteúdo; verde para comandos e autores; azul para modelo, ferramentas e
   atalhos; tom secundário para caminhos e estados; âmbar para confirmações e erros.
 - Linhas horizontais discretas separam identidade, trabalho e campo de entrada.
@@ -74,23 +75,37 @@ superfície e preserva o rascunho da conversa. Telas de edição em menos de 20 
 a área de conteúdo inteira; mensagens curtas não movem os controles de salvar/cancelar.
 Textos largos são recortados por células, incluindo a janela de entrada e seu cursor.
 
-A seta do arqueiro alterna verde/secundário em uma cadência de 4 passos por segundo,
-com pausa; o indicador de atividade usa 4 frames a 8 passos por segundo e mostra segundos
-decorridos. Não simular porcentagem de execução. `CENTAUR_REDUCED_MOTION=1` deixa a seta
-estática e substitui o spinner por marcador fixo. A animação não muda seleção ou foco.
+`graphics.Renderer` é o dono da geometria, projeção, profundidade e luminosidade;
+`WelcomeAnimation` é o dono do relógio de tempo visível. A abertura faz uma volta em 6 s,
+com easing quintic, fade de entrada e pose frontal estável ao terminar. Cadência alvo: 20 FPS
+(50 ms, descontando o tempo de desenho). A malha é calculada uma vez; o último quadro é
+reutilizado quando estático. Palco limitado a 36 × 16 células, ou 26 × 10 no modo compacto.
+
+A animação pausa quando outra superfície a oculta; digitar encerra o giro na pose frontal.
+F5 repete somente na abertura sem rascunho, trabalho ou modal; novos chats não reiniciam
+o giro automaticamente. Movimento não altera foco, seleção, rascunho ou layout.
+`CENTAUR_REDUCED_MOTION=1` apresenta a pose final imediatamente e troca o spinner por
+um marcador fixo. `CENTAUR_GRAPHICS=0` seleciona o desenho estático anterior, também útil
+para fontes sem Braille. Codificação sem Braille usa fallback estático automaticamente.
+
+O indicador de atividade continua com 4 frames a 8 passos por segundo e tempo decorrido;
+não representa porcentagem de execução.
 
 ## Mapeamento dos tokens
 
 A paleta existente em `appearance.Palette.initialize` é a fonte de execução; este documento
 espelha seus valores ANSI. Fundo 233 mapeia `background`; estilos text/green/muted/line/blue/warning
 mapeiam text/primary/secondary/border/info/warning. `TerminalView.put` é o único caminho de desenho
-para cabeçalho, conversa, seletor, rename, autocomplete e rodapé. Terminais de 8 cores usam os
+para cabeçalho, conversa, seletor, rename, autocomplete, gráfico e rodapé. `Palette` gera
+16 níveis por material entre fundo 233 e texto 252 / verde 120, quantizando para ANSI 256.
+Os 32 pares gráficos são reservados uma vez (8–39); não se redefine a paleta do terminal.
+Com menos cores/pares, usam-se os estilos existentes com dim/normal/bold. Terminais de 8 cores usam os
 fallbacks ANSI já existentes; `NO_COLOR` usa atributos de texto. A tipografia permanece sob
 controle do terminal do usuário, com autores/ações em negrito e conteúdo em peso normal.
 
 | Regra anterior | Evolução autorizada | Execução |
 | --- | --- | --- |
-| A marca aparece só na abertura | Pulso discreto na seta; restante contido | `TerminalView.logo` |
+| A marca aparece só na abertura | Centauro em relevo com giro, luz e pose final | `graphics.Renderer`, `TerminalView.logo` |
 | Cabeçalho mostra pasta/modelo | Acrescenta nome do chat, effort e estado | `TerminalView.draw` |
 | Esquerda abre histórico | Shift+← abre; esquerda edita | `Terminal.handle` |
 | Créditos em linha própria | Preservado no redesenho | `TerminalView.draw` |
