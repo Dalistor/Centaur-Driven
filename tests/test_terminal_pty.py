@@ -1,0 +1,111 @@
+"""Exercise real curses input under a disposable POSIX terminal, without an AI account."""
+
+import fcntl
+import json
+import os
+from pathlib import Path
+import pty
+import select
+import signal
+import struct
+import subprocess
+import sys
+import tempfile
+import termios
+import time
+import unittest
+
+
+CHILD = r'''
+import copy, curses, json, sys
+from pathlib import Path
+from centaur_cli.history import ChatStore
+from centaur_cli.terminal import Terminal
+class Client:
+    backend='codex'; secrets=(); allows_model_routing=False
+    context_windows={'fixture':10000}
+    def __init__(self): self.requests=[]
+    def model_catalog(self): return {'fixture':'Fixture'}
+    def complete(self, model, messages, tools, **options):
+        self.requests.append({'messages':copy.deepcopy(messages),'tools':bool(tools)})
+        return {'role':'assistant','content': 'Objetivo preservado, alteracoes e validacao pendentes.' if not tools else 'Mensagem recebida.'}
+class RecordingTerminal(Terminal):
+    def draw(self, screen):
+        super().draw(screen)
+        data={'draft':self.draft,'cursor':self.cursor,'busy':self.busy,
+              'chat':self.chat,'requests':self.client.requests,'width':self.input_width,'notice':self.notice}
+        pending=root/'snapshot.tmp'
+        pending.write_text(json.dumps(data))
+        pending.replace(root/'snapshot.json')
+root=Path(sys.argv[1]); client=Client()
+terminal=RecordingTerminal(root,'fixture',ChatStore(root),client)
+terminal.chat['messages']=[{'role':'user' if i%2==0 else 'assistant','content':f'log {i}: '+'details '*150} for i in range(14)]
+terminal.chat['title_attempted']=True
+curses.wrapper(terminal.run)
+'''
+
+
+class TerminalPTYTests(unittest.TestCase):
+    def test_multiline_protocols_paste_resize_compaction_and_resume_in_real_curses(self):
+        for mode in ('color', 'monochrome', 'reduced'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                master, slave = pty.openpty()
+                fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 80, 0, 0))
+                env = {**os.environ, 'TERM': 'xterm-256color', 'CENTAUR_GRAPHICS': '0'}
+                if mode == 'monochrome': env['NO_COLOR'] = '1'
+                if mode == 'reduced': env['CENTAUR_REDUCED_MOTION'] = '1'
+                env['PYTHONPATH'] = str(Path(__file__).resolve().parents[1])
+                process = subprocess.Popen([sys.executable, '-c', CHILD, temporary],
+                                           stdin=slave, stdout=slave, stderr=slave, env=env)
+                os.close(slave)
+                transcript = bytearray()
+                def wait_for(predicate, timeout=6):
+                    deadline = time.monotonic() + timeout
+                    while time.monotonic() < deadline:
+                        if select.select([master], [], [], .03)[0]:
+                            try: transcript.extend(os.read(master, 65536))
+                            except OSError: pass
+                        try:
+                            snapshot = json.loads((root / 'snapshot.json').read_text())
+                            if predicate(snapshot): return snapshot
+                        except (OSError, ValueError): pass
+                        if process.poll() is not None: break
+                    self.fail('Terminal did not reach expected state: ' + transcript.decode(errors='replace')[-1000:])
+                def send(value): os.write(master, value)
+                try:
+                    wait_for(lambda s: s['width'] == 73)
+                    text = 'abc ' * 30
+                    send(text.encode() + b'\x1b[13;2u' + b'segunda\nterceira\x1b[27;2;13~quarta')
+                    expected = text + '\nsegunda\nterceira\nquarta'
+                    wait_for(lambda s: s['draft'] == expected)
+                    send(b'\x1b[200~\ncolada\r\ncom quebra\x1b[201~')
+                    expected += '\ncolada\ncom quebra'
+                    snapshot = wait_for(lambda s: s['draft'] == expected)
+                    self.assertFalse(snapshot['requests'])
+                    cursor = snapshot['cursor']
+                    fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', 12, 40, 0, 0))
+                    process.send_signal(signal.SIGWINCH)
+                    snapshot = wait_for(lambda s: s['width'] == 33)
+                    self.assertEqual(snapshot['draft'], expected)
+                    self.assertEqual(snapshot['cursor'], cursor)
+                    send(b'\r')
+                    snapshot = wait_for(lambda s: not s['busy'] and len(s['requests']) == 1)
+                    self.assertEqual(snapshot['requests'][0]['messages'][-1]['content'], expected)
+                    send(b'$compact\r')
+                    wait_for(lambda s: s['draft'] == '$compact ')
+                    send(b'\r')
+                    snapshot = wait_for(lambda s: not s['busy'] and 'compaction' in s['chat'])
+                    self.assertTrue(all(not request['tools'] for request in snapshot['requests'][1:]))
+                    self.assertEqual(len(snapshot['chat']['messages']), 16)
+                    send(b'continue\r')
+                    snapshot = wait_for(lambda s: not s['busy'] and len(s['chat']['messages']) == 18)
+                    self.assertIn('Resumo de mensagens anteriores', snapshot['requests'][-1]['messages'][1]['content'])
+                    self.assertTrue((root / '.centaur/chats' / (snapshot['chat']['id'] + '.json')).is_file())
+                    self.assertIn(b'\x1b[?2004h', transcript)
+                    send(b'\x11')
+                    process.wait(timeout=3)
+                    self.assertEqual(process.returncode, 0)
+                finally:
+                    if process.poll() is None: process.kill(); process.wait()
+                    os.close(master)

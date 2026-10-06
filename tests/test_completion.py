@@ -34,7 +34,7 @@ class CompletionTests(unittest.TestCase):
         completion.update(self.terminal.draft)
         self.assertEqual(completion.options, ['run'])
         with patch('centaur_cli.terminal.threading.Thread') as thread:
-            self.terminal.handle('\n')
+            self.terminal.handle('\r')
             thread.assert_not_called()
         self.assertEqual(self.terminal.draft, 'Execute $run ')
         self.assertFalse(self.terminal.chat['messages'])
@@ -126,7 +126,7 @@ class CompletionTests(unittest.TestCase):
         self.terminal.handle('\t')
         self.assertEqual(self.terminal.draft, '$status ')
         with patch('centaur_cli.terminal.threading.Thread') as thread:
-            self.terminal.handle('\n')
+            self.terminal.handle('\r')
             thread.assert_not_called()
         self.assertIn('Nenhuma spec encontrada', self.terminal.chat['messages'][-1]['content'])
 

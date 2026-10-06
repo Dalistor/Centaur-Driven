@@ -16,6 +16,8 @@ from .openrouter import ModelReply
 from .config import validate_effort
 from .vision import split_images, native_input
 from .interaction import TurnCancelled
+from .speed import local_speed_support, fast_supported, validate_speed
+from .native_usage import NativeBalance, BalanceUnavailable, claude_windows, read_codex_balance
 
 
 def validate_arguments(value, spec):
@@ -125,6 +127,42 @@ def codex_output(directory, output):
     raise ValueError('O Codex não entregou uma resposta final; tente novamente ou confira a instalação.')
 
 
+def codex_usage(output):
+    for line in reversed(output.splitlines()):
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict) and event.get('type') == 'turn.completed':
+            usage = event.get('usage') or {}
+            if isinstance(usage, dict):
+                return {'prompt_tokens': usage.get('input_tokens'),
+                        'completion_tokens': usage.get('output_tokens')}
+    return {}
+
+
+def claude_output(output):
+    """Only a complete result can supply executable calls; other events are metadata."""
+    if len(output.encode('utf-8')) > 8_000_000:
+        raise ValueError('Resposta excede 8 MB; divida o pedido em partes menores.')
+    try:
+        value = json.loads(output)
+        if isinstance(value, dict) and value.get('type') in (None, 'result') and 'structured_output' in value:
+            return value, {}
+    except ValueError:
+        pass
+    result, events = None, []
+    for line in output.splitlines():
+        try: event = json.loads(line)
+        except ValueError: continue
+        if not isinstance(event, dict): continue
+        if event.get('type') == 'rate_limit_event': events.append(event)
+        elif event.get('type') == 'result': result = event
+    if result is None:
+        raise ValueError('Claude não entregou um resultado final estruturado.')
+    return result, claude_windows(events)
+
+
 def process_failure(backend, code, stderr):
     """Classify known diagnostics without echoing prompts, account data or reasoning."""
     text = stderr.lower()
@@ -149,12 +187,48 @@ class NativeClient:
         if backend not in ('codex', 'claude'):
             raise ValueError('Backend nativo inválido.')
         self.backend, self.fixed_model = backend, model
+        try:
+            self.timeout = int(os.environ.get('CENTAUR_NATIVE_TIMEOUT', '600'))
+            if not 30 <= self.timeout <= 3600:
+                raise ValueError
+        except ValueError:
+            raise ValueError('CENTAUR_NATIVE_TIMEOUT deve ser um inteiro de 30 a 3600 segundos.') from None
+        self.context_windows = {}
+        self.speed_support = local_speed_support(backend)
+        self.quota_windows = {}
+        self.fast_version_checked = False
         self.command = shutil.which(backend)
         if not self.command:
             raise RuntimeError(f'{backend} não instalado ou fora do PATH. Instale o CLI oficial e faça login.')
         self.secrets = tuple(value for name in ('OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN', 'ANTHROPIC_API_KEY',
                             'CLAUDE_CODE_OAUTH_TOKEN', 'OPENROUTER_API_KEY', 'OPENROUTER_CREDITS_KEY')
                              if (value := os.environ.get(name)))
+
+    def credits(self):
+        if self.backend == 'codex':
+            return read_codex_balance(self.command)
+        if not self.quota_windows:
+            raise BalanceUnavailable('Claude informa cotas após uma resposta, quando disponíveis.', 'awaiting')
+        return NativeBalance('claude', tuple(self.quota_windows.values()))
+
+    def supports_fast(self, model):
+        if self.backend == 'codex': self.speed_support = local_speed_support(self.backend)
+        return fast_supported(self.backend, model, self.speed_support)
+
+    def check_speed(self, model, speed):
+        validate_speed(speed)
+        if speed != 'fast': return
+        if not self.supports_fast(model):
+            raise ValueError('Modo rápido não anunciado para este modelo; selecione um modelo compatível ou Padrão.')
+        if self.backend == 'claude' and not self.fast_version_checked:
+            try:
+                result = subprocess.run([self.command, '--version'], capture_output=True, text=True, timeout=10)
+            except (OSError, subprocess.TimeoutExpired):
+                raise RuntimeError('Não foi possível validar a versão do Claude para Fast; confira o CLI ou escolha Padrão.') from None
+            version = re.search(r'\b(\d+)\.(\d+)\.(\d+)\b', result.stdout)
+            if result.returncode or not version or tuple(map(int, version.groups())) < (2, 1, 205):
+                raise ValueError('Atualize Claude Code para 2.1.205+ para modo rápido não interativo.')
+            self.fast_version_checked = True
 
     def model_catalog(self):
         if self.backend == 'claude':
@@ -164,6 +238,13 @@ class NativeClient:
             cache = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))) / 'models_cache.json'
             try:
                 data = json.loads(cache.read_text(encoding='utf-8'))
+                self.context_windows = {}
+                for entry in data['models']:
+                    if not isinstance(entry, dict) or not isinstance(entry.get('slug'), str):
+                        continue
+                    window = entry.get('context_window') or entry.get('max_context_window')
+                    if type(window) is int and window > 0:
+                        self.context_windows[entry['slug']] = window
                 catalog = {entry['slug']: entry.get('description', '') for entry in data['models']
                            if isinstance(entry, dict) and entry.get('visibility') == 'list' and isinstance(entry.get('slug'), str)}
             except (OSError, ValueError, KeyError, TypeError):
@@ -202,8 +283,9 @@ class NativeClient:
         if result.returncode:
             raise RuntimeError(f'{self.backend} não autenticado. Execute {login} e abra o Centaur novamente.')
 
-    def arguments(self, directory, model=None, effort='default', schema=None):
+    def arguments(self, directory, model=None, effort='default', schema=None, speed='standard'):
         validate_effort(self.backend, effort)
+        validate_speed(speed)
         if self.backend == 'codex':
             arguments = [self.command, 'exec', '--ignore-user-config', '--ignore-rules',
                          '--sandbox', 'read-only', '--ephemeral', '--skip-git-repo-check',
@@ -212,13 +294,16 @@ class NativeClient:
                          '--config', 'web_search="disabled"', '--config', 'project_doc_max_bytes=0',
                          '--disable', 'skill_mcp_dependency_install', '--color', 'never',
                          '--json',
+                         '--enable' if speed == 'fast' else '--disable', 'fast_mode',
+                         '--config', 'service_tier=' + json.dumps('fast' if speed == 'fast' else 'default'),
                          '--output-schema', str(directory / 'schema.json'),
                          '--output-last-message', str(directory / 'reply.json')]
         else:
             arguments = [self.command, '--print', '--safe-mode', '--tools', '',
                          '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
                          '--setting-sources', '', '--permission-mode', 'dontAsk',
-                         '--no-session-persistence', '--output-format', 'json',
+                         '--no-session-persistence', '--output-format', 'stream-json', '--verbose',
+                         '--settings', json.dumps({'fastMode': speed == 'fast'}),
                          '--json-schema', json.dumps(schema or REPLY_SCHEMA)]
         selected = self.fixed_model if model is None else model
         if selected:
@@ -232,11 +317,12 @@ class NativeClient:
             arguments += ['-']
         return arguments
 
-    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', cancel_event=None):
+    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', cancel_event=None, speed='standard'):
         if cost_tier is not None:
             raise ValueError('cost_tier é exclusivo de OpenRouter.')
         if model != self.fixed_model and model not in self.model_catalog():
             raise ValueError(f'Modelo não listado no catálogo {self.backend}.')
+        self.check_speed(model, speed)
         conversation, images = split_images(messages)
         prompt = BRIDGE_INSTRUCTIONS + '\n' + self.redact(json.dumps({'conversation': conversation, 'tools': tools}, ensure_ascii=False))
         env = {name: value for name, value in os.environ.items()
@@ -245,7 +331,7 @@ class NativeClient:
             directory = Path(temporary)
             schema = reply_schema(tools)
             (directory / 'schema.json').write_text(json.dumps(schema), encoding='utf-8')
-            arguments, input_text = native_input(self.backend, directory, self.arguments(directory, model, effort, schema), prompt, images)
+            arguments, input_text = native_input(self.backend, directory, self.arguments(directory, model, effort, schema, speed), prompt, images)
             try:
                 process = subprocess.Popen(arguments, cwd=directory,
                                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -253,9 +339,9 @@ class NativeClient:
                                            start_new_session=True)
                 try:
                     if cancel_event is None:
-                        output, errors = process.communicate(input_text, timeout=180)
+                        output, errors = process.communicate(input_text, timeout=self.timeout)
                     else:
-                        deadline, pending_input = time.monotonic() + 180, input_text
+                        deadline, pending_input = time.monotonic() + self.timeout, input_text
                         while True:
                             if cancel_event.is_set():
                                 os.killpg(process.pid, signal.SIGKILL)
@@ -263,7 +349,7 @@ class NativeClient:
                                 raise TurnCancelled('Turno interrompido pelo usuário.')
                             remaining = deadline - time.monotonic()
                             if remaining <= 0:
-                                raise subprocess.TimeoutExpired(arguments, 180)
+                                raise subprocess.TimeoutExpired(arguments, self.timeout)
                             try:
                                 output, errors = process.communicate(pending_input, timeout=min(0.1, remaining))
                                 break
@@ -272,19 +358,28 @@ class NativeClient:
                 except subprocess.TimeoutExpired:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.communicate()
-                    raise RuntimeError(f'{self.backend}: tempo limite de 180 segundos; nenhuma chamada pendente foi aplicada.') from None
+                    raise RuntimeError(f'{self.backend}: tempo limite de {self.timeout} segundos; '
+                                       'ajuste CENTAUR_NATIVE_TIMEOUT ou use $compact e /retry. '
+                                       'Nenhuma chamada pendente foi aplicada.') from None
                 if process.returncode:
                     raise RuntimeError(process_failure(self.backend, process.returncode, errors))
                 if self.backend == 'codex':
                     value = codex_output(directory, output)
+                    usage = codex_usage(output)
                 else:
-                    if len(output.encode('utf-8')) > 8_000_000:
-                        raise ValueError('Resposta excede 8 MB; divida o pedido em partes menores.')
-                    value = json.loads(output)
+                    value, windows = claude_output(output)
+                    self.quota_windows.update(windows)
                     if value.get('is_error') or value.get('subtype') not in (None, 'success'):
                         raise ValueError('O cliente não concluiu a resposta estruturada.')
+                    raw_usage = value.get('usage')
+                    if not isinstance(raw_usage, dict): raw_usage = {}
+                    inputs = [raw_usage.get(key, 0) for key in ('input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens')]
+                    usage = ({'prompt_tokens': sum(inputs), 'completion_tokens': raw_usage.get('output_tokens')}
+                             if all(type(item) is int and item >= 0 for item in inputs) else {})
                     value = value['structured_output']
-                return self.reply(value, tools)
+                reply = self.reply(value, tools)
+                reply.usage = usage
+                return reply
             except json.JSONDecodeError as error:
                 raise RuntimeError(f'{self.backend}: JSON incompleto ou inválido na linha {error.lineno}, coluna {error.colno}. '
                                    'Tente novamente com /retry ou divida a solicitação. Nenhuma ferramenta dessa resposta foi executada.') from None

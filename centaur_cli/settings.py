@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .config import BACKENDS, effort_options, validate
 from .permissions import APPROVAL_MODES, MODE_LABELS, MODE_HELP, validate_mode
+from .speed import validate_speed, local_speed_support, fast_supported
 
 
 def local_models(backend):
@@ -25,11 +26,13 @@ def local_models(backend):
 
 
 class ConfigPicker:
-    fields = ('Backend', 'Modelo', 'Effort', 'Permissões', 'Salvar preferências')
+    fields = ('Backend', 'Modelo', 'Effort', 'Permissões', 'Velocidade', 'Salvar preferências')
 
-    def __init__(self, backend, model, effort, approval_mode='ask'):
+    def __init__(self, backend, model, effort, approval_mode='ask', speed='standard'):
         self.backend, self.model, self.effort = backend, model, effort
         self.approval_mode = validate_mode(approval_mode)
+        self.speed = validate_speed(speed)
+        self.speed_support = local_speed_support(backend)
         self.row = 0
         self.page = 'fields'
         self.selected = 0
@@ -47,13 +50,18 @@ class ConfigPicker:
     @property
     def values(self):
         return [self.backend, self.model or 'Padrão do provedor', self.effort,
-                MODE_LABELS[self.approval_mode], 'Enter para salvar']
+                MODE_LABELS[self.approval_mode], 'Rápido · maior uso/custo' if self.speed == 'fast' else 'Padrão', 'Enter para salvar']
 
     def options(self):
         if self.page == 'backend':
             return [(value, value) for value in BACKENDS]
         if self.page == 'permissions':
             return [(value, MODE_LABELS[value]) for value in APPROVAL_MODES]
+        if self.page == 'speed':
+            choices = [('standard', 'Padrão · uso e custo normais')]
+            if fast_supported(self.backend, self.model, self.speed_support):
+                choices.append(('fast', 'Rápido · pode consumir/custar mais'))
+            return choices
         if self.page == 'effort':
             levels = self.model_efforts.get(self.model, effort_options(self.backend))
             return [(value, 'Padrão do provedor' if value == 'default' else value)
@@ -103,6 +111,7 @@ class ConfigPicker:
             if enter:
                 try:
                     validate(self.backend, self.query.strip(), self.effort)
+                    if self.model != self.query.strip(): self.speed = 'standard'
                     self.model = self.query.strip()
                     if self.effort not in self.model_efforts.get(self.model, effort_options(self.backend)):
                         self.effort = 'default'
@@ -124,13 +133,15 @@ class ConfigPicker:
             elif enter:
                 if self.row == len(self.fields) - 1:
                     return 'save'
-                self.page = ('backend', 'model', 'effort', 'permissions')[self.row]
+                self.page = ('backend', 'model', 'effort', 'permissions', 'speed')[self.row]
                 self.query = ''
                 values = [item[0] for item in self.options()]
-                current = (self.backend, self.model, self.effort, self.approval_mode)[self.row]
+                current = (self.backend, self.model, self.effort, self.approval_mode, self.speed)[self.row]
                 self.selected = values.index(current) if current in values else 0
                 if self.page == 'model':
                     return 'catalog'
+                if self.page == 'speed':
+                    return 'speed_catalog'
             return
         choices = self.options()
         if key == curses.KEY_UP:
@@ -142,6 +153,7 @@ class ConfigPicker:
             if self.page == 'backend':
                 if self.backend != value:
                     self.backend, self.model, self.effort = value, '', 'default'
+                    self.speed, self.speed_support = 'standard', local_speed_support(value)
                     self.catalog = local_models(value)
                     self.model_efforts = {}
                     if value == 'codex':
@@ -151,10 +163,14 @@ class ConfigPicker:
                 self.effort = value
             elif self.page == 'permissions':
                 self.approval_mode = value
+            elif self.page == 'speed':
+                self.speed = value
             elif value is None:
                 self.page, self.query, self.error = 'custom', self.model, ''
                 return
             else:
+                if self.model != value:
+                    self.speed = 'standard'
                 self.model = value
                 if self.effort not in self.model_efforts.get(value, effort_options(self.backend)):
                     self.effort = 'default'

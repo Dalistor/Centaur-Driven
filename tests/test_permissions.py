@@ -252,7 +252,7 @@ class PermissionTests(unittest.TestCase):
             screen = Screen(size)
             terminal.draw(screen)
             self.assertIn('Sem perguntar', screen.text())
-            picker.page, picker.row = 'fields', 4
+            picker.page, picker.row = 'fields', len(picker.fields) - 1
             terminal.draw(screen)
             self.assertIn('Salvar preferências', screen.text())
             picker.page, picker.selected = 'permissions', 2

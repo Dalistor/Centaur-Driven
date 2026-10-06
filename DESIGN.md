@@ -62,23 +62,35 @@ atalhos. A lista de chats destaca toda a linha selecionada, com data quando houv
 Confirmações usam âmbar e instruções explícitas para permitir, recusar e revisar a ação.
 O cursor fica visível durante a digitação e oculto na lista ou confirmação.
 
-Créditos ocupam uma linha própria no canto inferior direito, acima dos atalhos. A barra usa
+O campo cinza começa com três linhas e cresce até oito conforme o espaço. `composer.layout_input`
+é o dono da quebra por células e da posição do cursor; `keyboard.KeyboardReader` decodifica
+Shift+Enter e colagem protegida. Enter envia, Shift+Enter/Ctrl+J insere linha; ↑/↓ editam
+linhas no rascunho multilinha e PgUp/PgDn continuam rolando o histórico. O campo acompanha
+o cursor com ↑/↓ indicando linhas ocultas. Modais conservam sua geometria e suas ações.
+
+Contexto e créditos compartilham a linha acima dos atalhos, à esquerda e à direita, sem
+sobreposição. `context` estima apenas o contexto ativo; `~` permanece explícito e limite
+desconhecido mostra `[?]`, sem porcentagem. Âmbar indica 20% ou menos de espaço. `$compact`
+usa IA sem ferramentas, mantém o histórico visível e torna a redução observável no rodapé.
+
+Créditos ficam no canto inferior direito. A barra usa
 10 células em janelas amplas e 5 nas estreitas, com valor em US$. Verde indica disponibilidade;
-âmbar indica 20% ou menos, ou saldo desatualizado (prefixo `~`). “Conta” e “Chave” distinguem
+âmbar indica 20% ou menos, ou saldo desatualizado (prefixo `~`). Em janelas mínimas o valor
+é priorizado sobre o desenho da barra; backends nativos usam `native_usage.native_label` para cotas/ créditos na unidade original, com ausência explícita e cache `~` do Claude. “Conta” e “Chave” distinguem
 saldo global de limite da credencial. Durante resize, a barra acompanha o canto e o conteúdo
 é recomposto a partir do estado atual, preservando rascunho, seleção e conversas.
 
 ## Seletores, edição e movimento
 
 `TerminalView` e `Palette` são os donos do desenho; `ConfigPicker` é o dono compartilhado
-da seleção de backend/modelo/effort. Lista de chats, autocomplete e configuração destacam
+da seleção de backend/modelo/effort/permissões/velocidade. Lista de chats, autocomplete e configuração destacam
 a linha inteira e mostram a seleção por `>` além da cor. A edição de título fica na mesma
 superfície e preserva o rascunho da conversa. Telas de edição em menos de 20 linhas usam
 a área de conteúdo inteira; mensagens curtas não movem os controles de salvar/cancelar.
 Textos largos são recortados por células, incluindo a janela de entrada e seu cursor.
 
 `startup.StartupPicker` reutiliza `ConfigPicker` e o mesmo desenho para a sequência
-Backend → Modelo padrão → Effort → Permissões → revisão. O rodapé explica o agente principal e a
+Backend → Modelo padrão → Effort → Permissões → Velocidade → revisão. O rodapé explica o agente principal e a
 seleção de modelos por task; erros de conexão têm prioridade nessa área. A tela inicial
 requer 40 × 18 e preserva escolhas ao redimensionar. Autenticação acontece depois da revisão,
 fora de curses para manter entrada de chave oculta; o chat e sua animação começam em seguida.
@@ -116,7 +128,7 @@ controle do terminal do usuário, com autores/ações em negrito e conteúdo em 
 | A marca aparece só na abertura | Convergência em relevo, arcos finos, giro e pose final | `graphics.Renderer`, `TerminalView.logo` |
 | Cabeçalho mostra pasta/modelo | Acrescenta nome do chat, effort e estado | `TerminalView.draw` |
 | Esquerda abre histórico | Shift+← abre; esquerda edita | `Terminal.handle` |
-| Créditos em linha própria | Preservado no redesenho | `TerminalView.draw` |
+| Créditos no rodapé | Compartilha linha com contexto, sem sobreposição | `TerminalView.draw` |
 
 Comportamentos duráveis e recuperação estão em [UX-CONTRACT.md](UX-CONTRACT.md).
 
@@ -125,8 +137,10 @@ Comportamentos duráveis e recuperação estão em [UX-CONTRACT.md](UX-CONTRACT.
 O seletor canônico também controla permissões, com explicação da opção focada. “Sem perguntar”
 usa âmbar e descreve o acesso do usuário. O cabeçalho prioriza o nome do modo, inclusive em
 janelas estreitas. A ação final ocupa a linha disponível, sem duplicar o texto em duas colunas.
-Em seletores curtos, a lista acompanha o foco para manter salvar acessível. Alterar somente
-permissões preserva a conversa; mudar conexão/modelo/effort inicia outra.
+Em seletores curtos, a lista acompanha o foco para manter salvar acessível. Alterar modelo, effort, velocidade ou
+permissões preserva a conversa no mesmo backend; mudar conexão inicia outra.
+Velocidade explica o custo maior, oferece Fast só quando anunciado e conserva effort.
+O cabeçalho diferencia Fast solicitado de tier efetivamente informado pelo provedor.
 
 `/wide` usa a largura disponível para histórico e entrada; o modo normal mantém a coluna de
 100 células. Falhas completas são quebradas em linhas dentro da conversa e podem ser roladas.

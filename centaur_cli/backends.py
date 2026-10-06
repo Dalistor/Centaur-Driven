@@ -8,6 +8,7 @@ from .native_client import NativeClient
 from .openrouter import OpenRouter
 from .setup import configure_key
 from .permissions import validate_mode
+from .speed import validate_speed
 
 
 def resolve_model(backend, model=None):
@@ -40,6 +41,12 @@ def resolve_effort(root, backend, effort=None):
 def resolve_approval_mode(root, mode=None):
     return validate_mode(mode or os.environ.get('CENTAUR_APPROVAL_MODE')
                          or load_config(root).get('approval_mode', 'ask'))
+
+
+def resolve_speed(root, backend, speed=None):
+    saved = load_config(root)
+    return validate_speed(speed or os.environ.get('CENTAUR_SPEED')
+                          or (saved.get('speed') if saved.get('backend') == backend else None) or 'standard')
 
 
 def create_client(backend, model, allow_setup=True, include_credits=True):

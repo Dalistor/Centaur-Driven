@@ -10,7 +10,11 @@ from .backends import create_client
 from .config import save_config, validate
 from .settings import ConfigPicker
 from .openrouter import OpenRouter
-from .agent import run_turn
+from .agent import run_turn, project_prompt
+from .tools import TOOLS
+from .context import compact_chat, context_label, estimate_tokens
+from .speed import validate_speed, fast_supported
+from .native_usage import BalanceUnavailable
 from .completion import SkillCompletion
 from .conversation import generate_title, readable_markdown, tool_activity
 from .tools import ProjectTools
@@ -21,6 +25,8 @@ from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 from .permissions import validate_mode, MODE_LABELS
 from .interaction import QuestionPicker, TurnCancelled
 from .computer import ComputerSession
+from .composer import layout_input
+from .keyboard import KEY_NEWLINE, PastedText, KeyboardReader, keyboard_protocol, read_key
 
 
 def display_lines(text, width):
@@ -30,45 +36,18 @@ def display_lines(text, width):
             for line in (textwrap.wrap(paragraph, max(1, width)) or [''])]
 
 
-def read_key(screen, timeout=100):
-    """Decode xterm Shift+Left when the terminal's terminfo lacks kLFT."""
-    key = screen.get_wch()
-    if key != '\x1b':
-        return key
-    sequence, consumed = '[1;2D', []
-    screen.timeout(25)
-    try:
-        for expected in sequence:
-            try:
-                next_key = screen.get_wch()
-            except curses.error:
-                break
-            consumed.append(next_key)
-            if next_key != expected:
-                break
-        else:
-            return curses.KEY_SLEFT
-    finally:
-        screen.timeout(timeout)
-    # Preserve unrelated keystrokes after a standalone Escape.
-    for next_key in reversed(consumed):
-        if isinstance(next_key, str):
-            curses.unget_wch(next_key)
-        else:
-            curses.ungetch(next_key)
-    return key
-
-
 class Terminal:
-    def __init__(self, root, model, store, client, max_subagent_tier='high', *, effort='default', approval_mode='ask'):
+    def __init__(self, root, model, store, client, max_subagent_tier='high', *, effort='default', approval_mode='ask', speed='standard'):
         self.root, self.model, self.store, self.client = root, model, store, client
         self.backend = getattr(client, 'backend', 'openrouter')
         self.effort = effort
+        self.speed = validate_speed(speed)
         self.approval_mode = validate_mode(approval_mode)
         self.wide_chat = False
         self.chat = store.new(model, backend=self.backend)
         self.chat['effort'] = effort
         self.chat['approval_mode'] = self.approval_mode
+        self.chat['speed'] = self.speed
         self.events = queue.Queue()
         self.busy = False
         self.approval = None
@@ -80,6 +59,7 @@ class Terminal:
         self.viewport_lines = 0
         self.scroll_limit = 0
         self.draft = ''
+        self.input_width = 74
         self.completion = SkillCompletion(root)
         self.notice = 'Digite sua intenção. Shift+← chats · $config preferências.'
         self.settings = None
@@ -102,17 +82,29 @@ class Terminal:
         self.show_details = False
         self.pending_titles = {}
         self.title_tasks = set()
+        self.context_overhead = estimate_tokens(project_prompt(root)) + estimate_tokens(TOOLS)
+
+    def context_label(self, width):
+        return context_label(self.chat, self.client, width, self.draft, self.context_overhead)
+
+    def request_context_catalog(self):
+        client = self.client
+        if not callable(getattr(client, 'model_catalog', None)):
+            return
+        def fetch():
+            try:
+                client.model_catalog()
+            except Exception:
+                pass  # Unknown limits stay explicitly unknown; typing never waits on HTTP.
+        threading.Thread(target=fetch, daemon=True).start()
 
     def request_credits(self):
-        if self.backend != 'openrouter':
-            self.credits_status = 'unsupported'
-            return
         if self.credits_inflight:
             return
         if not self.credits_dirty and time.monotonic() < self.credits_next_refresh:
             return
         if not callable(getattr(self.client, 'credits', None)):
-            self.credits_status = 'error'
+            self.credits_status = 'error' if self.backend == 'openrouter' else 'unsupported'
             return
         self.credits_inflight = True
         self.credits_dirty = False
@@ -121,6 +113,8 @@ class Terminal:
     def fetch_credits(self, client):
         try:
             event = ('credits', client.credits())
+        except BalanceUnavailable as error:
+            event = ('credits_unavailable', error.status)
         except Exception:
             event = ('credits_error', None)
         if client is self.client:
@@ -178,11 +172,11 @@ class Terminal:
             self.draft = ''
             self.scroll = 0
             return
-        if self.draft.strip() == '/credits':
+        if self.draft.strip() in ('/credits', '$credits'):
             self.draft = ''
             self.credits_dirty = True
             self.notice = ('Atualizando créditos. Saldo da conta: cadastre com --configure-credits-key.'
-                           if self.backend == 'openrouter' else f'{self.backend}: saldo não exposto nesta integração; consulte o cliente.')
+                           if self.backend == 'openrouter' else f'Atualizando uso {self.backend} · cotas/créditos apenas quando informados pelo CLI.')
             return
         secrets = getattr(self.client, 'secrets', (getattr(self.client, 'api_key', None),))
         if any(key and key in self.draft for key in secrets):
@@ -199,6 +193,14 @@ class Terminal:
             self.draft = ''
             self.notice = 'Conversa: ' + ('largura do terminal.' if self.wide_chat else 'coluna de leitura.')
             return
+        if command in ('$compact', '/compact'):
+            self.draft = ''
+            self.cancel_event = threading.Event()
+            self.busy = True
+            self.busy_started = time.monotonic()
+            self.notice = 'Compactando contexto com IA · histórico completo preservado · Ctrl+C interrompe.'
+            threading.Thread(target=self.compact, args=(self.chat, self.client, self.cancel_event), daemon=True).start()
+            return
         if command == '/retry':
             self.draft = ''
             if not self.chat.get('last_error'):
@@ -212,14 +214,14 @@ class Terminal:
             self.draft = ''
             self.begin_rename(self.chat)
             return
-        if command.startswith('/rename '):
+        if command.startswith('/rename ') and '\n' not in command:
             self.store.save(self.chat)
             if self.rename_chat(self.chat, command[len('/rename '):]):
                 self.draft = ''
             return
-        if command.split()[0] == '$config':
+        if command.split()[0] == '$config' and '\n' not in command:
             return self.configure(command)
-        if command.startswith(('/status', '$status')):
+        if command.startswith(('/status', '$status')) and '\n' not in command:
             if command not in ('/status', '/status --ai', '$status', '$status --ai'):
                 self.notice = 'Uso: $status ou $status --ai para analisar com IA.'
                 return
@@ -238,7 +240,7 @@ class Terminal:
         self.chat.pop('last_error', None)
         self.chat['approval_mode'] = self.approval_mode
         if self.chat['title'] == 'Novo chat' and not self.chat.get('title_custom'):
-            self.chat['title'] = self.draft[:80]
+            self.chat['title'] = ' '.join(self.draft.split())[:80]
         self.store.save(self.chat)
         self.draft = ''
         self.start_work()
@@ -254,6 +256,14 @@ class Terminal:
         self.notice = f'Aguardando {self.backend}…'
         threading.Thread(target=self.work, args=(self.chat,), daemon=True).start()
 
+    def compact(self, chat, client, cancel_event):
+        try:
+            state, before, after = compact_chat(chat, client, cancel_event)
+            self.events.put(('compacted', (chat, cancel_event, state, before, after)))
+        except Exception as error:
+            message = getattr(client, 'redact', str)(str(error))
+            self.events.put(('done', 'Compactação: ' + message))
+
     @property
     def draft(self):
         return self._draft
@@ -262,46 +272,68 @@ class Terminal:
     def draft(self, value):
         self._draft = value
         self.cursor = len(value)
+        self.preferred_input_column = None
+
+    def insert_text(self, text):
+        self._draft = self.draft[:self.cursor] + text + self.draft[self.cursor:]
+        self.cursor += len(text)
+        self.preferred_input_column = None
 
     def new_chat(self):
         chat = self.store.new(self.model, backend=self.backend)
         chat['effort'] = self.effort
         chat['approval_mode'] = self.approval_mode
+        chat['speed'] = self.speed
         return chat
 
     def configure(self, command):
         parts = command.split()
         if len(parts) == 1:
-            self.settings = ConfigPicker(self.backend, self.model, self.effort, self.approval_mode)
+            self.settings = ConfigPicker(self.backend, self.chat['model'], self.chat.get('effort', self.effort),
+                                         self.approval_mode, self.chat.get('speed', self.speed))
+            self.settings.speed_support.update(getattr(self.client, 'speed_support', {}))
             self.draft = ''
-            self.notice = 'Escolha backend, modelo, effort e permissões. Esc cancela sem salvar.'
+            self.notice = 'Escolha modelo, effort, permissões e velocidade. Salvar retorna ao chat. Esc cancela.'
             return
         try:
-            if len(parts) > 5:
-                raise ValueError('Uso: $config <backend> [modelo] [effort] [ask|auto|never]')
+            if len(parts) > 6:
+                raise ValueError('Uso: $config <backend> [modelo] [effort] [ask|auto|never] [standard|fast]')
             backend = parts[1]
             model = parts[2] if len(parts) >= 3 else ''
             effort = parts[3] if len(parts) >= 4 else 'default'
-            approval_mode = parts[4] if len(parts) == 5 else self.approval_mode
+            approval_mode = parts[4] if len(parts) >= 5 else self.approval_mode
+            speed = parts[5] if len(parts) == 6 else self.speed if (backend, model) == (self.backend, self.model) else 'standard'
             validate(backend, model, effort if len(parts) >= 4 else None, approval_mode)
-            client = (self.client if self.client is not None and (backend, model, effort) ==
-                      (self.backend, self.model, self.effort) else create_client(backend, model, allow_setup=False))
-            save_config(self.root, backend, model, effort if len(parts) >= 4 else None, approval_mode)
+            client = (self.client if self.client is not None and (backend, model) ==
+                              (self.backend, self.model) else create_client(backend, model, allow_setup=False))
+            if callable(getattr(client, 'check_speed', None)): client.check_speed(model, speed)
+            save_config(self.root, backend, model, effort if len(parts) >= 4 else None, approval_mode, speed)
         except (RuntimeError, OSError, ValueError) as error:
             self.notice = f'Configuração não alterada: {error}'
             return
-        self.activate_config(backend, model, effort, client, approval_mode)
+        self.activate_config(backend, model, effort, client, approval_mode, speed)
 
-    def activate_config(self, backend, model, effort, client, approval_mode=None):
+    def activate_config(self, backend, model, effort, client, approval_mode=None, speed=None):
         history_warning = ''
-        new_conversation = (backend, model, effort) != (self.backend, self.model, self.effort)
+        same_client = client is self.client
+        new_conversation = backend != self.backend
+        model_changed = (model, effort) != (self.model, self.effort)
+        speed_changed = speed is not None and speed != self.speed
+        if speed is not None: self.speed = validate_speed(speed)
         self.backend, self.model, self.effort, self.client = backend, model, effort, client
+        self.request_context_catalog()
         if approval_mode is not None:
             self.approval_mode = validate_mode(approval_mode)
         if new_conversation:
             self.chat = self.new_chat()
         else:
             self.chat['approval_mode'] = self.approval_mode
+            if model_changed:
+                self.chat.update(model=model, effort=effort)
+                self.chat.pop('context_usage', None)
+            if speed_changed or model_changed:
+                self.chat['speed'] = self.speed
+                self.chat.pop('speed_served', None)
             if self.chat['messages']:
                 try:
                     self.store.save(self.chat)
@@ -310,10 +342,11 @@ class Terminal:
         self.draft = ''
         self.scroll = 0
         self.settings = None
-        self.credits = None
-        self.credits_inflight = False
-        self.credits_next_refresh = 0
-        self.credits_status = 'loading' if backend == 'openrouter' else 'unsupported'
+        if not same_client:
+            self.credits = None
+            self.credits_inflight = False
+            self.credits_next_refresh = 0
+            self.credits_status = 'loading'
         self.credits_dirty = True
         self.notice = (f'Configuração salva: {MODE_LABELS[self.approval_mode]}. '
                        + ('Novo chat.' if new_conversation else 'Conversa preservada.') + history_warning)
@@ -335,6 +368,20 @@ class Terminal:
             self.events.put(('catalog', (picker, backend, result)))
         threading.Thread(target=fetch, daemon=True).start()
 
+    def load_speed(self, picker):
+        backend, model = picker.backend, picker.model
+        source = self.client if backend == self.backend else OpenRouter('') if backend == 'openrouter' else None
+        picker.catalog_status = 'Verificando suporte Fast…'
+        def fetch():
+            try:
+                supported = (source.supports_fast(model) if callable(getattr(source, 'supports_fast', None))
+                             else fast_supported(backend, model, picker.speed_support))
+                result = supported, ''
+            except Exception:
+                result = False, 'Suporte Fast indisponível; escolha Padrão.'
+            self.events.put(('speed_support', (picker, backend, model, *result)))
+        threading.Thread(target=fetch, daemon=True).start()
+
     def handle_settings(self, key):
         picker = self.settings
         action = picker.handle(key)
@@ -343,6 +390,8 @@ class Terminal:
             self.notice = 'Configuração cancelada.'
         elif action == 'catalog':
             self.load_catalog(picker)
+        elif action == 'speed_catalog':
+            self.load_speed(picker)
         elif action == 'save':
             secrets = getattr(self.client, 'secrets', ())
             if any(secret and secret in picker.model for secret in secrets):
@@ -353,12 +402,14 @@ class Terminal:
             def apply():
                 try:
                     validate(picker.backend, picker.model, picker.effort, picker.approval_mode)
-                    client = (self.client if self.client is not None and (picker.backend, picker.model, picker.effort) ==
-                              (self.backend, self.model, self.effort) else
+                    client = (self.client if self.client is not None and (picker.backend, picker.model) ==
+                              (self.backend, self.model) else
                               create_client(picker.backend, picker.model, allow_setup=False))
                     if picker.backend == 'openrouter':
                         client.model_efforts = dict(picker.model_efforts)
-                    save_config(self.root, picker.backend, picker.model, picker.effort, picker.approval_mode)
+                        client.speed_support = dict(picker.speed_support)
+                    if callable(getattr(client, 'check_speed', None)): client.check_speed(picker.model, picker.speed)
+                    save_config(self.root, picker.backend, picker.model, picker.effort, picker.approval_mode, picker.speed)
                     self.events.put(('configured', (picker, client, None)))
                 except Exception as error:
                     redact = getattr(self.client, 'redact', str)
@@ -518,7 +569,14 @@ class Terminal:
                     picker.error = 'Configuração não alterada: ' + error
                     self.notice = 'Confira a configuração e tente novamente.'
                 else:
-                    self.activate_config(picker.backend, picker.model, picker.effort, client, picker.approval_mode)
+                    self.activate_config(picker.backend, picker.model, picker.effort, client, picker.approval_mode, picker.speed)
+            elif kind == 'speed_support':
+                picker, backend, model, supported, error = value
+                if self.settings is picker and (picker.backend, picker.model) == (backend, model):
+                    picker.speed_support[model] = supported
+                    if picker.page == 'speed' and supported and picker.speed == 'fast': picker.selected = 1
+                    picker.catalog_status = error or ('Fast disponível · custo maior' if supported else 'Fast não anunciado para este modelo.')
+                    if picker.speed == 'fast' and not error and not supported: picker.speed = 'standard'
             elif kind == 'approval':
                 if self.cancel_event.is_set():
                     continue
@@ -539,6 +597,22 @@ class Terminal:
                 self.question = None
                 self.notice = value
                 self.credits_dirty = True
+            elif kind == 'compacted':
+                chat, cancellation, state, before, after = value
+                self.busy = False
+                self.credits_dirty = True
+                if cancellation.is_set():
+                    self.notice = 'Compactação interrompida; contexto anterior preservado.'
+                    continue
+                candidate = {**chat, 'compaction': state}
+                candidate.pop('context_usage', None)
+                try:
+                    self.store.save(candidate)
+                    chat.update(candidate)
+                    chat.pop('context_usage', None)
+                    self.notice = f'Contexto compactado: ~{before:,} → ~{after:,} tokens. Histórico preservado.'
+                except OSError:
+                    self.notice = 'Erro ao salvar compactação; contexto anterior preservado.'
             elif kind == 'title':
                 chat_id, title = value
                 self.pending_titles[chat_id] = title
@@ -546,10 +620,10 @@ class Terminal:
             elif kind == 'progress':
                 self.notice = value
                 self.credits_dirty = True
-            elif kind in ('credits', 'credits_error'):
+            elif kind in ('credits', 'credits_error', 'credits_unavailable'):
                 self.credits_inflight = False
                 self.credits_next_refresh = time.monotonic() + 30
-                self.credits_status = 'ready' if kind == 'credits' else 'error'
+                self.credits_status = 'ready' if kind == 'credits' else value if kind == 'credits_unavailable' else 'error'
                 if kind == 'credits':
                     self.credits = value
         self.apply_titles()
@@ -705,6 +779,13 @@ class Terminal:
             elif state & getattr(curses, 'BUTTON5_PRESSED', 0):
                 self.scroll_chat(-3)
             return
+        if isinstance(key, PastedText):
+            self.insert_text(key.text)
+            return
+        if key in (KEY_NEWLINE, '\n'):
+            self.insert_text('\n')
+            self.completion.update('')
+            return
         self.completion.update(self.draft if self.cursor == len(self.draft) else '')
         if self.completion.visible:
             if key == curses.KEY_UP:
@@ -720,6 +801,8 @@ class Terminal:
             if key == '\x1b':
                 self.completion.dismiss(self.draft)
                 return
+        if key not in (curses.KEY_UP, curses.KEY_DOWN):
+            self.preferred_input_column = None
         if key == curses.KEY_LEFT:
             self.cursor = max(0, self.cursor - 1)
         elif key == curses.KEY_RIGHT:
@@ -728,13 +811,18 @@ class Terminal:
             self.cursor = 0
         elif key == curses.KEY_END:
             self.cursor = len(self.draft)
-        elif key in (curses.KEY_PPAGE, curses.KEY_UP):
-            self.scroll_chat(5 if key == curses.KEY_PPAGE else 1)
-        elif key in (curses.KEY_NPAGE, curses.KEY_DOWN):
-            self.scroll_chat(-5 if key == curses.KEY_NPAGE else -1)
+        elif key in (curses.KEY_UP, curses.KEY_DOWN):
+            layout = layout_input(self.draft, self.input_width)
+            direction = -1 if key == curses.KEY_UP else 1
+            if len(layout.lines) > 1:
+                self.cursor, self.preferred_input_column = layout.vertical(self.cursor, direction, self.preferred_input_column)
+            else:
+                self.scroll_chat(-direction)
+        elif key in (curses.KEY_PPAGE, curses.KEY_NPAGE):
+            self.scroll_chat(5 if key == curses.KEY_PPAGE else -5)
         elif key == '\x05':
             self.scroll = 0
-        elif key in ('\n', '\r', curses.KEY_ENTER):
+        elif key in ('\r', curses.KEY_ENTER):
             return self.submit()
         elif key in (curses.KEY_BACKSPACE, '\x7f', '\b'):
             if self.cursor:
@@ -745,11 +833,16 @@ class Terminal:
         elif key == '\x15':
             self.draft = ''
         elif isinstance(key, str) and key.isprintable():
-            self._draft = self.draft[:self.cursor] + key + self.draft[self.cursor:]
-            self.cursor += 1
+            self.insert_text(key)
 
     def run(self, screen):
+        with keyboard_protocol():
+            return self.run_screen(screen)
+
+    def run_screen(self, screen):
+        self.request_context_catalog()
         curses.raw()
+        curses.nonl()  # Enter is CR; Ctrl+J is LF and inserts a line in the chat.
         self.view.palette.initialize()
         screen.keypad(True)
         try:
@@ -757,6 +850,7 @@ class Terminal:
         except curses.error:
             pass
         screen.timeout(100)
+        keyboard = KeyboardReader()
         while True:
             frame_start = time.monotonic()
             self.drain_events()
@@ -773,7 +867,7 @@ class Terminal:
                 if self.view.animation.active else 100
             screen.timeout(timeout)
             try:
-                key = read_key(screen, timeout)
+                key = keyboard.read(screen, timeout)
             except curses.error:
                 continue
             if key == curses.KEY_RESIZE:

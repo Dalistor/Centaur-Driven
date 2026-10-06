@@ -29,7 +29,10 @@ class StartupTests(unittest.TestCase):
         picker.handle('\n')
         self.assertEqual(picker.page, 'permissions')
         picker.handle('\n')
-        self.assertEqual((picker.page, picker.row), ('fields', 4))
+        self.assertEqual(picker.page, 'speed')
+        self.assertEqual(picker.options(), [('standard', 'Padrão · uso e custo normais')])
+        picker.handle('\n')
+        self.assertEqual((picker.page, picker.row), ('fields', 5))
         self.assertEqual(picker.handle('\n'), 'save')
 
     def test_backend_change_discards_incompatible_model_and_effort(self):
@@ -76,7 +79,7 @@ class StartupTests(unittest.TestCase):
     def test_narrow_resize_and_all_pages_preserve_selection_and_explanation(self):
         wizard = StartupWizard('claude', 'sonnet', 'medium')
         for size in ((24, 100), (24, 80), (18, 40), (12, 35)):
-            for page in ('backend', 'model', 'effort', 'permissions', 'fields', 'custom'):
+            for page in ('backend', 'model', 'effort', 'permissions', 'speed', 'fields', 'custom'):
                 wizard.picker.page = page
                 screen = Screen(size)
                 wizard.draw(screen)
@@ -115,7 +118,7 @@ class StartupTests(unittest.TestCase):
         factory = self.run_main(wrapper, lambda *args: connected)
         factory.assert_called_once_with('claude', 'sonnet')
         self.assertEqual(len(seen), 2)
-        self.assertEqual(load_config(self.root), {'backend': 'claude', 'model': 'sonnet', 'effort': 'medium', 'approval_mode': 'auto'})
+        self.assertEqual(load_config(self.root), {'backend': 'claude', 'model': 'sonnet', 'effort': 'medium', 'approval_mode': 'auto', 'speed': 'standard'})
 
     def test_auth_failure_keeps_preferences_and_allows_another_backend(self):
         save_config(self.root, 'codex', 'old', 'high')

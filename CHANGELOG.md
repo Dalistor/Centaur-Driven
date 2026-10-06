@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0 — 2026-10-06
+
+- Entrada multilinha com quebra visual por células Unicode, Shift+Enter (Kitty/xterm), Ctrl+J e colagem protegida sem envio automático.
+- Campo de mensagem com três linhas iniciais, expansão até oito e rolagem interna acompanhando o cursor; setas editam linhas e PgUp/PgDn continuam rolando o chat.
+- Barra de contexto restante no rodapé, com estimativas explícitas, contagens informadas pelo provedor e limites do catálogo; limite desconhecido não recebe porcentagem inventada.
+- `$compact` (alias `/compact`) resume o contexto antigo com IA, sem ferramentas, preserva o histórico completo e mantém intactos os lotes de chamadas e a recuperação por `/retry`.
+- Compactação em fragmentos, cancelável e salva atomicamente; falhas ou resumos sem redução preservam o contexto anterior.
+- Timeout nativo padrão de 600 segundos, configurável por `CENTAUR_NATIVE_TIMEOUT` (30–3600), substitui o limite fixo de 180 segundos.
+
+- Cotas e créditos nativos do Codex via App Server somente em leitura; Claude usa eventos públicos de limite, com estado em cache e ausência de dados explícita. `$credits` é alias de `/credits`.
+- Velocidade Padrão/Rápido no seletor inicial e `$config`, separada de effort e limitada a capacidades anunciadas; `--speed` e `CENTAUR_SPEED` também configuram.
+- Trocar modelo, effort ou velocidade no mesmo backend preserva ID, título, histórico e memória compactada; somente trocar backend abre outro chat.
+
 ## 0.6.0 — 2026-10-06
 
 - Computer use: zoom de regiões com mapeamento de coordenadas de volta ao desktop e retorno ao monitor inteiro.

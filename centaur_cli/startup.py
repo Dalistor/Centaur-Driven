@@ -14,22 +14,22 @@ from .permissions import MODE_LABELS
 
 class StartupPicker(ConfigPicker):
     startup = True
-    fields = ('Backend', 'Modelo padrão', 'Effort', 'Permissões', 'Iniciar conversa')
+    fields = ('Backend', 'Modelo padrão', 'Effort', 'Permissões', 'Velocidade', 'Iniciar conversa')
 
-    def __init__(self, backend, model, effort, approval_mode='ask'):
-        super().__init__(backend, model, effort, approval_mode)
+    def __init__(self, backend, model, effort, approval_mode='ask', speed='standard'):
+        super().__init__(backend, model, effort, approval_mode, speed)
         self.open_page('backend')
 
     @property
     def values(self):
         return [{'openrouter': 'OpenRouter', 'codex': 'Codex', 'claude': 'Claude'}[self.backend],
                 self.model or 'Padrão do provedor', self.effort,
-                MODE_LABELS[self.approval_mode], 'Enter para iniciar']
+                MODE_LABELS[self.approval_mode], 'Rápido · maior uso/custo' if self.speed == 'fast' else 'Padrão', 'Enter para iniciar']
 
     def open_page(self, page):
         self.page, self.query, self.error = page, '', ''
         current = {'backend': self.backend, 'model': self.model, 'effort': self.effort,
-                   'permissions': self.approval_mode}[page]
+                   'permissions': self.approval_mode, 'speed': self.speed}[page]
         choices = [item[0] for item in self.options()]
         self.selected = choices.index(current) if current in choices else 0
 
@@ -54,10 +54,10 @@ class StartupPicker(ConfigPicker):
             if previous in ('backend', 'fields'):
                 return 'cancel'
             self.open_page({'model': 'backend', 'custom': 'model', 'effort': 'model',
-                            'permissions': 'effort'}[previous])
+                            'permissions': 'effort', 'speed': 'permissions'}[previous])
             return 'catalog' if self.page == 'model' else None
         action = super().handle(key)
-        if self.page == 'fields' and previous in ('backend', 'model', 'custom', 'effort', 'permissions'):
+        if self.page == 'fields' and previous in ('backend', 'model', 'custom', 'effort', 'permissions', 'speed'):
             if previous == 'backend':
                 self.open_page('model')
                 return 'catalog'
@@ -65,6 +65,9 @@ class StartupPicker(ConfigPicker):
                 self.open_page('effort')
             elif previous == 'effort':
                 self.open_page('permissions')
+            elif previous == 'permissions':
+                self.open_page('speed')
+                return 'speed_catalog'
             else:
                 self.row = len(self.fields) - 1
         if action == 'save':
@@ -73,8 +76,8 @@ class StartupPicker(ConfigPicker):
 
 
 class StartupWizard:
-    def __init__(self, backend, model, effort, approval_mode='ask'):
-        self.picker = StartupPicker(backend, model, effort, approval_mode)
+    def __init__(self, backend, model, effort, approval_mode='ask', speed='standard'):
+        self.picker = StartupPicker(backend, model, effort, approval_mode, speed)
         self.view = TerminalView()
         self.events = queue.Queue()
         self.catalog_request = 0
@@ -98,8 +101,25 @@ class StartupWizard:
     def drain_events(self):
         while not self.events.empty():
             request, result = self.events.get_nowait()
+            if request == 'speed':
+                backend, model, supported, error = result
+                if (self.picker.backend, self.picker.model) == (backend, model):
+                    self.picker.speed_support[model] = supported
+                    if self.picker.page == 'speed' and supported and self.picker.speed == 'fast': self.picker.selected = 1
+                    self.picker.catalog_status = error or ('Fast disponível · custo maior' if supported else 'Fast não anunciado para este modelo.')
+                continue
             if request == self.catalog_request and self.picker.backend == 'openrouter':
                 self.picker.update_catalog('openrouter', *result)
+
+    def load_speed(self):
+        if self.picker.backend != 'openrouter': return
+        backend, model = self.picker.backend, self.picker.model
+        self.picker.catalog_status = 'Consultando capacidade Fast…'
+        def fetch():
+            try: result = OpenRouter('').supports_fast(model), ''
+            except Exception: result = False, 'Capacidade Fast indisponível; escolha Padrão.'
+            self.events.put(('speed', (backend, model, *result)))
+        threading.Thread(target=fetch, daemon=True).start()
 
     def draw(self, screen):
         screen.bkgd(' ', self.view.palette.styles['text'])
@@ -163,6 +183,8 @@ class StartupWizard:
                 self.catalog_request += 1  # Invalidate results from earlier backend visits.
             if action == 'catalog':
                 self.load_catalog()
+            elif action == 'speed_catalog':
+                self.load_speed()
             elif action == 'cancel':
                 return None
             elif action == 'save':

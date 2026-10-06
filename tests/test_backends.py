@@ -164,7 +164,7 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(terminal.backend, 'claude')
         self.assertEqual(terminal.chat['backend'], 'claude')
 
-    def test_history_backend_mismatch_is_rejected_and_credits_are_not_queried(self):
+    def test_history_backend_mismatch_is_rejected_and_native_usage_is_independent_of_openrouter(self):
         store = ChatStore(self.root)
         old = store.new('fixed')
         store.save(old)
@@ -173,9 +173,10 @@ class BackendTests(unittest.TestCase):
         terminal.handle('\n')
         self.assertIn('outro backend', terminal.notice)
         self.assertNotEqual(terminal.chat['id'], old['id'])
-        terminal.request_credits()
-        self.assertEqual(terminal.credits_status, 'unsupported')
-        self.assertIn('cliente conectado', credit_label(None, terminal.credits_status, 100)[0])
+        with patch('centaur_cli.terminal.threading.Thread') as thread:
+            terminal.request_credits()
+            thread.assert_called_once()
+        self.assertEqual(terminal.credits_status, 'loading')
 
     def test_invalid_backend_in_saved_chat_is_ignored(self):
         store = ChatStore(self.root)

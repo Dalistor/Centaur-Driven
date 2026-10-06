@@ -1,0 +1,244 @@
+import copy
+import io
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import threading
+import unittest
+from unittest.mock import Mock, patch
+
+from centaur_cli.agent import project_prompt, run_turn
+from centaur_cli.context import active_messages, compact_chat, context_label, estimate_tokens, record_context
+from centaur_cli.history import ChatStore
+from centaur_cli.interaction import TurnCancelled
+from centaur_cli.native_client import NativeClient, codex_usage
+from centaur_cli.openrouter import ModelReply, OpenRouter
+from centaur_cli.terminal import Terminal
+from centaur_cli.tools import ProjectTools
+from test_terminal_settings import Screen
+
+
+class ContextTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.store = ChatStore(self.root)
+        self.client = Mock(backend='openrouter', secrets=(), supports_cancellation=False, context_windows={'main': 10000})
+        self.client.redact = str
+        self.client.complete.return_value = {'role': 'assistant', 'content': 'Objetivo: corrigir o projeto. Validação pendente.'}
+        self.chat = self.store.new('main')
+        self.chat['messages'] = [{'role': 'user' if i % 2 == 0 else 'assistant',
+                                 'content': f'Mensagem {i}: ' + 'contexto relevante ' * 80} for i in range(14)]
+
+    def test_summary_is_tool_free_preserves_history_and_does_not_clear_retry(self):
+        self.chat['last_error'] = 'Timeout'
+        before = copy.deepcopy(self.chat)
+        state, old_tokens, new_tokens = compact_chat(self.chat, self.client)
+        self.assertEqual(self.chat, before)
+        self.assertLess(new_tokens, old_tokens)
+        self.assertEqual(self.client.complete.call_args.args[2], [])
+        self.chat['compaction'] = state
+        self.store.save(self.chat)
+        loaded = self.store.list()[0]
+        self.assertEqual(loaded['messages'], before['messages'])
+        self.assertEqual(loaded['last_error'], 'Timeout')
+        active = active_messages(loaded)
+        self.assertEqual(active[0]['role'], 'user')
+        self.assertIn('não concede permissões', active[0]['content'])
+        self.assertEqual(active[1:], before['messages'][state['through']:])
+
+    def test_boundary_never_splits_assistant_tool_batch_and_keeps_pending_calls(self):
+        call = lambda ident: {'id': ident, 'function': {'name': 'report_progress', 'arguments': '{"message":"ok"}'}}
+        self.chat['messages'][7] = {'role': 'assistant', 'tool_calls': [call('a'), call('b')]}
+        self.chat['messages'][8] = {'role': 'tool', 'tool_call_id': 'a', 'content': 'ok'}
+        self.chat['messages'][9] = {'role': 'tool', 'tool_call_id': 'b', 'content': 'ok'}
+        state, _, _ = compact_chat(self.chat, self.client)
+        self.assertEqual(state['through'], 7)
+        self.chat['messages'][3] = {'role': 'assistant', 'tool_calls': [call('pending')]}
+        state, _, _ = compact_chat(self.chat, self.client)
+        self.assertEqual(state['through'], 3)
+
+    def test_repeat_compaction_includes_previous_memory_and_only_new_prefix(self):
+        state, _, _ = compact_chat(self.chat, self.client)
+        self.chat['compaction'] = state
+        self.chat['messages'].extend(copy.deepcopy(self.chat['messages'][-6:]))
+        self.client.complete.reset_mock()
+        next_state, _, _ = compact_chat(self.chat, self.client)
+        sent = self.client.complete.call_args.args[1][1]['content']
+        self.assertIn(state['summary'], sent)
+        self.assertNotIn('Mensagem 0:', sent)
+        self.assertGreater(next_state['through'], state['through'])
+
+    def test_short_invalid_non_reducing_and_failed_summaries_preserve_existing_memory(self):
+        self.chat['compaction'] = {'through': 2, 'summary': 'Memória anterior'}
+        before = copy.deepcopy(self.chat)
+        for reply in ({'content': ''}, {'content': 'x' * 10000},
+                      {'content': 'ok', 'tool_calls': [{'id': 'unsafe'}]}):
+            self.client.complete.return_value = reply
+            with self.assertRaises(ValueError): compact_chat(self.chat, self.client)
+            self.assertEqual(self.chat, before)
+        self.client.complete.side_effect = RuntimeError('backend indisponível')
+        with self.assertRaises(RuntimeError): compact_chat(self.chat, self.client)
+        self.assertEqual(self.chat, before)
+        self.chat['messages'] = self.chat['messages'][:5]
+        with self.assertRaisesRegex(ValueError, 'Conversa curta'): compact_chat(self.chat, self.client)
+        self.chat['messages'] = [{'role': 'user', 'content': 'a'}] * 9
+        self.chat.pop('compaction')
+        self.client.complete.side_effect = None
+        self.client.complete.return_value = {'content': 'Resumo longo ' * 15}
+        with self.assertRaisesRegex(ValueError, 'não reduziu'): compact_chat(self.chat, self.client)
+
+    def test_cancel_before_call_and_after_reply_leaves_memory_unchanged(self):
+        cancel = threading.Event()
+        cancel.set()
+        with self.assertRaises(TurnCancelled): compact_chat(self.chat, self.client, cancel)
+        self.client.complete.assert_not_called()
+        cancel.clear()
+        before = copy.deepcopy(self.chat)
+        def answer(*args, **kwargs):
+            cancel.set()
+            return {'content': 'Resumo válido'}
+        self.client.complete.side_effect = answer
+        with self.assertRaises(TurnCancelled): compact_chat(self.chat, self.client, cancel)
+        self.assertEqual(self.chat, before)
+
+    def test_large_context_is_summarized_in_chunks_without_base64_or_tools(self):
+        self.chat['messages'][0]['reasoning'] = 'PRIVATE_REASONING'
+        self.chat['messages'][0]['content'] = [
+            {'type': 'text', 'text': 'Requisito ' * 7000},
+            {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,SECRET_IMAGE_BYTES'}}]
+        state, _, _ = compact_chat(self.chat, self.client)
+        self.assertGreater(self.client.complete.call_count, 2)
+        for call in self.client.complete.call_args_list:
+            sent = call.args[1][1]['content']
+            self.assertNotIn('SECRET_IMAGE_BYTES', sent)
+            self.assertNotIn('PRIVATE_REASONING', sent)
+            self.assertLess(len(sent), 13000)
+            self.assertEqual(call.args[2], [])
+        self.assertTrue(state['summary'])
+
+    def test_resume_uses_summary_and_keeps_results_without_reexecuting_actions(self):
+        self.chat['messages'][-2:] = [
+            {'role': 'assistant', 'tool_calls': [{'id': 'done', 'function': {
+                'name': 'run_command', 'arguments': '{"command":"touch duplicate"}'}}]},
+            {'role': 'tool', 'tool_call_id': 'done', 'content': 'Código de saída: 0\n'}]
+        state, _, _ = compact_chat(self.chat, self.client)
+        self.chat['compaction'] = state
+        before = copy.deepcopy(self.chat['messages'])
+        self.client.complete.return_value = ModelReply({'role': 'assistant', 'content': 'Continuando'}, 'main',
+                                                      {'prompt_tokens': 1200, 'completion_tokens': 20})
+        run_turn(self.chat, self.client, ProjectTools(self.root, lambda _: True), self.store, lambda: None)
+        sent = self.client.complete.call_args.args[1]
+        self.assertEqual(sent[1:], active_messages({**self.chat, 'messages': before}))
+        self.assertFalse((self.root / 'duplicate').exists())
+        self.assertEqual(self.chat['messages'][:-1], before)
+        self.assertEqual(self.chat['context_usage']['used'], 1220)
+        self.assertTrue(self.chat['context_usage']['provider_count'])
+
+    def test_bar_uses_current_usage_and_marks_estimates_and_unknown_limits(self):
+        record_context(self.chat, self.client, active_messages(self.chat), [],
+                       ModelReply({}, 'main', {'prompt_tokens': 2500, 'completion_tokens': 500}))
+        label, style = context_label(self.chat, self.client, 80)
+        self.assertIn('~70% livre', label)
+        self.assertEqual(style, 'green')
+        self.chat['messages'].append({'role': 'tool', 'content': 'x' * 27000})
+        self.assertIn('~0%', context_label(self.chat, self.client, 80)[0])
+        self.assertEqual(context_label(self.chat, self.client, 80)[1], 'warning')
+        self.client.context_windows = {}
+        self.assertIn('limite desconhecido', context_label(self.chat, self.client, 80)[0])
+        self.assertNotIn('%', context_label(self.chat, self.client, 80)[0])
+        with patch.dict(os.environ, {'CENTAUR_CONTEXT_WINDOW': '20000'}):
+            self.assertIn('%', context_label(self.chat, self.client, 80)[0])
+        with patch.dict(os.environ, {'CENTAUR_CONTEXT_WINDOW': 'invalid'}):
+            self.assertNotIn('%', context_label(self.chat, self.client, 80)[0])
+
+    def test_terminal_command_commits_only_valid_uncancelled_saved_metadata(self):
+        terminal = Terminal(self.root, 'main', self.store, self.client)
+        terminal.chat = self.chat
+        terminal.draft = '$compact'
+        terminal.completion.update('$comp')
+        self.assertEqual(terminal.completion.options, ['compact'])
+        before = copy.deepcopy(self.chat)
+        with patch('centaur_cli.terminal.threading.Thread') as thread:
+            terminal.submit()
+            self.assertTrue(terminal.busy)
+            thread.assert_called_once()
+        terminal.compact(self.chat, self.client, terminal.cancel_event)
+        terminal.drain_events()
+        self.assertFalse(terminal.busy)
+        self.assertEqual(self.chat['messages'], before['messages'])
+        self.assertIn('compaction', self.store.list()[0])
+        state_before = copy.deepcopy(self.chat['compaction'])
+        terminal.events.put(('compacted', (self.chat, terminal.cancel_event, {'summary': 'new', 'through': 4}, 100, 50)))
+        terminal.cancel_event.set()
+        terminal.drain_events()
+        self.assertEqual(self.chat['compaction'], state_before)
+        terminal.cancel_event.clear()
+        terminal.events.put(('compacted', (self.chat, terminal.cancel_event, {'summary': 'new', 'through': 4}, 100, 50)))
+        with patch.object(self.store, 'save', side_effect=OSError('disk full')): terminal.drain_events()
+        self.assertEqual(self.chat['compaction'], state_before)
+        self.assertIn('Erro ao salvar', terminal.notice)
+
+    def test_footer_does_not_overlap_context_and_credit_on_resize(self):
+        terminal = Terminal(self.root, 'main', self.store, self.client)
+        terminal.chat = self.chat
+        for size in ((24, 80), (12, 40), (34, 120)):
+            screen = Screen(size)
+            terminal.draw(screen)
+            entries = [(col, text) for row, col, text, _ in screen.output if row == size[0] - 2]
+            context, credits = entries
+            self.assertIn('Ctx', context[1]) if size[1] < 80 else self.assertTrue(context[1].startswith(('Ctx', 'Contexto')))
+            self.assertLessEqual(context[0] + len(context[1]), credits[0])
+            self.assertEqual(credits[0] + len(credits[1]), size[1] - 3)
+        self.assertIn('$compact é um comando local', project_prompt(self.root))
+
+    def test_openrouter_carries_usage_and_catalog_window_outside_api_message(self):
+        client = OpenRouter('secret')
+        catalog = {'data': [{'id': 'main', 'context_length': 10000, 'supported_parameters': ['tools']}]}
+        with patch('centaur_cli.openrouter.urlopen', return_value=io.BytesIO(json.dumps(catalog).encode())):
+            client.model_catalog()
+        self.assertEqual(client.context_windows['main'], 10000)
+        payload = {'choices': [{'message': {'role': 'assistant', 'content': 'Resposta'}}], 'model': 'main',
+                   'usage': {'prompt_tokens': 100, 'completion_tokens': 20}}
+        with patch('centaur_cli.openrouter.urlopen', return_value=io.BytesIO(json.dumps(payload).encode())):
+            reply = client.complete('main', [], [])
+        self.assertEqual(reply.usage, payload['usage'])
+        self.assertNotIn('usage', reply)
+
+
+class NativeContextTests(unittest.TestCase):
+    def client(self):
+        with patch('centaur_cli.native_client.shutil.which', return_value='/fake/codex'):
+            return NativeClient('codex', 'main')
+
+    def test_timeout_default_override_validation_and_process_cleanup(self):
+        with patch.dict(os.environ, {}, clear=True): self.assertEqual(self.client().timeout, 600)
+        with patch.dict(os.environ, {'CENTAUR_NATIVE_TIMEOUT': '900'}): client = self.client()
+        self.assertEqual(client.timeout, 900)
+        for value in ('no', '0', '29', '3601'):
+            with patch.dict(os.environ, {'CENTAUR_NATIVE_TIMEOUT': value}):
+                with self.assertRaisesRegex(ValueError, '30 a 3600'): self.client()
+        process = Mock(pid=999)
+        process.communicate.side_effect = [subprocess.TimeoutExpired('codex', 900), ('', '')]
+        with patch('centaur_cli.native_client.subprocess.Popen', return_value=process), \
+                patch('centaur_cli.native_client.os.killpg') as kill:
+            with self.assertRaisesRegex(RuntimeError, '900 segundos'): client.complete('main', [], [])
+        self.assertEqual(process.communicate.call_args_list[0].kwargs['timeout'], 900)
+        kill.assert_called_once()
+
+    def test_codex_cache_limits_and_public_usage_exclude_private_events(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            Path(temporary, 'models_cache.json').write_text(json.dumps({'models': [
+                {'slug': 'main', 'visibility': 'list', 'context_window': 200000},
+                {'slug': 'max', 'visibility': 'list', 'context_window': None, 'max_context_window': 400000}]}))
+            with patch.dict(os.environ, {'CODEX_HOME': temporary}):
+                client = self.client()
+                client.model_catalog()
+            self.assertEqual(client.context_windows, {'main': 200000, 'max': 400000})
+        output = '\n'.join(map(json.dumps, [{'type': 'item.completed', 'item': {'type': 'reasoning', 'text': 'private'}},
+            {'type': 'turn.completed', 'usage': {'input_tokens': 100, 'cached_input_tokens': 80, 'output_tokens': 30}}]))
+        self.assertEqual(codex_usage(output), {'prompt_tokens': 100, 'completion_tokens': 30})
+        self.assertEqual(codex_usage('invalid\n{"type":"turn.completed","usage":null}'), {'prompt_tokens': None, 'completion_tokens': None})

@@ -52,7 +52,7 @@ Se o comando `centaur` não aparecer, execute `pipx ensurepath` e reabra o termi
 
 ### Antes de iniciar a conversa
 
-Ao executar `centaur .`, escolha **Backend → Modelo padrão → Effort → Permissões → Iniciar conversa**.
+Ao executar `centaur .`, escolha **Backend → Modelo padrão → Effort → Permissões → Velocidade → Iniciar conversa**.
 OpenRouter usa uma chave de API; Codex e Claude usam o login dos seus CLIs locais.
 As preferências da pasta ficam pré-selecionadas. ↑/↓ navegam, Enter confirma e Esc volta
 ou cancela; é possível revisar qualquer campo antes de abrir o chat.
@@ -100,11 +100,11 @@ centaur --backend claude /caminho/do/projeto
 
 `--backend` aceita `openrouter` (padrão), `codex` ou `claude`; `CENTAUR_BACKEND` define o padrão. Codex/Claude reutilizam sua própria autenticação, sem solicitar chave OpenRouter. Precisam estar no `PATH`, com versões que suportem as opções de isolamento e resposta estruturada usadas pelo adaptador. Versões incompatíveis são recusadas, sem fallback para outro provedor.
 
-Com **Codex ou Claude conectado**, `$run` cria subagentes no mesmo backend e escolhe o modelo por task conforme complexidade e risco. `delegate_task` aceita título, task e um modelo do catálogo; `cost_tier` é exclusivo do OpenRouter. `--model` pré-seleciona o modelo principal; a opção Padrão do provedor usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. `$config` abre o seletor; `$config <backend> [modelo] [effort] [ask|auto|never]` altera a fonte da IA e o modelo principal, salvando a preferência local; mudar backend/modelo/effort abre novo chat. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo principal solicitado.
+Com **Codex ou Claude conectado**, `$run` cria subagentes no mesmo backend e escolhe o modelo por task conforme complexidade e risco. `delegate_task` aceita título, task e um modelo do catálogo; `cost_tier` é exclusivo do OpenRouter. `--model` pré-seleciona o modelo principal; a opção Padrão do provedor usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. `$config` abre o seletor; `$config <backend> [modelo] [effort] [ask|auto|never] [standard|fast]` altera a fonte da IA e o modelo principal, salvando a preferência local; mudar o backend abre novo chat; modelo, effort e velocidade mantêm a conversa no mesmo backend. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo principal solicitado.
 
-A interface, o autocomplete, `$status` e as aprovações continuam no Centaur. O adaptador usa saídas estruturadas dos CLIs, sem ferramentas nativas de execução/delegação e sem carregar as personalizações locais desses clientes; leituras, gravações e comandos passam pelas ferramentas do harness. Cada etapa envia o contexto Centaur a uma execução efêmera do CLI, com limite de 180 segundos; os históricos ficam no Centaur. O adaptador não interpreta o ID efetivo de modelo quando o CLI não o fornece. As credenciais conhecidas dos backends são ocultadas nas mensagens e saídas e removidas do ambiente dos comandos de projeto.
+A interface, o autocomplete, `$status` e as aprovações continuam no Centaur. O adaptador usa saídas estruturadas dos CLIs, sem ferramentas nativas de execução/delegação e sem carregar as personalizações locais desses clientes; leituras, gravações e comandos passam pelas ferramentas do harness. Cada etapa envia o contexto ativo do Centaur a uma execução efêmera do CLI, com limite padrão de 600 segundos (`CENTAUR_NATIVE_TIMEOUT`, 30–3600); os históricos ficam no Centaur. O adaptador não interpreta o ID efetivo de modelo quando o CLI não o fornece. As credenciais conhecidas dos backends são ocultadas nas mensagens e saídas e removidas do ambiente dos comandos de projeto.
 
-Também aceita `centaur status --ai --backend codex` ou `--backend claude`. A integração nativa não consulta créditos OpenRouter nem estima saldo de assinatura; o canto do terminal orienta consultar o cliente conectado. Usar esses backends segue a autenticação e os limites do respectivo cliente.
+Também aceita `centaur status --ai --backend codex` ou `--backend claude`. A integração nativa consulta cotas do próprio cliente quando disponíveis, sem acessar créditos OpenRouter ou estimar saldo de assinatura. Usar esses backends segue a autenticação e os limites do respectivo cliente.
 
 Referências: [execução estruturada do Codex](https://developers.openai.com/codex/noninteractive), [Claude programático](https://code.claude.com/docs/en/headless) e [opções de isolamento do Claude](https://code.claude.com/docs/en/cli-reference).
 
@@ -131,8 +131,8 @@ que contenham essa chave e oculta seu valor nas saídas de ferramentas e respost
 filhos não recebem `OPENROUTER_API_KEY`; as ferramentas de arquivo bloqueiam o arquivo de credenciais.
 Mensagens e arquivos consultados pelo modelo são enviados ao OpenRouter.
 
-O canto inferior direito exibe créditos com barra e valor em US$. A consulta roda em segundo
-plano ao abrir, a cada 30 segundos e após cada turno. `/credits` solicita uma atualização.
+No OpenRouter, o canto inferior direito exibe créditos com barra e valor em US$. A consulta roda em segundo
+plano ao abrir, a cada 30 segundos e após cada turno. `$credits` ou `/credits` solicita uma atualização.
 Sem conexão, mantém o último valor com `~` para indicar que está desatualizado; sem leitura
 anterior mostra “indisponível”, sem inventar saldo.
 
@@ -150,6 +150,22 @@ chat e no ambiente dos comandos filhos. O endpoint de [saldo da conta exige chav
 gerenciamento](https://openrouter.ai/docs/api/api-reference/credits/get-remaining-credits).
 Sem ela, mostra **Chave**, com seu limite restante consultado em `GET /api/v1/key`;
 “sem limite” significa que a chave não tem teto, sem informar o saldo da conta.
+
+### Cotas do Codex e Claude
+
+No Codex, o Centaur usa a consulta oficial `account/rateLimits/read` do App Server,
+sem enviar prompts ou abrir uma conversa. Mostra o percentual livre das janelas informadas
+(por exemplo, 5h e 7d) e créditos adicionais se a conta os expuser. Créditos Codex são
+mostrados na unidade do cliente, sem conversão inventada para US$.
+
+No Claude, o indicador usa eventos públicos `rate_limit_event` recebidos durante as
+respostas. Antes da primeira leitura aparece “após resposta”; depois, `~` identifica
+uma leitura em cache. Sem percentual informado, mostra apenas o estado de disponibilidade.
+`$credits` atualiza o Codex e relê o último estado disponível do Claude, sem gerar uma
+chamada paga. Autenticações por API ou CLIs que não exponham cotas podem mostrar “indisponível”.
+
+Referências: [App Server Codex](https://developers.openai.com/codex/app-server)
+e [eventos de limite Claude](https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/types.py).
 
 ### Conversa e progresso
 
@@ -172,8 +188,16 @@ renomear manualmente sempre tem prioridade, inclusive quando a geração termina
 `$status` local não faz essa chamada. Credenciais e raciocínio privado não entram no pedido
 de título; a geração recebe apenas trechos da primeira troca da conversa, sem ferramentas.
 
-Ao redimensionar a janela, cabeçalho, histórico, lista de chats, entrada e barra de créditos
+Ao redimensionar a janela, cabeçalho, histórico, lista de chats, entrada e barras do rodapé
 são reposicionados e o texto é quebrado novamente. O rascunho e a conversa são preservados.
+
+A caixa cinza de mensagem começa com três linhas e cresce até oito, conforme o espaço.
+O texto quebra visualmente na borda sem alterar a mensagem enviada. **Shift+Enter** insere
+uma quebra real; **Enter** envia o texto completo. **Ctrl+J** é a alternativa em terminais
+que não distinguem Shift+Enter de Enter. Kitty/CSI-u e xterm modifyOtherKeys são aceitos;
+o suporte também depende do emulador, multiplexador e seus atalhos. Colagem com bracketed
+paste mantém as quebras e nunca envia a mensagem automaticamente. ↑/↓ movem o cursor
+quando o rascunho tem várias linhas; PgUp/PgDn e o mouse continuam disponíveis para o chat.
 
 | Controle | Ação |
 | --- | --- |
@@ -181,18 +205,20 @@ são reposicionados e o texto é quebrado novamente. O rascunho e a conversa sã
 | `↑` / `↓` e Enter | Selecionar e retomar um chat quando o turno atual terminar. |
 | Delete | Excluir o chat selecionado na lista e seu histórico salvo. Chats em execução aguardam o fim do turno. |
 | Esc ou `→` | Voltar da lista para a conversa. |
-| `$` | Autocomplete das skills Centaur; digite para filtrar. |
+| `$` | Autocomplete das skills Centaur e comandos locais (`config`, `status`, `compact`); digite para filtrar. |
 | `@` | Autocomplete de skills adicionais em `.centaur/skills/`. |
 | ↑ / ↓, Tab ou Enter na lista de skills | Escolher e inserir a skill; Esc fecha a lista. Enter após inserir envia a mensagem. |
-| `$config` | Abrir o seletor de backend, modelo e effort. ↑/↓ escolhem, Enter abre/confirma, Esc volta/cancela. Salvar aplica o modo; mudar backend/modelo/effort abre novo chat. |
+| `$config` | Selecionar backend, modelo, effort, permissões e velocidade. ↑/↓ escolhem, Enter confirma, Esc volta/cancela. Modelo, effort e velocidade preservam o chat no mesmo backend; trocar backend cria outro. |
+| `$compact` ou `/compact` | Resumir o contexto antigo com IA, mantendo as últimas mensagens e o histórico completo. |
+| Enter / Shift+Enter ou Ctrl+J | Enviar a mensagem / inserir uma nova linha. No autocomplete, Enter insere primeiro a opção selecionada. |
 | R ou F2 na lista de chats | Renomear a conversa selecionada; Enter salva e Esc cancela. |
 | `/rename` ou `/rename Novo título` | Renomear a conversa atual sem chamar o modelo. |
 | `Ctrl+O` | Alternar resumo e detalhes das ferramentas na conversa. |
 | `/new` | Criar outra conversa. |
 | `$status` | Mostrar a árvore local das specs, sem chamar o modelo. |
 | `$status --ai` | Analisar evidências e recomendar o que pode concluir ou rodar, somente leitura. |
-| `/credits` | Atualizar o indicador de créditos sem enviar mensagem ao modelo. |
-| ↑ / ↓, PgUp / PgDn ou roda do mouse | Rolar o histórico. Novas mensagens preservam a posição de leitura; listas têm prioridade para as setas. PgUp/PgDn também revisam confirmações. |
+| `$credits` ou `/credits` | Atualizar o indicador de créditos sem enviar mensagem ao modelo. |
+| ↑ / ↓, PgUp / PgDn ou roda do mouse | Rolar o histórico. No rascunho multilinha, ↑/↓ editam linhas. Novas mensagens preservam a posição de leitura; listas têm prioridade para as setas. PgUp/PgDn também revisam confirmações. |
 | Ctrl+E | Voltar ao fim da conversa. |
 | Ctrl+C durante execução | Interromper o turno, encerrar comandos locais e parar computer use. No OpenRouter, a chamada atual pode aguardar o timeout de rede; nenhuma ação nova será aplicada. |
 | ↑ / ↓ ou Tab, Enter, Esc em perguntas | Escolher uma opção, escrever outra resposta ou pular. Pular não autoriza o agente a inventar uma escolha. |
@@ -263,15 +289,45 @@ com resultado registrado. É uma nova solicitação ao mesmo backend, sujeita a 
 Respostas inválidas são recusadas integralmente antes de executar qualquer ferramenta delas.
 A causa exata de uma falha depende do CLI e modelo; não há troca silenciosa de backend.
 
+### Contexto restante e compactação
+
+A barra à esquerda do rodapé indica **contexto livre**, separado dos créditos à direita.
+`~` marca estimativa: são consideradas mensagens, prompt de projeto e ferramentas; contagens
+de entrada/saída do OpenRouter e eventos públicos do Codex refinam a indicação quando disponíveis.
+Ela não soma o consumo de todas as chamadas ou dos subagentes. O custo de imagens e a
+tokenização variam; a porcentagem não é garantia de que o próximo pedido caberá.
+O limite vem do catálogo OpenRouter ou do cache local de modelos Codex. Sem limite conhecido,
+a barra mostra `[?]` e tokens estimados, sem porcentagem. Para um modelo personalizado ou
+Claude, informe a janela real, em tokens, com `CENTAUR_CONTEXT_WINDOW=200000 centaur .`.
+O valor substitui o catálogo; uma variável inválida não cria um limite fictício.
+
+Use **`$compact`** antes de esgotar o contexto, ou após um erro antes de `/retry`.
+O mesmo backend/modelo resume objetivos, restrições, decisões, alterações, validações e
+pendências. É uma chamada de IA sujeita a custos/limites, sem ferramentas; históricos
+extensos são resumidos em fragmentos. As próximas chamadas recebem esse resumo e as
+mensagens recentes, preservando lotes de ferramentas completos. O histórico em disco e
+na tela permanece inteiro, inclusive erros e resultados anteriores; retomadas não repetem
+ações registradas. Resumos não concedem permissão. Ctrl+C cancela; erro, falha ao salvar
+ou resumo que não reduza o contexto mantêm a memória anterior. Não há compactação automática.
+Em conversas curtas, o comando informa que não há mensagens antigas elegíveis.
+
+Para requisições nativas mais demoradas:
+
+```bash
+CENTAUR_NATIVE_TIMEOUT=900 centaur --backend codex .
+```
+
+Esse timeout é por chamada ao Codex/Claude; Ctrl+C continua encerrando o processo.
+
 ### Preferências e esforço de raciocínio
 
-Use `$config` para escolher **Backend → Modelo → Effort → Permissões → Salvar preferências**.
+Use `$config` para escolher **Backend → Modelo → Effort → Permissões → Velocidade → Salvar preferências**.
 
 ![Seletor de effort no terminal](docs/cli-effort.png)
 
 *Os níveis disponíveis variam conforme o catálogo do modelo.*
-Nada é aplicado ao navegar ou cancelar. Mudar somente permissões mantém a conversa;
-mudar backend, modelo ou effort abre um chat novo. A validação de instalação/autenticação roda em segundo plano, sem chamar um
+Nada é aplicado ao navegar ou cancelar. Modelo, effort, velocidade e permissões mantêm
+o ID, o título e o histórico da conversa no mesmo backend. Trocar o backend abre outro chat. A validação de instalação/autenticação roda em segundo plano, sem chamar um
 modelo. Se falhar, o seletor conserva as escolhas e mostra como tentar novamente.
 
 No seletor de modelos, digite para filtrar localmente; Ctrl+U limpa. **Modelo personalizado**
@@ -291,6 +347,23 @@ O nível `ultra` do cache Codex não é exposto porque ativa delegação nativa,
 Centaur. Subagentes continuam com o esforço padrão de seu próprio modelo; o limite
 `--max-subagent-tier` controla a faixa de custo do roteamento, separadamente.
 
+**Velocidade** é independente de effort. Padrão é `standard`; Rápido (`fast`) só aparece
+quando o modelo anuncia suporte. Pode consumir mais créditos ou ter preço maior.
+Codex usa as capacidades do cache local e `fast_mode`/`service_tier`; Claude permite os
+modelos Opus compatíveis e exige CLI 2.1.205+ para configurar Fast em modo programático.
+OpenRouter reconhece endpoints Fast/priority anunciados e envia `service_tier: "fast"`.
+A disponibilidade também depende da conta e do provedor; não se troca de modelo para
+ativar Fast. O cabeçalho distingue pedido de Fast de uma confirmação ou fallback informado
+pelo provedor. Selecionar Padrão desativa a solicitação nas próximas chamadas.
+
+Use `$config` para mudar e retornar ao mesmo chat. Também aceita `--speed fast` e
+`CENTAUR_SPEED=fast`; a preferência fica salva por projeto. A velocidade escolhida controla
+o agente principal; o roteamento de subagentes continua independente.
+
+Referências: [velocidade Codex](https://developers.openai.com/codex/speed),
+[Fast Claude](https://code.claude.com/docs/en/fast-mode)
+e [tiers OpenRouter](https://openrouter.ai/docs/guides/features/service-tiers).
+
 Também são aceitos comandos diretos e opções iniciais:
 
 ```bash
@@ -306,11 +379,11 @@ centaur . --no-setup --backend codex --model gpt-6.1-sol --effort high
 ```
 
 Preferências ficam em `.centaur/config.json`, sem credenciais. Arquivos antigos com apenas
-`backend` e `model` continuam válidos; sem `approval_mode`, usam `ask`. Para backend/modelo/effort, flags têm prioridade sobre
+`backend` e `model` continuam válidos; sem `approval_mode`, usam `ask`. Para backend/modelo/effort/velocidade, flags têm prioridade sobre
 variáveis de ambiente (`CENTAUR_BACKEND`, `CENTAUR_MODEL` / `OPENROUTER_MODEL`,
-`CENTAUR_EFFORT`), que têm prioridade sobre preferências locais. Ao mudar o backend, modelo
-e effort salvos de outro backend não são reaproveitados. Cada chat novo registra o effort;
-retomar um chat preserva seu modelo e seu effort original. Chats antigos usam `default`.
+`CENTAUR_EFFORT`, `CENTAUR_SPEED`), que têm prioridade sobre preferências locais. Ao mudar o backend, modelo
+e effort salvos de outro backend não são reaproveitados. Cada chat registra modelo, effort e velocidade;
+retomar preserva essas escolhas. Chats antigos usam effort `default` e velocidade `standard`.
 
 O terminal desenha o emblema **Convergência** com um renderizador gráfico próprio: duas
 faixas curvas finas, prateada e verde, que se encontram em uma ponta comum, e uma flecha
@@ -373,7 +446,7 @@ O autocomplete `@` lista somente skills adicionais da pasta `.centaur/skills/` d
 
 Limites desta versão: respostas completas, sem streaming; uma execução ativa por conversa;
 sem limite fixo de etapas no agente principal ou nos executores; Ctrl+C interrompe o turno.
-Timeout de 60 segundos por requisição OpenRouter/comando e 180 segundos por requisição nativa; sem compactação
+Timeout de 60 segundos por requisição OpenRouter/comando e 600 segundos por requisição nativa (configurável); compactação manual com `$compact`, sem compactação
 automática do contexto, MCP ou importação de chats de outros clientes. Subagentes executam
 sequencialmente, até 12 por turno, sem delegação recursiva. Use uma única instância
 por conversa para evitar sobrescrever histórico. Ferramentas de leitura retornam até 24 mil

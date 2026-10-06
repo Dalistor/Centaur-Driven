@@ -6,6 +6,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .credits import CreditBalance, amount
+from .speed import validate_speed
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -19,9 +20,11 @@ urlopen = build_opener(NoRedirect()).open
 class ModelReply(dict):
     """Mensagem com metadados locais que não são reenviados ao provedor."""
 
-    def __init__(self, message, model=None):
+    def __init__(self, message, model=None, usage=None, service_tier=None):
         super().__init__(message)
         self.model = model
+        self.usage = usage or {}
+        self.service_tier = service_tier
 
 class OpenRouter:
     backend = 'openrouter'
@@ -31,6 +34,31 @@ class OpenRouter:
         self.api_key = api_key
         self.credits_key = credits_key
         self.model_efforts = {}
+        self.context_windows = {}
+        self.speed_support = {}
+
+    def supports_fast(self, model):
+        if not model or model.startswith('openrouter/') or ':' in model:
+            return False
+        if model not in self.speed_support:
+            request = Request('https://openrouter.ai/api/v1/models/' + model + '/endpoints',
+                              headers={'Authorization': 'Bearer ' + self.api_key} if self.api_key else {})
+            try:
+                with urlopen(request, timeout=10) as response:
+                    endpoints = json.load(response)['data']['endpoints']
+                self.speed_support[model] = any(
+                    isinstance(entry, dict) and (
+                        entry.get('service_tier') in ('fast', 'priority')
+                        or str(entry.get('tag', '')).rsplit('/', 1)[-1] in ('fast', 'priority'))
+                    for entry in endpoints)
+            except (HTTPError, URLError, TimeoutError, OSError, ValueError, KeyError, TypeError):
+                raise RuntimeError('Suporte ao modo rápido indisponível; mantenha Padrão ou tente novamente.') from None
+        return self.speed_support[model]
+
+    def check_speed(self, model, speed):
+        validate_speed(speed)
+        if speed == 'fast' and not self.supports_fast(model):
+            raise ValueError('Este modelo não anuncia capacidade Fast/priority; selecione Padrão.')
 
     @property
     def secrets(self):
@@ -91,6 +119,8 @@ class OpenRouter:
                 data = json.load(response)['data']
             from .config import EFFORTS
             self.model_efforts = {}
+            self.context_windows = {entry['id']: entry['context_length'] for entry in data
+                                    if type(entry.get('context_length')) is int and entry['context_length'] > 0}
             for entry in data:
                 reasoning = entry.get('reasoning') or {}
                 levels = reasoning.get('supported_efforts', [])
@@ -104,9 +134,10 @@ class OpenRouter:
         except (HTTPError, URLError, TimeoutError, OSError, ValueError, KeyError, TypeError):
             raise RuntimeError('Catálogo indisponível; use Modelo personalizado ou tente novamente.') from None
 
-    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default'):
+    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', speed='standard'):
         from .config import validate_effort
         validate_effort(self.backend, effort)
+        self.check_speed(model, speed)
         if model in self.model_efforts and effort not in self.model_efforts[model]:
             raise ValueError('Este modelo não aceita o effort selecionado; use $config e escolha um nível disponível.')
         payload = {'messages': messages,
@@ -115,6 +146,8 @@ class OpenRouter:
             payload['tools'] = tools
         if effort != 'default':
             payload['reasoning'] = {'effort': effort}
+        if speed == 'fast':
+            payload['service_tier'] = 'fast'
         if model:
             payload['model'] = model
         if model in ('openrouter/auto', 'openrouter/auto-beta') and cost_tier:
@@ -138,7 +171,9 @@ class OpenRouter:
             if not message.get('content') and not message.get('tool_calls'):
                 raise RuntimeError('OpenRouter retornou uma resposta vazia.')
             return ModelReply(json.loads(self.redact(json.dumps(message))),
-                              self.redact(str(result['model'])) if result.get('model') else None)
+                              self.redact(str(result['model'])) if result.get('model') else None,
+                              result.get('usage') if isinstance(result.get('usage'), dict) else None,
+                              result.get('service_tier'))
         except HTTPError as error:
             raise RuntimeError(f'OpenRouter HTTP {error.code}. Confira chave, saldo e modelo.') from error
         except (URLError, TimeoutError) as error:

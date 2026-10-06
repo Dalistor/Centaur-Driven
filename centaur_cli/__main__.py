@@ -9,7 +9,7 @@ from . import __version__
 
 from .history import ChatStore
 from .credentials import CredentialStore
-from .backends import BACKENDS, create_client, resolve_selection, resolve_effort, resolve_approval_mode
+from .backends import BACKENDS, create_client, resolve_selection, resolve_effort, resolve_approval_mode, resolve_speed
 from .permissions import APPROVAL_MODES
 from .config import EFFORTS, save_config, validate
 from .setup import configure_key
@@ -32,6 +32,8 @@ def main():
                         help='Modelo principal; subagentes podem escolher modelos do mesmo backend')
     parser.add_argument('--effort', choices=EFFORTS, default=None,
                         help='Esforço de raciocínio do modelo principal (padrão: do provedor)')
+    parser.add_argument('--speed', choices=('standard', 'fast'), default=None,
+                        help='Velocidade: standard ou fast em modelos compatíveis; fast pode custar mais')
     parser.add_argument('--no-setup', action='store_true',
                         help='Abrir diretamente com flags/preferências, sem o seletor inicial')
     parser.add_argument('--approval-mode', choices=APPROVAL_MODES, default=None,
@@ -58,30 +60,34 @@ def main():
         options.backend, model = resolve_selection(root, options.backend, options.model)
         effort = resolve_effort(root, options.backend, options.effort)
         approval_mode = resolve_approval_mode(root, options.approval_mode)
+        speed = resolve_speed(root, options.backend, options.speed)
         if options.no_setup:
             client = create_client(options.backend, model)
+            if callable(getattr(client, 'check_speed', None)): client.check_speed(model, speed)
         else:
-            wizard = StartupWizard(options.backend, model, effort, approval_mode)
+            wizard = StartupWizard(options.backend, model, effort, approval_mode, speed)
             while True:
                 selection = curses.wrapper(wizard.run)
                 if selection is None:
                     print('Inicialização cancelada.')
                     return
                 backend, model, effort, approval_mode = selection
+                speed = wizard.picker.speed
                 try:
                     validate(backend, model, effort, approval_mode)
                     # Leave curses before credential entry, preserving masked input.
                     client = create_client(backend, model)
+                    if callable(getattr(client, 'check_speed', None)): client.check_speed(model, speed)
                     if any(secret and secret in model for secret in getattr(client, 'secrets', ())):
                         raise ValueError('Chave detectada no modelo; informe apenas o ID do modelo.')
-                    save_config(root, backend, model, effort, approval_mode)
+                    save_config(root, backend, model, effort, approval_mode, speed)
                 except (RuntimeError, OSError, ValueError) as error:
                     wizard.picker.error = str(error)
                     wizard.picker.page, wizard.picker.row = 'fields', len(wizard.picker.fields) - 1
                     continue
                 break
         curses.wrapper(Terminal(root, model, ChatStore(root), client,
-                                options.max_subagent_tier, effort=effort, approval_mode=approval_mode).run)
+                                options.max_subagent_tier, effort=effort, approval_mode=approval_mode, speed=speed).run)
     except (RuntimeError, ValueError) as error:
         parser.exit(1, f'{error}\n')
     except (OSError, curses.error) as error:

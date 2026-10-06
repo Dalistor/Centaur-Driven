@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import tempfile
 from .permissions import validate_mode
+from .speed import validate_speed
 
 BACKENDS = ('openrouter', 'codex', 'claude')
 EFFORTS = ('default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')
@@ -32,7 +33,7 @@ def config_path(root):
     return path
 
 
-def validate(backend, model, effort=None, approval_mode=None):
+def validate(backend, model, effort=None, approval_mode=None, speed=None):
     if backend not in BACKENDS:
         raise ValueError('Backend inválido: use openrouter, codex ou claude.')
     if not isinstance(model, str) or (model and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}', model)):
@@ -42,6 +43,8 @@ def validate(backend, model, effort=None, approval_mode=None):
         data['effort'] = validate_effort(backend, effort)
     if approval_mode is not None:
         data['approval_mode'] = validate_mode(approval_mode)
+    if speed is not None:
+        data['speed'] = validate_speed(speed)
     return data
 
 
@@ -51,15 +54,15 @@ def load_config(root):
         return {}
     data = json.loads(path.read_text(encoding='utf-8'))
     if (not isinstance(data, dict) or not {'backend', 'model'} <= set(data)
-            or set(data) - {'backend', 'model', 'effort', 'approval_mode'}):
+            or set(data) - {'backend', 'model', 'effort', 'approval_mode', 'speed'}):
         raise ValueError('Configuração local inválida; use backend, model, effort e approval_mode opcionais.')
     if 'effort' in data:
         validate_effort(data['backend'], data['effort'])
-    return validate(data['backend'], data['model'], data.get('effort'), data.get('approval_mode'))
+    return validate(data['backend'], data['model'], data.get('effort'), data.get('approval_mode'), data.get('speed'))
 
 
-def save_config(root, backend, model, effort=None, approval_mode=None):
-    data = validate(backend, model, effort, approval_mode)
+def save_config(root, backend, model, effort=None, approval_mode=None, speed=None):
+    data = validate(backend, model, effort, approval_mode, speed)
     path = config_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix='.config-', dir=path.parent)

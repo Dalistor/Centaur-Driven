@@ -76,14 +76,15 @@ class SettingsTests(unittest.TestCase):
             restore.assert_called_once_with('X')
         self.assertEqual(read_key(InputScreen('\x1b')), '\x1b')
 
-    def test_wide_text_viewport_keeps_the_cursor_content_visible(self):
+    def test_wide_text_wraps_and_keeps_the_cursor_content_visible(self):
         terminal = self.terminal
         terminal.draft = '汉' * 25 + 'END'
         screen = Screen((24, 40))
         TerminalView().draw(screen, terminal)
-        line = next(entry[2] for entry in screen.output if entry[:2] == (21, 4))
-        self.assertTrue(line.endswith('END'))
-        self.assertEqual(screen.cursor, (21, 4 + cell_width(line)))
+        lines = [(row, text) for row, column, text, _ in screen.output if column == 4 and 19 <= row <= 21]
+        self.assertEqual(''.join(text for _, text in lines), terminal.draft)
+        self.assertTrue(lines[-1][1].endswith('END'))
+        self.assertEqual(screen.cursor, (lines[-1][0], 4 + cell_width(lines[-1][1])))
 
     def test_custom_model_reconciles_unsupported_effort(self):
         picker = ConfigPicker('openrouter', 'deep', 'high')
@@ -200,7 +201,7 @@ class SettingsTests(unittest.TestCase):
         self.store.save(terminal.chat)
         terminal.configure('$config')
         picker = terminal.settings
-        picker.row, picker.effort = 4, 'low'
+        picker.row, picker.effort = len(picker.fields) - 1, 'low'
         class ImmediateThread:
             def __init__(self, target, **kwargs): self.target = target
             def start(self): self.target()
@@ -221,7 +222,7 @@ class SettingsTests(unittest.TestCase):
         self.assertIsNone(terminal.settings)
         self.assertEqual(load_config(self.root)['effort'], 'low')
         self.assertEqual(terminal.chat['effort'], 'low')
-        self.assertNotEqual(terminal.chat['id'], original)
+        self.assertEqual(terminal.chat['id'], original)
         self.assertEqual(self.store.list()[0]['id'], original)
 
     def test_public_catalog_does_not_require_credentials_when_switching_backends(self):

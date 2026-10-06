@@ -33,7 +33,7 @@ Para atualizar: `pipx upgrade centaur-cli`, ou `python3 -m pip install --upgrade
 ## Backends
 
 ```bash
-# Abre a seleção inicial: backend, modelo padrão, effort e permissões.
+# Abre a seleção inicial: backend, modelo padrão, effort, permissões e velocidade.
 centaur .
 
 codex login
@@ -43,7 +43,7 @@ claude auth login
 centaur --backend claude .
 ```
 
-Antes de abrir o chat, escolha **Backend → Modelo padrão → Effort → Permissões → Iniciar conversa**.
+Antes de abrir o chat, escolha **Backend → Modelo padrão → Effort → Permissões → Velocidade → Iniciar conversa**.
 As preferências da pasta ficam pré-selecionadas. Flags como `--backend`, `--model` e
 `--effort` também preenchem essas escolhas; `--no-setup` abre diretamente com elas.
 ↑/↓ navegam, Enter confirma e Esc volta ou cancela.
@@ -59,13 +59,18 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 
 ## Recursos
 
-- `$config`: seletor de backend, modelo e esforço de raciocínio.
+- `$config`: backend, modelo, effort, permissões e velocidade; alterações no mesmo backend preservam o chat.
+- Fast quando anunciado pelo modelo, independente de effort; pode consumir mais créditos. `--speed fast` e `CENTAUR_SPEED` também configuram.
+- `$credits`: cotas e créditos Codex via App Server; Claude usa eventos públicos da resposta com indicação de cache. Dados ausentes não recebem saldos inventados.
 - `$status`: árvore local das specs; `$status --ai` analisa evidências somente em leitura. `/status` permanece como alias.
 - `Shift+←` ou `/chats`: histórico por pasta; `/rename` renomeia a conversa.
 - Skills distribuídas no pacote: `$spec`, `$run`, `$check`, `$skill` e outras.
 - Permissões por seletor: pedir aprovação, automático de baixo risco ou sem perguntar; subagentes herdam o modo.
 - Automático reconhece o validador de ciclo de vida incluído, documentos de `.centaur` e consultas com glob ou leitura por intervalos.
 - `/wide` amplia o chat; erros completos e `/retry` preservam o turno e os resultados anteriores.
+- Entrada com quebra automática, Shift+Enter/Ctrl+J para nova linha e campo de três a oito linhas; colagem protegida não envia automaticamente.
+- Barra de contexto livre estimado; `$compact` resume mensagens antigas com IA sem apagar o histórico ou repetir ferramentas. `/compact` é alias.
+- Timeout Codex/Claude de 600s por chamada; `CENTAUR_NATIVE_TIMEOUT=900` ajusta (30–3600s). `CENTAUR_CONTEXT_WINDOW` informa a janela real quando não consta no catálogo.
 - Turnos sem limite fixo de etapas; Ctrl+C interrompe comandos e bloqueia novas ações.
 - Histórico com setas, PgUp/PgDn e roda do mouse; Ctrl+E volta ao fim, sem perder a posição quando chegam mensagens.
 - Perguntas interativas da IA, com opções ou resposta livre e preservação do rascunho.

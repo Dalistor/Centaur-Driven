@@ -8,17 +8,22 @@ rename e melhorias visuais; as regras de desenvolvimento vêm de
 | Capacidade | Dono canônico | Estados e contrato | Verificação |
 | --- | --- | --- | --- |
 | Select/Listbox | `settings.ConfigPicker`, `appearance.TerminalView.settings` | ↑/↓ selecionam; Enter abre/confirma; Esc volta/cancela; filtro local; salvar explícito | `tests/test_terminal_settings.py` |
-| Inicialização | `startup.StartupPicker`, `StartupWizard`, `__main__.main` | Backend → modelo → effort → permissões → revisão; escolhas antes de autenticar; cancelar não cria chat; falha permite tentar novamente | `tests/test_startup.py`, terminal real com PTY |
+| Inicialização | `startup.StartupPicker`, `StartupWizard`, `__main__.main` | Backend → modelo → effort → permissões → velocidade → revisão; escolhas antes de autenticar; cancelar não cria chat; falha permite tentar novamente | `tests/test_startup.py`, terminal real com PTY |
 | Form | `Terminal.handle_settings`, `Terminal.handle_rename` | Validação textual, valores preservados em falha; bloqueio de salvamento duplicado | `tests/test_terminal_settings.py` |
 | Feedback | `Terminal.notice`, `ConfigPicker.error`, `TerminalView.draw` | Mensagem no rodapé, erro permanece no seletor; não substituir erro por sucesso | `tests/test_terminal_settings.py` |
 | Chats | `history.ChatStore`, `Terminal` | IDs imutáveis, gravação atômica, retomada por seleção; rename lê conteúdo atual do disco | `tests/test_cli.py`, `tests/test_terminal_settings.py` |
 | Gráfico da abertura | `graphics.Renderer`, `WelcomeAnimation`, `Palette`, `TerminalView.logo` | Relógio visível; giro finito; digitação encerra; F5 repete; resize mantém fase; reduced motion e fallback estáticos | `tests/test_graphics.py` |
 | Histórico e foco | `Terminal.cursor`, `Terminal.scroll`, `TerminalView` | Shift+← ou /chats abre lista; rascunho preservado ao voltar/cancelar; PgUp/PgDn rolam | `tests/test_terminal_settings.py` |
+| Entrada multilinha | `composer.layout_input`, `keyboard.KeyboardReader`, `Terminal.handle` | Quebra visual sem alterar texto; Enter envia, Shift+Enter/Ctrl+J insere linha; colagem não envia ou aprova | `tests/test_composer.py` |
+| Velocidade | `speed`, `ConfigPicker`, `NativeClient`, `OpenRouter` | Standard padrão; Fast só anunciado; custo explicado; não altera modelo/effort; tier solicitado não é tier confirmado | `tests/test_native_usage_speed.py` |
+| Cotas nativas | `native_usage`, `Terminal.request_credits` | RPC Codex somente leitura; eventos Claude públicos em cache; sem saldo inventado, credenciais ou prompts na consulta | `tests/test_native_usage_speed.py` |
+| Contexto e compactação | `context.active_messages`, `compact_chat`, `Terminal.drain_events` | Barra estimada sem limite inventado; resumo sem ferramentas; histórico completo e lotes intactos; cancelamento/falha preservam memória | `tests/test_context.py` |
 | Trabalho e permissões | `Terminal.approval`, `ProjectTools` | Troca/rename do chat ativo aguardam turno; aprovações continuam prioritárias | `tests/test_cli.py` |
 | Ciclo de vida | `lifecycle.load_project`, `spec_completion_issues` | Gate somente leitura; prova corrente e integração separadas; conclusão não deriva do status | `tests/test_lifecycle.py` |
 
-Escolher backend/modelo/effort não grava. Salvar valida em segundo plano e, somente após
-persistir a configuração, troca o cliente e abre chat novo. Falha mantém conversa e escolhas.
+Escolher backend/modelo/effort/velocidade não grava. Salvar valida em segundo plano e,
+somente após persistir a configuração, aplica as escolhas. No mesmo backend preserva
+ID/título/mensagens/memória/erro; troca de backend cria chat novo. Falha mantém conversa e escolhas.
 Catálogo atrasado só atualiza o seletor que iniciou a leitura e o mesmo backend. Catálogo
 indisponível permite informar ID; resultado de rede não é confundido com prova de acesso ao
 modelo. Credenciais não entram na configuração, no título ou na conversa.
@@ -28,8 +33,10 @@ Título deve ter 1–80 caracteres imprimíveis. Enter salva; Esc cancela; uma f
 texto digitado. Um chat em execução não pode ser renomeado. A lista mantém selecionado o
 ID editado, mesmo se a ordenação por data mudar.
 
-Resize conserva conteúdo e posição do cursor; a entrada mostra a janela que contém o
-cursor, medida em células Unicode. Movimento reduzido e ausência de cor preservam todos
+Resize conserva conteúdo e posição do cursor; a entrada mostra as linhas que contêm o
+cursor, medidas em células Unicode, com três linhas iniciais e até oito conforme o espaço.
+Modais mantêm sua geometria de edição; teclas e colagens do chat não confirmam permissões.
+Movimento reduzido e ausência de cor preservam todos
 os comandos e a indicação textual da seleção. As superfícies são de terminal, sem HTML,
 DOM, popups de navegador, fontes remotas ou scrollbars CSS.
 
@@ -76,8 +83,8 @@ Fonte: pedido do usuário e escolha “Edições e consultas” para o modo auto
 Contrato de execução: [docs/permissions.md](docs/permissions.md). `permissions.py` é o dono da
 classificação; `ProjectTools` aplica a regra; `SubagentTools` herda o modo sem poder ampliá-lo.
 `ConfigPicker` e `StartupPicker` compartilham opções, seleção e confirmação. Padrão legado: ask.
-Cancelar ou falhar ao salvar conserva o modo e a conversa ativos. Aplicar somente permissões
-preserva o chat; mudanças de backend/modelo/effort criam outro. Histórico não concede permissões.
+Cancelar ou falhar ao salvar conserva o modo e a conversa ativos. Aplicar permissões, modelo, effort ou velocidade
+preserva o chat no mesmo backend; mudar backend cria outro. Histórico não concede permissões.
 O modo auto inclui documentos de `.centaur` e o validador de ciclo de vida instalado;
 Python e Git usam execução isolada de hooks/ambiente e executáveis do sistema.
 

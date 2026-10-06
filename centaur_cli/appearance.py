@@ -6,7 +6,8 @@ import sys
 import time
 import unicodedata
 
-from .credits import credit_label
+from .credits import CreditBalance, credit_label
+from .native_usage import native_label
 from .graphics import WelcomeAnimation, flat_symbol
 
 WORDMARK = 'C E N T A U R'
@@ -212,9 +213,9 @@ class TerminalView:
         from .permissions import MODE_HELP
         picker = terminal.settings
         startup = getattr(picker, 'startup', False)
-        heading = {'backend': '1/4 · Escolha sua conexão', 'model': '2/4 · Modelo padrão',
-                   'custom': '2/4 · Modelo personalizado', 'effort': '3/4 · Effort',
-                   'permissions': '4/4 · Permissões',
+        heading = {'backend': '1/5 · Escolha sua conexão', 'model': '2/5 · Modelo padrão',
+                   'custom': '2/5 · Modelo personalizado', 'effort': '3/5 · Effort',
+                   'permissions': '4/5 · Permissões', 'speed': '5/5 · Velocidade',
                    'fields': 'Tudo pronto para começar'}
         self.put(screen, top, 3, heading[picker.page] if startup else 'PREFERÊNCIAS DA IA', 'green')
         self.put(screen, top + 1, 3, 'Revise sua escolha antes de iniciar o chat.' if startup
@@ -230,10 +231,10 @@ class TerminalView:
                          width - 6 if index == len(picker.fields) - 1 else max(12, width // 2 - 5))
                 if index != len(picker.fields) - 1:
                     self.put(screen, row, width // 2, value, style)
-            if available > 9:
-                self.put(screen, top + 8, 3, 'Effort: raciocínio do modelo principal.', 'muted')
-                self.put(screen, top + 9, 3, 'Enter em Iniciar conversa confirma sua escolha.' if startup
-                         else 'Só mudar permissões mantém a conversa.', 'muted')
+            if available > len(picker.fields) + 4:
+                self.put(screen, top + 3 + len(picker.fields), 3, 'Effort: raciocínio · Fast: pode custar mais.', 'muted')
+                self.put(screen, top + 4 + len(picker.fields), 3, 'Enter em Iniciar conversa confirma sua escolha.' if startup
+                         else 'Modelo, effort e velocidade mantêm este chat.', 'muted')
         elif picker.page == 'custom':
             self.put(screen, top + 3, 3, 'ID ou alias do modelo', 'blue')
             visible, _ = input_window(picker.query, len(picker.query), max(1, width - 8))
@@ -241,6 +242,7 @@ class TerminalView:
         else:
             title = {'backend': 'Backend', 'model': 'Modelo · digite para filtrar',
                      'effort': 'Effort · níveis dependem do modelo',
+                     'speed': 'Velocidade · suporte depende do modelo/conta',
                      'permissions': 'Permissões das ferramentas'}[picker.page]
             self.put(screen, top + 3, 3, title, 'blue')
             if picker.page == 'model':
@@ -254,6 +256,13 @@ class TerminalView:
                 style = 'selected' if selected else 'text'
                 self.put(screen, top + offset + index, 2, ' ' * (width - 5), style)
                 self.put(screen, top + offset + index, 3, f'{">" if selected else " "} {label}', style)
+            if picker.page == 'speed':
+                room = available - offset - len(choices[start:start + visible])
+                from .terminal import display_lines
+                explanation = ('Fast solicita maior velocidade, com maior consumo/custo; effort e modelo são preservados.'
+                               if len(choices) > 1 else 'Fast não anunciado. Consulte o catálogo ou escolha um modelo compatível.')
+                for row_offset, line in enumerate(display_lines(explanation, width - 6)[:max(0, room)]):
+                    self.put(screen, top + offset + len(choices[start:start + visible]) + row_offset, 3, line, 'muted')
             if picker.page == 'permissions':
                 from .terminal import display_lines
                 mode = choices[picker.selected][0]
@@ -302,7 +311,8 @@ class TerminalView:
         screen.bkgd(' ', self.palette.styles['text'])
         screen.erase()
         height, width = screen.getmaxyx()
-        credits, credit_style = credit_label(terminal.credits, terminal.credits_status, width)
+        credits, credit_style = (native_label(terminal.credits, terminal.credits_status, max(16, (width - 5) // 2), terminal.backend)
+                                 if terminal.backend != 'openrouter' else credit_label(terminal.credits, terminal.credits_status, width))
         if height < 12 or width < 40:
             self.animation.pause()
             self.put(screen, 0, 0, WORDMARK, 'green')
@@ -318,7 +328,12 @@ class TerminalView:
         transcript_width = width - 6 if terminal.wide_chat else min(100, width - 6)
         transcript_left = max(3, (width - transcript_width) // 2)
         from .permissions import MODE_LABELS
-        model = MODE_LABELS[terminal.approval_mode] + ' · ' + terminal.backend + ' · ' + (terminal.chat['model'] or 'padrão')
+        speed_label = ''
+        if terminal.chat.get('speed') == 'fast':
+            served = terminal.chat.get('speed_served')
+            speed_label = ('Fast' if served in ('fast', 'priority') else 'Padrão (fallback)' if served in ('standard', 'default')
+                           else 'Fast solicitado' if width >= 80 else 'Fast?') + ' · '
+        model = MODE_LABELS[terminal.approval_mode] + ' · ' + speed_label + terminal.backend + ' · ' + (terminal.chat['model'] or 'padrão')
         if terminal.computer and terminal.computer.active:
             model = 'TELA ATIVA · ' + model
         if terminal.chat.get('effort', 'default') != 'default':
@@ -332,13 +347,23 @@ class TerminalView:
             self.put(screen, 3, transcript_left, model, model_style, transcript_width)
         self.put(screen, 4, transcript_left, '─' * transcript_width, 'line')
         top, available = 5, height - 11
+        modal = bool(terminal.settings or terminal.rename_target or terminal.browser or terminal.approval or terminal.question)
+        draft = terminal.question.text if terminal.question and terminal.question.custom else '' if terminal.question else terminal.rename_text if terminal.rename_target else terminal.draft
+        cursor = terminal.question.cursor if terminal.question and terminal.question.custom else 0 if terminal.question else terminal.rename_cursor if terminal.rename_target else terminal.cursor
+        composer_left = 2 if modal else transcript_left - 1
+        composer_width = width - 5 if composer_left == 2 else transcript_width + 2
+        input_width = max(1, composer_width - 2)
+        terminal.input_width = input_width
+        from .composer import layout_input
+        layout = layout_input(draft, input_width)
+        cursor_row, cursor_column = layout.positions[min(len(draft), max(0, cursor))]
         if height < 20 and (terminal.settings or terminal.rename_target or terminal.question
                             or terminal.browser or terminal.approval):
             # A compact editor owns the content region so every field remains reachable.
             top, available = 0, height - 6
             for row in range(height - 5):
                 self.put(screen, row, 0, ' ' * (width - 1))
-        elif height < 20 and terminal.chat['messages']:
+        elif height < 20 and (terminal.chat['messages'] or terminal.draft):
             # Preserve a useful conversation viewport even at the minimum 40 × 12.
             top, available = 3, height - 9
             for row in range(height - 5):
@@ -346,6 +371,15 @@ class TerminalView:
             self.put(screen, 0, transcript_left, '◆ ' + terminal.chat['title'], 'title', transcript_width)
             self.put(screen, 1, transcript_left, model, model_style, transcript_width)
             self.put(screen, 2, transcript_left, '─' * transcript_width, 'line')
+        # Keep at least two conversation rows when space allows. The chat input
+        # grows to eight rows; modal editors retain their single-line geometry.
+        capacity = min(8, max(1, available - 1))
+        composer_rows = 1 if modal else min(capacity, max(3, len(layout.lines)))
+        extra_rows = composer_rows - 1
+        available = max(1, available - extra_rows)
+        composer_separator = height - 5 - extra_rows
+        input_top = height - 3 - extra_rows
+        input_start = max(0, min(cursor_row - composer_rows + 1, len(layout.lines) - composer_rows))
         if terminal.settings:
             self.settings(screen, terminal, top, available, width)
         elif terminal.question:
@@ -379,7 +413,7 @@ class TerminalView:
             else:
                 start = terminal.transcript_start(len(lines), available, transcript_width)
                 if terminal.scroll:
-                    self.put(screen, height - 6, transcript_left,
+                    self.put(screen, composer_separator - 1, transcript_left,
                              f'Histórico · linhas {start + 1}–{min(len(lines), start + available)} de {len(lines)} · Ctrl+E fim', 'blue')
             for row, line in enumerate(lines[start:start + available], top):
                 style = 'text'
@@ -402,7 +436,7 @@ class TerminalView:
             visible = min(6, max(1, available - 1))
             start = max(0, terminal.completion.selected - visible + 1)
             choices = terminal.completion.options[start:start + visible]
-            popup_top = height - 5 - len(choices) - 1
+            popup_top = composer_separator - len(choices) - 1
             prefix = terminal.completion.context[1]
             heading = 'Skills Centaur ($)' if prefix == '$' else 'Skills do projeto (@) · .centaur/skills'
             self.put(screen, popup_top, 2, ' ' * (width - 5))
@@ -414,9 +448,7 @@ class TerminalView:
                 self.put(screen, row, 2, ' ' * (width - 5), style)
                 self.put(screen, row, 3, f'{">" if selected else " "} {prefix}{name}', style)
         # The composer follows the same reading column as the conversation.
-        composer_left = 2 if (terminal.settings or terminal.rename_target or terminal.browser or terminal.approval or terminal.question) else transcript_left - 1
-        composer_width = width - 5 if composer_left == 2 else transcript_width + 2
-        self.put(screen, height - 5, composer_left, '─' * composer_width, 'line')
+        self.put(screen, composer_separator, composer_left, '─' * composer_width, 'line')
         notice = terminal.notice
         if terminal.question:
             notice = terminal.question.error or ('Digite abaixo e pressione Enter.' if terminal.question.custom else 'Escolha uma resposta; Esc pula a pergunta.')
@@ -430,17 +462,32 @@ class TerminalView:
             prefix = terminal.completion.context[1]
             notice = ('Nenhuma skill adicional encontrada em .centaur/skills/.' if prefix == '@'
                       else 'Nenhuma skill Centaur corresponde ao nome digitado.')
-        self.put(screen, height - 4, composer_left, notice,
+        self.put(screen, composer_separator + 1, composer_left, notice,
                  'warning' if notice.startswith(('Erro', 'Não foi', 'Chave detectada')) else 'muted')
-        self.put(screen, height - 3, composer_left, ' ' * composer_width, 'user')
-        self.put(screen, height - 3, composer_left, '›', 'green')
-        draft = terminal.question.text if terminal.question and terminal.question.custom else '' if terminal.question else terminal.rename_text if terminal.rename_target else terminal.draft
-        cursor = terminal.question.cursor if terminal.question and terminal.question.custom else 0 if terminal.question else terminal.rename_cursor if terminal.rename_target else terminal.cursor
-        input_width = max(1, composer_width - 2)
-        visible_draft, cursor_column = input_window(draft, cursor, input_width)
-        self.put(screen, height - 3, composer_left + 2, visible_draft, 'user')
-        credits = credits[:max(1, width - 5)]
-        self.put(screen, height - 2, max(2, width - len(credits) - 3), credits, credit_style)
+        if modal:
+            visible_draft, cursor_column = input_window(draft, cursor, input_width)
+            visible_lines, cursor_row, input_start = [visible_draft], 0, 0
+        else:
+            visible_lines = layout.lines[input_start:input_start + composer_rows]
+        for offset in range(composer_rows):
+            self.put(screen, input_top + offset, composer_left, ' ' * composer_width, 'user')
+            if offset < len(visible_lines):
+                self.put(screen, input_top + offset, composer_left + 2, visible_lines[offset], 'user', input_width)
+        self.put(screen, input_top, composer_left, '↑' if input_start else '›', 'green')
+        if input_start + composer_rows < len(layout.lines) and not modal:
+            self.put(screen, input_top + composer_rows - 1, composer_left, '↓', 'muted')
+        footer_width = width - 5
+        if terminal.credits_status == 'unsupported' and terminal.backend == 'openrouter':
+            credits = 'Créditos: CLI'
+        credit_width = min(len(credits), max(12, footer_width - 17))
+        if len(credits) > credit_width and isinstance(terminal.credits, CreditBalance) and terminal.credits.remaining is not None:
+            scope = 'Conta' if terminal.credits.scope == 'account' else 'Chave'
+            credits = f'{scope}: US$ {terminal.credits.remaining:.2f}'
+        credits = fit_cells(credits, credit_width)
+        context_width = footer_width - cell_width(credits) - 2
+        context, context_style = terminal.context_label(context_width)
+        self.put(screen, height - 2, 2, context, context_style, context_width)
+        self.put(screen, height - 2, width - cell_width(credits) - 3, credits, credit_style)
         hints = ('Aguarde a validação…' if terminal.settings and terminal.settings.pending else
                  '↑↓/Tab escolher · Enter responder · Esc pular · PgUp/PgDn ler' if terminal.question else
                  '↑↓ escolher · Enter abrir/salvar · Esc voltar/cancelar' if terminal.settings else
@@ -448,8 +495,8 @@ class TerminalView:
                  '↑↓ escolher · Tab/Enter inserir · Esc fechar' if completing else
                  'y permitir · n recusar · PgUp/PgDn revisar' if terminal.approval else
                  '↑↓ selecionar · Enter retomar · R renomear · Del excluir · Esc voltar' if terminal.browser else
-                 '↑↓/PgUp/PgDn/mouse rolar · Ctrl+E fim · Ctrl+C parar' if terminal.busy else
-                 'Enter enviar · Shift+← chats · Ctrl+O detalhes · ↑↓/PgUp/mouse rolar')
+                 'Shift+Enter/Ctrl+J linha · PgUp/PgDn rolar · Ctrl+C parar' if terminal.busy else
+                 'Enter enviar · Shift+Enter/Ctrl+J linha · Shift+← chats · PgUp/PgDn rolar')
         self.put(screen, height - 1, 2, hints, 'blue')
         if not terminal.approval and (terminal.rename_target or not terminal.browser):
             if terminal.settings and terminal.settings.page == 'custom':
@@ -457,5 +504,5 @@ class TerminalView:
                                                 max(1, width - 8))
                 screen.move(top + 5, min(width - 2, 5 + custom_cursor))
             elif not terminal.settings:
-                screen.move(height - 3, min(width - 2, composer_left + 2 + cursor_column))
+                screen.move(input_top + cursor_row - input_start, min(width - 2, composer_left + 2 + cursor_column))
         screen.refresh()
