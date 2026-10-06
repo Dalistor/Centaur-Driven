@@ -105,26 +105,51 @@ class BackendTests(unittest.TestCase):
                 client.check_authentication()
         self.assertNotIn('private account metadata', str(error.exception))
 
-    def test_native_delegation_removes_model_selection_and_rejects_injected_routing(self):
-        client = self.client()
-        tools = SubagentTools(ProjectTools(self.root, lambda _: False), client, 'a' * 32, lambda _: None)
-        properties = tools.definitions[-1]['function']['parameters']['properties']
-        self.assertEqual(set(properties), {'title', 'task'})
-        for field, value in (('model', 'provider/other'), ('cost_tier', 'low')):
-            output = tools.execute('delegate_task', {'title': 'Task', 'task': 'Contrato', field: value})
-            self.assertIn('não permitem selecionar', output)
-        self.assertEqual(tools.count, 0)
-        with patch('centaur_cli.subagents.run_turn') as execute:
-            def report(chat, used_client, *args):
-                self.assertIs(used_client, client)
-                self.assertEqual(chat['model'], 'fixed')
-                self.assertEqual(chat['backend'], 'codex')
-                chat['messages'].append({'role': 'assistant', 'content': 'Relatório'})
-            execute.side_effect = report
-            output = json.loads(tools.delegate({'title': 'Task', 'task': 'Contrato'}))
-        self.assertEqual(output['requested_model'], 'fixed')
-        self.assertIsNone(output['cost_tier'])
-        self.assertEqual(output['status'], 'reported')
+    def test_native_delegation_selects_model_without_changing_parent_or_provider(self):
+        for backend in ('codex', 'claude'):
+            client = self.client(backend)
+            with patch.object(client, 'model_catalog', return_value={'fixed': 'Main', 'fast': 'Simple tasks'}):
+                tools = SubagentTools(ProjectTools(self.root, lambda _: False), client, 'a' * 32, lambda _: None)
+                properties = tools.definitions[-1]['function']['parameters']['properties']
+                self.assertEqual(set(properties), {'title', 'task', 'model'})
+                self.assertEqual(properties['model']['enum'], ['fixed', 'fast'])
+                for field, value in (('model', 'provider/other'), ('cost_tier', 'low')):
+                    output = tools.execute('delegate_task', {'title': 'Task', 'task': 'Contrato', field: value})
+                    self.assertIn('Falha ao delegar', output)
+                self.assertEqual(tools.count, 0)
+                with patch('centaur_cli.subagents.run_turn') as execute:
+                    def report(chat, used_client, *args):
+                        self.assertIs(used_client, client)
+                        self.assertEqual(chat['model'], 'fast')
+                        self.assertEqual(chat['backend'], backend)
+                        chat['messages'].append({'role': 'assistant', 'content': 'Relatório'})
+                    execute.side_effect = report
+                    output = json.loads(tools.delegate({'title': 'Task', 'task': 'Contrato', 'model': 'fast'}))
+                self.assertEqual(output['requested_model'], 'fast')
+                self.assertEqual(client.fixed_model, 'fixed')
+                self.assertIsNone(output['cost_tier'])
+                self.assertEqual(output['status'], 'reported')
+
+    def test_native_selected_model_reaches_process_arguments(self):
+        for backend in ('codex', 'claude'):
+            client = self.client(backend)
+            with patch.object(client, 'model_catalog', return_value={'fast': 'Simple'}), \
+                    self.process(client, {'content': 'ok', 'calls': []}) as start:
+                self.fake_start = start
+                client.complete('fast', [], [])
+            argv = start.call_args.args[0]
+            self.assertEqual(argv[argv.index('--model') + 1], 'fast')
+            self.assertEqual(client.fixed_model, 'fixed')
+
+    def test_codex_catalog_ignores_hidden_models_and_handles_missing_cache(self):
+        with patch.dict(os.environ, {'CODEX_HOME': str(self.root)}):
+            client = self.client()
+            self.assertEqual(client.model_catalog(), {'fixed': 'Modelo principal configurado'})
+            (self.root / 'models_cache.json').write_text(json.dumps({'models': [
+                {'slug': 'fast', 'visibility': 'list', 'description': 'Simple'},
+                {'slug': 'hidden', 'visibility': 'hide'},
+                {'slug': '--bad', 'visibility': 'list'}]}))
+            self.assertEqual(set(client.model_catalog()), {'fast', 'fixed'})
 
     def test_cli_connects_native_without_openrouter_setup(self):
         with patch('sys.argv', ['centaur', '--backend', 'claude', '--model', 'fixed', str(self.root)]), \

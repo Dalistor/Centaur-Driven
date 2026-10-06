@@ -2,18 +2,30 @@
 
 import os
 
+from .config import BACKENDS, load_config
 from .credentials import CredentialStore
 from .native_client import NativeClient
 from .openrouter import OpenRouter
 from .setup import configure_key
-
-BACKENDS = ('openrouter', 'codex', 'claude')
 
 
 def resolve_model(backend, model=None):
     if model is not None:
         return model
     return os.environ.get('OPENROUTER_MODEL', '') if backend == 'openrouter' else os.environ.get('CENTAUR_MODEL', '')
+
+
+def resolve_selection(root, backend=None, model=None):
+    saved = load_config(root)
+    selected = backend or os.environ.get('CENTAUR_BACKEND') or saved.get('backend', 'openrouter')
+    if selected not in BACKENDS:
+        raise ValueError('Backend inválido; use openrouter, codex ou claude.')
+    if model is None:
+        variable = 'OPENROUTER_MODEL' if selected == 'openrouter' else 'CENTAUR_MODEL'
+        model = os.environ.get(variable)
+        if model is None and saved.get('backend') == selected:
+            model = saved.get('model')
+    return selected, resolve_model(selected, model)
 
 
 def create_client(backend, model, allow_setup=True, include_credits=True):

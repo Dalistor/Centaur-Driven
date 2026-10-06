@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import signal
@@ -28,7 +29,7 @@ Responda no schema fornecido: content contém a resposta ao usuário; calls cont
 às ferramentas Centaur, usando name e arguments como string JSON de um objeto. Se precisar
 consultar ou alterar algo, solicite a ferramenta e aguarde o resultado no próximo pedido.
 Não descreva uma chamada como executada antes de receber seu resultado. Não há roteamento
-OpenRouter nesta sessão. Subagentes herdam o backend e o modelo da sessão.
+OpenRouter nesta sessão. Subagentes mantêm o backend e podem escolher modelos do catálogo fornecido.
 '''
 
 
@@ -46,6 +47,23 @@ class NativeClient:
                             'CLAUDE_CODE_OAUTH_TOKEN', 'OPENROUTER_API_KEY', 'OPENROUTER_CREDITS_KEY')
                              if (value := os.environ.get(name)))
 
+    def model_catalog(self):
+        if self.backend == 'claude':
+            catalog = {'haiku': 'Tasks simples e rápidas', 'sonnet': 'Implementação comum',
+                       'opus': 'Investigação complexa e maior risco'}
+        else:
+            cache = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))) / 'models_cache.json'
+            try:
+                data = json.loads(cache.read_text(encoding='utf-8'))
+                catalog = {entry['slug']: entry.get('description', '') for entry in data['models']
+                           if isinstance(entry, dict) and entry.get('visibility') == 'list' and isinstance(entry.get('slug'), str)}
+            except (OSError, ValueError, KeyError, TypeError):
+                catalog = {}
+        if self.fixed_model:
+            catalog.setdefault(self.fixed_model, 'Modelo principal configurado')
+        return {name: description for name, description in catalog.items()
+                if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,127}', name)}
+
     def redact(self, text):
         for secret in self.secrets:
             text = text.replace(secret, '[CHAVE OCULTA]')
@@ -53,8 +71,8 @@ class NativeClient:
 
     def check_available(self):
         arguments = [self.command, 'exec', '--help'] if self.backend == 'codex' else [self.command, '--help']
-        required = ('--ignore-user-config', '--ignore-rules', '--output-schema', '--ephemeral') if self.backend == 'codex' else (
-            '--safe-mode', '--tools', '--json-schema', '--strict-mcp-config', '--no-session-persistence')
+        required = ('--model', '--ignore-user-config', '--ignore-rules', '--output-schema', '--ephemeral') if self.backend == 'codex' else (
+            '--model', '--safe-mode', '--tools', '--json-schema', '--strict-mcp-config', '--no-session-persistence')
         try:
             result = subprocess.run(arguments, capture_output=True, text=True, timeout=15)
         except (OSError, subprocess.TimeoutExpired):
@@ -75,7 +93,7 @@ class NativeClient:
         if result.returncode:
             raise RuntimeError(f'{self.backend} não autenticado. Execute {login} e abra o Centaur novamente.')
 
-    def arguments(self, directory):
+    def arguments(self, directory, model=None):
         if self.backend == 'codex':
             arguments = [self.command, 'exec', '--ignore-user-config', '--ignore-rules',
                          '--sandbox', 'read-only', '--ephemeral', '--skip-git-repo-check',
@@ -91,15 +109,18 @@ class NativeClient:
                          '--setting-sources', '', '--permission-mode', 'dontAsk',
                          '--no-session-persistence', '--output-format', 'json',
                          '--json-schema', json.dumps(REPLY_SCHEMA)]
-        if self.fixed_model:
-            arguments += ['--model', self.fixed_model]
+        selected = self.fixed_model if model is None else model
+        if selected:
+            arguments += ['--model', selected]
         if self.backend == 'codex':
             arguments += ['-']
         return arguments
 
     def complete(self, model, messages, tools, *, cost_tier=None, session_id=None):
-        if model != self.fixed_model or cost_tier is not None:
-            raise ValueError(f'{self.backend} conectado: modelo fixo da sessão; roteamento OpenRouter indisponível.')
+        if cost_tier is not None:
+            raise ValueError('cost_tier é exclusivo de OpenRouter.')
+        if model != self.fixed_model and model not in self.model_catalog():
+            raise ValueError(f'Modelo não listado no catálogo {self.backend}.')
         prompt = BRIDGE_INSTRUCTIONS + '\n' + self.redact(json.dumps({'conversation': messages, 'tools': tools}, ensure_ascii=False))
         env = {name: value for name, value in os.environ.items()
                if name not in ('OPENROUTER_API_KEY', 'OPENROUTER_CREDITS_KEY')}
@@ -107,7 +128,7 @@ class NativeClient:
             directory = Path(temporary)
             (directory / 'schema.json').write_text(json.dumps(REPLY_SCHEMA))
             try:
-                process = subprocess.Popen(self.arguments(directory), cwd=directory,
+                process = subprocess.Popen(self.arguments(directory, model), cwd=directory,
                                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                            stderr=subprocess.PIPE, text=True, env=env,
                                            start_new_session=True)

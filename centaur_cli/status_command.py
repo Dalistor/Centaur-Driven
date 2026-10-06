@@ -1,13 +1,12 @@
 """Comando status utilizável fora da interface interativa."""
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 from .agent import run_turn
 from .history import ChatStore
-from .backends import BACKENDS, create_client, resolve_model
+from .backends import BACKENDS, create_client, resolve_selection
 from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 
 
@@ -15,7 +14,7 @@ def main(arguments=None):
     parser = argparse.ArgumentParser(prog='centaur status', description='Árvore de specs e análise opcional de evidências')
     parser.add_argument('path', nargs='?', default='.', help='Pasta do projeto')
     parser.add_argument('--ai', action='store_true', help='Usar o backend conectado para recomendar conclusão e execução; não altera specs')
-    parser.add_argument('--backend', choices=BACKENDS, default=os.environ.get('CENTAUR_BACKEND', 'openrouter'))
+    parser.add_argument('--backend', choices=BACKENDS, default=None)
     parser.add_argument('--model', default=None, help='Modelo do backend para a análise')
     options = parser.parse_args(arguments)
     root = Path(options.path).expanduser().resolve()
@@ -26,7 +25,7 @@ def main(arguments=None):
     if not options.ai:
         return
     try:
-        model = resolve_model(options.backend, options.model)
+        options.backend, model = resolve_selection(root, options.backend, options.model)
         client = create_client(options.backend, model,
                                allow_setup=sys.stdin.isatty() and sys.stdout.isatty(), include_credits=False)
         store = ChatStore(root)

@@ -26,7 +26,7 @@ class SkillCompletion:
         self.options = []
         if not match or self.dismissed == draft:
             return
-        names = skill_catalog.names() if match.group(1) == '$' else skill_catalog.additional_names(self.root)
+        names = sorted([*skill_catalog.names(), 'config']) if match.group(1) == '$' else skill_catalog.additional_names(self.root)
         self.options = [name for name in names if name.casefold().startswith(match.group(2).casefold())]
         self.selected = min(self.selected, max(0, len(self.options) - 1))
 

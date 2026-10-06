@@ -2,13 +2,12 @@
 
 import argparse
 import curses
-import os
 import sys
 from pathlib import Path
 
 from .history import ChatStore
 from .credentials import CredentialStore
-from .backends import BACKENDS, create_client, resolve_model
+from .backends import BACKENDS, create_client, resolve_selection
 from .setup import configure_key
 from .terminal import Terminal
 from .subagents import COST_TIERS
@@ -21,10 +20,10 @@ def main():
     parser = argparse.ArgumentParser(description='Centaur CLI experimental: OpenRouter, Codex e Claude',
                                      epilog='Status sem abrir o chat: centaur status [pasta] [--ai]')
     parser.add_argument('path', nargs='?', default='.', help='Pasta do projeto (padrão: atual)')
-    parser.add_argument('--backend', choices=BACKENDS, default=os.environ.get('CENTAUR_BACKEND', 'openrouter'),
+    parser.add_argument('--backend', choices=BACKENDS, default=None,
                         help='Backend conectado: openrouter (padrão), codex ou claude')
     parser.add_argument('--model', default=None,
-                        help='Modelo do backend; Codex/Claude mantêm este modelo em todos os subagentes')
+                        help='Modelo principal; subagentes podem escolher modelos do mesmo backend')
     parser.add_argument('--configure-key', action='store_true',
                         help='Cadastrar ou substituir a chave com entrada oculta, sem abrir um chat')
     parser.add_argument('--configure-credits-key', action='store_true',
@@ -44,7 +43,7 @@ def main():
         if options.configure_key:
             configure_key(CredentialStore())
             return
-        model = resolve_model(options.backend, options.model)
+        options.backend, model = resolve_selection(root, options.backend, options.model)
         client = create_client(options.backend, model)
         curses.wrapper(Terminal(root, model, ChatStore(root), client,
                                 options.max_subagent_tier).run)

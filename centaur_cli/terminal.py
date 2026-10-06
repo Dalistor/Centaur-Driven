@@ -6,6 +6,8 @@ import textwrap
 import threading
 import time
 
+from .backends import create_client
+from .config import save_config, validate
 from .agent import run_turn
 from .completion import SkillCompletion
 from .tools import ProjectTools
@@ -57,13 +59,15 @@ class Terminal:
             return
         self.credits_inflight = True
         self.credits_dirty = False
-        threading.Thread(target=self.fetch_credits, daemon=True).start()
+        threading.Thread(target=self.fetch_credits, args=(self.client,), daemon=True).start()
 
-    def fetch_credits(self):
+    def fetch_credits(self, client):
         try:
-            self.events.put(('credits', self.client.credits()))
+            event = ('credits', client.credits())
         except Exception:
-            self.events.put(('credits_error', None))
+            event = ('credits_error', None)
+        if client is self.client:
+            self.events.put(('backend_credits', (client, event)))
 
     def approve(self, description):
         answer = queue.Queue()
@@ -92,6 +96,8 @@ class Terminal:
             self.notice = 'Chave detectada: mensagem descartada para proteger a credencial.'
             return
         command = self.draft.strip()
+        if command.split()[0] == '$config':
+            return self.configure(command)
         if command.startswith('/status'):
             if command not in ('/status', '/status --ai'):
                 self.notice = 'Uso: /status ou /status --ai para analisar com IA.'
@@ -117,6 +123,44 @@ class Terminal:
         self.notice = f'Aguardando {self.backend}…'
         threading.Thread(target=self.work, args=(self.chat,), daemon=True).start()
 
+    def configure(self, command):
+        parts = command.split()
+        if len(parts) == 1:
+            content = (f'Fonte da IA: {self.backend} · {self.model or "modelo padrão"}\n'
+                       'Uso: $config <openrouter|codex|claude> [modelo]\n'
+                       '$config codex · $config claude sonnet · $config openrouter openrouter/auto\n'
+                       'Omitir modelo usa o padrão do backend. A troca abre um novo chat.\n'
+                       'Preferência salva em .centaur/config.json; credenciais ficam fora do projeto.')
+            catalog = getattr(self.client, 'model_catalog', None)
+            if callable(catalog):
+                content += '\nModelos para subagentes:\n' + '\n'.join(
+                    f'{model}: {description}' for model, description in catalog().items())
+            self.chat['messages'].append({'role': 'assistant', 'content': content})
+            self.store.save(self.chat)
+            self.draft = ''
+            self.scroll = 0
+            return
+        try:
+            if len(parts) > 3:
+                raise ValueError('Uso: $config <openrouter|codex|claude> [modelo]')
+            backend, model = parts[1], parts[2] if len(parts) == 3 else ''
+            validate(backend, model)
+            client = create_client(backend, model, allow_setup=False)
+            save_config(self.root, backend, model)
+        except (RuntimeError, OSError, ValueError) as error:
+            self.notice = f'Configuração não alterada: {error}'
+            return
+        self.backend, self.model, self.client = backend, model, client
+        self.chat = self.store.new(model, backend=backend)
+        self.draft = ''
+        self.scroll = 0
+        self.credits = None
+        self.credits_inflight = False
+        self.credits_next_refresh = 0
+        self.credits_status = 'loading' if backend == 'openrouter' else 'unsupported'
+        self.credits_dirty = True
+        self.notice = f'Fonte da IA alterada: {backend} · {model or "modelo padrão"}. Novo chat.'
+
     def work(self, chat):
         try:
             base = ProjectTools(self.root, self.approve,
@@ -128,9 +172,9 @@ class Terminal:
             else:
                 tools = SubagentTools(base, self.client, chat['id'],
                                       lambda notice: self.events.put(('progress', notice)), self.max_subagent_tier)
-            backend_instructions = (f'\nBackend conectado: {self.backend}. Subagentes devem herdar o modelo da sessão. '
-                                    'Não use OpenRouter, não selecione modelos ou cost_tier e não invoque CLIs externos '
-                                    'para contornar a restrição; delegate_task aceita somente title e task.\n'
+            backend_instructions = (f'\nBackend conectado: {self.backend}. Escolha o modelo por complexidade e risco '
+                                    'entre os modelos listados em delegate_task. Não use cost_tier ou outro provedor. '
+                                    'Se não houver catálogo, mantenha o modelo principal.\n'
                                     if self.backend != 'openrouter' else '')
             run_turn(chat, self.client, tools,
                      self.store, lambda: self.events.put(('refresh', None)),
@@ -145,6 +189,11 @@ class Terminal:
     def drain_events(self):
         while not self.events.empty():
             kind, value = self.events.get_nowait()
+            if kind == 'backend_credits':
+                source, event = value
+                if source is not self.client:
+                    continue
+                kind, value = event
             if kind == 'approval':
                 self.approval = value
                 self.browser = False

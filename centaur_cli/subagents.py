@@ -1,4 +1,4 @@
-"""Execução de tasks em sessões próprias, roteadas pelo OpenRouter."""
+"""Execução de tasks em sessões próprias, com seleção de modelos por backend."""
 
 import copy
 import json
@@ -46,10 +46,14 @@ class SubagentTools:
         self.root, self.emit, self.max_tier = base.root, emit, max_tier
         self.routing = getattr(client, 'allows_model_routing', True)
         delegation = copy.deepcopy(DELEGATE_TASK)
+        self.native_models = client.model_catalog() if not self.routing else {}
         if not self.routing:
-            delegation['function']['description'] = 'Executar uma task sequencial em subagente com o mesmo backend e modelo da sessão, sem roteamento.'
+            delegation['function']['description'] = 'Executar uma task sequencial no backend conectado, escolhendo modelo conforme complexidade e risco.'
             properties = delegation['function']['parameters']['properties']
-            del properties['model']
+            properties['model'] = {'type': 'string', 'enum': list(self.native_models),
+                                   'description': 'Escolha conforme a task: ' + json.dumps(self.native_models, ensure_ascii=False)}
+            if not self.native_models:
+                del properties['model']
             del properties['cost_tier']
         self.definitions = [*TOOLS, delegation]
         self.count = 0
@@ -64,10 +68,10 @@ class SubagentTools:
 
     def delegate(self, arguments):
         title, task = arguments['title'], arguments['task']
-        if not self.routing and ('model' in arguments or 'cost_tier' in arguments):
-            raise ValueError('Backend conectado: subagentes herdam o modelo da sessão; não permitem selecionar modelos ou faixas OpenRouter.')
+        if not self.routing and 'cost_tier' in arguments:
+            raise ValueError('cost_tier é exclusivo de OpenRouter.')
         tier = arguments.get('cost_tier', 'medium') if self.routing else None
-        model = arguments.get('model', 'openrouter/auto') if self.routing else self.client.fixed_model
+        model = arguments.get('model', 'openrouter/auto') if self.routing else arguments.get('model', self.client.fixed_model)
         if not isinstance(title, str) or not title.strip() or not isinstance(task, str) or not task.strip():
             raise ValueError('Informe título e contrato da task.')
         title = self.base.redact(title)
@@ -75,6 +79,8 @@ class SubagentTools:
             raise ValueError(f'Faixa solicitada excede o máximo {self.max_tier}; ajuste a task ou a configuração.')
         if self.routing and (not isinstance(model, str) or '/' not in model):
             raise ValueError('Modelo inválido; use openrouter/auto ou um ID explícito do OpenRouter.')
+        if not self.routing and model != self.client.fixed_model and model not in self.native_models:
+            raise ValueError('Modelo não listado no catálogo do backend conectado.')
         if self.count >= 12:
             raise RuntimeError('Limite de 12 subagentes por turno atingido; continue em outro turno.')
         self.count += 1
@@ -84,7 +90,7 @@ class SubagentTools:
         chat.update({'title': title, 'parent_id': self.parent_id, 'cost_tier': tier,
                      'status': 'running', 'messages': [{'role': 'user', 'content': self.base.redact(task)}]})
         store.save(chat)
-        self.emit(f'Subagente: {title} · {model or getattr(self.client, "backend", "openrouter")} · {"faixa " + tier if tier else "modelo da sessão"}')
+        self.emit(f'Subagente: {title} · {model or getattr(self.client, "backend", "openrouter")} · {"faixa " + tier if tier else "backend conectado"}')
         tools = ProjectTools(self.root,
                              lambda description: self.base.approve(f'Subagente {title}\n{description}'),
                              protected_keys=self.base.protected_keys)

@@ -34,7 +34,7 @@ centaur --backend claude /caminho/do/projeto
 
 `--backend` aceita `openrouter` (padrão), `codex` ou `claude`; `CENTAUR_BACKEND` define o padrão. Codex/Claude reutilizam sua própria autenticação, sem solicitar chave OpenRouter. Precisam estar no `PATH`, com versões que suportem as opções de isolamento e resposta estruturada usadas pelo adaptador. Versões incompatíveis são recusadas, sem fallback para outro provedor.
 
-Com **Codex ou Claude conectado**, `$run` cria subagentes no **mesmo backend e modelo da sessão**. A ferramenta `delegate_task` só aceita título e task; selecionar outro modelo ou `cost_tier` é recusado no código. `--model` pode escolher um modelo do backend ao abrir a sessão; sem ele, usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. Para trocar backend/modelo, abra uma nova sessão. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo solicitado.
+Com **Codex ou Claude conectado**, `$run` cria subagentes no mesmo backend e escolhe o modelo por task conforme complexidade e risco. `delegate_task` aceita título, task e um modelo do catálogo; `cost_tier` é exclusivo do OpenRouter. `--model` escolhe o modelo principal; sem ele, usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. `$config` mostra a configuração; `$config <backend> [modelo]` altera a fonte da IA e o modelo principal, salvando a preferência local e abrindo novo chat. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo principal solicitado.
 
 A interface, o autocomplete, `/status` e as aprovações continuam no Centaur. O adaptador usa saídas estruturadas dos CLIs, sem ferramentas nativas de execução/delegação e sem carregar as personalizações locais desses clientes; leituras, gravações e comandos passam pelas ferramentas do harness. Cada etapa envia o contexto Centaur a uma execução efêmera do CLI, com limite de 180 segundos; os históricos ficam no Centaur. O adaptador não interpreta o ID efetivo de modelo quando o CLI não o fornece. As credenciais conhecidas dos backends são ocultadas nas mensagens e saídas e removidas do ambiente dos comandos de projeto.
 
@@ -97,6 +97,7 @@ são reposicionados e o texto é quebrado novamente. O rascunho e a conversa sã
 | `$` | Autocomplete das skills Centaur; digite para filtrar. |
 | `@` | Autocomplete de skills adicionais em `.centaur/skills/`. |
 | ↑ / ↓, Tab ou Enter na lista de skills | Escolher e inserir a skill; Esc fecha a lista. Enter após inserir envia a mensagem. |
+| `$config` | Mostrar a fonte da IA; `$config codex`, `$config claude sonnet` ou `$config openrouter openrouter/auto` altera backend/modelo e abre novo chat. Preferência local em `.centaur/config.json`; flags e variáveis de ambiente têm prioridade ao iniciar. |
 | `/new` | Criar outra conversa. |
 | `/status` | Mostrar a árvore local das specs, sem chamar o modelo. |
 | `/status --ai` | Analisar evidências e recomendar o que pode concluir ou rodar, somente leitura. |
@@ -122,7 +123,7 @@ da raiz e pode consultar skills existentes no projeto pelas ferramentas de leitu
 que escolhe o modelo a partir da task e do suporte a ferramentas. O coordenador define
 `cost_tier` por risco/complexidade e confere o trabalho antes de consolidar. O CLI registra
 os modelos efetivos por resposta; cada subagente mantém sua própria `session_id`.
-Codex/Claude herdam o backend e o modelo, sem roteamento. As aprovações de arquivos/comandos mostram o executor. Históricos individuais ficam em
+Codex/Claude mantêm o backend e permitem selecionar o modelo por task. O coordenador usa o catálogo local do Codex ou os aliases `haiku`, `sonnet` e `opus` do Claude; acesso depende da conta. Sem catálogo, o Codex usa o modelo principal. `cost_tier` continua exclusivo do OpenRouter. As aprovações de arquivos/comandos mostram o executor. Históricos individuais ficam em
 `.centaur/agents/<chat-coordenador>/`, sem aparecer como chats independentes na lista.
 
 ```bash
