@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 — 2026-10-06
+
+- Retomar um turno com `content=null` recupera chamadas pendentes sem repetir ações.
+- `/retry` mantém `$status --ai` em somente leitura, mesmo após resultados de ferramentas.
+
 ## 0.5.0 — 2026-10-06
 
 - Turnos sem limite fixo de 20 etapas; Ctrl+C interrompe comandos/CLIs locais e bloqueia novas ações.

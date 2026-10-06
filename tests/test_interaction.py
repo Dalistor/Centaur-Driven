@@ -77,6 +77,42 @@ class InteractionTests(InteractionFixture):
         self.assertFalse((self.root / 'bad').exists())
         self.assertEqual(self.terminal.chat['messages'], [])
 
+    def test_retry_pending_empty_content_recovers_without_replaying_action(self):
+        terminal = self.terminal
+        class Client:
+            allows_model_routing = False
+            fixed_model = 'model'
+            def model_catalog(client): return {'model': 'model'}
+            def complete(client, model, messages, tools, **options):
+                self.assertIn('interrompida', messages[-1]['content'])
+                return {'role': 'assistant', 'content': 'Retomado'}
+        terminal.client = Client()
+        terminal.chat.update(title_attempted=True, messages=[
+            {'role': 'user', 'content': 'Continuar'},
+            {'role': 'assistant', 'content': None, 'tool_calls': [{'id': 'pending', 'function': {
+                'name': 'write_file', 'arguments': '{"path":"must-not-exist","content":"bad"}'}}]}])
+        terminal.work(terminal.chat)
+        terminal.drain_events()
+        self.assertEqual(terminal.chat['messages'][-1]['content'], 'Retomado')
+        self.assertFalse((self.root / 'must-not-exist').exists())
+
+    def test_status_retry_after_tool_result_keeps_read_only_tools(self):
+        terminal = self.terminal
+        class Client:
+            def complete(client, model, messages, tools, **options):
+                self.assertNotIn('write_file', [entry['function']['name'] for entry in tools])
+                self.assertNotIn('computer_start', [entry['function']['name'] for entry in tools])
+                return {'role': 'assistant', 'content': 'Status somente leitura'}
+        terminal.client = Client()
+        terminal.chat.update(title_attempted=True, messages=[
+            {'role': 'user', 'content': '$status --ai'},
+            {'role': 'assistant', 'content': None, 'tool_calls': [{'id': 'read', 'function': {
+                'name': 'list_files', 'arguments': '{"path":"."}'}}]},
+            {'role': 'tool', 'tool_call_id': 'read', 'content': 'README.md'}])
+        terminal.work(terminal.chat)
+        terminal.drain_events()
+        self.assertEqual(terminal.chat['messages'][-1]['content'], 'Status somente leitura')
+
     def test_question_options_custom_validation_skip_and_draft_preservation(self):
         terminal = self.terminal
         terminal.draft = 'rascunho para depois'
@@ -222,9 +258,13 @@ class ComputerTests(InteractionFixture):
         self.assertFalse(session.active)
 
     def test_continuous_capture_has_bounded_memory_and_expires(self):
-        session, desktop = self.session(lifetime=0.08, interval=0.01)
+        session, desktop = self.session(lifetime=120, interval=0.01)
         session.start('Verificar aplicativo')
-        session.thread.join(1)
+        for _ in range(5):
+            session.capture()
+        self.assertEqual(len(session.frames), 3)
+        session.deadline = time.monotonic() - 1
+        session.thread.join(2)
         self.assertGreater(desktop.captures, 2)
         self.assertFalse(session.active)
         self.assertEqual(list(session.frames), [])

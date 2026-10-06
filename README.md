@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão atual é `0.5.0`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.5.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.5.0).
+A versão atual é `0.5.1`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.5.1`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.5.1).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.5.0/centaur_cli-0.5.0-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.5.1/centaur_cli-0.5.1-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```

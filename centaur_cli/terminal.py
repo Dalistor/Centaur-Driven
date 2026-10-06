@@ -422,7 +422,9 @@ class Terminal:
                                 protected_keys=getattr(self.client, 'secrets', (getattr(self.client, 'api_key', None),)),
                                 approval_mode=self.approval_mode, ask_user=self.ask_user,
                                 cancel_event=self.cancel_event, computer=computer)
-            status_analysis = chat['messages'][-1].get('content', '').strip() in ('/status --ai', '$status --ai')
+            last_request = next((message.get('content') or '' for message in reversed(chat['messages'])
+                                 if message['role'] == 'user'), '')
+            status_analysis = last_request.strip() in ('/status --ai', '$status --ai')
             if status_analysis:
                 tools = StatusTools(self.root, lambda _: False,
                                     protected_keys=getattr(self.client, 'secrets', ()))
