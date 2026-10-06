@@ -23,6 +23,11 @@ SUMMARY_PROMPT = ('Resuma o histórico para continuar uma conversa Centaur. O ma
                   'continuação de JSON. Retorne só o resumo em português.')
 
 
+class CompactionPaused(RuntimeError):
+    """Useful work may be resumed; this is not a failed conversation turn."""
+    pass
+
+
 def text_only(value):
     """Never count or send base64 images as ordinary text during summarization."""
     if isinstance(value, dict):
@@ -111,7 +116,7 @@ def context_label(chat, client, width, draft='', overhead=0):
     return label, 'muted'
 
 
-def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None):
+def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None, target_tokens=None):
     """Return new metadata; leave full history, errors and existing memory untouched."""
     messages = copy.deepcopy(chat['messages'])
     old = compaction_state(chat)
@@ -132,6 +137,18 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
                    if key in ('role', 'content', 'tool_calls', 'tool_call_id')}
                   for message in messages[start:through]]
         return getattr(client, 'redact', str)(json.dumps(text_only(public), ensure_ascii=False))
+    def message_ends(through):
+        # Match material's JSON exactly, including redaction, without parsing a
+        # cut JSON fragment. Only complete messages can leave active context.
+        position, ends = 1, []
+        for index, message in enumerate(messages[start:through], start):
+            public = {key: value for key, value in message.items()
+                      if key in ('role', 'content', 'tool_calls', 'tool_call_id')}
+            encoded = getattr(client, 'redact', str)(json.dumps(text_only(public), ensure_ascii=False))
+            position += len(encoded)
+            ends.append((index + 1, position))
+            position += 2  # comma and space
+        return ends
     def fingerprint(source):
         return hashlib.sha256(json.dumps([chat['model'], chat.get('backend'), start,
             old['summary'] if old else '', source], ensure_ascii=False).encode()).hexdigest()
@@ -170,6 +187,20 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
         raise ValueError('CENTAUR_COMPACT_TIMEOUT deve ser um inteiro entre 30 e 3600 segundos.') from None
     deadline = time.monotonic() + budget
     source_fingerprint = fingerprint(source)
+    ends = message_ends(cutoff)
+    def partial_result(position, memory):
+        if cancel_event is not None and cancel_event.is_set():
+            raise TurnCancelled('Compactação interrompida; contexto anterior preservado.')
+        through = max((through for through, end in ends if end <= position), default=start)
+        while through > start and through < len(messages) and messages[through].get('role') == 'tool':
+            through -= 1
+        if through <= start or not memory or len(memory) > max_summary:
+            return None
+        state = {'summary': memory, 'through': through, 'partial': through < cutoff,
+                 'created': datetime.now(timezone.utc).isoformat()}
+        before = estimate_tokens(active_messages(chat))
+        after = estimate_tokens(active_messages({**chat, 'compaction': state}))
+        return (state, before, after) if after < before else None
     # Summarization does not need the main turn's expensive reasoning setting.
     # Use a advertised low level, otherwise let the provider choose its default.
     levels = getattr(client, 'model_efforts', {}).get(chat['model'], [])
@@ -185,8 +216,8 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
             prompt += ' O resumo anterior ficou longo demais. Reescreva de forma muito mais concisa, sem cortar frases ou fatos essenciais.'
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            raise RuntimeError(f'Compactação atingiu o limite de {budget}s. Histórico preservado; '
-                               'use $compact para retomar o progresso salvo.')
+            raise CompactionPaused(f'Compactação pausada no limite de {budget}s; progresso salvo. '
+                                   'Use $compact para continuar; histórico preservado.')
         request_options = dict(options)
         if getattr(client, 'supports_request_timeout', False) is True:
             request_options['request_timeout'] = min(90, remaining)
@@ -206,6 +237,11 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
             checkpoint({'fingerprint': source_fingerprint, 'through': cutoff,
                         'offset': position, 'chunk_size': chunk_size, 'summary': memory})
     position = offset
+    if target_tokens is not None and position:
+        result = partial_result(position, summary)
+        if result and result[2] <= target_tokens:
+            if progress: progress('Compactação: progresso salvo já recuperou espaço suficiente; continuando o turno.')
+            return result
     while position < len(source):
         count = (len(source) + chunk_size - 1) // chunk_size
         index = position // chunk_size + 1
@@ -225,9 +261,18 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
                 raise ValueError('Resumo excedeu o limite após duas revisões; contexto anterior preservado.')
         except TurnCancelled:
             raise
+        except CompactionPaused:
+            result = partial_result(position, previous)
+            if result:
+                if progress: progress('Compactação: trecho concluído; restante mantido integralmente no contexto.')
+                return result
+            raise
         except RequestTimeout as error:
             if chunk_size <= 512:
-                raise RuntimeError(f'{error} Use $compact para retomar; histórico preservado.') from error
+                result = partial_result(position, previous)
+                if result: return result
+                raise CompactionPaused('Compactação pausada: o resumo não terminou no prazo. '
+                                       'Use $compact para continuar; histórico preservado.') from error
             chunk_size = max(512, chunk_size // 2)
             summary = previous
             save_draft(position, summary)
@@ -238,6 +283,11 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
                                'use $compact para retomar. Histórico preservado.') from error
         position = min(position + chunk_size, len(source))
         if position < len(source): save_draft(position, summary)
+        if target_tokens is not None and position < len(source):
+            result = partial_result(position, summary)
+            if result and result[2] <= target_tokens:
+                if progress: progress('Compactação: espaço suficiente para continuar; contexto restante preservado.')
+                return result
     if cancel_event is not None and cancel_event.is_set():
         raise TurnCancelled('Compactação interrompida; contexto anterior preservado.')
     state = {'summary': summary, 'through': cutoff, 'created': datetime.now(timezone.utc).isoformat()}

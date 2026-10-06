@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from centaur_cli.agent import project_prompt, run_turn
-from centaur_cli.context import active_messages, compact_chat, context_label, estimate_tokens, record_context, auto_compaction_needed, save_compaction_progress, save_compaction
+from centaur_cli.context import active_messages, compact_chat, context_label, estimate_tokens, record_context, auto_compaction_needed, save_compaction_progress, save_compaction, CompactionPaused
 from centaur_cli.history import ChatStore
 from centaur_cli.interaction import TurnCancelled, RequestTimeout
 from centaur_cli.native_client import NativeClient, codex_usage
@@ -414,6 +414,154 @@ class ContextTests(unittest.TestCase):
                 checkpoint=lambda pending: save_compaction_progress(self.chat, self.store, pending))
         self.assertEqual(self.chat, original)
         self.assertEqual(self.store.list(), [])
+
+    def test_budget_returns_safe_prefix_instead_of_failing_completed_work(self):
+        self.client.context_windows = {'main': 200000}
+        self.chat['messages'] = [{'role': 'user' if i % 2 == 0 else 'assistant',
+            'content': f'Parte {i}: ' + 'contexto ' * 2000} for i in range(24)]
+        original = copy.deepcopy(self.chat['messages'])
+        elapsed = [0]
+        def reply(*args, **options):
+            elapsed[0] += 90
+            return {'content': 'Objetivos, decisões e pendências.'}
+        self.client.complete.side_effect = reply
+        with patch('centaur_cli.context.time.monotonic', side_effect=lambda: elapsed[0]):
+            state, before, after = compact_chat(self.chat, self.client,
+                checkpoint=lambda pending: save_compaction_progress(self.chat, self.store, pending))
+        self.assertEqual(self.client.complete.call_count, 2)
+        self.assertTrue(state['partial'])
+        self.assertGreater(state['through'], 0)
+        self.assertLess(state['through'], len(original) - 6)
+        self.assertLess(after, before)
+        self.assertEqual(active_messages({**self.chat, 'compaction': state})[1:], original[state['through']:])
+        save_compaction(self.chat, self.store, state)
+        self.assertEqual(self.chat['messages'], original)
+        self.assertNotIn('compaction_pending', self.chat)
+        self.client.complete.reset_mock()
+        self.client.complete.side_effect = None
+        compact_chat(self.chat, self.client)
+        self.assertNotIn('Parte 0:', self.client.complete.call_args_list[0].args[1][1]['content'])
+
+    def test_partial_summary_keeps_whole_tool_batch_even_when_results_span_chunks(self):
+        self.client.context_windows = {'main': 200000}
+        self.chat['messages'] = [{'role': 'user', 'content': 'Objetivo: ' + 'x' * 18000},
+            {'role': 'assistant', 'content': 'Consultar arquivos', 'tool_calls': [
+                {'id': 'a', 'function': {'name': 'read_file', 'arguments': '{"path":"a"}'}},
+                {'id': 'b', 'function': {'name': 'read_file', 'arguments': '{"path":"b"}'}}]},
+            {'role': 'tool', 'tool_call_id': 'a', 'content': 'y' * 60000},
+            {'role': 'tool', 'tool_call_id': 'b', 'content': 'z' * 60000},
+            *copy.deepcopy(self.chat['messages'][-6:])]
+        elapsed = [0]
+        def reply(*args, **options):
+            elapsed[0] += 180
+            return {'content': 'Objetivo preservado; consultas registradas, confira resultados.'}
+        self.client.complete.side_effect = reply
+        with patch('centaur_cli.context.time.monotonic', side_effect=lambda: elapsed[0]):
+            state, _, _ = compact_chat(self.chat, self.client)
+        self.assertEqual(state['through'], 1)
+        active = active_messages({**self.chat, 'compaction': state})
+        self.assertEqual(active[1]['role'], 'assistant')
+        self.assertEqual([entry['tool_call_id'] for entry in active[2:4]], ['a', 'b'])
+
+    def test_auto_stops_when_sufficient_space_is_recovered_and_continues_turn(self):
+        self.client.context_windows = {'main': 140000}
+        self.chat['messages'] = [{'role': 'user' if i % 2 == 0 else 'assistant',
+            'content': f'Mensagem {i}: ' + 'x' * 9000} for i in range(40)]
+        original = copy.deepcopy(self.chat['messages'])
+        self.client.complete.side_effect = lambda model, messages, tools, **options: ModelReply(
+            {'role': 'assistant', 'content': 'Memória preservada.' if not tools else 'Continuando o pedido.'})
+        run_turn(self.chat, self.client, ProjectTools(self.root, lambda _: True), self.store, lambda: None)
+        self.assertTrue(self.chat['compaction']['partial'])
+        self.assertLess(self.chat['compaction']['through'], len(original) - 6)
+        self.assertEqual(self.chat['messages'][:-1], original)
+        self.assertTrue(self.client.complete.call_args.args[2])
+        self.assertLess(self.client.complete.call_count, 8)  # Full old prefix takes seven calls, plus the main turn.
+
+    def test_pause_is_not_wrapped_as_auto_failure_and_terminal_can_retry_it(self):
+        before = copy.deepcopy(self.chat)
+        with patch('centaur_cli.agent.compact_chat', side_effect=CompactionPaused('Compactação pausada; use $compact.')):
+            with self.assertRaises(CompactionPaused):
+                run_turn(self.chat, self.client, ProjectTools(self.root, lambda _: True), self.store, lambda: None)
+        self.assertEqual(self.chat, before)
+        terminal = Terminal(self.root, 'main', self.store, self.client)
+        terminal.chat = self.chat
+        terminal.busy = True
+        with patch('centaur_cli.terminal.run_turn', side_effect=CompactionPaused('Compactação pausada; use $compact.')):
+            terminal.work(self.chat)
+        terminal.drain_events()
+        self.assertFalse(terminal.busy)
+        self.assertIn('turn_paused', self.store.list()[0])
+        self.assertNotIn('last_error', self.chat)
+        self.assertNotIn('! Erro', '\n'.join(terminal.lines(80)))
+        self.assertIn('Turno pausado', '\n'.join(terminal.lines(80)))
+        terminal.draft = '/retry'
+        with patch('centaur_cli.terminal.threading.Thread') as thread:
+            terminal.submit()
+        thread.return_value.start.assert_called_once()
+        self.assertNotIn('turn_paused', self.chat)
+
+    def test_legacy_budget_error_is_shown_as_previous_pause_without_losing_retry(self):
+        terminal = Terminal(self.root, 'main', self.store, self.client)
+        terminal.chat['last_error'] = ('Compactação automática falhou; histórico preservado. '
+            'Compactação atingiu o limite de 180s. Use $compact.')
+        terminal.busy = True
+        terminal.notice = 'Compactando contexto · fragmento 19/26'
+        output = '\n'.join(terminal.lines(80))
+        self.assertIn('Compactação anterior pausada', output)
+        self.assertNotIn('! Erro', output)
+        self.assertIn('last_error', terminal.chat)
+
+    def test_partial_compaction_with_insufficient_space_pauses_before_main_request(self):
+        original = copy.deepcopy(self.chat['messages'])
+        state = {'through': 1, 'summary': 'Memória validada.', 'partial': True}
+        with patch('centaur_cli.agent.compact_chat', return_value=(state, 20000, 19000)):
+            with self.assertRaises(CompactionPaused):
+                run_turn(self.chat, self.client, ProjectTools(self.root, lambda _: True), self.store, lambda: None)
+        self.assertEqual(self.store.list()[0]['compaction'], state)
+        self.assertEqual(self.chat['messages'], original)
+        self.client.complete.assert_not_called()
+
+    def test_safe_prefix_boundary_accounts_for_secret_redaction(self):
+        self.client.context_windows = {'main': 200000}
+        self.client.redact = lambda value: value.replace('long-secret-value', '[OCULTO]')
+        self.chat['messages'] = [{'role': 'user', 'content': 'long-secret-value ' * 4000},
+            {'role': 'assistant', 'content': 'x' * 100000},
+            *copy.deepcopy(self.chat['messages'][-6:])]
+        elapsed = [0]
+        def reply(*args, **options):
+            elapsed[0] += 180
+            return {'content': 'Objetivo e requisitos preservados.'}
+        self.client.complete.side_effect = reply
+        with patch('centaur_cli.context.time.monotonic', side_effect=lambda: elapsed[0]):
+            state, _, _ = compact_chat(self.chat, self.client)
+        self.assertEqual(state['through'], 1)
+        self.assertNotIn('long-secret-value', self.client.complete.call_args.args[1][1]['content'])
+        self.assertEqual(active_messages({**self.chat, 'compaction': state})[1], self.chat['messages'][1])
+
+    def test_saved_progress_can_already_satisfy_auto_target_without_another_request(self):
+        self.client.context_windows = {'main': 200000}
+        self.chat['messages'] = [{'role': 'user' if i % 2 == 0 else 'assistant',
+            'content': 'x' * 16000} for i in range(24)]
+        self.client.complete.side_effect = [{'content': 'Memória preservada.'}, RuntimeError('offline')]
+        with self.assertRaises(RuntimeError):
+            compact_chat(self.chat, self.client,
+                checkpoint=lambda pending: save_compaction_progress(self.chat, self.store, pending))
+        self.client.complete.reset_mock()
+        target = estimate_tokens(active_messages(self.chat)) - 5000
+        state, before, after = compact_chat(self.chat, self.client, target_tokens=target)
+        self.assertTrue(state['partial'])
+        self.assertLess(after, before)
+        self.client.complete.assert_not_called()
+
+    def test_paused_turn_does_not_leave_terminal_busy_when_disk_save_fails(self):
+        terminal = Terminal(self.root, 'main', self.store, self.client)
+        terminal.busy = True
+        with patch('centaur_cli.terminal.run_turn', side_effect=CompactionPaused('Compactação pausada.')), \
+                patch.object(self.store, 'save', side_effect=OSError('disco cheio')):
+            terminal.work(terminal.chat)
+        terminal.drain_events()
+        self.assertFalse(terminal.busy)
+        self.assertIn('Não foi possível salvar a pausa', terminal.notice)
 
     def test_bar_uses_current_usage_and_marks_estimates_and_unknown_limits(self):
         record_context(self.chat, self.client, active_messages(self.chat), [],

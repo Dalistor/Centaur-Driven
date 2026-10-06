@@ -331,7 +331,10 @@ O progresso é salvo em disco após cada fragmento validado. Se o orçamento aca
 uma falha ou você interromper, execute `$compact` novamente para retomar do trecho salvo,
 inclusive depois de fechar e reabrir o Centaur. Um primeiro fragmento lento também deixa
 salvo seu tamanho reduzido para a próxima tentativa. O rodapé informa a interrupção;
-rascunhos parciais não são enviados como memória do chat. A retomada verifica que o
+rascunhos não validados não são enviados como memória do chat. Se houver uma divisão
+segura entre mensagens e lotes de ferramentas, o trecho concluído já reduz o contexto;
+as mensagens restantes, inclusive qualquer mensagem parcialmente lida, ficam integrais.
+Sem divisão segura, a operação fica **pausada**, sem marcar falha do modelo. A retomada verifica que o
 prefixo, o modelo e a memória anterior continuam iguais. Esse orçamento é independente
 de `CENTAUR_NATIVE_TIMEOUT`; para permitir uma operação mais longa:
 
@@ -351,6 +354,14 @@ e conserva a memória para `$compact` e `/retry`; não entra em tentativas infin
 Com janela desconhecida, use `$compact` ou informe `CENTAUR_CONTEXT_WINDOW` corretamente.
 `CENTAUR_AUTOCOMPACT=0 centaur .` desativa somente a compactação automática. Resumos usam
 o backend/modelo da conversa e consomem sua cota; compactação não recupera créditos gastos.
+
+O autocompact procura reduzir o uso estimado a **60% da janela**, incluindo prompt,
+ferramentas e observações. Assim que recupera espaço suficiente, continua o pedido;
+o restante do histórico antigo não precisa ser resumido nessa operação. Se o prazo
+acabar, aplica um trecho seguro que reduza contexto e continua quando o pedido estiver
+abaixo de 80% na estimativa. Se ainda não couber ou não houver trecho seguro, mostra
+**Turno pausado**; use `$compact` e depois `/retry`, sem reenviar seu pedido. Falhas reais
+do provedor continuam sendo erros; uma pausa por orçamento conserva o progresso salvo.
 
 Para requisições nativas mais demoradas:
 

@@ -7,7 +7,7 @@ from .tools import TOOLS
 from . import skill_catalog
 from .permissions import MODE_HELP
 from .interaction import TurnCancelled
-from .context import active_messages, compaction_state, record_context, auto_compaction_needed, compact_chat, save_compaction, save_compaction_progress
+from .context import active_messages, compaction_state, record_context, auto_compaction_needed, compact_chat, save_compaction, save_compaction_progress, context_window, estimate_tokens, CompactionPaused
 
 
 def project_prompt(root):
@@ -110,17 +110,26 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
         if auto_compaction_needed(chat, client, payload, definitions):
             if progress: progress('Compactando automaticamente o contexto · histórico preservado…')
             try:
+                limit = context_window(client, (chat.get('context_usage') or {}).get('model') or chat['model'])
+                overhead = estimate_tokens([payload[0], *observations]) + estimate_tokens(definitions)
                 state, before, after = compact_chat(chat, client, getattr(tools, 'cancel_event', None), progress=progress,
-                    checkpoint=lambda pending: save_compaction_progress(chat, store, pending, getattr(tools, 'cancel_event', None)))
+                    checkpoint=lambda pending: save_compaction_progress(chat, store, pending, getattr(tools, 'cancel_event', None)),
+                    target_tokens=max(0, limit * .6 - overhead) if limit else None)
                 check_cancelled()
                 save_compaction(chat, store, state, getattr(tools, 'cancel_event', None))
             except TurnCancelled:
+                raise
+            except CompactionPaused:
                 raise
             except (ValueError, RuntimeError, OSError) as error:
                 raise RuntimeError('Compactação automática falhou; histórico preservado. '
                                    'Use $compact ou ajuste CENTAUR_CONTEXT_WINDOW. ' + str(error)) from error
             payload = [payload[0]] + active_messages(chat) + observations
-            if progress: progress(f'Contexto compactado automaticamente: ~{before:,} → ~{after:,} tokens.')
+            if state.get('partial') and limit and estimate_tokens(payload) + estimate_tokens(definitions) >= limit * .8:
+                raise CompactionPaused('Trecho do contexto compactado; ainda há mensagens grandes para resumir. '
+                                       'Use $compact e depois /retry; histórico preservado.')
+            if progress: progress(f'Contexto compactado automaticamente: ~{before:,} → ~{after:,} tokens. '
+                                  f'Aguardando {getattr(client, "backend", "modelo")}…')
             emit()
         record_context(chat, client, payload, definitions)
         emit()

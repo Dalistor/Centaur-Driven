@@ -12,7 +12,7 @@ from .settings import ConfigPicker
 from .openrouter import OpenRouter
 from .agent import run_turn, project_prompt
 from .tools import TOOLS
-from .context import compact_chat, context_label, estimate_tokens, save_compaction, save_compaction_progress
+from .context import compact_chat, context_label, estimate_tokens, save_compaction, save_compaction_progress, CompactionPaused
 from .speed import validate_speed, fast_supported
 from .native_usage import BalanceUnavailable
 from .completion import SkillCompletion
@@ -206,7 +206,7 @@ class Terminal:
             return
         if command == '/retry':
             self.draft = ''
-            if not self.chat.get('last_error'):
+            if not self.chat.get('last_error') and not self.chat.get('turn_paused'):
                 self.notice = 'Nenhum turno com falha para retomar.'
                 return
             self.chat.pop('last_error', None)
@@ -249,6 +249,7 @@ class Terminal:
         self.start_work()
 
     def start_work(self):
+        self.chat.pop('turn_paused', None)
         self.chat['approval_mode'] = self.approval_mode
         self.store.save(self.chat)
         self.scroll = 0
@@ -537,6 +538,14 @@ class Terminal:
                 except (OSError, RuntimeError):
                     self.title_tasks.discard(chat['id'])
             self.events.put(('done', 'Pronto.'))
+        except CompactionPaused as error:
+            chat['turn_paused'] = str(error)
+            notice = str(error)
+            try:
+                self.store.save(chat)
+            except OSError:
+                notice += ' Não foi possível salvar a pausa; confira o armazenamento antes de fechar a sessão.'
+            self.events.put(('done', notice))
         except TurnCancelled as error:
             chat['last_error'] = str(error)
             self.store.save(chat)
@@ -639,6 +648,8 @@ class Terminal:
                 try:
                     save_compaction(chat, self.store, state, cancellation)
                     self.notice = f'Contexto compactado: ~{before:,} → ~{after:,} tokens. Histórico preservado.'
+                    if state.get('partial'):
+                        self.notice += ' Restante integral no contexto; $compact pode reduzir mais.'
                 except OSError:
                     self.notice = 'Erro ao salvar compactação; contexto anterior preservado.'
             elif kind == 'title':
@@ -705,9 +716,19 @@ class Terminal:
         if self.busy and not self.approval:
             lines.append(TranscriptLine('◦ ' + self.view.activity(self, self.notice), 'muted'))
         if self.chat.get('last_error'):
-            lines.extend([TranscriptLine(''), TranscriptLine('! Erro no turno', 'warning')])
-            append_text(self.chat['last_error'], 'warning')
+            error = self.chat['last_error']
+            legacy_pause = (error.startswith('Compactação automática falhou;')
+                            and 'Compactação atingiu o limite de ' in error)
+            if legacy_pause:
+                lines.append(TranscriptLine('◦ Compactação anterior pausada por tempo', 'muted'))
+                append_text('Progresso salvo; $compact continua e /retry retoma o turno.', 'muted')
+            else:
+                lines.extend([TranscriptLine(''), TranscriptLine('! Erro anterior' if self.busy else '! Erro no turno', 'warning')])
+                append_text(error, 'warning')
             append_text('/retry retoma sem reenviar a mensagem; /new começa outra conversa.', 'muted')
+        if self.chat.get('turn_paused'):
+            lines.append(TranscriptLine('◦ Pausa anterior do turno' if self.busy else '◦ Turno pausado', 'muted'))
+            append_text(self.chat['turn_paused'], 'muted')
         return lines or ['Centaur experimental · OpenRouter', '', '/new cria chat · /quit sai']
 
     def draw(self, screen):

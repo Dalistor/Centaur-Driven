@@ -85,6 +85,12 @@ Compactação informa o orçamento total (180s por padrão) e reduz fragmentos a
 O progresso é persistido, sem substituir memória ativa; interrupção orienta retomar com
 `$compact`, inclusive após reinício. Rascunhos só são reutilizados para o mesmo prefixo,
 modelo e memória anterior. Nenhuma tentativa prolonga indefinidamente a operação.
+Autocompact conclui assim que recupera espaço (alvo estimado de 60% da janela, incluindo
+overhead). Ao esgotar o prazo, um resumo validado pode reduzir apenas um prefixo seguro;
+mensagens e lotes não totalmente resumidos permanecem integrais. Falta de divisão segura
+ou de espaço suficiente produz “Turno pausado”, em tom secundário, com `$compact` e
+`/retry`; nunca implica falha do modelo. Falhas reais permanecem em âmbar. Erro legado
+de prazo de compactação é apresentado como pausa anterior, sem apagar sua retomada.
 
 Créditos ficam no canto inferior direito. A barra usa
 10 células em janelas amplas e 5 nas estreitas, com valor em US$. Verde indica disponibilidade;

@@ -18,7 +18,7 @@ rename e melhorias visuais; as regras de desenvolvimento vêm de
 | Comandos locais | `completion.LOCAL_COMMANDS`, `SkillCompletion.local_command`, `Terminal.handle` | Enter executa comando local isolado com autocomplete; Tab só completa; skills/menções em frases apenas inserem; compactação informa progresso por fragmento | `tests/test_completion.py`, `tests/test_terminal_pty.py` |
 | Velocidade | `speed`, `ConfigPicker`, `NativeClient`, `OpenRouter` | Standard padrão; Fast só anunciado; custo explicado; não altera modelo/effort; tier solicitado não é tier confirmado | `tests/test_native_usage_speed.py` |
 | Cotas nativas | `native_usage`, `Terminal.request_credits` | RPC Codex somente leitura; eventos Claude públicos em cache; sem saldo inventado, credenciais ou prompts na consulta | `tests/test_native_usage_speed.py` |
-| Contexto e compactação | `context.active_messages`, `compact_chat`, `save_compaction`, `save_compaction_progress`, `agent.run_turn` | Barra estimada sem limite inventado; autocompact a 80%; resumo sem ferramentas e até duas revisões; orçamento total 180s e chamadas até 90s; timeout reduz fragmento; progresso em disco permite retomada sem ativar resumo parcial; histórico/lotes intactos | `tests/test_context.py` |
+| Contexto e compactação | `context.active_messages`, `compact_chat`, `save_compaction`, `save_compaction_progress`, `agent.run_turn` | Barra estimada sem limite inventado; autocompact a 80%, alvo 60%; prefixo seguro pode concluir antes; orçamento total 180s e chamadas até 90s; timeout reduz fragmento; progresso em disco; pausa retomável sem erro de modelo; histórico/lotes intactos | `tests/test_context.py` |
 | Prompts anteriores | `Terminal.recall_prompt`, `keyboard.read_key` | ↑/↓ percorrem prompts e restauram rascunho/cursor vazio ou preenchido; CSI/SS3 não viram texto; editar cópia não altera mensagem salva | `tests/test_composer.py`, `tests/test_terminal_pty.py` |
 | Trabalho e permissões | `Terminal.approval`, `ProjectTools` | Troca/rename do chat ativo aguardam turno; aprovações continuam prioritárias | `tests/test_cli.py` |
 | Ciclo de vida | `lifecycle.load_project`, `spec_completion_issues` | Gate somente leitura; prova corrente e integração separadas; conclusão não deriva do status | `tests/test_lifecycle.py` |
@@ -55,6 +55,14 @@ ferramentas resumidas, resposta final. `Ctrl+O` alterna detalhes sem mudar foco 
 ação azul, falha/recusa âmbar. Quebra de linha e rolagem preservam a distinção; marcadores
 ou indentação dentro do conteúdo não mudam o papel visual. `NO_COLOR` distingue ações
 em negrito de comentários normais, conservando símbolos e descrições de estado.
+
+Autocompact pode concluir um prefixo menor assim que há espaço suficiente (alvo estimado
+de 60%, incluindo overhead). Ao esgotar prazo, só mensagens completamente processadas
+podem sair do contexto ativo; lotes de ferramentas continuam inteiros e toda mensagem
+restante fica integral. O resumo usado precisa ser válido e reduzir contexto. Sem divisão
+segura ou espaço suficiente, `CompactionPaused` interrompe a próxima chamada com estado
+`turn_paused`, sem registrar erro de modelo; `/retry` retoma sem duplicar o pedido.
+Cancelar ou falhar no provedor continua preservando memória ativa e checkpoints.
 Resultados continuam íntegros no histórico; campos de reasoning do provedor não são renderizados.
 Marcadores de execução só mostram sucesso quando a ferramenta já retornou sem falha/recusa.
 Confirmações continuam prioritárias e os resumos não concedem aprovação.

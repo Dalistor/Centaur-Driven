@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.5 — 2026-10-06
+
+- Autocompact recupera espaço para continuar o turno (alvo estimado de 60% da janela, incluindo prompt/ferramentas), sem exigir resumir todo o prefixo antigo.
+- Ao atingir 180s, usa o resumo validado até uma divisão segura e mantém todas as mensagens restantes integrais. Nunca divide um lote de ferramentas nem elimina texto ainda não processado.
+- Sem divisão segura ou espaço suficiente, o turno fica pausado, com `$compact` e `/retry`, sem registrar o prazo como falha do modelo. Checkpoints continuam retomáveis.
+- O erro legado de orçamento de compactação aparece como pausa anterior; erros reais permanecem visíveis e preservados para retomada.
+
 ## 0.7.4 — 2026-10-06
 
 - Comentários públicos da IA ficam em branco; ações de ferramentas em azul/negrito e falhas, interrupções ou recusas em âmbar.
