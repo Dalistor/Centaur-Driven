@@ -199,7 +199,7 @@ class TerminalView:
             self.put(screen, index, text_column, command, 'green')
             self.put(screen, index, text_column + 19, description)
         if available >= 11:
-            self.put(screen, top + 9, text_column, '/status  Árvore das specs', 'blue')
+            self.put(screen, top + 9, text_column, '$status  Árvore das specs', 'blue')
             self.put(screen, top + 10, text_column, '$config  Modelo e effort', 'blue')
         if available >= 13 or available < 11:
             self.put(screen, top + min(12, available - 1), text_column,

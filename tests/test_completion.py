@@ -118,6 +118,18 @@ class CompletionTests(unittest.TestCase):
         self.terminal.completion.update(self.terminal.draft)
         self.assertEqual(self.terminal.completion.options, ['spec'])
 
+    def test_status_completion_inserts_a_local_command_without_calling_ai(self):
+        self.type('$sta')
+        self.terminal.completion.update(self.terminal.draft)
+        self.assertEqual(self.terminal.completion.options, ['start-project', 'status'])
+        self.terminal.handle(curses.KEY_DOWN)
+        self.terminal.handle('\t')
+        self.assertEqual(self.terminal.draft, '$status ')
+        with patch('centaur_cli.terminal.threading.Thread') as thread:
+            self.terminal.handle('\n')
+            thread.assert_not_called()
+        self.assertIn('Nenhuma spec encontrada', self.terminal.chat['messages'][-1]['content'])
+
 
 if __name__ == '__main__':
     unittest.main()

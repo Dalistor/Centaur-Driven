@@ -17,7 +17,7 @@ Leia o [ciclo por contratos e evidências](../graphify/references/lifecycle.md) 
 
 ## Memória de implementações
 
-Leia o [contrato de memória](../_internal/memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements/status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
+Leia o [contrato de memória](../_internal/memory/references/contract.md) junto do contexto. O backend em `.centaur/workspace.json` determina o destino dos registros: `files` mantém os READMEs legados; `ai-memory` usa páginas verificadas e dispensa novas pastas `implements/`. As etapas de reserva numérica e escrita em `implements$status.md` abaixo são exclusivas de `files`; no modo ai-memory, aplique o registro, a fila e a consolidação definidos no contrato. Preserve specs e histórico existente.
 
 ## Contexto persistente — Graphify
 
@@ -47,7 +47,7 @@ Responder sobre comportamento, realização e próximos passos com base nas font
 
 ## Comando status no CLI
 
-`/status` e `centaur status` exibem a projeção local em árvore, agrupando specs independentes pelo escopo e ligando mestre/filhas pelos IDs qualificados. `/status --ai` e `centaur status --ai` usam esta skill para recomendar conclusão e execução, sem alterar registros nem iniciar tasks.
+`$status` e `centaur status` exibem a projeção local em árvore, agrupando specs independentes pelo escopo e ligando mestre/filhas pelos IDs qualificados. `$status --ai` e `centaur status --ai` usam esta skill para recomendar conclusão e execução, sem alterar registros nem iniciar tasks.
 
 Na análise, use `project_status` para localizar specs e `lifecycle_status` para conferir contratos, estado, dependências e hashes de evidências atuais. A projeção é paginada: continue a leitura até o fim. Ela reaproveita o leitor canônico, mas não executa testes nem comprova aceite externo. Abra também os READMEs, fontes e evidências necessários. Não tente usar shell, escrita ou subagentes: essas ferramentas ficam indisponíveis neste modo.
 

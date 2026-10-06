@@ -4,7 +4,12 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import re
+import sys
 from .credentials import credentials_path
+from . import skill_catalog
+
+TRUSTED_PATH = os.pathsep.join((os.defpath, '/usr/local/bin', '/opt/homebrew/bin'))
 
 APPROVAL_MODES = ('ask', 'auto', 'never')
 MODE_LABELS = {'ask': 'Pedir aprovação', 'auto': 'Automático · baixo risco',
@@ -22,14 +27,34 @@ def validate_mode(mode):
     return mode
 
 
+def project_relative(root, supplied):
+    """Accept aliases of the project root without resolving away links inside it."""
+    if '..' in supplied.parts:
+        raise ValueError('Parent traversal requires review.')
+    if not supplied.is_absolute():
+        return supplied
+    try:
+        return supplied.relative_to(root)
+    except ValueError:
+        for parent in supplied.parents:
+            if parent.resolve() == root:
+                return supplied.relative_to(parent)
+        raise ValueError('Path outside the project.')
+
+
 def ordinary_path(root, relative):
     """Hidden/configuration, executable and linked files require review in auto."""
     root = Path(root).resolve()
-    supplied = Path(relative)
-    if supplied.is_absolute() or '..' in supplied.parts:
+    try:
+        supplied = project_relative(root, Path(relative))
+    except (OSError, ValueError):
         return False
     parts = supplied.parts
-    if any(part.startswith('.') or part.lower() in ('secrets', 'credentials') for part in parts):
+    centaur_document = (len(parts) >= 3 and parts[0] == '.centaur'
+                        and parts[1] in ('specs', 'implements', 'contracts', 'modules', 'system')
+                        and supplied.suffix.lower() in ('.md', '.json', '.html'))
+    checked_parts = parts[1:] if centaur_document else parts
+    if any(part.startswith('.') or part.lower() in ('secrets', 'credentials') for part in checked_parts):
         return False
     current = root
     for part in parts:
@@ -47,18 +72,25 @@ def ordinary_path(root, relative):
 
 
 def query_command(root, command):
-    """Return trusted argv for a deliberately small set; never run auto in a shell."""
-    if not isinstance(command, str) or any(c in command for c in '\n\r;&|><`$\\'):
+    """Return trusted argv for recognized queries; never run auto in a shell."""
+    if not isinstance(command, str) or any(c in command for c in '\n\r'):
         return None
     try:
-        args = shlex.split(command)
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=';&|><')
+        lexer.whitespace_split = True
+        lexer.commenters = ''
+        args = list(lexer)
     except ValueError:
         return None
     if not args:
         return None
+    if any(token and all(c in ';&|><' for c in token) for token in args):
+        return None
     name, rest = args[0], args[1:]
+    if name in ('python', 'python3'):
+        return lifecycle_query(root, rest)
     # A project-local executable or custom PATH must not acquire automatic permission.
-    executable = shutil.which(name, path=os.defpath) if '/' not in name else None
+    executable = shutil.which(name, path=TRUSTED_PATH) if '/' not in name else None
     if not executable:
         return None
     if name == 'pwd' and not rest:
@@ -78,22 +110,47 @@ def query_command(root, command):
             argv += ['--no-ext-diff', '--no-textconv']
         return argv
     if name == 'rg':
-        if rest == ['--files']:
-            return [executable, '--no-config', '--files']
         flags, rest = [], list(rest)
-        while rest and rest[0] in ('-n', '-i', '-F', '-l'):
-            flags.append(rest.pop(0))
-        if not rest or rest[0].startswith('-'):
-            return None
-        pattern, paths = rest[0], rest[1:] or ['.']
+        file_list = False
+        while rest and rest[0].startswith('-'):
+            option = rest.pop(0)
+            if option in ('-n', '-i', '-F', '-l', '--hidden'):
+                flags.append(option)
+            elif option == '--files' and not file_list:
+                file_list = True
+                flags.append(option)
+            elif option in ('-g', '--glob') and rest and not rest[0].startswith('-'):
+                flags.extend([option, rest.pop(0)])
+            else:
+                return None
+        if file_list:
+            paths = rest or ['.']
+            pattern = []
+        else:
+            if not rest:
+                return None
+            pattern, paths = rest[:1], rest[1:] or ['.']
         for token in paths:
             if not query_path(root, token):
                 return None
-        return [executable, '--no-config', *flags, pattern, *paths]
+        return [executable, '--no-config', *flags, *pattern, *paths]
+    if name == 'sed':
+        # Only numeric print addresses: no execution, writes, in-place edits or extra scripts.
+        if len(rest) < 3 or rest[0] != '-n' or not re.fullmatch(r'\d+(?:,\d+)?p', rest[1]):
+            return None
+        if not all(query_path(root, token) for token in rest[2:]):
+            return None
+        return [executable, *rest]
     if name not in ('ls', 'cat', 'head', 'tail', 'wc'):
         return None
     flags = {'ls': {'-l', '-a', '-la', '-al', '-1'}, 'cat': {'-n'},
              'head': set(), 'tail': set(), 'wc': {'-l', '-w', '-c'}}[name]
+    if name in ('head', 'tail') and rest[:1] == ['-n']:
+        if len(rest) < 3 or not rest[1].isdigit() or not 1 <= int(rest[1]) <= 10000:
+            return None
+        if not all(query_path(root, token) for token in rest[2:]):
+            return None
+        return [executable, *rest]
     paths = []
     for token in rest:
         if token.startswith('-'):
@@ -108,18 +165,52 @@ def query_command(root, command):
     return [executable, *rest]
 
 
+def lifecycle_query(root, args):
+    """Only the bundled read-only validator; arbitrary Python still requires approval."""
+    if len(args) < 2:
+        return None
+    script = skill_catalog.SKILL_ROOT / 'graphify/scripts/validate-lifecycle.py'
+    try:
+        supplied = Path(args[0])
+        if not supplied.is_absolute():
+            supplied = Path(root) / supplied
+        if supplied.resolve() != script.resolve() or not script.is_file():
+            return None
+        project = Path(args[1])
+        if not project.is_absolute():
+            project = Path(root) / project
+        if project.resolve() != Path(root).resolve():
+            return None
+    except (OSError, ValueError):
+        return None
+    remaining = args[2:]
+    if len(remaining) % 2:
+        return None
+    used = set()
+    for option, value in zip(remaining[::2], remaining[1::2]):
+        if option not in ('--ready', '--complete') or option in used or not re.fullmatch(r'[\w-]+/[\w-]+', value):
+            return None
+        used.add(option)
+    # Ignore Python environment and site hooks; imports come from the installed script directory.
+    return [sys.executable, '-E', '-s', '-S', str(script.resolve()), str(Path(root).resolve()), *remaining]
+
+
 def query_path(root, token):
-    path = Path(token)
-    if (token.startswith('-') or path.is_absolute() or '..' in path.parts
-            or any(p.startswith('.') and p != '.' for p in path.parts)):
+    root = Path(root).resolve()
+    try:
+        path = project_relative(root, Path(token))
+    except (OSError, ValueError):
         return False
-    current = Path(root).resolve()
+    if (token.startswith('-') or any(c in token for c in '$`\\') or '..' in path.parts
+            or any(p.startswith('.') and p not in ('.', '.centaur') for p in path.parts)):
+        return False
+    current = root
     for part in path.parts:
         current /= part
         if current.is_symlink():
             return False
     try:
-        current.resolve().relative_to(Path(root).resolve())
+        current.resolve().relative_to(root)
         protected = credentials_path().resolve()
         return current.resolve() != protected and not (current.is_dir() and protected.is_relative_to(current.resolve()))
     except (OSError, ValueError):
@@ -130,5 +221,9 @@ def query_environment(environment):
     """Local Git configuration must not invoke hooks/helpers during automatic queries."""
     env = {k: v for k, v in environment.items() if not k.startswith('GIT_')}
     env.update({'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull,
-                'GIT_OPTIONAL_LOCKS': '0', 'GIT_TERMINAL_PROMPT': '0'})
+                'GIT_OPTIONAL_LOCKS': '0', 'GIT_TERMINAL_PROMPT': '0', 'PATH': TRUSTED_PATH,
+                'GIT_CONFIG_COUNT': '3', 'GIT_CONFIG_KEY_0': 'core.fsmonitor',
+                'GIT_CONFIG_VALUE_0': 'false', 'GIT_CONFIG_KEY_1': 'core.pager',
+                'GIT_CONFIG_VALUE_1': 'cat', 'GIT_CONFIG_KEY_2': 'log.showSignature',
+                'GIT_CONFIG_VALUE_2': 'false'})
     return env

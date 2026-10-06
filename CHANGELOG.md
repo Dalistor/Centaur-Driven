@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1 — 2026-10-06
+
+- `$status` e `$status --ai` no autocomplete, tela inicial e instruções do agente.
+- `/status` e `/status --ai` preservados como aliases; análise com IA continua somente leitura.
+- Modo automático reconhece o validador de ciclo de vida incluído, documentos de `.centaur`, caminhos absolutos dentro do projeto, consultas com glob e leitura por intervalos.
+- Validador usa Python sem hooks de site/ambiente e Git do sistema, sem fsmonitor.
+
 ## 0.4.0 — 2026-10-06
 
 - Modos ask, auto e never na abertura, `$config`, flags e preferências da pasta.

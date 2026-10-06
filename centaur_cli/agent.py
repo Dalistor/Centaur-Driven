@@ -31,7 +31,7 @@ def project_prompt(root):
               'ou registros de memória; consultar não autoriza indexar nem mudar o backend. '
               'Pedidos como $spec, $run e $check invocam as skills correspondentes. '
               '$config é um comando local para consultar ou trocar backend e modelo; não pede chaves no chat. '
-              '/status mostra uma árvore local das specs; /status --ai analisa evidências '
+              '$status é um comando local, não uma skill: mostra a árvore das specs; $status --ai analisa evidências '
               'e recomenda conclusão ou execução, sem alterar registros nem iniciar tasks. '
               'Quando delegate_task estiver disponível, $run delega cada task elegível '
               'a um subagente com contexto próprio. Descreva contrato, fontes, arquivos de posse, '
@@ -49,7 +49,10 @@ def project_prompt(root):
               'Skills adicionais ficam em .centaur/skills/<nome>/SKILL.md; preserve os namespaces '
               'mesmo quando uma skill adicional tem o mesmo nome de uma skill Centaur. '
               f'Scripts incluídos ficam em {skill_catalog.SKILL_ROOT}; use esse caminho absoluto '
-              'para executá-los com run_command, após aprovação. Histórico fica em .centaur/chats.\n')
+              'para executá-los com run_command; o modo de permissões controla a aprovação. '
+              'No modo auto, o validate-lifecycle.py incluído pode consultar o projeto sem confirmação; '
+              'scripts Python genéricos, testes e builds continuam exigindo aprovação. '
+              'Histórico fica em .centaur/chats.\n')
     instructions = Path(root) / 'AGENTS.md'
     if instructions.is_file():
         prompt += instructions.read_text(encoding='utf-8')[:24000]

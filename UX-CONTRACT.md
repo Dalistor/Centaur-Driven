@@ -78,6 +78,11 @@ classificação; `ProjectTools` aplica a regra; `SubagentTools` herda o modo sem
 `ConfigPicker` e `StartupPicker` compartilham opções, seleção e confirmação. Padrão legado: ask.
 Cancelar ou falhar ao salvar conserva o modo e a conversa ativos. Aplicar somente permissões
 preserva o chat; mudanças de backend/modelo/effort criam outro. Histórico não concede permissões.
+O modo auto inclui documentos de `.centaur` e o validador de ciclo de vida instalado;
+Python e Git usam execução isolada de hooks/ambiente e executáveis do sistema.
+
+`$status` e `$status --ai` aparecem no autocomplete e na orientação inicial. `/status`
+continua como alias, incluindo históricos antigos. A análise com IA usa somente `StatusTools`.
 
 Verificação: `tests/test_permissions.py`, `tests/test_startup.py` e PTY nos três modos, incluindo
 recusa de comandos gerais, escrita automática, consultas, sem confirmação e resize a 40 × 12.

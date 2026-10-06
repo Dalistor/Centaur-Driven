@@ -1,13 +1,17 @@
 # Política de permissões
 
 Fonte: solicitação do proprietário em 2026-10-06, com escolha explícita de “Edições e consultas”
-para o modo intermediário. Implementação canônica: `centaur_cli/permissions.py` e `ProjectTools`.
+para o modo intermediário, refinada a pedido do usuário após confirmação desnecessária do
+validador incluído. Implementação canônica: `centaur_cli/permissions.py` e `ProjectTools`.
 
 - `ask`: leituras livres; toda gravação e comando precisam de aprovação.
 - `auto`: edições comuns em arquivos do projeto e consultas da lista permitida executam sem
   confirmação. Opções/sintaxe desconhecidas, testes, builds, exclusões, rede, instalações e Git
   com alteração de estado exigem aprovação. Edições em caminhos ocultos, links, arquivos com
-  bit executável, hardlinks e pastas de credenciais exigem revisão.
+  bit executável, hardlinks e pastas de credenciais exigem revisão. Exceção documental:
+  `.md`, `.json` e `.html` em `.centaur/specs`, `implements`, `contracts`, `modules` e `system`.
+  Configuração, workspace, chats e skills continuam exigindo aprovação. Caminhos absolutos
+  dentro do projeto seguem a mesma classificação dos relativos.
 - `never`: ferramentas de gravação e comando executam sem pedir aprovação. Comandos continuam
   com as permissões do usuário; não há promessa de sandbox. Ferramentas de arquivo mantêm
   limites de caminho e credenciais, redaction e timeouts.
@@ -24,4 +28,13 @@ com que foram criadas; configuração fica indisponível enquanto o turno estive
 
 Consultas automáticas usam argumentos diretos e executáveis do sistema, sem shell ou PATH
 customizado. Git desativa pager, fsmonitor, assinatura, ext-diff e textconv; rg ignora configs.
+Diretórios de instalação do sistema incluem `/usr/local/bin` e `/opt/homebrew/bin`;
+aliases do diretório raiz do projeto são normalizados sem ignorar links internos.
 A lista é conservadora e não equivale a análise universal da segurança de um comando.
+
+O modo auto aceita leitura por intervalos com `sed -n`, `head -n` e `tail -n`, globs de `rg`
+e consultas em `.centaur`. A execução do `validate-lifecycle.py` incluído no catálogo é
+automática apenas para a pasta aberta, com opções `--ready`/`--complete` verificadas.
+Python ignora PYTHONPATH e hooks de site; PATH usa executáveis do sistema e Git recebe
+configuração que desativa fsmonitor. Scripts de mesmo nome no projeto não são confiáveis;
+outros scripts Python, testes e builds continuam exigindo aprovação.

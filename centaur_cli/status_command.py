@@ -35,7 +35,7 @@ def main(arguments=None):
         chat = store.new(model, backend=options.backend)
         chat['effort'] = effort
         chat['title'] = 'Análise de status das specs'
-        chat['messages'] = [{'role': 'user', 'content': '/status --ai\n\n' + report}]
+        chat['messages'] = [{'role': 'user', 'content': '$status --ai\n\n' + report}]
         tools = StatusTools(root, lambda _: False, protected_keys=client.secrets)
         print(f'\nAnalisando evidências com {options.backend}…', flush=True)
         run_turn(chat, client, tools, store, lambda: None, ANALYSIS_INSTRUCTIONS)
