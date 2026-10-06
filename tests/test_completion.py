@@ -92,7 +92,7 @@ class CompletionTests(unittest.TestCase):
 
     def test_chat_navigation_still_works_while_completion_is_open(self):
         self.type('$')
-        self.terminal.handle(curses.KEY_LEFT)
+        self.terminal.handle(curses.KEY_SLEFT)
         self.assertTrue(self.terminal.browser)
         self.terminal.handle('\x1b')
         self.assertFalse(self.terminal.browser)

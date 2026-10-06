@@ -6,7 +6,8 @@ from pathlib import Path
 
 from .agent import run_turn
 from .history import ChatStore
-from .backends import BACKENDS, create_client, resolve_selection
+from .backends import BACKENDS, create_client, resolve_selection, resolve_effort
+from .config import EFFORTS
 from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 
 
@@ -16,6 +17,7 @@ def main(arguments=None):
     parser.add_argument('--ai', action='store_true', help='Usar o backend conectado para recomendar conclusão e execução; não altera specs')
     parser.add_argument('--backend', choices=BACKENDS, default=None)
     parser.add_argument('--model', default=None, help='Modelo do backend para a análise')
+    parser.add_argument('--effort', choices=EFFORTS, default=None, help='Esforço do modelo para a análise')
     options = parser.parse_args(arguments)
     root = Path(options.path).expanduser().resolve()
     if not root.is_dir():
@@ -26,10 +28,12 @@ def main(arguments=None):
         return
     try:
         options.backend, model = resolve_selection(root, options.backend, options.model)
+        effort = resolve_effort(root, options.backend, options.effort)
         client = create_client(options.backend, model,
                                allow_setup=sys.stdin.isatty() and sys.stdout.isatty(), include_credits=False)
         store = ChatStore(root)
         chat = store.new(model, backend=options.backend)
+        chat['effort'] = effort
         chat['title'] = 'Análise de status das specs'
         chat['messages'] = [{'role': 'user', 'content': '/status --ai\n\n' + report}]
         tools = StatusTools(root, lambda _: False, protected_keys=client.secrets)

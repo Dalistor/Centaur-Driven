@@ -7,7 +7,8 @@ from pathlib import Path
 
 from .history import ChatStore
 from .credentials import CredentialStore
-from .backends import BACKENDS, create_client, resolve_selection
+from .backends import BACKENDS, create_client, resolve_selection, resolve_effort
+from .config import EFFORTS
 from .setup import configure_key
 from .terminal import Terminal
 from .subagents import COST_TIERS
@@ -24,6 +25,8 @@ def main():
                         help='Backend conectado: openrouter (padrão), codex ou claude')
     parser.add_argument('--model', default=None,
                         help='Modelo principal; subagentes podem escolher modelos do mesmo backend')
+    parser.add_argument('--effort', choices=EFFORTS, default=None,
+                        help='Esforço de raciocínio do modelo principal (padrão: do provedor)')
     parser.add_argument('--configure-key', action='store_true',
                         help='Cadastrar ou substituir a chave com entrada oculta, sem abrir um chat')
     parser.add_argument('--configure-credits-key', action='store_true',
@@ -44,9 +47,10 @@ def main():
             configure_key(CredentialStore())
             return
         options.backend, model = resolve_selection(root, options.backend, options.model)
+        effort = resolve_effort(root, options.backend, options.effort)
         client = create_client(options.backend, model)
         curses.wrapper(Terminal(root, model, ChatStore(root), client,
-                                options.max_subagent_tier).run)
+                                options.max_subagent_tier, effort=effort).run)
     except (RuntimeError, ValueError) as error:
         parser.exit(1, f'{error}\n')
     except (OSError, curses.error) as error:

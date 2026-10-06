@@ -11,6 +11,7 @@ import tempfile
 from uuid import uuid4
 
 from .openrouter import ModelReply
+from .config import validate_effort
 
 REPLY_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
@@ -93,7 +94,8 @@ class NativeClient:
         if result.returncode:
             raise RuntimeError(f'{self.backend} não autenticado. Execute {login} e abra o Centaur novamente.')
 
-    def arguments(self, directory, model=None):
+    def arguments(self, directory, model=None, effort='default'):
+        validate_effort(self.backend, effort)
         if self.backend == 'codex':
             arguments = [self.command, 'exec', '--ignore-user-config', '--ignore-rules',
                          '--sandbox', 'read-only', '--ephemeral', '--skip-git-repo-check',
@@ -112,11 +114,16 @@ class NativeClient:
         selected = self.fixed_model if model is None else model
         if selected:
             arguments += ['--model', selected]
+        if effort != 'default':
+            if self.backend == 'codex':
+                arguments += ['--config', 'model_reasoning_effort=' + json.dumps(effort)]
+            else:
+                arguments += ['--effort', effort]
         if self.backend == 'codex':
             arguments += ['-']
         return arguments
 
-    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None):
+    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default'):
         if cost_tier is not None:
             raise ValueError('cost_tier é exclusivo de OpenRouter.')
         if model != self.fixed_model and model not in self.model_catalog():
@@ -128,7 +135,7 @@ class NativeClient:
             directory = Path(temporary)
             (directory / 'schema.json').write_text(json.dumps(REPLY_SCHEMA))
             try:
-                process = subprocess.Popen(self.arguments(directory, model), cwd=directory,
+                process = subprocess.Popen(self.arguments(directory, model, effort), cwd=directory,
                                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                            stderr=subprocess.PIPE, text=True, env=env,
                                            start_new_session=True)

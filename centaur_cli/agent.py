@@ -62,9 +62,10 @@ def run_turn(chat, client, tools, store, emit, instructions=''):
                                  'content': 'Execução interrompida; confira o estado antes de tentar novamente.'})
     messages[:] = recovered
     for _ in range(20):
+        options = {'effort': chat['effort']} if chat.get('effort', 'default') != 'default' else {}
         response = client.complete(chat['model'],
                                    [{'role': 'system', 'content': project_prompt(tools.root) + instructions}] + messages,
-                                   getattr(tools, 'definitions', TOOLS))
+                                   getattr(tools, 'definitions', TOOLS), **options)
         selected_model = getattr(response, 'model', None)
         if selected_model:
             chat.setdefault('models_used', []).append(selected_model)

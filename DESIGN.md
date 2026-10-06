@@ -1,3 +1,25 @@
+---
+version: alpha
+colors:
+  background: "#121212"
+  text: "#d0d0d0"
+  primary: "#87ff87"
+  secondary: "#87afaf"
+  border: "#4e4e4e"
+  info: "#87afff"
+  warning: "#ffaf5f"
+typography:
+  display:
+    fontFamily: "monospace"
+  body:
+    fontFamily: "monospace"
+omitted:
+  - section: rounded
+    reason: "Interface de caracteres; não existem raios em pixels."
+  - section: spacing
+    reason: "Geometria medida em células e linhas do terminal, não em CSS."
+---
+
 # Centaur CLI
 
 Interface de operação para programação com agentes, inspirada na referência “Concept C”
@@ -33,7 +55,7 @@ Em janelas amplas, símbolo e wordmark aparecem à esquerda, com apresentação 
 abaixo de 40 × 12 mostra orientação de tamanho e preserva o campo de entrada.
 
 O cabeçalho identifica a pasta e o modelo. O rodapé mantém estado, mensagem digitada e
-atalhos. A lista de chats destaca toda a linha selecionada, com data quando houver espaço.
+atalhos. A lista de chats destaca toda a linha selecionada, com data quando houver espaço. A seta esquerda edita o texto; Shift+← abre os chats.
 Confirmações usam âmbar e instruções explícitas para permitir, recusar e revisar a ação.
 O cursor fica visível durante a digitação e oculto na lista ou confirmação.
 
@@ -42,3 +64,35 @@ Créditos ocupam uma linha própria no canto inferior direito, acima dos atalhos
 âmbar indica 20% ou menos, ou saldo desatualizado (prefixo `~`). “Conta” e “Chave” distinguem
 saldo global de limite da credencial. Durante resize, a barra acompanha o canto e o conteúdo
 é recomposto a partir do estado atual, preservando rascunho, seleção e conversas.
+
+## Seletores, edição e movimento
+
+`TerminalView` e `Palette` são os donos do desenho; `ConfigPicker` é o dono compartilhado
+da seleção de backend/modelo/effort. Lista de chats, autocomplete e configuração destacam
+a linha inteira e mostram a seleção por `>` além da cor. A edição de título fica na mesma
+superfície e preserva o rascunho da conversa. Telas de edição em menos de 20 linhas usam
+a área de conteúdo inteira; mensagens curtas não movem os controles de salvar/cancelar.
+Textos largos são recortados por células, incluindo a janela de entrada e seu cursor.
+
+A seta do arqueiro alterna verde/secundário em uma cadência de 4 passos por segundo,
+com pausa; o indicador de atividade usa 4 frames a 8 passos por segundo e mostra segundos
+decorridos. Não simular porcentagem de execução. `CENTAUR_REDUCED_MOTION=1` deixa a seta
+estática e substitui o spinner por marcador fixo. A animação não muda seleção ou foco.
+
+## Mapeamento dos tokens
+
+A paleta existente em `appearance.Palette.initialize` é a fonte de execução; este documento
+espelha seus valores ANSI. Fundo 233 mapeia `background`; estilos text/green/muted/line/blue/warning
+mapeiam text/primary/secondary/border/info/warning. `TerminalView.put` é o único caminho de desenho
+para cabeçalho, conversa, seletor, rename, autocomplete e rodapé. Terminais de 8 cores usam os
+fallbacks ANSI já existentes; `NO_COLOR` usa atributos de texto. A tipografia permanece sob
+controle do terminal do usuário, com autores/ações em negrito e conteúdo em peso normal.
+
+| Regra anterior | Evolução autorizada | Execução |
+| --- | --- | --- |
+| A marca aparece só na abertura | Pulso discreto na seta; restante contido | `TerminalView.logo` |
+| Cabeçalho mostra pasta/modelo | Acrescenta nome do chat, effort e estado | `TerminalView.draw` |
+| Esquerda abre histórico | Shift+← abre; esquerda edita | `Terminal.handle` |
+| Créditos em linha própria | Preservado no redesenho | `TerminalView.draw` |
+
+Comportamentos duráveis e recuperação estão em [UX-CONTRACT.md](UX-CONTRACT.md).

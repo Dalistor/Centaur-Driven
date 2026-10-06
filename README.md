@@ -9,7 +9,11 @@ histórico por pasta e ferramentas de programação. Requer Python 3.10+ e termi
 (Linux/macOS). A implementação usa a biblioteca padrão, sem dependências de execução.
 O visual segue a referência Centaur Concept C: centauro em blocos Unicode na abertura (com fallback ASCII), fundo escuro,
 comandos em verde e atalhos em azul. Adapta-se ao tamanho do terminal e respeita `NO_COLOR`.
-Veja as decisões em [DESIGN.md](DESIGN.md).
+Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.md](UX-CONTRACT.md).
+
+![Abertura do Centaur CLI](docs/cli-welcome.png)
+
+*Captura de uma sessão de demonstração local, com cliente simulado.*
 
 ```bash
 python3 -m venv .venv
@@ -34,7 +38,7 @@ centaur --backend claude /caminho/do/projeto
 
 `--backend` aceita `openrouter` (padrão), `codex` ou `claude`; `CENTAUR_BACKEND` define o padrão. Codex/Claude reutilizam sua própria autenticação, sem solicitar chave OpenRouter. Precisam estar no `PATH`, com versões que suportem as opções de isolamento e resposta estruturada usadas pelo adaptador. Versões incompatíveis são recusadas, sem fallback para outro provedor.
 
-Com **Codex ou Claude conectado**, `$run` cria subagentes no mesmo backend e escolhe o modelo por task conforme complexidade e risco. `delegate_task` aceita título, task e um modelo do catálogo; `cost_tier` é exclusivo do OpenRouter. `--model` escolhe o modelo principal; sem ele, usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. `$config` mostra a configuração; `$config <backend> [modelo]` altera a fonte da IA e o modelo principal, salvando a preferência local e abrindo novo chat. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo principal solicitado.
+Com **Codex ou Claude conectado**, `$run` cria subagentes no mesmo backend e escolhe o modelo por task conforme complexidade e risco. `delegate_task` aceita título, task e um modelo do catálogo; `cost_tier` é exclusivo do OpenRouter. `--model` escolhe o modelo principal; sem ele, usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. `$config` abre o seletor; `$config <backend> [modelo] [effort]` altera a fonte da IA e o modelo principal, salvando a preferência local e abrindo novo chat. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo principal solicitado.
 
 A interface, o autocomplete, `/status` e as aprovações continuam no Centaur. O adaptador usa saídas estruturadas dos CLIs, sem ferramentas nativas de execução/delegação e sem carregar as personalizações locais desses clientes; leituras, gravações e comandos passam pelas ferramentas do harness. Cada etapa envia o contexto Centaur a uma execução efêmera do CLI, com limite de 180 segundos; os históricos ficam no Centaur. O adaptador não interpreta o ID efetivo de modelo quando o CLI não o fornece. As credenciais conhecidas dos backends são ocultadas nas mensagens e saídas e removidas do ambiente dos comandos de projeto.
 
@@ -90,25 +94,88 @@ são reposicionados e o texto é quebrado novamente. O rascunho e a conversa sã
 
 | Controle | Ação |
 | --- | --- |
-| `←` | Abrir os chats salvos da pasta, inclusive durante uma resposta. |
+| `Shift+←` ou `/chats` | Abrir os chats salvos da pasta, inclusive durante uma resposta. `←` e `→` editam a mensagem. |
 | `↑` / `↓` e Enter | Selecionar e retomar um chat quando o turno atual terminar. |
 | Delete | Excluir o chat selecionado na lista e seu histórico salvo. Chats em execução aguardam o fim do turno. |
 | Esc ou `→` | Voltar da lista para a conversa. |
 | `$` | Autocomplete das skills Centaur; digite para filtrar. |
 | `@` | Autocomplete de skills adicionais em `.centaur/skills/`. |
 | ↑ / ↓, Tab ou Enter na lista de skills | Escolher e inserir a skill; Esc fecha a lista. Enter após inserir envia a mensagem. |
-| `$config` | Mostrar a fonte da IA; `$config codex`, `$config claude sonnet` ou `$config openrouter openrouter/auto` altera backend/modelo e abre novo chat. Preferência local em `.centaur/config.json`; flags e variáveis de ambiente têm prioridade ao iniciar. |
+| `$config` | Abrir o seletor de backend, modelo e effort. ↑/↓ escolhem, Enter abre/confirma, Esc volta/cancela. Salvar abre novo chat e preserva os anteriores. |
+| R ou F2 na lista de chats | Renomear a conversa selecionada; Enter salva e Esc cancela. |
+| `/rename` ou `/rename Novo título` | Renomear a conversa atual sem chamar o modelo. |
 | `/new` | Criar outra conversa. |
 | `/status` | Mostrar a árvore local das specs, sem chamar o modelo. |
 | `/status --ai` | Analisar evidências e recomendar o que pode concluir ou rodar, somente leitura. |
 | `/credits` | Atualizar o indicador de créditos sem enviar mensagem ao modelo. |
 | PgUp / PgDn | Rolar o histórico ou revisar uma ação pendente. |
 | `y` / `n` | Permitir ou recusar a gravação/comando exibido. |
-| Ctrl+U | Limpar a mensagem digitada. |
+| `←` / `→`, Home / End, Delete | Mover o cursor e editar a mensagem. |
+| Ctrl+U | Limpar a mensagem ou o filtro digitado. |
 | `/quit` ou Ctrl+Q | Sair após concluir o turno. |
 
+### Preferências e esforço de raciocínio
+
+Use `$config` para escolher **Backend → Modelo → Effort → Salvar e abrir novo chat**.
+
+![Seletor de effort no terminal](docs/cli-effort.png)
+
+*Os níveis disponíveis variam conforme o catálogo do modelo.*
+Os campos pertencem à configuração da próxima conversa; nada é aplicado ao navegar ou
+cancelar. A validação de instalação/autenticação roda em segundo plano, sem chamar um
+modelo. Se falhar, o seletor conserva as escolhas e mostra como tentar novamente.
+
+No seletor de modelos, digite para filtrar localmente; Ctrl+U limpa. **Modelo personalizado**
+aceita um ID/alias e **Padrão do provedor** deixa o modelo sem override. OpenRouter consulta
+`GET /api/v1/models` e mostra modelos que aceitam ferramentas, além do Auto Router. Codex
+usa o cache local `~/.codex/models_cache.json` (ou `CODEX_HOME`); Claude usa `haiku`, `sonnet`
+e `opus`. Se o catálogo não estiver disponível, ainda é possível informar um modelo.
+
+**Effort** controla o raciocínio do modelo principal. `default` deixa a escolha com o provedor.
+Referência: [controle de raciocínio OpenRouter](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)
+e [opções do Claude CLI](https://code.claude.com/docs/en/cli-reference).
+OpenRouter envia `reasoning.effort`, Codex envia `model_reasoning_effort` e Claude envia
+`--effort`. O seletor restringe os níveis aos metadados do modelo quando disponíveis no
+catálogo OpenRouter ou no cache Codex. Sem esses metadados, a confirmação final de suporte
+cabe ao provedor/CLI; uma escolha incompatível retorna erro, sem fallback silencioso.
+O nível `ultra` do cache Codex não é exposto porque ativa delegação nativa, fora da coordenação
+Centaur. Subagentes continuam com o esforço padrão de seu próprio modelo; o limite
+`--max-subagent-tier` controla a faixa de custo do roteamento, separadamente.
+
+Também são aceitos comandos diretos, preservando compatibilidade:
+
+```bash
+# Dentro do chat:
+$config codex gpt-6.1-sol high
+$config claude sonnet medium
+$config openrouter openrouter/auto
+
+# Ao iniciar:
+centaur . --backend codex --model gpt-6.1-sol --effort high
+```
+
+Preferências ficam em `.centaur/config.json`, sem credenciais. Arquivos antigos com apenas
+`backend` e `model` continuam válidos. Para backend/modelo/effort, flags têm prioridade sobre
+variáveis de ambiente (`CENTAUR_BACKEND`, `CENTAUR_MODEL` / `OPENROUTER_MODEL`,
+`CENTAUR_EFFORT`), que têm prioridade sobre preferências locais. Ao mudar o backend, modelo
+e effort salvos de outro backend não são reaproveitados. Cada chat novo registra o effort;
+retomar um chat preserva seu modelo e seu effort original. Chats antigos usam `default`.
+
+O terminal mantém a identidade do centauro arqueiro, com pulso discreto na seta da abertura,
+indicador animado de atividade, tempo decorrido, nome da conversa e estado de trabalho.
+As mensagens separam autor e conteúdo; seletores compartilham cores e seleção com o histórico.
+A animação indica atividade, não porcentagem de conclusão. Para reduzir movimento:
+
+```bash
+CENTAUR_REDUCED_MOTION=1 centaur .
+NO_COLOR=1 centaur .
+```
+
+`NO_COLOR` remove cores, mantendo seleção por inversão. O CLI preserva rascunho e posição do
+cursor ao redimensionar. Em terminais que interceptem Shift+←, use `/chats`.
+
 Os chats ficam em `.centaur/chats/*.json` na pasta aberta, com gravação atômica e permissão
-de arquivo restrita ao usuário. Cada execução começa com uma conversa nova; use `←` para
+de arquivo restrita ao usuário. Cada execução começa com uma conversa nova; use `Shift+←` para
 retomar as anteriores, preservando o modelo utilizado. Arquivos de histórico inválidos são
 ignorados. Inclua `.centaur/chats/` no `.gitignore` dos projetos para evitar publicar conversas.
 
@@ -148,6 +215,35 @@ O CLI inclui as skills no pacote em `centaur_cli/skills/` e as consulta com `rea
 sem copiá-las para cada projeto. Os comandos `$spec`, `$run`, `$check` e os demais nomes
 do catálogo instruem o agente a ler e seguir a skill correspondente. As referências e
 scripts também acompanham o pacote. A instalação em outros clientes continua descrita abaixo.
+
+### Validar integração e conclusão
+
+O ciclo mantém contrato aprovado, implementação, evidência e entrega como dimensões
+separadas. `$spec` planeja dentro do contrato; `$run` executa e verifica; `$check` e `/status`
+consultam o estado. `/status --ai` tem somente ferramentas de leitura e recebe também as
+pendências de conclusão calculadas localmente.
+
+```bash
+# Integridade dos registros (não significa que o projeto está concluído):
+python3 centaur_cli/skills/graphify/scripts/validate-lifecycle.py /projeto
+
+# Regra pronta para integrar, com dependências entregues e prova corrente:
+python3 centaur_cli/skills/graphify/scripts/validate-lifecycle.py /projeto --ready reservas/RES-01
+
+# Spec pronta para concluir, inclusive filhas e dependências:
+python3 centaur_cli/skills/graphify/scripts/validate-lifecycle.py /projeto --complete master/0001
+```
+
+`--complete` exige checklist completo, `**Contrato:** id@versão` vigente/aprovado,
+`**Regras:** RES-01, RES-02` (ou IDs qualificados), implementação, evidências correntes e
+entrega integrada/publicada de cada regra. Percorre filhas e dependências por IDs
+qualificados, detectando ausência, ciclos e vínculos divergentes. O status `Concluída`
+no README sozinho não satisfaz o gate; uma regra apenas local também não conclui a spec.
+Specs legadas sem vínculos são preservadas e precisam de rastreabilidade antes dessa nova
+afirmação. O comando é somente leitura e sai com código 1 em falha. Ele confere registros e
+hashes locais; a revisão, integração remota e publicação precisam ser observadas pelas
+ferramentas reais. Não se faz deploy automaticamente ao concluir.
+
 
 ## Autocomplete e skills adicionais
 

@@ -113,9 +113,10 @@ Para regra nova ou execução delegada sem estado consolidado, informar todos os
 ```bash
 python3 /skill/graphify/scripts/validate-lifecycle.py /projeto
 python3 /skill/graphify/scripts/validate-lifecycle.py /projeto --ready agendamento/RES-01
+python3 /skill/graphify/scripts/validate-lifecycle.py /projeto --complete master/0001
 ```
 
-O primeiro valida integridade dos registros; saída zero **não significa** projeto concluído. `--ready` verifica aprovação, ausência de lacunas materiais, dependências implementadas/verificadas/integradas, fontes e evidência corrente da regra. Aplicar para cada regra da entrega e os gates reais do projeto. Conectar a CI quando autorizado; um script que ninguém executa não bloqueia publicação.
+O primeiro valida integridade dos registros; saída zero **não significa** projeto concluído. `--ready` verifica aprovação, ausência de lacunas materiais, dependências implementadas/verificadas/integradas, fontes e evidência corrente da regra. Aplicar para cada regra da entrega e os gates reais do projeto. `--complete` verifica checklist, contrato/versão vigente, Regras explícitas da entrega, evidências correntes, integração e vínculos de filhas/dependências; não promove status nem consulta destinos remotos. Usar IDs qualificados nos vínculos. Specs sem contrato ou Regras não permitem afirmar conclusão pelo gate. Conectar a CI quando autorizado; um script que ninguém executa não bloqueia publicação.
 
 | Lacuna | Próximo passo |
 |---|---|

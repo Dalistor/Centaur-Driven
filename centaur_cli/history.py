@@ -17,6 +17,7 @@ class ChatStore:
                 'updated': datetime.now(timezone.utc).isoformat(), 'messages': []}
 
     def save(self, chat):
+        self.path(chat['id'])
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         chat['updated'] = datetime.now(timezone.utc).isoformat()
         descriptor, temporary = tempfile.mkstemp(dir=self.directory, suffix='.tmp')
@@ -47,7 +48,23 @@ class ChatStore:
         return sorted(chats, key=lambda chat: chat['updated'], reverse=True)
 
     def delete(self, chat_id):
+        self.path(chat_id).unlink(missing_ok=True)
+
+    def path(self, chat_id):
         if (not isinstance(chat_id, str) or len(chat_id) != 32
                 or any(character not in '0123456789abcdef' for character in chat_id)):
             raise ValueError('Identificador de chat inválido.')
-        (self.directory / (chat_id + '.json')).unlink(missing_ok=True)
+        path = (self.directory / (chat_id + '.json')).resolve()
+        path.relative_to(self.directory.resolve())
+        return path
+
+    def rename(self, chat_id, title):
+        if (not isinstance(title, str) or not title.strip() or len(title.strip()) > 80
+                or any(not character.isprintable() for character in title)):
+            raise ValueError('Use um título de 1 a 80 caracteres, sem quebras de linha.')
+        chat = json.loads(self.path(chat_id).read_text(encoding='utf-8'))
+        if chat.get('id') != chat_id:
+            raise ValueError('Identificador do chat diverge do arquivo.')
+        chat['title'], chat['title_custom'] = title.strip(), True
+        self.save(chat)
+        return chat

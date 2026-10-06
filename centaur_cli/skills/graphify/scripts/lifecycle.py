@@ -199,10 +199,69 @@ def legacy_specs(root, scopes, warnings):
                 title = re.search(r'^#\s+(.+)', text, re.M)
                 checklist = re.search(r'^## Checklist de conclusão\s*$(.*?)(?=^## |\Z)', text, re.M | re.S)
                 tasks = [{'title': t, 'done': x.lower() == 'x'} for x, t in re.findall(r'^\s*-\s*\[([ xX])\]\s*(.+)$', checklist.group(1) if checklist else text, re.M)]
-                records.append({'id': f'{scope}/{path.parent.name}', 'scope': scope, 'title': title.group(1) if title else path.parent.name, 'status': field('Status') or 'Sem status', 'contract': field('Contrato'), 'tasks': tasks, 'path': str(path.relative_to(root)), 'body': text})
+                records.append({'id': f'{scope}/{path.parent.name}', 'scope': scope, 'title': title.group(1) if title else path.parent.name, 'status': field('Status') or 'Sem status', 'contract': field('Contrato'), 'rules': field('Regras'), 'parent': field('Spec mestre'), 'children': field('Specs filhas'), 'dependencies': field('Dependências'), 'tasks': tasks, 'path': str(path.relative_to(root)), 'body': text})
         except (ValueError, KeyError, OSError, UnicodeError) as error:
             warnings.append(f'Specs de {scope}: {error}')
     return records
+
+
+def spec_completion_issues(data, identifier, visiting=()):
+    """Check observed completion independently of a README status/checkbox claim."""
+    if identifier in visiting:
+        return [f'{identifier}: ciclo entre specs ou dependências']
+    specs = {spec['id']: spec for spec in data['specs']}
+    spec = specs.get(identifier)
+    if spec is None:
+        return [f'{identifier}: spec ausente']
+    issues = []
+    if not spec['tasks'] or not all(task['done'] for task in spec['tasks']):
+        issues.append(f'{identifier}: checklist ausente ou tasks pendentes')
+    contracts = {f'{contract["id"]}@{contract["version"]}': contract for contract in data['contracts']}
+    contract = contracts.get(spec['contract'].strip('` '))
+    if contract is None or contract['status'] != 'approved':
+        issues.append(f'{identifier}: contrato vigente aprovado não vinculado')
+    else:
+        references = re.findall(r'[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)?', spec.get('rules', ''))
+        rules = {rule['id']: rule for rule in contract['rules']}
+        if not references:
+            issues.append(f'{identifier}: Regras da entrega não declaradas')
+        for ref in references:
+            rule = rules.get(ref.removeprefix(contract['id'] + '/'))
+            if not rule:
+                issues.append(f'{identifier}: regra desconhecida {ref}')
+            elif (not rule['eligible'] or rule['issues'] or rule['waiting']
+                  or rule['implementation'] != 'implementada' or rule['verification'] != 'aprovada'
+                  or rule['delivery']['stage'] not in ('integrated', 'published')):
+                issues.append(f'{identifier}: {rule["key"]} exige implementação, evidência corrente e integração')
+    reference_pattern = r'(?<![\w/])([\w.-]+/[\w.-]+)(?![\w/])'
+    empty_links = ('', '—', '-', 'Nenhuma')
+    for field in ('parent', 'children', 'dependencies'):
+        value = spec.get(field, '')
+        if value not in empty_links and not re.findall(reference_pattern, value):
+            issues.append(f'{identifier}: {field} exige ID qualificado')
+    parents = re.findall(reference_pattern, spec.get('parent', ''))
+    if len(parents) > 1:
+        issues.append(f'{identifier}: spec mestre ambígua')
+    for parent in parents:
+        if parent not in specs:
+            issues.append(f'{identifier}: mestre ausente {parent}')
+        elif parent == identifier:
+            issues.append(f'{identifier}: ciclo entre specs mestre/filhas')
+        else:
+            listed = re.findall(reference_pattern, specs[parent].get('children', ''))
+            if listed and identifier not in listed:
+                issues.append(f'{identifier}: vínculo mestre/filha divergente em {parent}')
+    children = set(re.findall(reference_pattern, spec.get('children', '')))
+    children.update(child['id'] for child in data['specs']
+                    if identifier in re.findall(reference_pattern, child.get('parent', '')))
+    dependencies = set(re.findall(reference_pattern, spec.get('dependencies', '')))
+    for related in sorted(children | dependencies):
+        if related in children and related in specs:
+            parents = re.findall(reference_pattern, specs[related].get('parent', ''))
+            if parents and parents != [identifier]:
+                issues.append(f'{identifier}: vínculo mestre/filha divergente em {related}')
+        issues.extend(spec_completion_issues(data, related, (*visiting, identifier)))
+    return list(dict.fromkeys(issues))
 
 
 def validate_use_case(value, contract):

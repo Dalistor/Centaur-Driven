@@ -169,7 +169,7 @@ class BackendTests(unittest.TestCase):
         old = store.new('fixed')
         store.save(old)
         terminal = Terminal(self.root, 'fixed', store, self.client())
-        terminal.handle(curses.KEY_LEFT)
+        terminal.handle(curses.KEY_SLEFT)
         terminal.handle('\n')
         self.assertIn('outro backend', terminal.notice)
         self.assertNotEqual(terminal.chat['id'], old['id'])

@@ -54,7 +54,8 @@ class ConfigTests(unittest.TestCase):
         with patch('centaur_cli.terminal.threading.Thread') as thread:
             terminal.submit()
         thread.assert_not_called()
-        self.assertIn('Fonte da IA: codex', terminal.chat['messages'][-1]['content'])
+        self.assertEqual(terminal.settings.backend, 'codex')
+        self.assertFalse(terminal.chat['messages'])
         completion = SkillCompletion(self.root)
         completion.update('$con')
         self.assertEqual(completion.choose('$con'), '$config ')

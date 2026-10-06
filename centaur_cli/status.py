@@ -161,6 +161,8 @@ def lifecycle_status(root, start_line):
     projection['contracts'] = [{key: contract[key] for key in
                                ('id', 'version', 'status', 'scope', 'hash', 'rules')}
                               for contract in data['contracts']]
+    projection['spec_completion'] = [{'id': spec['id'],
+        'issues': lifecycle_reader().spec_completion_issues(data, spec['id'])} for spec in data['specs']]
     lines = json.dumps(projection, ensure_ascii=False, indent=2).splitlines()
     start = int(start_line)
     if start < 1:

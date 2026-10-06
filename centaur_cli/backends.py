@@ -2,7 +2,7 @@
 
 import os
 
-from .config import BACKENDS, load_config
+from .config import BACKENDS, load_config, validate_effort
 from .credentials import CredentialStore
 from .native_client import NativeClient
 from .openrouter import OpenRouter
@@ -26,6 +26,14 @@ def resolve_selection(root, backend=None, model=None):
         if model is None and saved.get('backend') == selected:
             model = saved.get('model')
     return selected, resolve_model(selected, model)
+
+
+def resolve_effort(root, backend, effort=None):
+    saved = load_config(root)
+    selected = effort or os.environ.get('CENTAUR_EFFORT')
+    if selected is None and saved.get('backend') == backend:
+        selected = saved.get('effort')
+    return validate_effort(backend, selected or 'default')
 
 
 def create_client(backend, model, allow_setup=True, include_credits=True):

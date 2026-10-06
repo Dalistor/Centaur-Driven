@@ -30,6 +30,7 @@ class OpenRouter:
     def __init__(self, api_key, credits_key=None):
         self.api_key = api_key
         self.credits_key = credits_key
+        self.model_efforts = {}
 
     @property
     def secrets(self):
@@ -82,9 +83,36 @@ class OpenRouter:
         except (ValueError, AttributeError, TypeError):
             raise RuntimeError('Resposta inválida ao validar a chave.') from None
 
-    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None):
+    def model_catalog(self):
+        request = Request('https://openrouter.ai/api/v1/models',
+                          headers={'Authorization': 'Bearer ' + self.api_key} if self.api_key else {})
+        try:
+            with urlopen(request, timeout=10) as response:
+                data = json.load(response)['data']
+            from .config import EFFORTS
+            self.model_efforts = {}
+            for entry in data:
+                reasoning = entry.get('reasoning') or {}
+                levels = reasoning.get('supported_efforts', [])
+                if levels is None:
+                    levels = [level for level in EFFORTS if level != 'default']
+                if reasoning.get('mandatory'):
+                    levels = [level for level in levels if level != 'none']
+                self.model_efforts[entry['id']] = ['default', *levels]
+            return {entry['id']: entry.get('name', entry['id']) for entry in data
+                    if 'tools' in entry.get('supported_parameters', [])}
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError, KeyError, TypeError):
+            raise RuntimeError('Catálogo indisponível; use Modelo personalizado ou tente novamente.') from None
+
+    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default'):
+        from .config import validate_effort
+        validate_effort(self.backend, effort)
+        if model in self.model_efforts and effort not in self.model_efforts[model]:
+            raise ValueError('Este modelo não aceita o effort selecionado; use $config e escolha um nível disponível.')
         payload = {'messages': messages, 'tools': tools,
                    'provider': {'require_parameters': True}}
+        if effort != 'default':
+            payload['reasoning'] = {'effort': effort}
         if model:
             payload['model'] = model
         if model in ('openrouter/auto', 'openrouter/auto-beta') and cost_tier:

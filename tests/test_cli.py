@@ -34,7 +34,7 @@ class CliTests(unittest.TestCase):
         (self.store.directory / 'broken.json').write_text('{')
         self.assertEqual(len(self.store.list()), 1)
 
-    def test_left_opens_chats_and_enter_resumes_selected_conversation(self):
+    def test_shift_left_opens_chats_and_enter_resumes_selected_conversation(self):
         first = self.store.new('model/first')
         first['title'] = 'Primeiro'
         self.store.save(first)
@@ -43,7 +43,7 @@ class CliTests(unittest.TestCase):
         self.store.save(second)
         terminal = Terminal(self.root, 'default', self.store, None)
         terminal.draft = 'rascunho'
-        terminal.handle(curses.KEY_LEFT)
+        terminal.handle(curses.KEY_SLEFT)
         self.assertTrue(terminal.browser)
         self.assertEqual(len(terminal.chats), 2)
         terminal.handle(curses.KEY_DOWN)
@@ -57,7 +57,7 @@ class CliTests(unittest.TestCase):
         terminal = Terminal(self.root, 'test', self.store, None)
         current = terminal.chat['id']
         terminal.busy = True
-        terminal.handle(curses.KEY_LEFT)
+        terminal.handle(curses.KEY_SLEFT)
         terminal.handle('\n')
         self.assertEqual(terminal.chat['id'], current)
 
@@ -67,7 +67,7 @@ class CliTests(unittest.TestCase):
         second = self.store.new('second')
         self.store.save(second)
         terminal = Terminal(self.root, 'test', self.store, None)
-        terminal.handle(curses.KEY_LEFT)
+        terminal.handle(curses.KEY_SLEFT)
         terminal.handle(curses.KEY_DOWN)
         terminal.handle(curses.KEY_DC)
         self.assertTrue(terminal.browser)
@@ -82,7 +82,7 @@ class CliTests(unittest.TestCase):
         previous = terminal.chat['id']
         terminal.chat['messages'].append({'role': 'user', 'content': 'Anterior'})
         self.store.save(terminal.chat)
-        terminal.handle(curses.KEY_LEFT)
+        terminal.handle(curses.KEY_SLEFT)
         terminal.handle(curses.KEY_DC)
         self.assertNotEqual(terminal.chat['id'], previous)
         self.assertEqual(terminal.chat['messages'], [])
@@ -95,19 +95,19 @@ class CliTests(unittest.TestCase):
         terminal = Terminal(self.root, 'test', self.store, None)
         self.store.save(terminal.chat)
         terminal.busy = True
-        terminal.handle(curses.KEY_LEFT)
+        terminal.handle(curses.KEY_SLEFT)
         terminal.handle(curses.KEY_DC)
         self.assertEqual(len(self.store.list()), 1)
         other = self.store.new('other')
         self.store.save(other)
-        terminal.handle(curses.KEY_LEFT)
+        terminal.handle(curses.KEY_SLEFT)
         terminal.handle(curses.KEY_DC)
         self.assertEqual([chat['id'] for chat in self.store.list()], [terminal.chat['id']])
 
     def test_delete_failure_preserves_selection_and_history(self):
         self.store.save(self.store.new('test'))
         terminal = Terminal(self.root, 'test', self.store, None)
-        terminal.handle(curses.KEY_LEFT)
+        terminal.handle(curses.KEY_SLEFT)
         with patch.object(self.store, 'delete', side_effect=PermissionError('negado')):
             terminal.handle(curses.KEY_DC)
         self.assertEqual(len(terminal.chats), 1)

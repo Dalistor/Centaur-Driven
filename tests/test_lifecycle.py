@@ -158,3 +158,73 @@ class LifecycleTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+class SpecCompletionTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        fixture(self.root)
+        self.path = '.centaur/specs/0002/README.md'
+        self.body = ('# Entrega verificada\n\n**Status:** Em revisão\n'
+                     '**Contrato:** reservas@1\n**Regras:** RES-01\n'
+                     '**Specs filhas:** —\n**Dependências:** —\n\n'
+                     '## Checklist de conclusão\n- [x] Disponibilidade\n')
+        write(self.root, self.path, self.body)
+
+    def gate(self, identifier='master/0002'):
+        return subprocess.run([sys.executable, str(SCRIPTS / 'validate-lifecycle.py'),
+                               str(self.root), '--complete', identifier], capture_output=True, text=True)
+
+    def test_valid_integrated_delivery_is_complete_without_publication(self):
+        result = self.gate()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual((self.root / self.path).read_text(), self.body)
+
+    def test_checked_task_and_concluida_claim_do_not_replace_rule_evidence(self):
+        write(self.root, self.path, self.body.replace('Em revisão', 'Concluída').replace('RES-01', 'RES-02'))
+        result = self.gate()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('evidência corrente e integração', result.stdout)
+
+    def test_missing_or_stale_contract_and_missing_rules_block(self):
+        for body in (self.body.replace('reservas@1', 'reservas@2'),
+                     self.body.replace('RES-01', 'DESCONHECIDA'),
+                     self.body.replace('**Regras:** RES-01', ''),
+                     self.body.replace('[x]', '[ ]')):
+            write(self.root, self.path, body)
+            self.assertEqual(self.gate().returncode, 1)
+
+    def test_stale_evidence_blocks_completion(self):
+        with (self.root / 'src/agenda.py').open('a') as stream: stream.write('\n# changed\n')
+        self.assertEqual(self.gate().returncode, 1)
+
+    def test_local_delivery_is_not_completion(self):
+        path = self.root / '.centaur/state/reservas.json'
+        state = json.loads(path.read_text())
+        state['rules']['RES-01']['delivery'] = {'stage': 'local'}
+        write(self.root, str(path.relative_to(self.root)), state)
+        self.assertEqual(self.gate().returncode, 1)
+
+    def test_children_declared_in_parent_or_only_child_link_block(self):
+        write(self.root, self.path, self.body.replace('**Specs filhas:** —', '**Specs filhas:** master/0003'))
+        self.assertIn('spec ausente', self.gate().stdout)
+        write(self.root, self.path, self.body)
+        write(self.root, '.centaur/specs/0003/README.md', self.body.replace(
+            '**Specs filhas:** —', '**Spec mestre:** master/0002').replace('[x]', '[ ]'))
+        self.assertIn('tasks pendentes', self.gate().stdout)
+
+    def test_missing_dependencies_and_cycles_block(self):
+        write(self.root, self.path, self.body.replace('**Dependências:** —', '**Dependências:** master/0009'))
+        self.assertIn('spec ausente', self.gate().stdout)
+        write(self.root, self.path, self.body.replace('**Dependências:** —', '**Dependências:** master/0003'))
+        write(self.root, '.centaur/specs/0003/README.md', self.body.replace(
+            '**Dependências:** —', '**Dependências:** master/0002'))
+        self.assertIn('ciclo entre specs', self.gate().stdout)
+
+    def test_missing_or_ambiguous_master_and_unqualified_dependencies_block(self):
+        for field in ('**Spec mestre:** master/0099',
+                      '**Spec mestre:** master/0001, master/0099',
+                      '**Dependências:** 0001', '**Spec mestre:** master/0002'):
+            write(self.root, self.path, self.body.replace('**Dependências:** —', field))
+            self.assertEqual(self.gate().returncode, 1, field)
