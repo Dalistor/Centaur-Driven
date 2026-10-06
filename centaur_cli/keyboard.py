@@ -32,6 +32,9 @@ def keyboard_protocol(stream=None):
 
 
 def decode_sequence(sequence):
+    if re.fullmatch(r'(?:\[|O)[ABCDHF]', sequence):
+        return {'A': curses.KEY_UP, 'B': curses.KEY_DOWN, 'C': curses.KEY_RIGHT,
+                'D': curses.KEY_LEFT, 'H': curses.KEY_HOME, 'F': curses.KEY_END}[sequence[-1]]
     if sequence in ('\r', '\n'):
         return KEY_NEWLINE  # Legacy Alt+Enter / custom terminal mapping.
     if sequence == '[200~':
@@ -84,7 +87,7 @@ def read_key(screen, timeout=100):
             if not isinstance(character, str):
                 break
             if len(consumed) == 1:
-                if character != '[':
+                if character not in ('[', 'O'):
                     break
             elif '@' <= character <= '~':
                 break

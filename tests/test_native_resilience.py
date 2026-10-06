@@ -84,6 +84,16 @@ class NativeResilienceTests(unittest.TestCase):
             self.assertIn(hint, message)
             self.assertNotIn('private reasoning', message)
 
+    def test_native_json_failure_reports_the_public_cause_without_private_logs(self):
+        output = '\n'.join(map(json.dumps, [
+            {'type': 'item.completed', 'item': {'type': 'reasoning', 'text': 'quota PRIVATE'}},
+            {'type': 'turn.failed', 'error': {'message': 'context window exceeded ACCOUNT'}}]))
+        message = process_failure('codex', 1, '', output)
+        self.assertIn('$compact', message)
+        self.assertNotIn('ACCOUNT', message)
+        self.assertNotIn('PRIVATE', message)
+        self.assertNotIn('Limite de uso', message)
+
     def test_retry_preserves_messages_and_previously_completed_actions(self):
         terminal = Terminal(self.root, 'main', ChatStore(self.root), self.client)
         terminal.chat['messages'] = [

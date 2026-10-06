@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1 — 2026-10-06
+
+- Compactação refaz resumos longos em até duas revisões canceláveis, sem truncar memória ou disponibilizar ferramentas; falha conserva o estado anterior.
+- Autocompact habilitado antes da próxima chamada a 80% da janela conhecida, inclusive entre etapas; gravação atômica e histórico completo preservado. `CENTAUR_AUTOCOMPACT=0` desativa.
+- Decodificação de setas CSI/SS3 impede inserir `[A`/`[B` no campo. ↑ recupera prompts anteriores; ↓ avança até o rascunho atual, inclusive vazio, mantendo o cursor e mensagens originais.
+- Chamadas nativas sem ferramentas restringem o lote a zero chamadas no schema; diagnósticos distinguem TLS/configuração de autenticação.
+
 ## 0.7.0 — 2026-10-06
 
 - Entrada multilinha com quebra visual por células Unicode, Shift+Enter (Kitty/xterm), Ctrl+J e colagem protegida sem envio automático.

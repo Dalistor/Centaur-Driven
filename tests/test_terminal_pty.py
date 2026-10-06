@@ -23,7 +23,7 @@ from centaur_cli.history import ChatStore
 from centaur_cli.terminal import Terminal
 class Client:
     backend='codex'; secrets=(); allows_model_routing=False
-    context_windows={'fixture':10000}
+    context_windows={'fixture':100000}
     def __init__(self): self.requests=[]
     def model_catalog(self): return {'fixture':'Fixture'}
     def complete(self, model, messages, tools, **options):
@@ -102,6 +102,14 @@ class TerminalPTYTests(unittest.TestCase):
                     snapshot = wait_for(lambda s: not s['busy'] and len(s['chat']['messages']) == 18)
                     self.assertIn('Resumo de mensagens anteriores', snapshot['requests'][-1]['messages'][1]['content'])
                     self.assertTrue((root / '.centaur/chats' / (snapshot['chat']['id'] + '.json')).is_file())
+                    send(b'\x1b[A')
+                    wait_for(lambda s: s['draft'] == 'continue')
+                    send(b'\x1bOA')
+                    wait_for(lambda s: s['draft'] == expected)
+                    send(b'\x1b[B')
+                    wait_for(lambda s: s['draft'] == 'continue')
+                    send(b'\x1bOB')
+                    wait_for(lambda s: s['draft'] == '')
                     self.assertIn(b'\x1b[?2004h', transcript)
                     send(b'\x11')
                     # BSD PTYs have smaller output buffers: consume curses teardown

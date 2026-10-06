@@ -137,19 +137,34 @@ def compact_chat(chat, client, cancel_event=None):
     if chat.get('speed') == 'fast': options['speed'] = 'fast'
     if getattr(client, 'supports_cancellation', False) and cancel_event is not None:
         options['cancel_event'] = cancel_event
-    for offset in range(0, len(source), chunk_size):
+    def summarize(material, previous='', repair=False):
         if cancel_event is not None and cancel_event.is_set():
             raise TurnCancelled('Compactação interrompida; contexto anterior preservado.')
+        prompt = SUMMARY_PROMPT + f' Mire em até {max_summary // 2} caracteres; limite máximo {max_summary}.'
+        if repair:
+            prompt += ' O resumo anterior ficou longo demais. Reescreva de forma muito mais concisa, sem cortar frases ou fatos essenciais.'
         reply = client.complete(chat['model'], [
-            {'role': 'system', 'content': SUMMARY_PROMPT + f' Limite de {max_summary} caracteres.'},
-            {'role': 'user', 'content': json.dumps({'resumo_anterior': summary,
-             'fragmento': source[offset:offset + chunk_size]}, ensure_ascii=False)}], [], **options)
+            {'role': 'system', 'content': prompt},
+            {'role': 'user', 'content': json.dumps({'resumo_anterior': previous,
+             'fragmento': material}, ensure_ascii=False)}], [], **options)
+        if cancel_event is not None and cancel_event.is_set():
+            raise TurnCancelled('Compactação interrompida; contexto anterior preservado.')
         content = reply.get('content')
         if reply.get('tool_calls') or not isinstance(content, str) or not content.strip():
             raise ValueError('Resumo inválido; contexto anterior preservado. Nenhuma ferramenta foi executada.')
-        summary = getattr(client, 'redact', str)(content.strip())
+        return getattr(client, 'redact', str)(content.strip())
+
+    for offset in range(0, len(source), chunk_size):
+        summary = summarize(source[offset:offset + chunk_size], summary)
+        # Repair overshoot semantically; never silently truncate memory. Two
+        # retries are bounded and all calls remain tool-free and cancelable.
+        for _ in range(2):
+            if len(summary) <= max_summary: break
+            if len(summary) > chunk_size:
+                raise ValueError('Resumo excedeu o orçamento de recuperação; contexto anterior preservado.')
+            summary = summarize(summary, repair=True)
         if len(summary) > max_summary:
-            raise ValueError('Resumo excedeu o limite; contexto anterior preservado.')
+            raise ValueError('Resumo excedeu o limite após duas revisões; contexto anterior preservado.')
     if cancel_event is not None and cancel_event.is_set():
         raise TurnCancelled('Compactação interrompida; contexto anterior preservado.')
     state = {'summary': summary, 'through': cutoff, 'created': datetime.now(timezone.utc).isoformat()}
@@ -158,3 +173,30 @@ def compact_chat(chat, client, cancel_event=None):
     if after >= before:
         raise ValueError('O resumo não reduziu o contexto; contexto anterior preservado.')
     return state, before, after
+
+
+def auto_compaction_needed(chat, client, payload, definitions):
+    if os.environ.get('CENTAUR_AUTOCOMPACT', '1').lower() in ('0', 'false', 'off'):
+        return False
+    usage = chat.get('context_usage') or {}
+    limit = context_window(client, usage.get('model') or chat['model'])
+    if not limit:
+        return False
+    state = compaction_state(chat)
+    start = state['through'] if state else 0
+    # No old prefix: do not loop on an irreducible recent batch.
+    if len(chat['messages']) - 6 <= start:
+        return False
+    estimate = estimate_tokens(payload) + estimate_tokens(definitions)
+    anchored = usage.get('used', 0) + estimate_tokens(active_messages(chat)) - usage.get('history_estimate', 0)
+    return max(estimate, anchored) >= limit * .8
+
+
+def save_compaction(chat, store, state, cancel_event=None):
+    if cancel_event is not None and cancel_event.is_set():
+        raise TurnCancelled('Compactação interrompida; contexto anterior preservado.')
+    candidate = {**chat, 'compaction': state}
+    candidate.pop('context_usage', None)
+    store.save(candidate)
+    chat.update(candidate)
+    chat.pop('context_usage', None)

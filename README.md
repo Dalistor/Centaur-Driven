@@ -196,8 +196,11 @@ O texto quebra visualmente na borda sem alterar a mensagem enviada. **Shift+Ente
 uma quebra real; **Enter** envia o texto completo. **Ctrl+J** é a alternativa em terminais
 que não distinguem Shift+Enter de Enter. Kitty/CSI-u e xterm modifyOtherKeys são aceitos;
 o suporte também depende do emulador, multiplexador e seus atalhos. Colagem com bracketed
-paste mantém as quebras e nunca envia a mensagem automaticamente. ↑/↓ movem o cursor
-quando o rascunho tem várias linhas; PgUp/PgDn e o mouse continuam disponíveis para o chat.
+paste mantém as quebras e nunca envia a mensagem automaticamente. ↑ recupera prompts
+anteriores em um campo vazio ou de uma linha; ↓ avança até restaurar o rascunho atual,
+inclusive vazio, e seu cursor. Prompts recuperados podem ter várias linhas. Editar um prompt
+recuperado cria um rascunho sem alterar a mensagem salva. Fora dessa navegação, ↑/↓ movem
+o cursor no rascunho multilinha; PgUp/PgDn e o mouse continuam rolando a conversa.
 
 | Controle | Ação |
 | --- | --- |
@@ -218,7 +221,8 @@ quando o rascunho tem várias linhas; PgUp/PgDn e o mouse continuam disponíveis
 | `$status` | Mostrar a árvore local das specs, sem chamar o modelo. |
 | `$status --ai` | Analisar evidências e recomendar o que pode concluir ou rodar, somente leitura. |
 | `$credits` ou `/credits` | Atualizar o indicador de créditos sem enviar mensagem ao modelo. |
-| ↑ / ↓, PgUp / PgDn ou roda do mouse | Rolar o histórico. No rascunho multilinha, ↑/↓ editam linhas. Novas mensagens preservam a posição de leitura; listas têm prioridade para as setas. PgUp/PgDn também revisam confirmações. |
+| ↑ / ↓ | Recuperar prompts anteriores / avançar até o rascunho atual, inclusive vazio. Fora dessa navegação, rascunhos multilinha usam as setas para editar linhas. Listas têm prioridade. |
+| PgUp / PgDn ou roda do mouse | Rolar a conversa mantendo a posição quando chegam mensagens. PgUp/PgDn também revisam confirmações. |
 | Ctrl+E | Voltar ao fim da conversa. |
 | Ctrl+C durante execução | Interromper o turno, encerrar comandos locais e parar computer use. No OpenRouter, a chamada atual pode aguardar o timeout de rede; nenhuma ação nova será aplicada. |
 | ↑ / ↓ ou Tab, Enter, Esc em perguntas | Escolher uma opção, escrever outra resposta ou pular. Pular não autoriza o agente a inventar uma escolha. |
@@ -308,8 +312,18 @@ extensos são resumidos em fragmentos. As próximas chamadas recebem esse resumo
 mensagens recentes, preservando lotes de ferramentas completos. O histórico em disco e
 na tela permanece inteiro, inclusive erros e resultados anteriores; retomadas não repetem
 ações registradas. Resumos não concedem permissão. Ctrl+C cancela; erro, falha ao salvar
-ou resumo que não reduza o contexto mantêm a memória anterior. Não há compactação automática.
+ou resumo que não reduza o contexto mantêm a memória anterior. Um resumo longo recebe
+até duas revisões menores, sem cortar texto arbitrariamente ou executar ferramentas.
 Em conversas curtas, o comando informa que não há mensagens antigas elegíveis.
+
+**Autocompact** fica habilitado: antes da próxima chamada, inclusive entre etapas de
+ferramentas, o Centaur compacta mensagens antigas quando o uso estimado chega a **80% da
+janela conhecida**. O rodapé informa a atividade e a redução. Não apaga prompts/histórico,
+não repete ações e mantém lotes recentes completos. Uma falha interrompe a próxima chamada
+e conserva a memória para `$compact` e `/retry`; não entra em tentativas infinitas.
+Com janela desconhecida, use `$compact` ou informe `CENTAUR_CONTEXT_WINDOW` corretamente.
+`CENTAUR_AUTOCOMPACT=0 centaur .` desativa somente a compactação automática. Resumos usam
+o backend/modelo da conversa e consomem sua cota; compactação não recupera créditos gastos.
 
 Para requisições nativas mais demoradas:
 

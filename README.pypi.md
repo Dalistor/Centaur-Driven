@@ -72,7 +72,8 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 - Barra de contexto livre estimado; `$compact` resume mensagens antigas com IA sem apagar o histórico ou repetir ferramentas. `/compact` é alias.
 - Timeout Codex/Claude de 600s por chamada; `CENTAUR_NATIVE_TIMEOUT=900` ajusta (30–3600s). `CENTAUR_CONTEXT_WINDOW` informa a janela real quando não consta no catálogo.
 - Turnos sem limite fixo de etapas; Ctrl+C interrompe comandos e bloqueia novas ações.
-- Histórico com setas, PgUp/PgDn e roda do mouse; Ctrl+E volta ao fim, sem perder a posição quando chegam mensagens.
+- ↑/↓ recuperam prompts anteriores e avançam até o rascunho atual, inclusive vazio; prompts salvos não são alterados. PgUp/PgDn e roda do mouse rolam a conversa; Ctrl+E volta ao fim.
+- Autocompact a 80% da janela conhecida, sem apagar histórico; `CENTAUR_AUTOCOMPACT=0` desativa. Resumos longos recebem até duas revisões sem truncar a memória.
 - Perguntas interativas da IA, com opções ou resposta livre e preservação do rascunho.
 - Computer use opcional: captura contínua local e até três quadros recentes por decisão da IA, mouse/teclado com confirmação em todos os modos.
 - Validação do ciclo intenção → contrato → implementação → evidência → integração.

@@ -17,7 +17,8 @@ rename e melhorias visuais; as regras de desenvolvimento vêm de
 | Entrada multilinha | `composer.layout_input`, `keyboard.KeyboardReader`, `Terminal.handle` | Quebra visual sem alterar texto; Enter envia, Shift+Enter/Ctrl+J insere linha; colagem não envia ou aprova | `tests/test_composer.py` |
 | Velocidade | `speed`, `ConfigPicker`, `NativeClient`, `OpenRouter` | Standard padrão; Fast só anunciado; custo explicado; não altera modelo/effort; tier solicitado não é tier confirmado | `tests/test_native_usage_speed.py` |
 | Cotas nativas | `native_usage`, `Terminal.request_credits` | RPC Codex somente leitura; eventos Claude públicos em cache; sem saldo inventado, credenciais ou prompts na consulta | `tests/test_native_usage_speed.py` |
-| Contexto e compactação | `context.active_messages`, `compact_chat`, `Terminal.drain_events` | Barra estimada sem limite inventado; resumo sem ferramentas; histórico completo e lotes intactos; cancelamento/falha preservam memória | `tests/test_context.py` |
+| Contexto e compactação | `context.active_messages`, `compact_chat`, `save_compaction`, `agent.run_turn` | Barra estimada sem limite inventado; autocompact a 80% antes da chamada; resumo sem ferramentas e até duas revisões; histórico/lotes intactos; cancelamento/falha preservam memória | `tests/test_context.py` |
+| Prompts anteriores | `Terminal.recall_prompt`, `keyboard.read_key` | ↑/↓ percorrem prompts e restauram rascunho/cursor vazio ou preenchido; CSI/SS3 não viram texto; editar cópia não altera mensagem salva | `tests/test_composer.py`, `tests/test_terminal_pty.py` |
 | Trabalho e permissões | `Terminal.approval`, `ProjectTools` | Troca/rename do chat ativo aguardam turno; aprovações continuam prioritárias | `tests/test_cli.py` |
 | Ciclo de vida | `lifecycle.load_project`, `spec_completion_issues` | Gate somente leitura; prova corrente e integração separadas; conclusão não deriva do status | `tests/test_lifecycle.py` |
 
@@ -121,8 +122,12 @@ da conversa são preservados e restaurados ao fechar. A resposta válida volta c
 resultado da ferramenta, salvo no histórico e visível no resumo público.
 
 `Terminal.transcript_start` limita a rolagem e conserva a linha superior ao receber
-novas mensagens. Setas e PgUp/PgDn são equivalentes da roda do mouse; Ctrl+E volta ao
-fim. Completar skills, lista de chats, perguntas e preferências têm prioridade sobre
+novas mensagens. PgUp/PgDn são equivalentes da roda do mouse; Ctrl+E volta ao
+fim. ↑/↓ percorrem prompts no campo vazio/de uma linha e restauram rascunho/cursor atual,
+inclusive vazio. Durante a navegação, prompts multilinha também podem ser percorridos.
+Editar uma cópia encerra essa navegação sem alterar o histórico; rascunhos multilinha
+fora da navegação usam as setas para mover o cursor. `Terminal.recall_prompt` é o dono.
+Completar skills, lista de chats, perguntas e preferências têm prioridade sobre
 rolagem do chat. Resize recalcula a quebra de linhas sem perder texto ou seleção.
 
 Verificação: `tests/test_interaction.py`, suite completa e PTY com pergunta, resposta

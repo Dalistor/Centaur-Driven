@@ -6,7 +6,8 @@ from pathlib import Path
 from .tools import TOOLS
 from . import skill_catalog
 from .permissions import MODE_HELP
-from .context import active_messages, compaction_state, record_context
+from .interaction import TurnCancelled
+from .context import active_messages, compaction_state, record_context, auto_compaction_needed, compact_chat, save_compaction
 
 
 def project_prompt(root):
@@ -78,7 +79,7 @@ def project_prompt(root):
     return prompt
 
 
-def run_turn(chat, client, tools, store, emit, instructions=''):
+def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
     messages = chat['messages']
     # Completa chamadas interrompidas sem repetir operações com efeitos colaterais.
     answered = {message.get('tool_call_id') for message in messages if message['role'] == 'tool'}
@@ -106,6 +107,20 @@ def run_turn(chat, client, tools, store, emit, instructions=''):
             options['cancel_event'] = tools.cancel_event
         payload = [{'role': 'system', 'content': project_prompt(tools.root) + instructions}] + active_messages(chat) + observations
         definitions = getattr(tools, 'definitions', TOOLS)
+        if auto_compaction_needed(chat, client, payload, definitions):
+            if progress: progress('Compactando automaticamente o contexto · histórico preservado…')
+            try:
+                state, before, after = compact_chat(chat, client, getattr(tools, 'cancel_event', None))
+                check_cancelled()
+                save_compaction(chat, store, state, getattr(tools, 'cancel_event', None))
+            except TurnCancelled:
+                raise
+            except (ValueError, RuntimeError, OSError) as error:
+                raise RuntimeError('Compactação automática falhou; histórico preservado. '
+                                   'Use $compact ou ajuste CENTAUR_CONTEXT_WINDOW. ' + str(error)) from error
+            payload = [payload[0]] + active_messages(chat) + observations
+            if progress: progress(f'Contexto compactado automaticamente: ~{before:,} → ~{after:,} tokens.')
+            emit()
         record_context(chat, client, payload, definitions)
         emit()
         response = client.complete(chat['model'], payload, definitions, **options)

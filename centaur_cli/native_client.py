@@ -86,6 +86,8 @@ def reply_schema(tools):
                                         'arguments': arguments}, 'required': ['name', 'arguments']})
     if variants:
         schema['properties']['calls']['items'] = {'anyOf': variants}
+    else:
+        schema['properties']['calls']['maxItems'] = 0
     return schema
 
 
@@ -163,17 +165,37 @@ def claude_output(output):
     return result, claude_windows(events)
 
 
-def process_failure(backend, code, stderr):
+def process_failure(backend, code, stderr, output=''):
     """Classify known diagnostics without echoing prompts, account data or reasoning."""
     text = stderr.lower()
+    # --json reports many failures on stdout. Read only public error/result
+    # envelopes, never classify or display assistant/reasoning log text.
+    for line in output.splitlines():
+        try: event = json.loads(line)
+        except ValueError: continue
+        if not isinstance(event, dict): continue
+        if event.get('type') in ('error', 'turn.failed'):
+            error = event.get('error')
+            detail = event.get('message') or (error.get('message') if isinstance(error, dict) else error)
+        elif backend == 'claude' and event.get('type') == 'result' and event.get('is_error'):
+            detail = event.get('result')
+        else:
+            continue
+        if isinstance(detail, str): text += '\n' + detail.lower()
     if 'schema' in text:
         hint = 'O CLI ou modelo recusou o schema de ferramentas; atualize o CLI ou selecione outro modelo.'
     elif any(key in text for key in ('context length', 'context window', 'too many tokens')):
-        hint = 'O contexto excedeu o limite do modelo; use /new ou selecione um modelo com mais contexto.'
+        hint = 'O contexto excedeu o limite do modelo; use $compact ou selecione um modelo com mais contexto.'
     elif any(key in text for key in ('rate limit', 'usage limit', 'quota', 'exceeded your')):
         hint = 'Limite de uso atingido; aguarde a renovação ou selecione outro modelo/backend.'
     elif 'unexpected argument' in text or 'unrecognized' in text:
         hint = 'O CLI não aceita uma opção de integração; atualize o CLI oficial.'
+    elif any(key in text for key in ('certificate', 'tls', 'ssl')):
+        hint = 'Falha de certificado/TLS na execução local; confira proxy, certificados e conexão.'
+    elif any(key in text for key in ('stream disconnected', 'error sending request', 'failed to reconnect', 'connection refused')):
+        hint = 'A conexão da execução não interativa falhou; confira rede/proxy e retome com /retry.'
+    elif any(key in text for key in ('failed to load configuration', 'unknown variant', 'invalid value', 'unsupported service tier')):
+        hint = 'O CLI recusou a configuração da execução não interativa; confira versão, modelo, effort e velocidade em $config.'
     else:
         hint = 'Confira conexão, acesso ao modelo e autenticação com ' + ('codex login.' if backend == 'codex' else 'claude auth login.')
     return f'{backend} encerrou com código {code}. {hint} Nenhuma ferramenta dessa resposta foi executada.'
@@ -362,7 +384,7 @@ class NativeClient:
                                        'ajuste CENTAUR_NATIVE_TIMEOUT ou use $compact e /retry. '
                                        'Nenhuma chamada pendente foi aplicada.') from None
                 if process.returncode:
-                    raise RuntimeError(process_failure(self.backend, process.returncode, errors))
+                    raise RuntimeError(process_failure(self.backend, process.returncode, errors, output))
                 if self.backend == 'codex':
                     value = codex_output(directory, output)
                     usage = codex_usage(output)

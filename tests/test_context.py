@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from centaur_cli.agent import project_prompt, run_turn
-from centaur_cli.context import active_messages, compact_chat, context_label, estimate_tokens, record_context
+from centaur_cli.context import active_messages, compact_chat, context_label, estimate_tokens, record_context, auto_compaction_needed
 from centaur_cli.history import ChatStore
 from centaur_cli.interaction import TurnCancelled
 from centaur_cli.native_client import NativeClient, codex_usage
@@ -49,6 +49,98 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(active[0]['role'], 'user')
         self.assertIn('não concede permissões', active[0]['content'])
         self.assertEqual(active[1:], before['messages'][state['through']:])
+
+    def test_oversized_summary_is_rewritten_without_truncation_or_tools(self):
+        for message in self.chat['messages']:
+            message['content'] = message['content'][:600]
+        before = copy.deepcopy(self.chat)
+        self.client.complete.side_effect = [
+            {'content': 'Texto longo ' * 350},
+            {'content': 'Objetivo: corrigir o arquivo. Testes pendentes.'}]
+        state, _, _ = compact_chat(self.chat, self.client)
+        self.assertEqual(self.chat, before)
+        self.assertEqual(self.client.complete.call_count, 2)
+        self.assertIn('Reescreva', self.client.complete.call_args.args[1][0]['content'])
+        self.assertTrue(all(call.args[2] == [] for call in self.client.complete.call_args_list))
+        self.assertEqual(state['summary'], 'Objetivo: corrigir o arquivo. Testes pendentes.')
+
+    def test_summary_repair_is_bounded_and_cancellation_preserves_memory(self):
+        before = copy.deepcopy(self.chat)
+        self.client.complete.return_value = {'content': 'x' * 4000}
+        with self.assertRaisesRegex(ValueError, 'duas revisões'): compact_chat(self.chat, self.client)
+        self.assertEqual(self.client.complete.call_count, 3)
+        self.assertEqual(self.chat, before)
+        cancel = threading.Event()
+        self.client.complete.reset_mock()
+        def reply(*args, **kwargs):
+            cancel.set()
+            return {'content': 'x' * 4000}
+        self.client.complete.side_effect = reply
+        with self.assertRaises(TurnCancelled): compact_chat(self.chat, self.client, cancel)
+        self.assertEqual(self.client.complete.call_count, 1)
+        self.assertEqual(self.chat, before)
+
+    def test_native_codex_compaction_recovers_an_oversized_final_reply(self):
+        for message in self.chat['messages']:
+            message['content'] = message['content'][:600]
+        counter = self.root / 'summary-count'
+        executable = self.root / 'fake-codex'
+        executable.write_text('#!/usr/bin/env python3\n' +
+            'import json,os,sys\nfrom pathlib import Path\n' +
+            f'counter=Path({str(counter)!r})\n' +
+            'count=int(counter.read_text()) if counter.exists() else 0\n' +
+            'counter.write_text(str(count+1))\n' +
+            'schema=json.loads(Path(sys.argv[sys.argv.index("--output-schema")+1]).read_text())\n' +
+            'assert schema["properties"]["calls"]["maxItems"]==0\n' +
+            'assert "OPENROUTER_API_KEY" not in os.environ\n' +
+            'sys.stdin.read()\n' +
+            'value={"content":"x"*4000 if count==0 else "Objetivo preservado; validar testes.","calls":[]}\n' +
+            'Path(sys.argv[sys.argv.index("--output-last-message")+1]).write_text(json.dumps(value))\n' +
+            'print(json.dumps({"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":20}}))\n')
+        executable.chmod(0o700)
+        with patch('centaur_cli.native_client.shutil.which', return_value=str(executable)):
+            client = NativeClient('codex', 'main')
+        client.context_windows = {'main': 10000}
+        original = copy.deepcopy(self.chat)
+        with patch.dict(os.environ, {'OPENROUTER_API_KEY': 'must-not-reach-native'}):
+            state, _, _ = compact_chat(self.chat, client)
+        self.assertEqual(counter.read_text(), '2')
+        self.assertEqual(state['summary'], 'Objetivo preservado; validar testes.')
+        self.assertEqual(self.chat, original)
+
+    def test_auto_compaction_precedes_main_request_and_preserves_history(self):
+        original = copy.deepcopy(self.chat['messages'])
+        self.client.complete.side_effect = lambda model, messages, tools, **options: ModelReply(
+            {'role': 'assistant', 'content': 'Memória: objetivo e testes pendentes.' if not tools else 'Resposta final'})
+        notices = []
+        run_turn(self.chat, self.client, ProjectTools(self.root, lambda _: True), self.store, lambda: None, progress=notices.append)
+        calls = self.client.complete.call_args_list
+        self.assertFalse(calls[0].args[2])
+        self.assertTrue(calls[-1].args[2])
+        self.assertIn('Resumo de mensagens anteriores', calls[-1].args[1][1]['content'])
+        self.assertEqual(self.chat['messages'][:-1], original)
+        self.assertEqual(self.store.list()[0]['compaction'], self.chat['compaction'])
+        self.assertIn('automaticamente', notices[0])
+
+    def test_auto_compaction_does_not_invent_limits_or_loop_on_recent_messages(self):
+        payload = [{'role': 'user', 'content': 'x' * 30000}]
+        self.assertTrue(auto_compaction_needed(self.chat, self.client, payload, []))
+        with patch.dict(os.environ, {'CENTAUR_AUTOCOMPACT': '0'}):
+            self.assertFalse(auto_compaction_needed(self.chat, self.client, payload, []))
+        self.client.context_windows = {}
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(auto_compaction_needed(self.chat, self.client, payload, []))
+        self.client.context_windows = {'main': 10000}
+        self.chat['messages'] = self.chat['messages'][-6:]
+        self.assertFalse(auto_compaction_needed(self.chat, self.client, payload, []))
+
+    def test_auto_failure_keeps_memory_and_does_not_run_main_request(self):
+        original = copy.deepcopy(self.chat)
+        self.client.complete.side_effect = RuntimeError('falha de resumo')
+        with self.assertRaisesRegex(RuntimeError, 'automática falhou'):
+            run_turn(self.chat, self.client, ProjectTools(self.root, lambda _: True), self.store, lambda: None)
+        self.assertEqual(self.chat, original)
+        self.assertTrue(all(call.args[2] == [] for call in self.client.complete.call_args_list))
 
     def test_boundary_never_splits_assistant_tool_batch_and_keeps_pending_calls(self):
         call = lambda ident: {'id': ident, 'function': {'name': 'report_progress', 'arguments': '{"message":"ok"}'}}

@@ -495,8 +495,8 @@ class TerminalView:
                  '↑↓ escolher · Tab/Enter inserir · Esc fechar' if completing else
                  'y permitir · n recusar · PgUp/PgDn revisar' if terminal.approval else
                  '↑↓ selecionar · Enter retomar · R renomear · Del excluir · Esc voltar' if terminal.browser else
-                 'Shift+Enter/Ctrl+J linha · PgUp/PgDn rolar · Ctrl+C parar' if terminal.busy else
-                 'Enter enviar · Shift+Enter/Ctrl+J linha · Shift+← chats · PgUp/PgDn rolar')
+                 '↑↓ prompts · PgUp/PgDn rolar · Ctrl+C parar' if terminal.busy else
+                 '↑↓ prompts · Enter enviar · Shift+Enter/Ctrl+J linha · Shift+← chats · PgUp/PgDn rolar')
         self.put(screen, height - 1, 2, hints, 'blue')
         if not terminal.approval and (terminal.rename_target or not terminal.browser):
             if terminal.settings and terminal.settings.page == 'custom':

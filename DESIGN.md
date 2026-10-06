@@ -65,13 +65,18 @@ O cursor fica visível durante a digitação e oculto na lista ou confirmação.
 O campo cinza começa com três linhas e cresce até oito conforme o espaço. `composer.layout_input`
 é o dono da quebra por células e da posição do cursor; `keyboard.KeyboardReader` decodifica
 Shift+Enter e colagem protegida. Enter envia, Shift+Enter/Ctrl+J insere linha; ↑/↓ editam
-linhas no rascunho multilinha e PgUp/PgDn continuam rolando o histórico. O campo acompanha
+linhas no rascunho multilinha; em campo vazio/de uma linha, percorrem prompts até o rascunho
+atual, inclusive vazio. `Terminal.recall_prompt` conserva as mensagens salvas e o cursor do
+rascunho. PgUp/PgDn continuam rolando a conversa. O campo acompanha
 o cursor com ↑/↓ indicando linhas ocultas. Modais conservam sua geometria e suas ações.
 
 Contexto e créditos compartilham a linha acima dos atalhos, à esquerda e à direita, sem
 sobreposição. `context` estima apenas o contexto ativo; `~` permanece explícito e limite
 desconhecido mostra `[?]`, sem porcentagem. Âmbar indica 20% ou menos de espaço. `$compact`
 usa IA sem ferramentas, mantém o histórico visível e torna a redução observável no rodapé.
+Autocompact usa esse mesmo estado/feedback antes da próxima chamada a 80% da janela
+conhecida; desconhecida não dispara automaticamente. Revisões de resumo são limitadas,
+sem truncar memória. Falha preserva histórico e interrompe a próxima chamada com orientação.
 
 Créditos ficam no canto inferior direito. A barra usa
 10 células em janelas amplas e 5 nas estreitas, com valor em US$. Verde indica disponibilidade;

@@ -12,7 +12,7 @@ from .settings import ConfigPicker
 from .openrouter import OpenRouter
 from .agent import run_turn, project_prompt
 from .tools import TOOLS
-from .context import compact_chat, context_label, estimate_tokens
+from .context import compact_chat, context_label, estimate_tokens, save_compaction
 from .speed import validate_speed, fast_supported
 from .native_usage import BalanceUnavailable
 from .completion import SkillCompletion
@@ -60,6 +60,9 @@ class Terminal:
         self.scroll_limit = 0
         self.draft = ''
         self.input_width = 74
+        self.prompt_history = None
+        self.prompt_index = None
+        self.prompt_current = ('', 0)
         self.completion = SkillCompletion(root)
         self.notice = 'Digite sua intenção. Shift+← chats · $config preferências.'
         self.settings = None
@@ -273,11 +276,37 @@ class Terminal:
         self._draft = value
         self.cursor = len(value)
         self.preferred_input_column = None
+        self.prompt_history = None
+        self.prompt_index = None
 
     def insert_text(self, text):
+        self.prompt_history = None
+        self.prompt_index = None
         self._draft = self.draft[:self.cursor] + text + self.draft[self.cursor:]
         self.cursor += len(text)
         self.preferred_input_column = None
+
+    def recall_prompt(self, direction):
+        if self.prompt_history is None:
+            if direction > 0: return False
+            self.prompt_history = [m['content'] for m in self.chat['messages']
+                                   if m.get('role') == 'user' and isinstance(m.get('content'), str)]
+            if not self.prompt_history:
+                self.prompt_history = None
+                return False
+            self.prompt_current = (self.draft, self.cursor)
+            self.prompt_index = len(self.prompt_history)
+        self.prompt_index = max(0, min(len(self.prompt_history), self.prompt_index + direction))
+        if self.prompt_index == len(self.prompt_history):
+            self._draft, self.cursor = self.prompt_current
+            self.prompt_history = None
+            self.prompt_index = None
+        else:
+            self._draft = self.prompt_history[self.prompt_index]
+            self.cursor = len(self._draft)
+        self.preferred_input_column = None
+        self.completion.update('')
+        return True
 
     def new_chat(self):
         chat = self.store.new(self.model, backend=self.backend)
@@ -492,7 +521,8 @@ class Terminal:
                      (f'\nA faixa máxima configurada para subagentes é {self.max_subagent_tier}. '
                       'Não solicite faixas superiores; isso exige configuração explícita do usuário.\n'
                       if self.backend == 'openrouter' else backend_instructions)
-                     + (ANALYSIS_INSTRUCTIONS if status_analysis else ''))
+                     + (ANALYSIS_INSTRUCTIONS if status_analysis else ''),
+                     progress=lambda notice: self.events.put(('progress', notice)))
             if (not chat.get('title_custom') and not chat.get('title_attempted')
                     and not status_analysis):
                 chat['title_attempted'] = True
@@ -604,12 +634,8 @@ class Terminal:
                 if cancellation.is_set():
                     self.notice = 'Compactação interrompida; contexto anterior preservado.'
                     continue
-                candidate = {**chat, 'compaction': state}
-                candidate.pop('context_usage', None)
                 try:
-                    self.store.save(candidate)
-                    chat.update(candidate)
-                    chat.pop('context_usage', None)
+                    save_compaction(chat, self.store, state, cancellation)
                     self.notice = f'Contexto compactado: ~{before:,} → ~{after:,} tokens. Histórico preservado.'
                 except OSError:
                     self.notice = 'Erro ao salvar compactação; contexto anterior preservado.'
@@ -786,7 +812,7 @@ class Terminal:
             self.insert_text('\n')
             self.completion.update('')
             return
-        self.completion.update(self.draft if self.cursor == len(self.draft) else '')
+        self.completion.update(self.draft if self.cursor == len(self.draft) and self.prompt_history is None else '')
         if self.completion.visible:
             if key == curses.KEY_UP:
                 self.completion.selected = max(0, self.completion.selected - 1)
@@ -814,7 +840,9 @@ class Terminal:
         elif key in (curses.KEY_UP, curses.KEY_DOWN):
             layout = layout_input(self.draft, self.input_width)
             direction = -1 if key == curses.KEY_UP else 1
-            if len(layout.lines) > 1:
+            if (self.prompt_history is not None or len(layout.lines) == 1) and self.recall_prompt(direction):
+                return
+            elif len(layout.lines) > 1:
                 self.cursor, self.preferred_input_column = layout.vertical(self.cursor, direction, self.preferred_input_column)
             else:
                 self.scroll_chat(-direction)
@@ -825,10 +853,12 @@ class Terminal:
         elif key in ('\r', curses.KEY_ENTER):
             return self.submit()
         elif key in (curses.KEY_BACKSPACE, '\x7f', '\b'):
+            self.prompt_history = self.prompt_index = None
             if self.cursor:
                 self._draft = self.draft[:self.cursor - 1] + self.draft[self.cursor:]
                 self.cursor -= 1
         elif key == curses.KEY_DC:
+            self.prompt_history = self.prompt_index = None
             self._draft = self.draft[:self.cursor] + self.draft[self.cursor + 1:]
         elif key == '\x15':
             self.draft = ''

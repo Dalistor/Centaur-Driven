@@ -23,6 +23,13 @@ class InputScreen:
 
 
 class KeyboardTests(unittest.TestCase):
+    def test_plain_csi_and_application_arrows_are_not_inserted_as_text(self):
+        for prefix in ('\x1b[', '\x1bO'):
+            for suffix, expected in (('A', curses.KEY_UP), ('B', curses.KEY_DOWN),
+                                     ('C', curses.KEY_RIGHT), ('D', curses.KEY_LEFT),
+                                     ('H', curses.KEY_HOME), ('F', curses.KEY_END)):
+                self.assertEqual(read_key(InputScreen(prefix + suffix)), expected)
+
     def test_shift_enter_encodings_ctrl_shortcuts_and_release(self):
         for sequence in ('\x1b[13;2u', '\x1b[13;2:1u', '\x1b[13;2:2u', '\x1b[13;66u', '\x1b[27;2;13~'):
             self.assertEqual(read_key(InputScreen(sequence)), KEY_NEWLINE, sequence)
@@ -74,6 +81,34 @@ class ComposerTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.store = ChatStore(self.root)
         self.terminal = Terminal(self.root, 'model', self.store, None)
+
+    def test_prompt_history_moves_backward_forward_and_restores_empty_or_current_draft(self):
+        terminal = self.terminal
+        terminal.chat['messages'] = [
+            {'role': 'user', 'content': '$spec primeira'},
+            {'role': 'assistant', 'content': 'Resposta'},
+            {'role': 'user', 'content': 'segunda\nlinha'}]
+        original = [dict(m) for m in terminal.chat['messages']]
+        for draft in ('', 'rascunho atual'):
+            terminal.draft = draft
+            terminal.cursor = min(3, len(draft))
+            cursor = terminal.cursor
+            terminal.handle(curses.KEY_UP)
+            self.assertEqual(terminal.draft, 'segunda\nlinha')
+            terminal.handle(curses.KEY_UP)
+            self.assertEqual(terminal.draft, '$spec primeira')
+            terminal.handle(curses.KEY_UP)
+            self.assertEqual(terminal.draft, '$spec primeira')
+            terminal.handle(curses.KEY_DOWN)
+            self.assertEqual(terminal.draft, 'segunda\nlinha')
+            terminal.handle(curses.KEY_DOWN)
+            self.assertEqual((terminal.draft, terminal.cursor), (draft, cursor))
+            self.assertEqual(terminal.chat['messages'], original)
+        terminal.draft = ''
+        terminal.handle(curses.KEY_UP)
+        terminal.handle('!')
+        self.assertIsNone(terminal.prompt_history)
+        self.assertEqual(terminal.chat['messages'], original)
 
     def test_soft_wrap_preserves_spaces_wide_characters_and_combining_marks(self):
         text = 'ab  汉e\u0301字end'
