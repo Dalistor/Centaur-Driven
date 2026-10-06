@@ -25,6 +25,7 @@ class GraphifyLocalTests(unittest.TestCase):
 
     def test_cli_receives_isolated_output_and_literal_arguments(self):
         with tempfile.TemporaryDirectory() as temp:
+            temp = str(Path(temp).resolve())
             root = Path(temp)
             binary = root / 'bin/graphify'
             binary.parent.mkdir()

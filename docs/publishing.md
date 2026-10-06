@@ -44,6 +44,8 @@ release com tag `cli-v<versão>`, pacotes e SHA256SUMS; depois publica os mesmos
 A tag de uma versão publicada não pode apontar para outro commit. Para alterar um pacote
 já publicado, gere uma nova versão. Não sobrescreva releases ou arquivos do PyPI.
 
+Os testes de deploy estático rodam apenas no Linux, por exigirem utilitários GNU e flock.
+
 O workflow aceita também `workflow_dispatch` quando está disponível na branch padrão.
 Na branch experimental, o push da versão inicia a execução automaticamente.
 

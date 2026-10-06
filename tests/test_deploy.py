@@ -4,6 +4,7 @@ import http.server
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -17,11 +18,12 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+@unittest.skipUnless(sys.platform.startswith('linux'), 'Static deployment requires Linux/GNU tools and flock')
 class DeployTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.old = self.root / 'releases/old/site'
         self.old.mkdir(parents=True)
         (self.old / 'index.html').write_text('old content')
