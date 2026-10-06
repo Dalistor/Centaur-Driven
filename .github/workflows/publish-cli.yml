@@ -2,11 +2,13 @@ name: Publish Centaur CLI
 
 on:
   push:
-    branches: [experimental/openrouter-cli]
+    branches: [main]
     paths:
       - centaur_cli/__init__.py
       - pyproject.toml
       - .github/workflows/publish-cli.yml
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -68,6 +70,7 @@ jobs:
 
   release:
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write

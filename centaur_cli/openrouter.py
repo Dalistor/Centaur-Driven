@@ -109,8 +109,10 @@ class OpenRouter:
         validate_effort(self.backend, effort)
         if model in self.model_efforts and effort not in self.model_efforts[model]:
             raise ValueError('Este modelo não aceita o effort selecionado; use $config e escolha um nível disponível.')
-        payload = {'messages': messages, 'tools': tools,
+        payload = {'messages': messages,
                    'provider': {'require_parameters': True}}
+        if tools:
+            payload['tools'] = tools
         if effort != 'default':
             payload['reasoning'] = {'effort': effort}
         if model:

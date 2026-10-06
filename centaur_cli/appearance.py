@@ -55,6 +55,7 @@ class Palette:
             for shade in range(16):
                 self.styles[self.graphic_style(shade, accent)] = (
                     curses.A_DIM if shade < 5 else curses.A_BOLD if shade > 12 else 0)
+        self.styles.update(title=curses.A_BOLD, user=curses.A_BOLD)
 
     @staticmethod
     def graphic_style(shade, accent):
@@ -88,6 +89,11 @@ class Palette:
                              color if name == 'selected' else background)
             self.styles[name] = curses.color_pair(pair)
         self.styles['green'] |= curses.A_BOLD
+        self.styles['title'] = self.styles['text'] | curses.A_BOLD
+        self.styles['user'] = self.styles['text'] | curses.A_BOLD
+        if extended and curses.COLOR_PAIRS > 40:
+            curses.init_pair(40, 252, 236)
+            self.styles['user'] = curses.color_pair(40) | curses.A_BOLD
         # Existing runtime tokens own the light endpoints: text 252 and green 120.
         for accent, target in ((False, (208, 208, 208)), (True, (135, 255, 135))):
             for shade in range(16):
@@ -265,18 +271,21 @@ class TerminalView:
             self.put(screen, height - 1, 0, '> ' + terminal.draft, 'green')
             screen.refresh()
             return
-        self.put(screen, 1, 2, WORDMARK)
+        self.put(screen, 1, 2, WORDMARK, 'muted')
         if width >= 66:
             self.put(screen, 1, width - len(TAGLINE) - 3, TAGLINE, 'muted')
-        self.put(screen, 2, 2, '─' * (width - 5), 'line')
+        transcript_width = min(100, width - 6)
+        transcript_left = max(3, (width - transcript_width) // 2)
         model = terminal.backend + ' · ' + (terminal.chat['model'] or 'padrão')
         if terminal.chat.get('effort', 'default') != 'default':
             model += ' · ' + terminal.chat['effort']
-        self.put(screen, 3, 2, str(terminal.root), 'muted', max(12, width // 2 - 3))
-        self.put(screen, 3, width // 2 + 1, model, 'blue')
-        self.put(screen, 4, 2, terminal.chat['title'], 'text', width - 20)
-        self.put(screen, 4, width - 16, '● trabalhando' if terminal.busy else '○ pronto',
-                 'blue' if terminal.busy else 'muted')
+        self.put(screen, 2, transcript_left, '◆ ' + terminal.chat['title'], 'title', transcript_width)
+        if width >= 100:
+            self.put(screen, 3, transcript_left, str(terminal.root), 'muted', transcript_width // 2 - 2)
+            self.put(screen, 3, transcript_left + transcript_width // 2, model, 'blue', transcript_width // 2)
+        else:
+            self.put(screen, 3, transcript_left, model, 'muted', transcript_width)
+        self.put(screen, 4, transcript_left, '─' * transcript_width, 'line')
         top, available = 5, height - 11
         if height < 20 and (terminal.settings or terminal.rename_target):
             # A compact editor owns the content region so every field remains reachable.
@@ -308,20 +317,25 @@ class TerminalView:
         elif not terminal.chat['messages'] and not terminal.approval:
             self.welcome(screen, top, available, width, terminal)
         else:
-            lines = terminal.lines(width - 6)
+            lines = terminal.lines(transcript_width)
             if terminal.approval:
                 start = min(terminal.scroll, max(0, len(lines) - available))
             else:
                 start = max(0, len(lines) - available - terminal.scroll)
             for row, line in enumerate(lines[start:start + available], top):
                 style = 'text'
-                if line.startswith(('› Você', '◆ Centaur')):
+                if line.startswith('› '):
+                    style = 'user'
+                    self.put(screen, row, transcript_left - 1, ' ' * (transcript_width + 2), style)
+                elif line.startswith('◆ Centaur'):
                     style = 'green'
+                elif line.startswith('◦ ') or line.startswith('  '):
+                    style = 'muted'
                 elif line.startswith('↳ Ferramenta'):
                     style = 'blue'
                 elif line.startswith('CONFIRMAÇÃO'):
                     style = 'warning'
-                self.put(screen, row, 3, line, style)
+                self.put(screen, row, transcript_left, line, style, transcript_width)
         terminal.completion.update(terminal.draft if terminal.cursor == len(terminal.draft) else '')
         completing = (terminal.completion.visible and not terminal.browser and not terminal.approval
                       and not terminal.settings and not terminal.rename_target)
@@ -340,7 +354,10 @@ class TerminalView:
                 row = popup_top + index + 1
                 self.put(screen, row, 2, ' ' * (width - 5), style)
                 self.put(screen, row, 3, f'{">" if selected else " "} {prefix}{name}', style)
-        self.put(screen, height - 5, 2, '─' * (width - 5), 'line')
+        # The composer follows the same reading column as the conversation.
+        composer_left = 2 if (terminal.settings or terminal.rename_target or terminal.browser or terminal.approval) else transcript_left - 1
+        composer_width = width - 5 if composer_left == 2 else transcript_width + 2
+        self.put(screen, height - 5, composer_left, '─' * composer_width, 'line')
         notice = terminal.notice
         if terminal.busy and not terminal.approval:
             notice = self.activity(terminal, notice)
@@ -352,14 +369,15 @@ class TerminalView:
             prefix = terminal.completion.context[1]
             notice = ('Nenhuma skill adicional encontrada em .centaur/skills/.' if prefix == '@'
                       else 'Nenhuma skill Centaur corresponde ao nome digitado.')
-        self.put(screen, height - 4, 2, notice,
+        self.put(screen, height - 4, composer_left, notice,
                  'warning' if notice.startswith(('Erro', 'Não foi', 'Chave detectada')) else 'muted')
-        self.put(screen, height - 3, 2, '›', 'green')
+        self.put(screen, height - 3, composer_left, ' ' * composer_width, 'user')
+        self.put(screen, height - 3, composer_left, '›', 'green')
         draft = terminal.rename_text if terminal.rename_target else terminal.draft
         cursor = terminal.rename_cursor if terminal.rename_target else terminal.cursor
-        input_width = max(1, width - 7)
+        input_width = max(1, composer_width - 2)
         visible_draft, cursor_column = input_window(draft, cursor, input_width)
-        self.put(screen, height - 3, 4, visible_draft)
+        self.put(screen, height - 3, composer_left + 2, visible_draft, 'user')
         credits = credits[:max(1, width - 5)]
         self.put(screen, height - 2, max(2, width - len(credits) - 3), credits, credit_style)
         hints = ('Aguarde a validação…' if terminal.settings and terminal.settings.pending else
@@ -368,7 +386,7 @@ class TerminalView:
                  '↑↓ escolher · Tab/Enter inserir · Esc fechar' if completing else
                  'y permitir · n recusar · PgUp/PgDn revisar' if terminal.approval else
                  '↑↓ selecionar · Enter retomar · R renomear · Del excluir · Esc voltar' if terminal.browser else
-                 'Enter enviar · Shift+← chats · PgUp/PgDn rolar · Ctrl+Q sair')
+                 'Enter enviar · Shift+← chats · Ctrl+O detalhes · PgUp/PgDn rolar · Ctrl+Q sair')
         self.put(screen, height - 1, 2, hints, 'blue')
         if not terminal.approval and (terminal.rename_target or not terminal.browser):
             if terminal.settings and terminal.settings.page == 'custom':
@@ -376,5 +394,5 @@ class TerminalView:
                                                 max(1, width - 8))
                 screen.move(top + 5, min(width - 2, 5 + custom_cursor))
             elif not terminal.settings:
-                screen.move(height - 3, min(width - 2, 4 + cursor_column))
+                screen.move(height - 3, min(width - 2, composer_left + 2 + cursor_column))
         screen.refresh()

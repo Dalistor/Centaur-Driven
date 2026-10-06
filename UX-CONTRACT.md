@@ -35,3 +35,23 @@ DOM, popups de navegador, fontes remotas ou scrollbars CSS.
 `--complete` nunca altera READMEs ou estado. Ele exige vínculos explícitos e percorre
 filhas/dependências; integração/publicação remota continua exigindo observação externa.
 O harness não transforma uma resposta de IA ou relatório de subagente em aprovação.
+
+## Conversa e títulos gerados
+
+`conversation.py` é o dono dos resumos de ações, da apresentação de Markdown e do pedido
+de título. `Terminal.lines` preserva a ordem da conversa: usuário, progresso público,
+ferramentas resumidas, resposta final. `Ctrl+O` alterna detalhes sem mudar foco ou rascunho.
+Resultados continuam íntegros no histórico; campos de reasoning do provedor não são renderizados.
+Marcadores de execução só mostram sucesso quando a ferramenta já retornou sem falha/recusa.
+Confirmações continuam prioritárias e os resumos não concedem aprovação.
+
+Após a primeira resposta, `Terminal.make_title` faz uma única chamada sem ferramentas
+no mesmo backend/modelo. `ChatStore.generated_title` atualiza somente metadados de título
+a partir do arquivo atual. Resultados atrasados não sobrescrevem rename manual nem recriam
+chats excluídos. O evento aguarda o fim de um novo turno em execução para preservar a
+gravação do histórico. Falha na geração não altera a resposta nem bloqueia navegação.
+O título é validado e limitado a 60 caracteres; nomes manuais continuam aceitando até 80.
+A chamada adicional segue os custos do provedor, como documentado no README.
+
+Verificação: `tests/test_conversation.py` e teste de terminal real com PTY, incluindo
+resumo/detalhes, erro, recusa, resize, rename e título atrasado.

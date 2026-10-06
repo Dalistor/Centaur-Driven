@@ -56,7 +56,7 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 - Emblema Convergência em Braille, com curvas finas, flecha verde, luz e animação.
 - `CENTAUR_REDUCED_MOTION=1` reduz movimento; `CENTAUR_GRAPHICS=0` usa blocos/ASCII.
 
-[Documentação completa](https://github.com/Dalistor/Centaur-Driven/tree/experimental/openrouter-cli)
+[Documentação completa](https://github.com/Dalistor/Centaur-Driven/tree/main)
 · [Código-fonte](https://github.com/Dalistor/Centaur-Driven)
 · [Reportar problema](https://github.com/Dalistor/Centaur-Driven/issues)
 

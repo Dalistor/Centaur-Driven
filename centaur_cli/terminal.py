@@ -12,6 +12,7 @@ from .settings import ConfigPicker
 from .openrouter import OpenRouter
 from .agent import run_turn
 from .completion import SkillCompletion
+from .conversation import generate_title, readable_markdown, tool_activity
 from .tools import ProjectTools
 from .appearance import TerminalView
 from .graphics import FRAME_SECONDS
@@ -85,6 +86,9 @@ class Terminal:
         self.credits_next_refresh = 0
         self.credits_dirty = False
         self.max_subagent_tier = max_subagent_tier
+        self.show_details = False
+        self.pending_titles = {}
+        self.title_tasks = set()
 
     def request_credits(self):
         if self.backend != 'openrouter':
@@ -342,9 +346,46 @@ class Terminal:
                       'Não solicite faixas superiores; isso exige configuração explícita do usuário.\n'
                       if self.backend == 'openrouter' else backend_instructions)
                      + (ANALYSIS_INSTRUCTIONS if status_analysis else ''))
+            if (not chat.get('title_custom') and not chat.get('title_attempted')
+                    and not status_analysis):
+                chat['title_attempted'] = True
+                try:
+                    self.store.save(chat)
+                    self.title_tasks.add(chat['id'])
+                    snapshot = [dict(message) for message in chat['messages']]
+                    threading.Thread(target=self.make_title,
+                                     args=(chat['id'], self.client, chat['model'], snapshot), daemon=True).start()
+                except (OSError, RuntimeError):
+                    self.title_tasks.discard(chat['id'])
             self.events.put(('done', 'Pronto.'))
         except Exception as error:
             self.events.put(('done', f'Erro: {error}'))
+
+    def make_title(self, chat_id, client, model, messages):
+        try:
+            title = generate_title(client, model, messages)
+        except Exception:
+            title = None  # Title failure must not interrupt a successful conversation.
+        self.events.put(('title', (chat_id, title)))
+
+    def apply_titles(self):
+        for chat_id, title in list(self.pending_titles.items()):
+            if self.busy and self.chat['id'] == chat_id:
+                continue
+            del self.pending_titles[chat_id]
+            self.title_tasks.discard(chat_id)
+            if not title:
+                continue
+            try:
+                renamed = self.store.generated_title(chat_id, title)
+                if renamed and self.chat['id'] == chat_id:
+                    self.chat.update(title=renamed['title'], title_generated=True)
+                if self.browser:
+                    selected_id = self.chats[self.selected]['id'] if self.chats else None
+                    self.chats = self.store.list()
+                    self.selected = next((i for i, c in enumerate(self.chats) if c['id'] == selected_id), 0)
+            except (OSError, ValueError):
+                pass  # Deleted/renamed chats are not recreated by late title requests.
 
     def drain_events(self):
         while not self.events.empty():
@@ -387,6 +428,10 @@ class Terminal:
                 self.busy = False
                 self.notice = value
                 self.credits_dirty = True
+            elif kind == 'title':
+                chat_id, title = value
+                self.pending_titles[chat_id] = title
+                self.credits_dirty = True
             elif kind == 'progress':
                 self.notice = value
                 self.credits_dirty = True
@@ -396,6 +441,7 @@ class Terminal:
                 self.credits_status = 'ready' if kind == 'credits' else 'error'
                 if kind == 'credits':
                     self.credits = value
+        self.apply_titles()
 
     def lines(self, width):
         if self.approval:
@@ -403,13 +449,39 @@ class Terminal:
         if self.browser:
             return [f'{">" if index == self.selected else " "} {chat["updated"][:16]}  {chat["title"]}'
                     for index, chat in enumerate(self.chats)] or ['Nenhum chat salvo nesta pasta.']
-        lines = []
-        for message in list(self.chat['messages']):
-            role = {'user': '› Você', 'assistant': '◆ Centaur', 'tool': '↳ Ferramenta'}[message['role']]
+        lines, actions, working = [], {}, False
+        messages = list(self.chat['messages'])
+        results = {m.get('tool_call_id'): m.get('content', '') for m in messages if m['role'] == 'tool'}
+        for message in messages:
             content = message.get('content') or ''
-            if message.get('tool_calls'):
-                content += '\n' + ', '.join(call['function']['name'] for call in message['tool_calls'])
-            lines.extend([role] + display_lines(content, width) + [''])
+            if message['role'] == 'user':
+                working = False
+                lines.extend([''] + ['› ' + text for text in display_lines(content, max(1, width - 2))] + [''])
+            elif message['role'] == 'assistant' and message.get('tool_calls'):
+                if not working:
+                    lines.append('◦ Trabalho · Ctrl+O detalhes')
+                    working = True
+                if content:
+                    lines.extend('  ' + text for text in display_lines(readable_markdown(content), width - 2))
+                for call in message['tool_calls']:
+                    actions[call['id']] = call
+                    if call['function']['name'] == 'report_progress':
+                        continue
+                    summary = tool_activity(call, results.get(call['id']))
+                    lines.extend('  ' + text for text in display_lines(summary, width - 2))
+            elif message['role'] == 'tool':
+                call = actions.get(message.get('tool_call_id'), {})
+                if call.get('function', {}).get('name') == 'report_progress':
+                    lines.extend('  ' + text for text in display_lines(readable_markdown(content), width - 2))
+                elif self.show_details:
+                    lines.extend(['↳ Ferramenta'] + display_lines(content, width) + [''])
+            elif message['role'] == 'assistant':
+                if working:
+                    lines.append('')
+                    working = False
+                lines.extend(['◆ Centaur'] + display_lines(readable_markdown(content), width) + [''])
+        if self.busy and not self.approval:
+            lines.extend(['◦ ' + self.view.activity(self, self.notice)])
         return lines or ['Centaur experimental · OpenRouter', '', '/new cria chat · /quit sai']
 
     def draw(self, screen):
@@ -492,6 +564,10 @@ class Terminal:
             if not self.chat['messages'] and not self.busy and not self.draft:
                 self.view.animation.replay()
             return
+        if key == '\x0f':
+            self.show_details = not self.show_details
+            self.notice = 'Detalhes das ferramentas abertos.' if self.show_details else 'Resumo do trabalho.'
+            return
         self.completion.update(self.draft if self.cursor == len(self.draft) else '')
         if self.completion.visible:
             if key == curses.KEY_UP:
@@ -561,5 +637,8 @@ class Terminal:
                 curses.update_lines_cols()
                 screen.clearok(True)
                 continue
+            if key == '\x0f':
+                # Disclosure can move many rows; force a complete repaint across terminals.
+                screen.clearok(True)
             if self.handle(key) == 'quit':
                 return

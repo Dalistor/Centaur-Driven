@@ -20,6 +20,8 @@ def tool(name, description, properties):
 
 
 TOOLS = [
+    tool('report_progress', 'Mostrar ao usuário um resumo público e curto do trabalho atual, sem executar ações.',
+         {'message': 'Progresso, descoberta ou próximo passo; até 280 caracteres, sem raciocínio interno ou segredos'}),
     tool('read_skill', 'Ler uma skill ou referência incluída no CLI, até 200 linhas por chamada.',
          {'path': 'Caminho relativo ao catálogo, por exemplo spec/SKILL.md, graphify/references/lifecycle.md ou @minha-skill/SKILL.md (.centaur/skills)',
           'start_line': 'Número da primeira linha (1 para começar); use chamadas adicionais para continuar'}),
@@ -59,6 +61,11 @@ class ProjectTools:
             return self.redact(f'Erro na ferramenta: {error}')
 
     def _execute(self, name, arguments):
+        if name == 'report_progress':
+            message = arguments['message']
+            if not isinstance(message, str) or not message.strip() or len(message) > 280:
+                raise ValueError('Resumo de progresso deve ter 1 a 280 caracteres.')
+            return message.strip()
         if name == 'read_skill':
             return skill_catalog.read(arguments['path'], arguments['start_line'], self.root)
         if name == 'run_command':

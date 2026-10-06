@@ -24,7 +24,7 @@ classifiers = [
 
 [project.urls]
 Repository = "https://github.com/Dalistor/Centaur-Driven"
-Documentation = "https://github.com/Dalistor/Centaur-Driven/tree/experimental/openrouter-cli"
+Documentation = "https://github.com/Dalistor/Centaur-Driven/tree/main"
 Issues = "https://github.com/Dalistor/Centaur-Driven/issues"
 
 [tool.setuptools.dynamic]

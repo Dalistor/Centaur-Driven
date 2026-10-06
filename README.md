@@ -2,9 +2,9 @@
 
 Harness de skills para guiar Codex e Claude Code pelos projetos, com uso principal no terminal. A IA coordena o trabalho; o humano define comportamentos e limites. Specs organizam entregas, contratos definem o aceite e evidências permitem conferir o resultado.
 
-## CLI experimental com OpenRouter, Codex e Claude
+## CLI com OpenRouter, Codex e Claude
 
-A branch `experimental/openrouter-cli` adiciona um executável próprio com interface de terminal,
+O projeto inclui um executável próprio com interface de terminal,
 histórico por pasta e ferramentas de programação. Requer Python 3.10+ e terminal com curses
 (Linux/macOS). A implementação usa a biblioteca padrão, sem dependências de execução.
 O visual usa o emblema Convergência: duas faixas curvas finas que se encontram, com versão
@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão inicial é `0.1.0`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.1.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.1.0).
+A versão atual é `0.2.0`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.2.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.2.0).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.1.0/centaur_cli-0.1.0-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.2.0/centaur_cli-0.2.0-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -109,6 +109,27 @@ gerenciamento](https://openrouter.ai/docs/api/api-reference/credits/get-remainin
 Sem ela, mostra **Chave**, com seu limite restante consultado em `GET /api/v1/key`;
 “sem limite” significa que a chave não tem teto, sem informar o saldo da conta.
 
+### Conversa e progresso
+
+![Conversa e progresso no Centaur](docs/cli-conversation.png)
+
+*Captura do terminal real em uma sessão de demonstração com cliente simulado.*
+
+O chat usa uma coluna de leitura de até 100 células, com mensagens do usuário destacadas,
+título em negrito no topo e resposta final separada do trabalho em andamento. O modelo
+pode comunicar próximos passos e descobertas em resumos públicos antes das ferramentas;
+as ações mostram estado pendente, conclusão, falha ou recusa a partir de seus resultados.
+`Ctrl+O` abre as saídas completas; o histórico continua armazenando os resultados originais.
+Esse resumo não exibe raciocínio interno do provedor. Markdown básico fica legível e
+blocos de código preservam seu conteúdo literal.
+
+Depois da primeira resposta bem-sucedida, uma chamada adicional ao mesmo backend gera
+um título curto em segundo plano. Essa chamada segue os custos e limites do backend.
+A conversa fica disponível enquanto o nome é gerado. Falha mantém o título provisório;
+renomear manualmente sempre tem prioridade, inclusive quando a geração termina atrasada.
+`/status` local não faz essa chamada. Credenciais e raciocínio privado não entram no pedido
+de título; a geração recebe apenas trechos da primeira troca da conversa, sem ferramentas.
+
 Ao redimensionar a janela, cabeçalho, histórico, lista de chats, entrada e barra de créditos
 são reposicionados e o texto é quebrado novamente. O rascunho e a conversa são preservados.
 
@@ -124,6 +145,7 @@ são reposicionados e o texto é quebrado novamente. O rascunho e a conversa sã
 | `$config` | Abrir o seletor de backend, modelo e effort. ↑/↓ escolhem, Enter abre/confirma, Esc volta/cancela. Salvar abre novo chat e preserva os anteriores. |
 | R ou F2 na lista de chats | Renomear a conversa selecionada; Enter salva e Esc cancela. |
 | `/rename` ou `/rename Novo título` | Renomear a conversa atual sem chamar o modelo. |
+| `Ctrl+O` | Alternar resumo e detalhes das ferramentas na conversa. |
 | `/new` | Criar outra conversa. |
 | `/status` | Mostrar a árvore local das specs, sem chamar o modelo. |
 | `/status --ai` | Analisar evidências e recomendar o que pode concluir ou rodar, somente leitura. |

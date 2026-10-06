@@ -57,7 +57,7 @@ Em janelas amplas, símbolo e wordmark aparecem à esquerda, com apresentação 
 `/status` e `/new`, aparecem separados em azul. Em 80 × 24 o símbolo fica compacto. Em janelas estreitas, prioriza os comandos;
 abaixo de 40 × 12 mostra orientação de tamanho e preserva o campo de entrada.
 
-O cabeçalho identifica a pasta e o modelo. O rodapé mantém estado, mensagem digitada e
+O título em negrito fica no topo da coluna de leitura (até 100 células), acima da pasta e do modelo. A conversa e a entrada compartilham o mesmo alinhamento. Mensagens do usuário usam fundo ANSI 236 (`#303030`), texto 252 e negrito; respostas usam o texto normal, com autor em verde. Progresso fica em tom secundário, antes da resposta final. Ações mostram estado por texto e símbolo; Ctrl+O alterna as saídas completas. O cabeçalho identifica a pasta e o modelo. O rodapé mantém estado, mensagem digitada e
 atalhos. A lista de chats destaca toda a linha selecionada, com data quando houver espaço. A seta esquerda edita o texto; Shift+← abre os chats.
 Confirmações usam âmbar e instruções explícitas para permitir, recusar e revisar a ação.
 O cursor fica visível durante a digitação e oculto na lista ou confirmação.
@@ -97,7 +97,7 @@ não representa porcentagem de execução.
 
 A paleta existente em `appearance.Palette.initialize` é a fonte de execução; este documento
 espelha seus valores ANSI. Fundo 233 mapeia `background`; estilos text/green/muted/line/blue/warning
-mapeiam text/primary/secondary/border/info/warning. `TerminalView.put` é o único caminho de desenho
+mapeiam text/primary/secondary/border/info/warning. O estilo title deriva de text com negrito; user usa o par 40, texto 252 e superfície ANSI 236. Em modo monocromático usa negrito, preservando os marcadores do autor. `TerminalView.put` é o único caminho de desenho
 para cabeçalho, conversa, seletor, rename, autocomplete, gráfico e rodapé. `Palette` gera
 16 níveis por material entre fundo 233 e texto 252 / verde 120, quantizando para ANSI 256.
 Os 32 pares gráficos são reservados uma vez (8–39); não se redefine a paleta do terminal.

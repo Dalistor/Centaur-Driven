@@ -68,3 +68,18 @@ class ChatStore:
         chat['title'], chat['title_custom'] = title.strip(), True
         self.save(chat)
         return chat
+
+    def generated_title(self, chat_id, title):
+        """Merge only title metadata into the latest file; manual rename always wins."""
+        if (not isinstance(title, str) or not title.strip() or len(title) > 60
+                or any(not c.isprintable() for c in title)):
+            raise ValueError('Título gerado inválido.')
+        chat = json.loads(self.path(chat_id).read_text(encoding='utf-8'))
+        if chat.get('id') != chat_id:
+            raise ValueError('Identificador do chat diverge do arquivo.')
+        if chat.get('title_custom') or chat.get('title_generated'):
+            return None
+        chat['title'] = title.strip()
+        chat['title_generated'] = True
+        self.save(chat)
+        return chat

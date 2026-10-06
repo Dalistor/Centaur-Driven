@@ -36,7 +36,7 @@ e [usar um publisher](https://docs.pypi.org/trusted-publishers/using-a-publisher
 1. Altere `__version__` em `centaur_cli/__init__.py` e registre a entrega em `CHANGELOG.md`.
 2. Atualize exemplos de instalação com a nova versão.
 3. Execute os testes e a validação local abaixo.
-4. Faça push para `experimental/openrouter-cli`.
+4. Abra um pull request para `main`. Depois dos testes, faça o merge.
 
 O workflow testa Python 3.10 e 3.13 no Linux e 3.13 no macOS; gera wheel e sdist;
 valida o README e todos os recursos; instala o wheel em um ambiente limpo; publica uma
@@ -46,8 +46,8 @@ já publicado, gere uma nova versão. Não sobrescreva releases ou arquivos do P
 
 Os testes de deploy estático rodam apenas no Linux, por exigirem utilitários GNU e flock.
 
-O workflow aceita também `workflow_dispatch` quando está disponível na branch padrão.
-Na branch experimental, o push da versão inicia a execução automaticamente.
+Pull requests executam testes e build, sem publicar. O push da versão na `main`, incluindo
+um merge, inicia a publicação automaticamente. O workflow também aceita `workflow_dispatch`.
 
 ## Validação local
 
