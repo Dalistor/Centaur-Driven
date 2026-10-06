@@ -120,6 +120,7 @@ class OpenRouter:
             with urlopen(request, timeout=10) as response:
                 data = json.load(response)['data']
             from .config import EFFORTS
+            self.input_modalities = {entry['id']: (entry.get('architecture') or {}).get('input_modalities', []) for entry in data}
             self.model_efforts = {}
             self.context_windows = {entry['id']: entry['context_length'] for entry in data
                                     if type(entry.get('context_length')) is int and entry['context_length'] > 0}
@@ -163,6 +164,9 @@ class OpenRouter:
                 raise ValueError('Faixa de custo inválida para o Auto Router.')
             payload['plugins'] = [{'id': 'auto-beta-router' if model.endswith('-beta') else 'auto-router',
                                    'cost_tier': cost_tier}]
+        if any(block.get('type') == 'file' for message in messages
+               if isinstance(message.get('content'), list) for block in message['content']):
+            payload.setdefault('plugins', []).append({'id': 'file-parser', 'pdf': {'engine': 'native'}})
         if session_id:
             payload['session_id'] = session_id
         request = Request('https://openrouter.ai/api/v1/chat/completions',

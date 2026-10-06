@@ -366,7 +366,7 @@ class TerminalView:
             top, available = 0, height - 6
             for row in range(height - 5):
                 self.put(screen, row, 0, ' ' * (width - 1))
-        elif height < 20 and (terminal.chat['messages'] or terminal.draft):
+        elif height < 20 and (terminal.chat['messages'] or terminal.draft or terminal.pending_attachments):
             # Preserve a useful conversation viewport even at the minimum 40 × 12.
             top, available = 3, height - 9
             for row in range(height - 5):
@@ -378,10 +378,11 @@ class TerminalView:
         # grows to eight rows; modal editors retain their single-line geometry.
         capacity = min(8, max(1, available - 1))
         composer_rows = 1 if modal else min(capacity, max(3, len(layout.lines)))
-        extra_rows = composer_rows - 1
+        attachment_rows = int(bool(terminal.pending_attachments) and not modal and height >= 16)
+        extra_rows = composer_rows - 1 + attachment_rows
         available = max(1, available - extra_rows)
         composer_separator = height - 5 - extra_rows
-        input_top = height - 3 - extra_rows
+        input_top = height - 3 - extra_rows + attachment_rows
         input_start = max(0, min(cursor_row - composer_rows + 1, len(layout.lines) - composer_rows))
         if terminal.settings:
             self.settings(screen, terminal, top, available, width)
@@ -407,7 +408,7 @@ class TerminalView:
                              'selected' if selected else 'muted')
             if not terminal.chats:
                 self.put(screen, top + 4, 3, 'Nenhum chat salvo. Esc volta para começar.', 'muted')
-        elif not terminal.chat['messages'] and not terminal.approval:
+        elif not terminal.chat['messages'] and not terminal.approval and not terminal.pending_attachments:
             self.welcome(screen, top, available, width, terminal)
         else:
             lines = terminal.lines(transcript_width)
@@ -465,6 +466,10 @@ class TerminalView:
                       else 'Nenhuma skill Centaur corresponde ao nome digitado.')
         self.put(screen, composer_separator + 1, composer_left, notice,
                  'warning' if notice.startswith(('Erro', 'Não foi', 'Chave detectada')) else 'muted')
+        if attachment_rows:
+            names = ', '.join(item['name'] for item in terminal.pending_attachments)
+            self.put(screen, composer_separator + 2, composer_left,
+                     f'▧ {len(terminal.pending_attachments)} anexo(s): {names} · $detach remove', 'blue', composer_width)
         if modal:
             visible_draft, cursor_column = input_window(draft, cursor, input_width)
             visible_lines, cursor_row, input_start = [visible_draft], 0, 0

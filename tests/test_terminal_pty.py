@@ -34,6 +34,7 @@ class RecordingTerminal(Terminal):
         super().draw(screen)
         data={'draft':self.draft,'cursor':self.cursor,'busy':self.busy,
               'chat':self.chat,'requests':self.client.requests,'width':self.input_width,'notice':self.notice,
+              'pending_attachments':len(self.pending_attachments),
               'action_style':self.view.palette.styles['action'],'comment_style':self.view.palette.styles['comment']}
         pending=root/'snapshot.tmp'
         pending.write_text(json.dumps(data))
@@ -110,6 +111,17 @@ class TerminalPTYTests(unittest.TestCase):
                     wait_for(lambda s: s['draft'] == 'continue')
                     send(b'\x1bOB')
                     wait_for(lambda s: s['draft'] == '')
+                    attachment = root / 'fixture com espaço.txt'
+                    attachment.write_text('fact-from-attachment', encoding='utf-8')
+                    requests_before = len(snapshot['requests'])
+                    send('$attach \"fixture com espaço.txt\"\r'.encode())
+                    snapshot = wait_for(lambda s: s['pending_attachments'] == 1 and not s['draft'])
+                    self.assertEqual(len(snapshot['requests']), requests_before)
+                    send(b'examine\r')
+                    snapshot = wait_for(lambda s: not s['busy'] and len(s['chat']['messages']) == 20)
+                    self.assertEqual(snapshot['pending_attachments'], 0)
+                    self.assertIn('fact-from-attachment', json.dumps(snapshot['requests'][-1]['messages']))
+                    self.assertIn('attachments', snapshot['chat']['messages'][-2])
                     self.assertIn(b'\x1b[?2004h', transcript)
                     send(b'\x11')
                     # BSD PTYs have smaller output buffers: consume curses teardown

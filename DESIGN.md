@@ -181,3 +181,13 @@ O estado `TELA ATIVA` no cabeçalho informa a captura contínua e desaparece qua
 para. O CLI não desenha uma falsa prévia de vídeo nem representa chamadas por quadros
 como inferência em tempo real. Confirmações do desktop reutilizam a superfície canônica
 de permissões, com escopo, duração, destino dos quadros e ação explícitos.
+
+## Anexos na mensagem
+
+Arquivos preparados usam a cor informativa azul, com quantidade e nomes numa linha
+junto ao campo quando há altura suficiente; a lista completa aparece ao final da
+conversa. Em 40 × 12, os nomes ocupam linhas compactas, preservando o campo e o cursor.
+Não há animação decorativa adicional: aviso de preparação/espera e cancelamento usam
+os estados existentes. Mensagens enviadas exibem identidade dos anexos em tom secundário,
+sem imprimir seus bytes, texto inteiro ou base64 no transcript. Cores e geometria
+continuam acessíveis no modo monocromático e em movimento reduzido.

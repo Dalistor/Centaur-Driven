@@ -5,7 +5,7 @@ O humano define intenção, comportamentos e limites; o agente trabalha com spec
 contratos, ferramentas e evidências de entrega.
 
 Requer **Python 3.10+** e terminal interativo em **Linux ou macOS**. Não possui
-dependências Python obrigatórias de execução. Computer use usa o extra opcional `computer`. Codex e Claude são integrações opcionais que
+dependências Python obrigatórias de execução. Anexos visuais/capturas usam o extra `attachments`; computer use usa o extra `computer`. Codex e Claude são integrações opcionais que
 precisam de seus próprios executáveis e login.
 
 ## Instalação
@@ -56,6 +56,29 @@ Ao confirmar OpenRouter sem chave, o cadastro usa entrada oculta.
 
 Uso dos modelos segue a autenticação, custos e limites do backend selecionado.
 Mensagens e arquivos consultados pelo agente são enviados ao provedor.
+
+## Anexos e capturas
+
+```bash
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.8.0'
+```
+
+No chat, `$attach "caminho do arquivo"` prepara um anexo e `$screenshot 3` captura uma
+vez o monitor principal após três segundos. Revise os nomes junto à mensagem;
+`$attachments` lista a fila e `$detach <número|all>` remove anexos. Escreva o pedido e
+pressione Enter para enviar; a preparação não chama a IA. Ctrl+C cancela a captura.
+
+Texto UTF-8/código/logs funciona nos três backends (até 512 KiB); PNG/JPEG/WebP/GIF
+estático exige modelo visual. PDF exige modalidade `file` nativa no OpenRouter.
+Até oito anexos por mensagem, 8 MiB por arquivo, 25 megapixels por imagem. Binários não
+suportados são recusados. Capacidades são revalidadas ao trocar modelo.
+Capturas automáticas requerem X11 no Linux ou permissão de tela no macOS. Em Wayland,
+anexe uma captura salva pelo sistema. O extra `computer` também inclui as dependências.
+
+Anexos enviados têm cópias privadas em `.centaur/attachments`, usadas na retomada e
+`/retry`; arquivos não são descartados na compactação. O prefixo compactado passa a usar
+texto/descrições resumidos, sem reenviar as imagens/PDFs arquivados. Filas não enviadas
+não sobrevivem ao encerramento do CLI. Veja formatos, limites e detalhes no README.
 
 ## Recursos
 

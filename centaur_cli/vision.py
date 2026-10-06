@@ -4,7 +4,7 @@ import base64
 import json
 
 
-def split_images(messages):
+def split_images(messages, max_images=3):
     conversation, images = [], []
     for message in messages:
         content = message.get('content')
@@ -24,9 +24,11 @@ def split_images(messages):
                     raise ValueError('Quadro PNG inválido.')
                 images.append(data)
                 text.append(f'[Imagem anexada {len(images)}]')
+            else:
+                raise ValueError('Este backend não aceita o tipo de anexo recebido.')
         conversation.append(dict(message, content='\n'.join(text)))
-    if len(images) > 3:
-        raise ValueError('Use até três quadros recentes por decisão.')
+    if len(images) > max_images:
+        raise ValueError('Há imagens demais no contexto ativo; use $compact antes de /retry.' if max_images != 3 else 'Use até três quadros recentes por decisão.')
     return conversation, images
 
 

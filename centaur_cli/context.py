@@ -7,6 +7,7 @@ import os
 import time
 from datetime import datetime, timezone
 
+from .attachments import summary_attachments
 from .interaction import TurnCancelled, RequestTimeout
 
 
@@ -31,6 +32,8 @@ class CompactionPaused(RuntimeError):
 def text_only(value):
     """Never count or send base64 images as ordinary text during summarization."""
     if isinstance(value, dict):
+        if value.get('type') == 'file':
+            return {'type': 'text', 'text': '[PDF no histórico; original não resumido visualmente]'}
         if value.get('type') == 'image_url':
             return {'type': 'text', 'text': '[Imagem no histórico; conteúdo visual não resumido]'}
         return {key: text_only(item) for key, item in value.items()}
@@ -135,6 +138,7 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
     def material(through):
         public = [{key: value for key, value in message.items()
                    if key in ('role', 'content', 'tool_calls', 'tool_call_id')}
+                  | ({'attachments': summary_attachments(message['attachments'])} if message.get('attachments') else {})
                   for message in messages[start:through]]
         return getattr(client, 'redact', str)(json.dumps(text_only(public), ensure_ascii=False))
     def message_ends(through):
@@ -144,6 +148,8 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
         for index, message in enumerate(messages[start:through], start):
             public = {key: value for key, value in message.items()
                       if key in ('role', 'content', 'tool_calls', 'tool_call_id')}
+            if message.get('attachments'):
+                public['attachments'] = summary_attachments(message['attachments'])
             encoded = getattr(client, 'redact', str)(json.dumps(text_only(public), ensure_ascii=False))
             position += len(encoded)
             ends.append((index + 1, position))

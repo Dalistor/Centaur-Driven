@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 — 2026-10-06
+
+- `$attach`, `$screenshot [0–10]`, `$attachments` e `$detach <número|all>` preparam anexos revisáveis antes do envio; captura única, espera cancelável e fila separada por chat.
+- Texto UTF-8 nos três backends; imagens estáticas com suporte visual anunciado; PDFs nativos OpenRouter com modalidade file e sem OCR externo automático. Extra opcional `attachments`.
+- Cópias privadas verificadas por SHA-256 preservam anexos enviados em retomadas e `/retry`; modelo incompatível, gravação recusada e cópia ausente/alterada produzem diagnóstico sem descartar a mensagem.
+- Campo de mensagem mostra quantidade e nomes; barra de contexto considera texto pendente. Compactação inclui textos/identidades sem base64 e arquiva originais visuais sem inventar seu conteúdo.
+- Cobertura de transporte, preparação/cancelamento, persistência e terminal real; CI verifica captura única em desktop Xvfb descartável.
+
 ## 0.7.5 — 2026-10-06
 
 - Autocompact recupera espaço para continuar o turno (alvo estimado de 60% da janela, incluindo prompt/ferramentas), sem exigir resumir todo o prefixo antigo.

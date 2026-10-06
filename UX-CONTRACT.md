@@ -158,7 +158,7 @@ acesso ao desktop. O sistema não oferece execução arbitrária de código de c
 Captura local em aproximadamente 2 quadros/s, buffer de três quadros; imagens reais são
 anexadas a cada chamada de decisão via OpenRouter, `--image` no Codex ou entrada
 `stream-json` do Claude. O transporte é de quadros por chamada, não vídeo em tempo real.
-`vision.py` valida PNGs e limita anexos. Imagens não entram no ChatStore; arquivos PNG
+`vision.py` valida PNGs e limita anexos. Quadros efêmeros de computer use não entram no ChatStore; arquivos PNG
 temporários do Codex têm modo 0600 e vivem só durante a requisição. O provedor pode
 processar/reter imagens conforme sua política. Texto de ações fica no histórico.
 
@@ -197,3 +197,36 @@ Windows nativo, múltiplos monitores e uso em segundo plano não têm suporte an
 Verificação: `tests/test_interaction.py`, dependências opcionais em virtualenv e
 transporte nativo simulado; testes de desktop isolado são registrados separadamente
 das verificações com contas reais de provedores.
+
+## Anexos preparados pelo usuário
+
+`attachments.py` é o owner de leitura limitada, tipos, capacidades, normalização de
+imagem, captura única, cópias privadas e hidratação para o provedor. `Terminal` possui
+as filas por chat, preparação em worker cancelável e revisão/envio; `TerminalView`
+possui apenas sua apresentação. Imports de mss/Pillow são opcionais e tardios.
+
+`$attach` e `$screenshot [0–10]` nunca enviam diretamente ao modelo. A captura única é
+solicitada explicitamente pelo usuário; não cria uma sessão ComputerSession. `$detach`
+remove itens e Enter envia com a mensagem (inclusive vazia). Falha de capacidade ou
+persistência mantém o rascunho/fila e não acrescenta mensagem. A cópia usa 0600/pasta
+0700, SHA-256 e referência confinada; mudanças e ausência bloqueiam reenvio. Falha de
+preparação restaura o comando se o campo continuar vazio, sem sobrescrever texto novo.
+
+Capacidades OpenRouter vêm de architecture.input_modalities. Codex usa seu cache e
+seu padrão oficial legado; modelo desconhecido exige seleção explícita. Claude permite
+aliases e famílias versionadas conhecidas. Textos UTF-8 são enviados como dados não
+confiáveis. Imagens são PNG nativo via --image/stream-json; PDF somente OpenRouter file
+com parser native, sem fallback OCR implícito. Tipos desconhecidos não são descartados
+silenciosamente no transporte nativo. Arquivos enviados persistem separadamente dos
+metadados de chat; filas não enviadas duram apenas a sessão e não cruzam chats.
+
+Compactação inclui texto e manifesto, preserva os arquivos e não envia binários/base64
+ao resumidor. Originais visuais compactados deixam o contexto ativo; o resumo registra
+observações existentes, não reconstrói imagens. Reanálise exige anexar novamente.
+A estimativa do contexto inclui texto pendente; imagens/PDFs dependem do uso real do
+provedor. Limites: oito itens/mensagem, texto 512 KiB, arquivo 8 MiB, imagem 25 MP,
+anexos ativos 64 MiB; transporte nativo admite até 32 imagens no contexto, incluindo
+os até três quadros recentes da sessão computer use.
+
+Verificação: test_attachments.py e test_terminal_pty.py; CI com desktop descartável,
+sem credenciais reais ou inferências pagas. Instalação base continua sem dependências.

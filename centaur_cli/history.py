@@ -2,10 +2,12 @@
 
 import json
 import os
+import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
+from .attachments import attachment_directory
 
 
 class ChatStore:
@@ -48,7 +50,11 @@ class ChatStore:
         return sorted(chats, key=lambda chat: chat['updated'], reverse=True)
 
     def delete(self, chat_id):
-        self.path(chat_id).unlink(missing_ok=True)
+        path = self.path(chat_id)
+        directory = attachment_directory(self.directory.parent.parent, chat_id)
+        if directory.exists():
+            shutil.rmtree(directory)
+        path.unlink(missing_ok=True)
 
     def path(self, chat_id):
         if (not isinstance(chat_id, str) or len(chat_id) != 32

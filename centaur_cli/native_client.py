@@ -256,17 +256,22 @@ class NativeClient:
 
     def model_catalog(self):
         if self.backend == 'claude':
+            self.input_modalities = {name: ['text', 'image'] for name in ('', 'haiku', 'sonnet', 'opus')}
+            if self.fixed_model and re.fullmatch(r'claude-(haiku|sonnet|opus)-[0-9][a-z0-9-]*', self.fixed_model):
+                self.input_modalities[self.fixed_model] = ['text', 'image']
             catalog = {'haiku': 'Tasks simples e rápidas', 'sonnet': 'Implementação comum',
                        'opus': 'Investigação complexa e maior risco'}
         else:
             cache = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))) / 'models_cache.json'
             try:
                 data = json.loads(cache.read_text(encoding='utf-8'))
+                self.input_modalities = {}
                 self.context_windows = {}
                 self.model_efforts = {}
                 for entry in data['models']:
                     if not isinstance(entry, dict) or not isinstance(entry.get('slug'), str):
                         continue
+                    self.input_modalities[entry['slug']] = entry.get('input_modalities', ['text', 'image']) or []
                     window = entry.get('context_window') or entry.get('max_context_window')
                     if type(window) is int and window > 0:
                         self.context_windows[entry['slug']] = window
@@ -358,7 +363,7 @@ class NativeClient:
         if model != self.fixed_model and model not in self.model_catalog():
             raise ValueError(f'Modelo não listado no catálogo {self.backend}.')
         self.check_speed(model, speed)
-        conversation, images = split_images(messages)
+        conversation, images = split_images(messages, max_images=32)
         prompt = BRIDGE_INSTRUCTIONS + '\n' + self.redact(json.dumps({'conversation': conversation, 'tools': tools}, ensure_ascii=False))
         env = {name: value for name, value in os.environ.items()
                if name not in ('OPENROUTER_API_KEY', 'OPENROUTER_CREDITS_KEY')}

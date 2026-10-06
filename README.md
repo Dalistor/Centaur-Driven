@@ -6,7 +6,7 @@ Harness de skills para guiar Codex e Claude Code pelos projetos, com uso princip
 
 O projeto inclui um executável próprio com interface de terminal,
 histórico por pasta e ferramentas de programação. Requer Python 3.10+ e terminal com curses
-(Linux/macOS). A implementação usa a biblioteca padrão, sem dependências de execução.
+(Linux/macOS). A implementação usa a biblioteca padrão, sem dependências obrigatórias de execução; anexos visuais e captura usam um extra opcional.
 O visual usa o emblema Convergência: duas faixas curvas finas que se encontram, com versão
 animada Braille e fallback em blocos/ASCII. Fundo escuro, comandos em verde e atalhos em azul. Adapta-se ao tamanho do terminal e respeita `NO_COLOR`.
 Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.md](UX-CONTRACT.md).
@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão atual é `0.5.1`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.5.1`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.5.1).
+A versão atual é `0.8.0`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.8.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.8.0).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.5.1/centaur_cli-0.5.1-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.8.0/centaur_cli-0.8.0-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -215,6 +215,9 @@ o cursor no rascunho multilinha; PgUp/PgDn e o mouse continuam rolando a convers
 | `@` | Autocomplete de skills adicionais em `.centaur/skills/`. |
 | ↑ / ↓, Tab ou Enter na lista de skills | Escolher e inserir a skill; Esc fecha a lista. Enter após inserir envia a mensagem. |
 | `$config` | Selecionar backend, modelo, effort, permissões e velocidade. ↑/↓ escolhem, Enter confirma, Esc volta/cancela. Modelo, effort e velocidade preservam o chat no mesmo backend; trocar backend cria outro. |
+| `$attach "caminho"` | Preparar um arquivo local para a próxima mensagem, com validação do formato e do modelo. |
+| `$screenshot [0–10]` | Capturar uma vez o monitor principal após a espera opcional. Enter posterior envia a captura com sua mensagem. |
+| `$attachments` / `$detach <número\|all>` | Listar os anexos pendentes / remover um ou todos. |
 | `$compact` ou `/compact` | Iniciar a compactação com um único Enter, mantendo mensagens recentes e histórico completo. O progresso informa fragmento atual/total. |
 | Enter / Shift+Enter ou Ctrl+J | Enviar a mensagem / inserir uma nova linha. No autocomplete, Enter executa comandos locais isolados; para skills, insere a opção. Tab apenas completa. |
 | R ou F2 na lista de chats | Renomear a conversa selecionada; Enter salva e Esc cancela. |
@@ -516,6 +519,72 @@ e Esc pula. A resposta aparece no resumo do trabalho e fica no histórico como r
 da ferramenta. O rascunho da próxima mensagem permanece intacto. Perguntas também
 funcionam nas tasks delegadas e não dependem do modo de permissões.
 
+### Arquivos anexados e capturas de tela
+
+Instale a release com o extra visual, ou atualize a instalação por Git:
+
+```bash
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.8.0'
+# Se o Centaur já estiver atualizado e só faltarem as dependências:
+pipx inject centaur-cli Pillow mss
+```
+
+No chat, execute cada comando com Enter:
+
+```text
+$attach "logs/erro com espaço.txt"
+$attach "/caminho/captura.png"
+$screenshot 3
+$attachments
+$detach 2
+```
+
+`$screenshot 3` espera três segundos para você trocar de janela e captura **uma vez o
+monitor principal**. Ctrl+C cancela a preparação. Depois, escreva seu pedido e pressione
+Enter para enviar o texto e os anexos; Enter com o campo vazio também envia os anexos.
+A preparação não chama o modelo. Nomes e quantidade aparecem junto ao campo e no final
+da conversa; `$detach all` remove todos os pendentes. Os comandos também aceitam `/`.
+Uma captura isolada não inicia computer use nem concede acesso para controlar o PC.
+
+| Arquivo | Suporte |
+| --- | --- |
+| Texto UTF-8, código, Markdown, JSON, CSV e logs | OpenRouter, Codex e Claude; até 512 KiB por arquivo. |
+| PNG, JPEG, WebP e GIF de um quadro | Modelo visual compatível; convertido para PNG sem reduzir resolução, até 25 megapixels e 8 MiB após conversão. |
+| PDF | OpenRouter com modalidade `file` anunciada; parser fixado em `native`, sem OCR automático externo. |
+| Outros binários, áudio, vídeo e imagens animadas | Recusados com diagnóstico; converta explicitamente para um formato aceito. |
+
+Até oito anexos por mensagem, 8 MiB por arquivo e 64 MiB de anexos no contexto ativo.
+No OpenRouter, a capacidade vem do catálogo do modelo; modelos Auto Router sem entradas
+anunciadas exigem escolher um modelo explícito. No Codex, usa o catálogo local de modelos:
+se não houver informação, execute `codex` para atualizar o cache e escolha um modelo
+listado em `$config`. Metadados legados do Codex seguem o padrão oficial de texto/imagem.
+No Claude, os aliases padrão e modelos versionados Haiku/Sonnet/Opus aceitam imagens.
+Trocar modelo revalida os anexos no envio; uma incompatibilidade preserva texto e fila.
+
+Captura automática: Linux X11 e macOS com permissão de gravação de tela. Em Wayland,
+use a captura do sistema e `$attach` no arquivo salvo. Imagens também podem ser anexadas
+em sessões sem desktop. O extra `computer` já inclui as dependências visuais.
+
+Anexos **enviados** são copiados com permissão 0600 para `.centaur/attachments/<chat>/`;
+o histórico registra identidade, formato e texto, sem base64 de imagens/PDFs. `/retry`
+e retomada usam a mesma cópia, mesmo se o original mudar ou desaparecer. Uma cópia
+alterada/ausente bloqueia o envio com diagnóstico. Mantenha a pasta junto aos chats nos
+backups; excluir um chat remove suas cópias. Filas ainda não enviadas são locais à sessão
+e ao chat, não são restauradas após encerrar o CLI. Recuperar um prompt com ↑ não reanexa
+os arquivos de uma mensagem anterior.
+
+Compactação inclui texto e nomes dos anexos, preservando observações já registradas
+sobre imagens/PDFs. Originais visuais do prefixo compactado ficam arquivados e deixam de
+ser reenviados; o resumo não inventa seu conteúdo visual. Para analisar novamente um
+original arquivado, use `$attach` no arquivo original ou na cópia pelo hash em
+`.centaur/attachments/<chat>/`. A barra de contexto considera texto pendente; consumo
+visual é aproximado até o provedor informar uso. Anexos enviados seguem a política de
+retenção e os custos do backend escolhido.
+
+Referências: [imagens OpenRouter](https://openrouter.ai/docs/guides/overview/multimodal/image-understanding),
+[PDFs nativos OpenRouter](https://openrouter.ai/docs/guides/overview/multimodal/pdfs),
+[metadados de modelos Codex](https://github.com/openai/codex/blob/main/codex-rs/protocol/src/openai_models.rs).
+
 ### Computer use com captura contínua
 
 Instale as dependências opcionais na instalação global. Enquanto a publicação PyPI não
@@ -621,7 +690,7 @@ ferramentas reais. Não se faz deploy automaticamente ao concluir.
 
 ## Autocomplete e skills adicionais
 
-Digite `$` no início da mensagem ou de um novo termo para abrir a lista das skills Centaur. Continue digitando para filtrar por nome. `@` abre a lista de skills adicionais instaladas no projeto. Use ↑/↓ para selecionar, Tab para completar e Esc para fechar. Enter insere skills; comandos locais isolados (`$compact`, `$config`, `$credits`, `$status`) executam com um único Enter. Menções a esses comandos no meio de uma frase apenas completam o texto. A lista acompanha o redimensionamento do terminal.
+Digite `$` no início da mensagem ou de um novo termo para abrir a lista das skills Centaur. Continue digitando para filtrar por nome. `@` abre a lista de skills adicionais instaladas no projeto. Use ↑/↓ para selecionar, Tab para completar e Esc para fechar. Enter insere skills; comandos locais isolados (`$attach`, `$attachments`, `$detach`, `$screenshot`, `$compact`, `$config`, `$credits`, `$status`) executam com um único Enter. Menções a esses comandos no meio de uma frase apenas completam o texto. A lista acompanha o redimensionamento do terminal.
 
 Skills adicionais e todos os seus arquivos de apoio ficam em `.centaur/skills/<nome>/`, com um `SKILL.md` na raiz da skill:
 
