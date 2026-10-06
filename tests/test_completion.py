@@ -39,6 +39,46 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual(self.terminal.draft, 'Execute $run ')
         self.assertFalse(self.terminal.chat['messages'])
 
+    def test_local_compact_starts_with_one_enter_and_tab_only_completes(self):
+        for command in ('$compact', '$comp'):
+            with self.subTest(command=command):
+                self.terminal.busy = False
+                self.terminal.draft = command
+                with patch('centaur_cli.terminal.threading.Thread') as thread:
+                    self.terminal.handle('\r')
+                    thread.return_value.start.assert_called_once()
+                    self.assertEqual(thread.call_args.kwargs['target'], self.terminal.compact)
+                self.assertTrue(self.terminal.busy)
+                self.assertEqual(self.terminal.draft, '')
+                self.assertFalse(self.terminal.chat['messages'])
+        self.terminal.busy = False
+        self.terminal.draft = '$comp'
+        with patch('centaur_cli.terminal.threading.Thread') as thread:
+            self.terminal.handle('\t')
+            thread.assert_not_called()
+        self.assertEqual(self.terminal.draft, '$compact ')
+        self.assertFalse(self.terminal.busy)
+
+    def test_local_config_and_credits_execute_without_second_enter(self):
+        self.terminal.draft = '$config'
+        self.terminal.handle('\r')
+        self.assertIsNotNone(self.terminal.settings)
+        self.assertEqual(self.terminal.draft, '')
+        self.terminal.handle('\x1b')
+        self.terminal.credits_dirty = False
+        self.terminal.draft = '$credits'
+        self.terminal.handle('\r')
+        self.assertTrue(self.terminal.credits_dirty)
+        self.assertEqual(self.terminal.draft, '')
+
+    def test_local_command_mention_in_prose_does_not_execute(self):
+        self.terminal.draft = 'Explique $compact'
+        with patch('centaur_cli.terminal.threading.Thread') as thread:
+            self.terminal.handle('\r')
+            thread.assert_not_called()
+        self.assertEqual(self.terminal.draft, 'Explique $compact ')
+        self.assertFalse(self.terminal.busy)
+
     def test_arrows_select_tab_inserts_and_escape_allows_literal_text(self):
         self.type('$')
         self.terminal.handle(curses.KEY_DOWN)

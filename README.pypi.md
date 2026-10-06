@@ -74,6 +74,7 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 - Turnos sem limite fixo de etapas; Ctrl+C interrompe comandos e bloqueia novas ações.
 - ↑/↓ recuperam prompts anteriores e avançam até o rascunho atual, inclusive vazio; prompts salvos não são alterados. PgUp/PgDn e roda do mouse rolam a conversa; Ctrl+E volta ao fim.
 - Autocompact a 80% da janela conhecida, sem apagar histórico; `CENTAUR_AUTOCOMPACT=0` desativa. Resumos longos recebem até duas revisões sem truncar a memória.
+- `$compact` inicia com um único Enter e mostra progresso por fragmento; o resumo usa effort baixo anunciado ou padrão do provedor sem mudar o effort do chat.
 - Perguntas interativas da IA, com opções ou resposta livre e preservação do rascunho.
 - Computer use opcional: captura contínua local e até três quadros recentes por decisão da IA, mouse/teclado com confirmação em todos os modos.
 - Validação do ciclo intenção → contrato → implementação → evidência → integração.

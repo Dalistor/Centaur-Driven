@@ -216,6 +216,7 @@ class NativeClient:
         except ValueError:
             raise ValueError('CENTAUR_NATIVE_TIMEOUT deve ser um inteiro de 30 a 3600 segundos.') from None
         self.context_windows = {}
+        self.model_efforts = {}
         self.speed_support = local_speed_support(backend)
         self.quota_windows = {}
         self.fast_version_checked = False
@@ -261,12 +262,17 @@ class NativeClient:
             try:
                 data = json.loads(cache.read_text(encoding='utf-8'))
                 self.context_windows = {}
+                self.model_efforts = {}
                 for entry in data['models']:
                     if not isinstance(entry, dict) or not isinstance(entry.get('slug'), str):
                         continue
                     window = entry.get('context_window') or entry.get('max_context_window')
                     if type(window) is int and window > 0:
                         self.context_windows[entry['slug']] = window
+                    levels = entry.get('supported_reasoning_levels') or []
+                    self.model_efforts[entry['slug']] = ['default', *[
+                        level['effort'] for level in levels if isinstance(level, dict)
+                        and isinstance(level.get('effort'), str)]]
                 catalog = {entry['slug']: entry.get('description', '') for entry in data['models']
                            if isinstance(entry, dict) and entry.get('visibility') == 'list' and isinstance(entry.get('slug'), str)}
             except (OSError, ValueError, KeyError, TypeError):

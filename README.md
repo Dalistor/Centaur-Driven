@@ -212,8 +212,8 @@ o cursor no rascunho multilinha; PgUp/PgDn e o mouse continuam rolando a convers
 | `@` | Autocomplete de skills adicionais em `.centaur/skills/`. |
 | ↑ / ↓, Tab ou Enter na lista de skills | Escolher e inserir a skill; Esc fecha a lista. Enter após inserir envia a mensagem. |
 | `$config` | Selecionar backend, modelo, effort, permissões e velocidade. ↑/↓ escolhem, Enter confirma, Esc volta/cancela. Modelo, effort e velocidade preservam o chat no mesmo backend; trocar backend cria outro. |
-| `$compact` ou `/compact` | Resumir o contexto antigo com IA, mantendo as últimas mensagens e o histórico completo. |
-| Enter / Shift+Enter ou Ctrl+J | Enviar a mensagem / inserir uma nova linha. No autocomplete, Enter insere primeiro a opção selecionada. |
+| `$compact` ou `/compact` | Iniciar a compactação com um único Enter, mantendo mensagens recentes e histórico completo. O progresso informa fragmento atual/total. |
+| Enter / Shift+Enter ou Ctrl+J | Enviar a mensagem / inserir uma nova linha. No autocomplete, Enter executa comandos locais isolados; para skills, insere a opção. Tab apenas completa. |
 | R ou F2 na lista de chats | Renomear a conversa selecionada; Enter salva e Esc cancela. |
 | `/rename` ou `/rename Novo título` | Renomear a conversa atual sem chamar o modelo. |
 | `Ctrl+O` | Alternar resumo e detalhes das ferramentas na conversa. |
@@ -315,6 +315,12 @@ ações registradas. Resumos não concedem permissão. Ctrl+C cancela; erro, fal
 ou resumo que não reduza o contexto mantêm a memória anterior. Um resumo longo recebe
 até duas revisões menores, sem cortar texto arbitrariamente ou executar ferramentas.
 Em conversas curtas, o comando informa que não há mensagens antigas elegíveis.
+
+Digite `$compact` e pressione **Enter uma vez** para iniciar. Tab somente completa o
+comando. Durante a execução, o rodapé mostra o fragmento atual/total e eventuais revisões.
+O tamanho dos fragmentos considera a janela conhecida, com teto de 120 mil caracteres,
+para evitar chamadas pequenas em excesso. O resumo usa effort `low` quando o catálogo
+anuncia esse nível, ou o padrão do provedor; o effort escolhido para o chat não muda.
 
 **Autocompact** fica habilitado: antes da próxima chamada, inclusive entre etapas de
 ferramentas, o Centaur compacta mensagens antigas quando o uso estimado chega a **80% da
@@ -583,7 +589,7 @@ ferramentas reais. Não se faz deploy automaticamente ao concluir.
 
 ## Autocomplete e skills adicionais
 
-Digite `$` no início da mensagem ou de um novo termo para abrir a lista das skills Centaur. Continue digitando para filtrar por nome. `@` abre a lista de skills adicionais instaladas no projeto. Use ↑/↓ para selecionar, Tab ou Enter para inserir e Esc para fechar; a seleção não envia a mensagem. A lista acompanha o redimensionamento do terminal.
+Digite `$` no início da mensagem ou de um novo termo para abrir a lista das skills Centaur. Continue digitando para filtrar por nome. `@` abre a lista de skills adicionais instaladas no projeto. Use ↑/↓ para selecionar, Tab para completar e Esc para fechar. Enter insere skills; comandos locais isolados (`$compact`, `$config`, `$credits`, `$status`) executam com um único Enter. Menções a esses comandos no meio de uma frase apenas completam o texto. A lista acompanha o redimensionamento do terminal.
 
 Skills adicionais e todos os seus arquivos de apoio ficam em `.centaur/skills/<nome>/`, com um `SKILL.md` na raiz da skill:
 

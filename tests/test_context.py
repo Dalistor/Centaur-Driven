@@ -212,6 +212,29 @@ class ContextTests(unittest.TestCase):
             self.assertEqual(call.args[2], [])
         self.assertTrue(state['summary'])
 
+    def test_compaction_progress_reaches_each_fragment_and_uses_advertised_low_effort(self):
+        self.chat['effort'] = 'xhigh'
+        self.client.model_efforts = {'main': ['default', 'low', 'xhigh']}
+        notices = []
+        original = copy.deepcopy(self.chat)
+        state, _, _ = compact_chat(self.chat, self.client, progress=notices.append)
+        count = self.client.complete.call_count
+        self.assertEqual(len(notices), count)
+        self.assertIn(f'fragmento {count}/{count}', notices[-1])
+        self.assertTrue(all(call.kwargs['effort'] == 'low' for call in self.client.complete.call_args_list))
+        self.assertEqual(self.chat, original)
+        self.assertTrue(state['summary'])
+
+    def test_large_known_window_avoids_excess_small_summary_requests(self):
+        self.client.context_windows = {'main': 200000}
+        self.chat['messages'] = [{'role': 'user' if index % 2 == 0 else 'assistant',
+                                 'content': f'Parte {index}: ' + 'contexto ' * 2000} for index in range(24)]
+        original = copy.deepcopy(self.chat['messages'])
+        compact_chat(self.chat, self.client)
+        self.assertLessEqual(self.client.complete.call_count, 3)
+        self.assertEqual(self.chat['messages'], original)
+        self.assertTrue(all(call.args[2] == [] for call in self.client.complete.call_args_list))
+
     def test_resume_uses_summary_and_keeps_results_without_reexecuting_actions(self):
         self.chat['messages'][-2:] = [
             {'role': 'assistant', 'tool_calls': [{'id': 'done', 'function': {
@@ -324,12 +347,15 @@ class NativeContextTests(unittest.TestCase):
     def test_codex_cache_limits_and_public_usage_exclude_private_events(self):
         with tempfile.TemporaryDirectory() as temporary:
             Path(temporary, 'models_cache.json').write_text(json.dumps({'models': [
-                {'slug': 'main', 'visibility': 'list', 'context_window': 200000},
+                {'slug': 'main', 'visibility': 'list', 'context_window': 200000,
+                 'supported_reasoning_levels': [{'effort': 'low'}, {'effort': 'high'}]},
                 {'slug': 'max', 'visibility': 'list', 'context_window': None, 'max_context_window': 400000}]}))
             with patch.dict(os.environ, {'CODEX_HOME': temporary}):
                 client = self.client()
                 client.model_catalog()
             self.assertEqual(client.context_windows, {'main': 200000, 'max': 400000})
+            self.assertEqual(client.model_efforts['main'], ['default', 'low', 'high'])
+            self.assertEqual(client.model_efforts['max'], ['default'])
         output = '\n'.join(map(json.dumps, [{'type': 'item.completed', 'item': {'type': 'reasoning', 'text': 'private'}},
             {'type': 'turn.completed', 'usage': {'input_tokens': 100, 'cached_input_tokens': 80, 'output_tokens': 30}}]))
         self.assertEqual(codex_usage(output), {'prompt_tokens': 100, 'completion_tokens': 30})

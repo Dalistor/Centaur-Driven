@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.2 — 2026-10-06
+
+- `$compact` inicia com um único Enter mesmo com autocomplete aberto; comandos locais também executam diretamente, enquanto Tab continua apenas completando.
+- Compactação manual/automática informa fragmento atual, total de fragmentos e revisões; Ctrl+C continua cancelando sem aplicar resumo parcial.
+- Fragmentos usam o orçamento da janela conhecida, com teto de 120 mil caracteres, evitando muitas chamadas pequenas em modelos de contexto amplo.
+- Resumos usam effort `low` apenas quando anunciado pelo modelo; sem metadados, usam o padrão do provedor, preservando o effort do chat principal.
+
 ## 0.7.1 — 2026-10-06
 
 - Compactação refaz resumos longos em até duas revisões canceláveis, sem truncar memória ou disponibilizar ferramentas; falha conserva o estado anterior.

@@ -109,7 +109,7 @@ def context_label(chat, client, width, draft='', overhead=0):
     return label, 'muted'
 
 
-def compact_chat(chat, client, cancel_event=None):
+def compact_chat(chat, client, cancel_event=None, progress=None):
     """Return new metadata; leave full history, errors and existing memory untouched."""
     messages = copy.deepcopy(chat['messages'])
     old = compaction_state(chat)
@@ -131,9 +131,12 @@ def compact_chat(chat, client, cancel_event=None):
     source = getattr(client, 'redact', str)(json.dumps(text_only(public), ensure_ascii=False))
     limit = context_window(client, chat['model'])
     max_summary = min(6000, max(512, limit // 3)) if limit else 6000
-    chunk_size = min(24000, max(512, int(limit * .7))) if limit else 24000
+    chunk_size = min(120000, max(512, int(limit * 1.2))) if limit else 24000
     summary = old['summary'] if old else ''
-    options = {'effort': chat['effort']} if chat.get('effort', 'default') != 'default' else {}
+    # Summarization does not need the main turn's expensive reasoning setting.
+    # Use a advertised low level, otherwise let the provider choose its default.
+    levels = getattr(client, 'model_efforts', {}).get(chat['model'], [])
+    options = {'effort': 'low'} if isinstance(levels, list) and 'low' in levels else {}
     if chat.get('speed') == 'fast': options['speed'] = 'fast'
     if getattr(client, 'supports_cancellation', False) and cancel_event is not None:
         options['cancel_event'] = cancel_event
@@ -154,14 +157,17 @@ def compact_chat(chat, client, cancel_event=None):
             raise ValueError('Resumo inválido; contexto anterior preservado. Nenhuma ferramenta foi executada.')
         return getattr(client, 'redact', str)(content.strip())
 
-    for offset in range(0, len(source), chunk_size):
+    count = (len(source) + chunk_size - 1) // chunk_size
+    for index, offset in enumerate(range(0, len(source), chunk_size), 1):
+        if progress: progress(f'Compactando contexto · fragmento {index}/{count} · gerando resumo · Ctrl+C interrompe.')
         summary = summarize(source[offset:offset + chunk_size], summary)
         # Repair overshoot semantically; never silently truncate memory. Two
         # retries are bounded and all calls remain tool-free and cancelable.
-        for _ in range(2):
+        for attempt in range(1, 3):
             if len(summary) <= max_summary: break
             if len(summary) > chunk_size:
                 raise ValueError('Resumo excedeu o orçamento de recuperação; contexto anterior preservado.')
+            if progress: progress(f'Compactando contexto · fragmento {index}/{count} · revisão {attempt}/2 · Ctrl+C interrompe.')
             summary = summarize(summary, repair=True)
         if len(summary) > max_summary:
             raise ValueError('Resumo excedeu o limite após duas revisões; contexto anterior preservado.')

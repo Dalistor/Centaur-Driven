@@ -492,7 +492,9 @@ class TerminalView:
                  '↑↓/Tab escolher · Enter responder · Esc pular · PgUp/PgDn ler' if terminal.question else
                  '↑↓ escolher · Enter abrir/salvar · Esc voltar/cancelar' if terminal.settings else
                  'Enter salvar · Esc cancelar · Ctrl+U limpar' if terminal.rename_target else
-                 '↑↓ escolher · Tab/Enter inserir · Esc fechar' if completing else
+                 ('↑↓ escolher · Tab completar · Enter executar · Esc fechar'
+                  if terminal.completion.local_command(terminal.draft) else
+                  '↑↓ escolher · Tab/Enter inserir · Esc fechar') if completing else
                  'y permitir · n recusar · PgUp/PgDn revisar' if terminal.approval else
                  '↑↓ selecionar · Enter retomar · R renomear · Del excluir · Esc voltar' if terminal.browser else
                  '↑↓ prompts · PgUp/PgDn rolar · Ctrl+C parar' if terminal.busy else

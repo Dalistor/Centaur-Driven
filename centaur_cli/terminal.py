@@ -261,7 +261,8 @@ class Terminal:
 
     def compact(self, chat, client, cancel_event):
         try:
-            state, before, after = compact_chat(chat, client, cancel_event)
+            state, before, after = compact_chat(chat, client, cancel_event,
+                progress=lambda notice: self.events.put(('progress', notice)))
             self.events.put(('compacted', (chat, cancel_event, state, before, after)))
         except Exception as error:
             message = getattr(client, 'redact', str)(str(error))
@@ -821,8 +822,11 @@ class Terminal:
                 self.completion.selected = min(len(self.completion.options) - 1, self.completion.selected + 1)
                 return
             if key in ('\t', '\n', '\r', curses.KEY_ENTER):
+                execute = key != '\t' and self.completion.local_command(self.draft)
                 self.draft = self.completion.choose(self.draft)
                 self.completion.update(self.draft)
+                if execute:
+                    return self.submit()
                 return
             if key == '\x1b':
                 self.completion.dismiss(self.draft)

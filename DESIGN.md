@@ -77,6 +77,10 @@ usa IA sem ferramentas, mantém o histórico visível e torna a redução observ
 Autocompact usa esse mesmo estado/feedback antes da próxima chamada a 80% da janela
 conhecida; desconhecida não dispara automaticamente. Revisões de resumo são limitadas,
 sem truncar memória. Falha preserva histórico e interrompe a próxima chamada com orientação.
+Comandos locais isolados executam com um único Enter no autocomplete; Tab só completa.
+Skills e menções no meio de frases conservam inserção antes do envio. O rodapé diferencia
+essas ações. Compactação mostra fragmento atual/total e a revisão em andamento, com o
+tempo de atividade já existente; progresso não representa uma porcentagem de inferência.
 
 Créditos ficam no canto inferior direito. A barra usa
 10 células em janelas amplas e 5 nas estreitas, com valor em US$. Verde indica disponibilidade;

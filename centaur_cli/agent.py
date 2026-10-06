@@ -110,7 +110,7 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
         if auto_compaction_needed(chat, client, payload, definitions):
             if progress: progress('Compactando automaticamente o contexto · histórico preservado…')
             try:
-                state, before, after = compact_chat(chat, client, getattr(tools, 'cancel_event', None))
+                state, before, after = compact_chat(chat, client, getattr(tools, 'cancel_event', None), progress=progress)
                 check_cancelled()
                 save_compaction(chat, store, state, getattr(tools, 'cancel_event', None))
             except TurnCancelled:

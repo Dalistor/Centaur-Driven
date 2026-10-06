@@ -93,8 +93,6 @@ class TerminalPTYTests(unittest.TestCase):
                     snapshot = wait_for(lambda s: not s['busy'] and len(s['requests']) == 1)
                     self.assertEqual(snapshot['requests'][0]['messages'][-1]['content'], expected)
                     send(b'$compact\r')
-                    wait_for(lambda s: s['draft'] == '$compact ')
-                    send(b'\r')
                     snapshot = wait_for(lambda s: not s['busy'] and 'compaction' in s['chat'])
                     self.assertTrue(all(not request['tools'] for request in snapshot['requests'][1:]))
                     self.assertEqual(len(snapshot['chat']['messages']), 16)
