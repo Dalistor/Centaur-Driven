@@ -17,7 +17,7 @@ MODE_LABELS = {'ask': 'Pedir aprovação', 'auto': 'Automático · baixo risco',
 MODE_HELP = {
     'ask': 'Gravações e comandos pedem aprovação; leituras são livres.',
     'auto': 'Edições comuns e consultas; demais ações pedem aprovação.',
-    'never': 'Executa sem confirmação, com as permissões do seu usuário.',
+    'never': 'Arquivos/comandos sem confirmação, com acesso do usuário. Computer use sempre pede permissão.',
 }
 
 

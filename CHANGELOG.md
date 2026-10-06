@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 — 2026-10-06
+
+- Turnos sem limite fixo de 20 etapas; Ctrl+C interrompe comandos/CLIs locais e bloqueia novas ações.
+- Rolagem por setas, PgUp/PgDn e roda do mouse, preservando leitura durante novas mensagens; Ctrl+E volta ao fim.
+- Perguntas interativas da IA, com até três opções, resposta livre, pular e preservação do rascunho; também em subagentes.
+- Extra `computer`: captura contínua do monitor principal e quadros recentes por decisão para OpenRouter/Codex/Claude.
+- Computer use com autorização temporária, confirmação por ação em todos os modos, referência visual, verificação do alvo e fail-safe ativo.
+- Layout compacto utilizável em 40 × 12 e nova validação de desktop descartável no workflow da release.
+
+
 ## 0.4.1 — 2026-10-06
 
 - `$status` e `$status --ai` no autocomplete, tela inicial e instruções do agente.

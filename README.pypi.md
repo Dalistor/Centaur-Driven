@@ -5,7 +5,7 @@ O humano define intenção, comportamentos e limites; o agente trabalha com spec
 contratos, ferramentas e evidências de entrega.
 
 Requer **Python 3.10+** e terminal interativo em **Linux ou macOS**. Não possui
-dependências Python de execução. Codex e Claude são integrações opcionais que
+dependências Python obrigatórias de execução. Computer use usa o extra opcional `computer`. Codex e Claude são integrações opcionais que
 precisam de seus próprios executáveis e login.
 
 ## Instalação
@@ -66,6 +66,10 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 - Permissões por seletor: pedir aprovação, automático de baixo risco ou sem perguntar; subagentes herdam o modo.
 - Automático reconhece o validador de ciclo de vida incluído, documentos de `.centaur` e consultas com glob ou leitura por intervalos.
 - `/wide` amplia o chat; erros completos e `/retry` preservam o turno e os resultados anteriores.
+- Turnos sem limite fixo de etapas; Ctrl+C interrompe comandos e bloqueia novas ações.
+- Histórico com setas, PgUp/PgDn e roda do mouse; Ctrl+E volta ao fim, sem perder a posição quando chegam mensagens.
+- Perguntas interativas da IA, com opções ou resposta livre e preservação do rascunho.
+- Computer use opcional: captura contínua local e até três quadros recentes por decisão da IA, mouse/teclado com confirmação em todos os modos.
 - Validação do ciclo intenção → contrato → implementação → evidência → integração.
 - Emblema Convergência em Braille, com curvas finas, flecha verde, luz e animação.
 - `CENTAUR_REDUCED_MOTION=1` reduz movimento; `CENTAUR_GRAPHICS=0` usa blocos/ASCII.
@@ -73,6 +77,18 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 [Documentação completa](https://github.com/Dalistor/Centaur-Driven/tree/main)
 · [Código-fonte](https://github.com/Dalistor/Centaur-Driven)
 · [Reportar problema](https://github.com/Dalistor/Centaur-Driven/issues)
+
+Para instalar diretamente do Git com computer use:
+
+```bash
+pipx install --force 'centaur-cli[computer] @ git+https://github.com/Dalistor/Centaur-Driven.git@main'
+```
+
+Requer modelo com visão e desktop Linux X11 ou macOS com permissões de tela/acessibilidade.
+Captura autorizada por até 120s, cerca de 2 quadros/s; cada ação pede confirmação.
+Ctrl+C para a captura. Não é inferência contínua por vídeo; as decisões seguem a latência
+do modelo. Quadros não ficam no histórico; Codex usa anexos temporários apagados após
+a requisição. No Linux, texto Unicode precisa de xclip/xsel.
 
 Versão inicial experimental. A instalação não substitui os CLIs nativos opcionais,
 não configura servidores externos e não inicia chamadas pagas automaticamente.

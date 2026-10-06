@@ -60,12 +60,26 @@ def tool_activity(call, result=None):
         'list_files': ('Listando', 'Listou', 'path'), 'write_file': ('Gravando', 'Gravou', 'path'),
         'run_command': ('Executando', 'Executou', 'command'),
         'delegate_task': ('Delegando', 'Delegou', 'title'),
+        'ask_user': ('Perguntando', 'Perguntou', 'question'),
+        'computer_start': ('Solicitando tela', 'Observou tela', 'purpose'),
+        'computer_action': ('Confirmando ação', 'Controlou desktop', 'action'),
+        'computer_observe': ('Observando tela', 'Observou tela', 'frame_id'),
+        'computer_stop': ('Parando captura', 'Parou captura', 'frame_id'),
     }
     pending, done, field = labels.get(name, ('Consultando', 'Consultou', 'path'))
     detail = ' '.join(str(args.get(field) or name).split())[:100]
     if result is None:
         return f'○ {pending} {detail}'
     result = str(result)
+    if name == 'ask_user':
+        try:
+            answer = json.loads(result)
+            if answer.get('status') == 'skipped':
+                return '– Pergunta pulada · ' + detail
+            if answer.get('status') == 'answered':
+                return '✓ Respondeu · ' + str(answer['answer'])
+        except (ValueError, TypeError, KeyError, AttributeError):
+            pass
     if (result.startswith(('Erro na ferramenta:', 'Chamada inválida:', 'Falha ao delegar task:', 'Comando encerrado'))
             or (result.startswith('Código de saída: ') and not result.startswith('Código de saída: 0\n'))):
         return f'! Falha · {detail}'

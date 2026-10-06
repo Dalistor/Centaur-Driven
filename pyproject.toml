@@ -22,6 +22,9 @@ classifiers = [
   "Topic :: Software Development",
 ]
 
+[project.optional-dependencies]
+computer = ["PyAutoGUI>=0.9.54,<1", "mss>=10,<11", "Pillow>=10", "pyperclip>=1.9,<2"]
+
 [project.urls]
 Repository = "https://github.com/Dalistor/Centaur-Driven"
 Documentation = "https://github.com/Dalistor/Centaur-Driven/tree/main"

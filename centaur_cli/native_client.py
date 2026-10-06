@@ -9,10 +9,40 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import time
 from uuid import uuid4
 
 from .openrouter import ModelReply
 from .config import validate_effort
+from .vision import split_images, native_input
+from .interaction import TurnCancelled
+
+
+def validate_arguments(value, spec):
+    """Validate the entire typed batch before returning any executable call."""
+    kind = spec.get('type')
+    valid = {'string': lambda: isinstance(value, str), 'integer': lambda: type(value) is int,
+             'number': lambda: type(value) in (int, float), 'boolean': lambda: type(value) is bool,
+             'array': lambda: isinstance(value, list), 'object': lambda: isinstance(value, dict)}
+    if kind in valid and not valid[kind]():
+        raise ValueError('Argumentos devem respeitar os tipos da ferramenta.')
+    if 'enum' in spec and value not in spec['enum']:
+        raise ValueError('Opção de ferramenta fora do catálogo permitido.')
+    if kind == 'string' and len(value) > spec.get('maxLength', float('inf')):
+        raise ValueError('Texto excede o limite da ferramenta.')
+    if kind in ('integer', 'number') and not spec.get('minimum', -float('inf')) <= value <= spec.get('maximum', float('inf')):
+        raise ValueError('Número fora do limite da ferramenta.')
+    if kind == 'array':
+        if not spec.get('minItems', 0) <= len(value) <= spec.get('maxItems', float('inf')):
+            raise ValueError('Quantidade de itens fora do contrato.')
+        for item in value:
+            validate_arguments(item, spec['items'])
+    if kind == 'object':
+        properties = spec['properties']
+        if set(value) - set(properties) or not set(spec.get('required', [])) <= set(value):
+            raise ValueError('Argumentos fora do contrato da ferramenta; tente novamente com /retry.')
+        for name, item in value.items():
+            validate_arguments(item, properties[name])
 
 REPLY_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
@@ -113,6 +143,7 @@ def process_failure(backend, code, stderr):
 
 class NativeClient:
     allows_model_routing = False
+    supports_cancellation = True
 
     def __init__(self, backend, model=''):
         if backend not in ('codex', 'claude'):
@@ -201,25 +232,43 @@ class NativeClient:
             arguments += ['-']
         return arguments
 
-    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default'):
+    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', cancel_event=None):
         if cost_tier is not None:
             raise ValueError('cost_tier é exclusivo de OpenRouter.')
         if model != self.fixed_model and model not in self.model_catalog():
             raise ValueError(f'Modelo não listado no catálogo {self.backend}.')
-        prompt = BRIDGE_INSTRUCTIONS + '\n' + self.redact(json.dumps({'conversation': messages, 'tools': tools}, ensure_ascii=False))
+        conversation, images = split_images(messages)
+        prompt = BRIDGE_INSTRUCTIONS + '\n' + self.redact(json.dumps({'conversation': conversation, 'tools': tools}, ensure_ascii=False))
         env = {name: value for name, value in os.environ.items()
                if name not in ('OPENROUTER_API_KEY', 'OPENROUTER_CREDITS_KEY')}
         with tempfile.TemporaryDirectory(prefix='centaur-native-') as temporary:
             directory = Path(temporary)
             schema = reply_schema(tools)
             (directory / 'schema.json').write_text(json.dumps(schema), encoding='utf-8')
+            arguments, input_text = native_input(self.backend, directory, self.arguments(directory, model, effort, schema), prompt, images)
             try:
-                process = subprocess.Popen(self.arguments(directory, model, effort, schema), cwd=directory,
+                process = subprocess.Popen(arguments, cwd=directory,
                                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                            stderr=subprocess.PIPE, text=True, env=env,
                                            start_new_session=True)
                 try:
-                    output, errors = process.communicate(prompt, timeout=180)
+                    if cancel_event is None:
+                        output, errors = process.communicate(input_text, timeout=180)
+                    else:
+                        deadline, pending_input = time.monotonic() + 180, input_text
+                        while True:
+                            if cancel_event.is_set():
+                                os.killpg(process.pid, signal.SIGKILL)
+                                process.communicate()
+                                raise TurnCancelled('Turno interrompido pelo usuário.')
+                            remaining = deadline - time.monotonic()
+                            if remaining <= 0:
+                                raise subprocess.TimeoutExpired(arguments, 180)
+                            try:
+                                output, errors = process.communicate(pending_input, timeout=min(0.1, remaining))
+                                break
+                            except subprocess.TimeoutExpired:
+                                pending_input = None
                 except subprocess.TimeoutExpired:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.communicate()
@@ -264,12 +313,7 @@ class NativeClient:
             if (set(arguments) - set(parameters['properties'])
                     or not set(parameters.get('required', [])) <= set(arguments)):
                 raise ValueError('Argumentos fora do contrato da ferramenta; tente novamente com /retry.')
-            for name, val in arguments.items():
-                spec = parameters['properties'][name]
-                if spec.get('type') == 'string' and not isinstance(val, str):
-                    raise ValueError('Argumentos devem respeitar os tipos da ferramenta.')
-                if 'enum' in spec and val not in spec['enum']:
-                    raise ValueError('Opção de ferramenta fora do catálogo permitido.')
+            validate_arguments(arguments, parameters)
             calls.append({'id': uuid4().hex, 'type': 'function', 'function': {
                 'name': call['name'], 'arguments': self.redact(json.dumps(arguments, ensure_ascii=False))}})
         reply = {'role': 'assistant', 'content': self.redact(value['content']) if value['content'] else None}

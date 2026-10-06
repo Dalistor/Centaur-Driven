@@ -3,12 +3,16 @@
 import os
 import signal
 import subprocess
+import json
+import time
 from pathlib import Path
 from tempfile import TemporaryFile
 
 from .credentials import credentials_path
 from . import skill_catalog
 from .permissions import validate_mode, ordinary_path, query_command, query_environment
+from .interaction import ASK_USER, TurnCancelled, validate_question
+from .computer import COMPUTER_TOOLS, ComputerSession
 
 
 def tool(name, description, properties):
@@ -37,12 +41,23 @@ MAX_OUTPUT = 24000
 
 
 class ProjectTools:
-    def __init__(self, root, approve, api_key=None, protected_keys=(), *, approval_mode='ask'):
+    def __init__(self, root, approve, api_key=None, protected_keys=(), *, approval_mode='ask', ask_user=None, cancel_event=None, computer=None):
         self.root = Path(root).resolve()
         self.approve = approve
         self.api_key = api_key
         self.protected_keys = tuple(key for key in (api_key, *protected_keys) if key)
         self.approval_mode = validate_mode(approval_mode)
+        self.ask_user = ask_user
+        self.cancel_event = cancel_event
+        self.computer = computer
+        self.definitions = getattr(type(self), 'definitions', [*TOOLS, *([ASK_USER] if ask_user else []), *(COMPUTER_TOOLS if computer else [])])
+
+    def check_cancelled(self):
+        if self.cancel_event and self.cancel_event.is_set():
+            raise TurnCancelled('Turno interrompido pelo usuário; confira ações já aplicadas antes de retomar.')
+
+    def observation_messages(self):
+        return self.computer.observation_messages() if self.computer else []
 
     def redact(self, text):
         for key in self.protected_keys:
@@ -63,6 +78,17 @@ class ProjectTools:
             return self.redact(f'Erro na ferramenta: {error}')
 
     def _execute(self, name, arguments):
+        self.check_cancelled()
+        if name == 'ask_user' and self.ask_user:
+            question, options = validate_question(arguments)
+            return json.dumps(self.ask_user(self.redact(question), [self.redact(option) for option in options]), ensure_ascii=False)
+        if name.startswith('computer_') and self.computer:
+            try:
+                return self.computer.execute(name, arguments)
+            except TurnCancelled:
+                raise
+            except RuntimeError as error:
+                raise ValueError(str(error)) from None
         if name == 'report_progress':
             message = arguments['message']
             if not isinstance(message, str) or not message.strip() or len(message) > 280:
@@ -78,6 +104,7 @@ class ProjectTools:
             automatic = self.approval_mode == 'never' or query is not None
             if not automatic and not self.approve(self.redact(f'Executar na pasta {self.root}:\n{command}')):
                 return 'Execução recusada pelo usuário.'
+            self.check_cancelled()
             # Shell autorizado pelo usuário; cwd não é uma sandbox.
             with TemporaryFile() as output:
                 env = {key: value for key, value in os.environ.items()
@@ -90,12 +117,22 @@ class ProjectTools:
                                            stdin=subprocess.DEVNULL, stdout=output,
                                            stderr=subprocess.STDOUT, start_new_session=True,
                                            env=env)
-                try:
-                    process.wait(timeout=60)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait()
-                    return 'Comando encerrado: limite de 60 segundos atingido.'
+                deadline = time.monotonic() + 60
+                while process.poll() is None:
+                    try:
+                        self.check_cancelled()
+                    except TurnCancelled:
+                        os.killpg(process.pid, signal.SIGKILL)
+                        process.wait()
+                        raise
+                    if time.monotonic() >= deadline:
+                        os.killpg(process.pid, signal.SIGKILL)
+                        process.wait()
+                        return 'Comando encerrado: limite de 60 segundos atingido.'
+                    try:
+                        process.wait(timeout=0.1)
+                    except subprocess.TimeoutExpired:
+                        pass
                 output.seek(0)
                 return f'Código de saída: {process.returncode}\n' + output.read(MAX_OUTPUT).decode('utf-8', errors='replace')
         if name not in ('list_files', 'read_file', 'write_file'):
@@ -115,6 +152,7 @@ class ProjectTools:
                         and ordinary_path(self.root, arguments['path']))
             if not automatic and not self.approve(self.redact(f'Gravar {path.relative_to(self.root)}:\n{content}')):
                 return 'Alteração recusada pelo usuário.'
+            self.check_cancelled()
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding='utf-8')
             return 'Arquivo gravado.'

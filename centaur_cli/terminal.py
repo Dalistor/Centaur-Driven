@@ -19,6 +19,8 @@ from .graphics import FRAME_SECONDS
 from .subagents import SubagentTools
 from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 from .permissions import validate_mode, MODE_LABELS
+from .interaction import QuestionPicker, TurnCancelled
+from .computer import ComputerSession
 
 
 def display_lines(text, width):
@@ -70,6 +72,13 @@ class Terminal:
         self.events = queue.Queue()
         self.busy = False
         self.approval = None
+        self.question = None
+        self.cancel_event = threading.Event()
+        self.computer = None
+        self.saved_scroll = 0
+        self.viewport_key = None
+        self.viewport_lines = 0
+        self.scroll_limit = 0
         self.draft = ''
         self.completion = SkillCompletion(root)
         self.notice = 'Digite sua intenção. Shift+← chats · $config preferências.'
@@ -120,7 +129,44 @@ class Terminal:
     def approve(self, description):
         answer = queue.Queue()
         self.events.put(('approval', (description, answer)))
-        return answer.get()
+        return self.wait_answer(answer)
+
+    def wait_answer(self, answer):
+        while True:
+            if self.cancel_event.is_set():
+                raise TurnCancelled('Turno interrompido pelo usuário.')
+            try:
+                return answer.get(timeout=0.1)
+            except queue.Empty:
+                pass
+
+    def ask_user(self, question, options):
+        answer = queue.Queue()
+        self.events.put(('question', QuestionPicker(question, options, answer)))
+        return self.wait_answer(answer)
+
+    def cancel_work(self):
+        self.cancel_event.set()
+        if self.computer:
+            self.computer.close()
+        if self.approval or self.question:
+            self.scroll = self.saved_scroll
+        self.approval = None
+        self.question = None
+        self.notice = 'Interrompendo · captura parada e novas ações bloqueadas. Aguardando a chamada atual ao modelo.'
+
+    def transcript_start(self, count, available, width):
+        key = (self.chat['id'], width, self.show_details)
+        # Preserve the top visible row when new content arrives during manual reading.
+        if self.viewport_key == key and self.scroll and count > self.viewport_lines:
+            self.scroll += count - self.viewport_lines
+        self.viewport_key, self.viewport_lines = key, count
+        self.scroll_limit = max(0, count - available)
+        self.scroll = min(self.scroll_limit, max(0, self.scroll))
+        return max(0, count - available - self.scroll)
+
+    def scroll_chat(self, delta):
+        self.scroll = min(self.scroll_limit, max(0, self.scroll + delta))
 
     def submit(self):
         if self.busy or not self.draft.strip():
@@ -201,6 +247,8 @@ class Terminal:
         self.chat['approval_mode'] = self.approval_mode
         self.store.save(self.chat)
         self.scroll = 0
+        self.viewport_key = None
+        self.cancel_event = threading.Event()
         self.busy = True
         self.busy_started = time.monotonic()
         self.notice = f'Aguardando {self.backend}…'
@@ -367,14 +415,18 @@ class Terminal:
             self.rename_cursor += 1
 
     def work(self, chat):
+        computer = ComputerSession(self.approve, self.cancel_event)
+        self.computer = computer
         try:
             base = ProjectTools(self.root, self.approve,
                                 protected_keys=getattr(self.client, 'secrets', (getattr(self.client, 'api_key', None),)),
-                                approval_mode=self.approval_mode)
+                                approval_mode=self.approval_mode, ask_user=self.ask_user,
+                                cancel_event=self.cancel_event, computer=computer)
             status_analysis = chat['messages'][-1].get('content', '').strip() in ('/status --ai', '$status --ai')
             if status_analysis:
                 tools = StatusTools(self.root, lambda _: False,
                                     protected_keys=getattr(self.client, 'secrets', ()))
+                tools.cancel_event = self.cancel_event
             else:
                 tools = SubagentTools(base, self.client, chat['id'],
                                       lambda notice: self.events.put(('progress', notice)), self.max_subagent_tier)
@@ -400,6 +452,10 @@ class Terminal:
                 except (OSError, RuntimeError):
                     self.title_tasks.discard(chat['id'])
             self.events.put(('done', 'Pronto.'))
+        except TurnCancelled as error:
+            chat['last_error'] = str(error)
+            self.store.save(chat)
+            self.events.put(('done', 'Turno interrompido. /retry retoma; confira ações já aplicadas.'))
         except Exception as error:
             message = getattr(self.client, 'redact', str)(str(error))
             chat['last_error'] = message
@@ -408,6 +464,10 @@ class Terminal:
             except OSError:
                 pass
             self.events.put(('done', f'Erro: {message} · /retry retoma este turno.'))
+        finally:
+            computer.close()
+            if self.computer is computer:
+                self.computer = None
 
     def make_title(self, chat_id, client, model, messages):
         try:
@@ -458,12 +518,23 @@ class Terminal:
                 else:
                     self.activate_config(picker.backend, picker.model, picker.effort, client, picker.approval_mode)
             elif kind == 'approval':
+                if self.cancel_event.is_set():
+                    continue
                 self.approval = value
                 self.browser = False
                 self.rename_target = None
-                self.scroll = 0
+                self.saved_scroll, self.scroll = self.scroll, 0
+            elif kind == 'question':
+                if self.cancel_event.is_set():
+                    continue
+                self.question = value
+                self.browser = False
+                self.rename_target = None
+                self.saved_scroll = self.scroll
             elif kind == 'done':
                 self.busy = False
+                self.approval = None
+                self.question = None
                 self.notice = value
                 self.credits_dirty = True
             elif kind == 'title':
@@ -556,15 +627,26 @@ class Terminal:
 
     def handle(self, key):
         if key in ('\x11', '\x03'):
+            if key == '\x03' and self.busy:
+                self.cancel_work()
+                return
             if self.busy or (self.settings and self.settings.pending):
                 self.notice = 'Aguarde o turno ou configuração terminar para sair; recuse ações pendentes com n.'
                 return
             return 'quit'
+        if self.question:
+            result = self.question.handle(key, getattr(self.client, 'secrets', ()))
+            if result is not None:
+                self.question.answer.put(result)
+                self.question = None
+                self.scroll = self.saved_scroll
+                self.notice = 'Resposta enviada. Aguardando a IA…' if result['status'] == 'answered' else 'Pergunta pulada. Aguardando a IA…'
+            return
         if self.approval:
             if key in ('y', 'Y', 'n', 'N'):
                 self.approval[1].put(key.lower() == 'y')
                 self.approval = None
-                self.scroll = 0
+                self.scroll = self.saved_scroll
             elif key == curses.KEY_NPAGE:
                 self.scroll += 5
             elif key == curses.KEY_PPAGE:
@@ -611,6 +693,16 @@ class Terminal:
             self.show_details = not self.show_details
             self.notice = 'Detalhes das ferramentas abertos.' if self.show_details else 'Resumo do trabalho.'
             return
+        if key == curses.KEY_MOUSE:
+            try:
+                _, _, _, _, state = curses.getmouse()
+            except curses.error:
+                return
+            if state & getattr(curses, 'BUTTON4_PRESSED', 0):
+                self.scroll_chat(3)
+            elif state & getattr(curses, 'BUTTON5_PRESSED', 0):
+                self.scroll_chat(-3)
+            return
         self.completion.update(self.draft if self.cursor == len(self.draft) else '')
         if self.completion.visible:
             if key == curses.KEY_UP:
@@ -634,10 +726,12 @@ class Terminal:
             self.cursor = 0
         elif key == curses.KEY_END:
             self.cursor = len(self.draft)
-        elif key == curses.KEY_PPAGE:
-            self.scroll += 5
-        elif key == curses.KEY_NPAGE:
-            self.scroll = max(0, self.scroll - 5)
+        elif key in (curses.KEY_PPAGE, curses.KEY_UP):
+            self.scroll_chat(5 if key == curses.KEY_PPAGE else 1)
+        elif key in (curses.KEY_NPAGE, curses.KEY_DOWN):
+            self.scroll_chat(-5 if key == curses.KEY_NPAGE else -1)
+        elif key == '\x05':
+            self.scroll = 0
         elif key in ('\n', '\r', curses.KEY_ENTER):
             return self.submit()
         elif key in (curses.KEY_BACKSPACE, '\x7f', '\b'):
@@ -656,13 +750,17 @@ class Terminal:
         curses.raw()
         self.view.palette.initialize()
         screen.keypad(True)
+        try:
+            curses.mousemask(getattr(curses, 'BUTTON4_PRESSED', 0) | getattr(curses, 'BUTTON5_PRESSED', 0))
+        except curses.error:
+            pass
         screen.timeout(100)
         while True:
             frame_start = time.monotonic()
             self.drain_events()
             self.request_credits()
             try:
-                curses.curs_set(0 if self.approval or (self.browser and not self.rename_target)
+                curses.curs_set(0 if self.approval or (self.question and not self.question.custom) or (self.browser and not self.rename_target)
                                 or (self.settings and self.settings.page != 'custom') else 1)
             except curses.error:
                 pass
@@ -680,8 +778,10 @@ class Terminal:
                 curses.update_lines_cols()
                 screen.clearok(True)
                 continue
-            if key == '\x0f':
-                # Disclosure can move many rows; force a complete repaint across terminals.
+            if key in ('\x0f', '\x05', curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE,
+                       curses.KEY_NPAGE, curses.KEY_MOUSE):
+                # Navigation/disclosure can move many rows. Repaint rather than relying
+                # on terminal-specific scroll-region optimizations.
                 screen.clearok(True)
             if self.handle(key) == 'quit':
                 return

@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão atual é `0.4.1`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.4.1`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.4.1).
+A versão atual é `0.5.0`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.5.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.5.0).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.4.1/centaur_cli-0.4.1-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.5.0/centaur_cli-0.5.0-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -192,7 +192,10 @@ são reposicionados e o texto é quebrado novamente. O rascunho e a conversa sã
 | `$status` | Mostrar a árvore local das specs, sem chamar o modelo. |
 | `$status --ai` | Analisar evidências e recomendar o que pode concluir ou rodar, somente leitura. |
 | `/credits` | Atualizar o indicador de créditos sem enviar mensagem ao modelo. |
-| PgUp / PgDn | Rolar o histórico ou revisar uma ação pendente. |
+| ↑ / ↓, PgUp / PgDn ou roda do mouse | Rolar o histórico. Novas mensagens preservam a posição de leitura; listas têm prioridade para as setas. PgUp/PgDn também revisam confirmações. |
+| Ctrl+E | Voltar ao fim da conversa. |
+| Ctrl+C durante execução | Interromper o turno, encerrar comandos locais e parar computer use. No OpenRouter, a chamada atual pode aguardar o timeout de rede; nenhuma ação nova será aplicada. |
+| ↑ / ↓ ou Tab, Enter, Esc em perguntas | Escolher uma opção, escrever outra resposta ou pular. Pular não autoriza o agente a inventar uma escolha. |
 | `y` / `n` | Permitir ou recusar a gravação/comando exibido. |
 | `←` / `→`, Home / End, Delete | Mover o cursor e editar a mensagem. |
 | Ctrl+U | Limpar a mensagem ou o filtro digitado. |
@@ -369,7 +372,8 @@ em `.centaur/skills/clean-code/` no projeto ou nos diretórios de skills do usu�
 O autocomplete `@` lista somente skills adicionais da pasta `.centaur/skills/` do projeto.
 
 Limites desta versão: respostas completas, sem streaming; uma execução ativa por conversa;
-até 20 etapas por turno; timeout de 60 segundos por requisição/comando; sem compactação
+sem limite fixo de etapas no agente principal ou nos executores; Ctrl+C interrompe o turno.
+Timeout de 60 segundos por requisição OpenRouter/comando e 180 segundos por requisição nativa; sem compactação
 automática do contexto, MCP ou importação de chats de outros clientes. Subagentes executam
 sequencialmente, até 12 por turno, sem delegação recursiva. Use uma única instância
 por conversa para evitar sobrescrever histórico. Ferramentas de leitura retornam até 24 mil
@@ -378,6 +382,68 @@ O CLI inclui as skills no pacote em `centaur_cli/skills/` e as consulta com `rea
 sem copiá-las para cada projeto. Os comandos `$spec`, `$run`, `$check` e os demais nomes
 do catálogo instruem o agente a ler e seguir a skill correspondente. As referências e
 scripts também acompanham o pacote. A instalação em outros clientes continua descrita abaixo.
+
+### Perguntas durante o trabalho
+
+Quando uma decisão necessária não puder ser inferida, a IA pode abrir uma pergunta no
+chat com até três opções e **Escrever outra resposta**. ↑/↓ ou Tab navegam, Enter responde
+e Esc pula. A resposta aparece no resumo do trabalho e fica no histórico como resultado
+da ferramenta. O rascunho da próxima mensagem permanece intacto. Perguntas também
+funcionam nas tasks delegadas e não dependem do modo de permissões.
+
+### Computer use com captura contínua
+
+Instale as dependências opcionais na instalação global. Enquanto a publicação PyPI não
+estiver configurada, use o Git:
+
+```bash
+pipx install --force 'centaur-cli[computer] @ git+https://github.com/Dalistor/Centaur-Driven.git@main'
+centaur .
+```
+
+Peça no chat, por exemplo: **“Use computer use para testar o formulário no navegador;
+observe a tela, preencha somente dados fictícios e confira o resultado.”** A IA solicita
+autorização antes de capturar o **monitor principal inteiro**, por até 120 segundos,
+a aproximadamente 2 quadros/s. Um indicador **TELA ATIVA** aparece no cabeçalho.
+Até três quadros recentes são enviados a cada decisão do modelo; após clicar, digitar
+ou rolar, uma nova observação permite verificar o resultado. A captura acompanha mudanças
+durante a espera pelo modelo, com memória limitada aos três quadros recentes.
+
+**Isto é captura contínua local com inferência por quadros, não transmissão de vídeo em
+tempo real para o modelo.** A latência das decisões depende do provedor e da conexão.
+OpenRouter recebe imagens multimodais; Codex recebe anexos `--image`; Claude recebe
+blocos de imagem via `stream-json`. Escolha um modelo com visão e ferramentas. Não há
+troca automática de modelo ou nova autenticação para usar a tela.
+
+Cada ação de mouse/teclado exige confirmação, inclusive em `auto` e `never`. Confirmações
+mostram ação, coordenadas e texto/teclas. Para digitar ou usar teclas, o Centaur clica
+nas coordenadas aprovadas para focar o aplicativo após a confirmação no terminal.
+O alvo deve estar visível; mudanças no alvo ou na resolução exigem outra observação.
+A checagem visual local é uma proteção contra quadros antigos, não uma garantia de
+identificação do aplicativo ou de sucesso. Só o coordenador controla a tela; subagentes
+mantêm perguntas e ferramentas do projeto.
+
+Ctrl+C para a captura e bloqueia novas ações, mesmo durante uma chamada ao modelo.
+Mover o ponteiro para um canto do monitor principal aciona o fail-safe; o controle não
+desativa essa proteção. A captura também para quando o turno acaba, falha, é interrompido
+ou expira; continuar requer nova autorização. O histórico nunca restaura autorização.
+
+Os quadros não são gravados no chat nem em uma gravação de vídeo. Para o Codex, arquivos
+temporários PNG, acessíveis apenas ao usuário, são apagados ao terminar a requisição.
+Os quadros enviados seguem o processamento e a retenção do provedor escolhido. Texto
+digitado pela ferramenta aparece no histórico; não use a ferramenta para inserir segredos.
+Texto Unicode usa colar via clipboard e restaura o conteúdo anterior após a operação.
+
+Requisitos: Linux **X11** com display ativo ou macOS com **Gravação de Tela** e
+**Acessibilidade** autorizadas ao terminal. No Linux, texto Unicode requer `xclip` ou
+`xsel`. Wayland, desktop bloqueado, múltiplos monitores, Windows nativo e controle de
+aplicativos em segundo plano não são suportados nesta versão.
+
+Referências de implementação: [Computer use da OpenAI](https://developers.openai.com/api/docs/guides/tools-computer-use),
+[Computer use no Codex/ChatGPT](https://learn.chatgpt.com/docs/computer-use),
+[CLI Codex](https://learn.chatgpt.com/docs/developer-commands),
+[CLI Claude](https://code.claude.com/docs/en/cli-reference) e
+[fail-safe do PyAutoGUI](https://pyautogui.readthedocs.io/en/latest/index.html).
 
 ### Validar integração e conclusão
 

@@ -1,5 +1,22 @@
 # Política de permissões
 
+## Computer use e interrupção
+
+Computer use tem autorização própria em todos os modos, inclusive `never`:
+`computer_start` pede captura do monitor principal inteiro por até 120s e explica
+o envio de quadros ao modelo. Cada `computer_action` pede confirmação de ação,
+coordenadas, texto/teclas e clique para focar o alvo. Essa autorização não fica
+no histórico, não é herdada por subagentes e não permite executar código arbitrário.
+Texto/páginas da tela são contexto não confiável. Ctrl+C bloqueia novas ações e para
+a captura; fail-safe permanece ativo. Reiniciar exige outra autorização. Quadros ficam
+fora dos registros; Codex usa anexos temporários com modo 0600 removidos ao fim da chamada.
+
+Todos os turnos aceitam Ctrl+C. Comandos locais e CLIs nativos são encerrados; chamadas
+OpenRouter podem aguardar o timeout da rede, sem aplicar a resposta após cancelamento.
+Perguntas `ask_user` são decisões de conversa, independentes da aprovação de ações.
+
+## Arquivos e comandos
+
 Fonte: solicitação do proprietário em 2026-10-06, com escolha explícita de “Edições e consultas”
 para o modo intermediário, refinada a pedido do usuário após confirmação desnecessária do
 validador incluído. Implementação canônica: `centaur_cli/permissions.py` e `ProjectTools`.

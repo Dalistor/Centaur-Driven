@@ -131,3 +131,20 @@ permissões preserva a conversa; mudar conexão/modelo/effort inicia outra.
 `/wide` usa a largura disponível para histórico e entrada; o modo normal mantém a coluna de
 100 células. Falhas completas são quebradas em linhas dentro da conversa e podem ser roladas.
 A indicação “Erro no turno” usa âmbar; `/retry` é explícito e preserva checkpoints existentes.
+
+## Perguntas, leitura e observação da tela
+
+Fonte: pedidos do usuário em 2026-10-06. O seletor de perguntas usa a mesma paleta,
+coluna e rodapé da conversa: título verde, opção focada com `selected`, instrução
+secundária e erro em âmbar. `TerminalView.question` é o único desenho desse seletor;
+`QuestionPicker` mantém seleção, texto, cursor e validação. Em 40 × 12 ele ocupa a
+região compacta dos editores; PgUp/PgDn tornam toda pergunta/opção longa acessível.
+Resposta livre fica no compositor canônico, sem substituir o rascunho da conversa.
+
+Histórico mostra posição e retorno ao fim quando rolado; conteúdo novo preserva a
+linha superior visível. Setas seguem a prioridade dos seletores já abertos. A roda do
+mouse é complementar ao teclado. Nenhuma animação ou resultado força retorno ao fim.
+O estado `TELA ATIVA` no cabeçalho informa a captura contínua e desaparece quando ela
+para. O CLI não desenha uma falsa prévia de vídeo nem representa chamadas por quadros
+como inferência em tempo real. Confirmações do desktop reutilizam a superfície canônica
+de permissões, com escopo, duração, destino dos quadros e ação explícitos.

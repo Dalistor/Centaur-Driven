@@ -45,6 +45,7 @@ class SubagentTools:
         self.base, self.client, self.parent_id = base, client, parent_id
         self.root, self.emit, self.max_tier = base.root, emit, max_tier
         self.approval_mode = base.approval_mode
+        self.cancel_event = base.cancel_event
         self.routing = getattr(client, 'allows_model_routing', True)
         delegation = copy.deepcopy(DELEGATE_TASK)
         self.native_models = client.model_catalog() if not self.routing else {}
@@ -56,8 +57,14 @@ class SubagentTools:
             if not self.native_models:
                 del properties['model']
             del properties['cost_tier']
-        self.definitions = [*TOOLS, delegation]
+        self.definitions = [*base.definitions, delegation]
         self.count = 0
+
+    def check_cancelled(self):
+        self.base.check_cancelled()
+
+    def observation_messages(self):
+        return self.base.observation_messages()
 
     def execute(self, name, arguments):
         if name != 'delegate_task':
@@ -95,7 +102,8 @@ class SubagentTools:
         self.emit(f'Subagente: {title} · {model or getattr(self.client, "backend", "openrouter")} · {"faixa " + tier if tier else "backend conectado"}')
         tools = ProjectTools(self.root,
                              lambda description: self.base.approve(f'Subagente {title}\n{description}'),
-                             protected_keys=self.base.protected_keys, approval_mode=self.approval_mode)
+                             protected_keys=self.base.protected_keys, approval_mode=self.approval_mode,
+                             ask_user=self.base.ask_user, cancel_event=self.base.cancel_event)
         instructions = ('\nVocê é executor de UMA task delegada. Não é o coordenador. '
                         'Leia clean-code e a skill implement/tdd conforme o modo. '
                         'Não crie outros subagentes. Edite somente os arquivos sob sua posse; '
