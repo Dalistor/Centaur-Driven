@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "centaur-cli"
+version = "0.1.0"
+description = "CLI experimental do Centaur com OpenRouter"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+centaur = "centaur_cli.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["centaur_cli*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+centaur_cli = ["skills/*/SKILL.md", "skills/*/references/*", "skills/*/scripts/*.py", "skills/*/scripts/*.sh", "skills/*/templates/*", "skills/_internal/*/SKILL.md", "skills/_internal/*/references/*", "skills/_internal/*/scripts/*.py", "skills/_internal/*/scripts/*.sh", "skills/_internal/*/templates/*"]

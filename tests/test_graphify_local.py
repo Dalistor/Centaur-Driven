@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 
-SCRIPT = Path(__file__).resolve().parents[1] / 'centaur-driven-graphify/scripts/graphify-local.py'
+SCRIPT = Path(__file__).resolve().parents[1] / 'centaur_cli/skills/graphify/scripts/graphify-local.py'
 spec = importlib.util.spec_from_file_location('graphify_local', SCRIPT)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)

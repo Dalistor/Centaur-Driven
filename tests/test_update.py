@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-SPEC = importlib.util.spec_from_file_location('centaur_update', Path(__file__).resolve().parents[1] / 'centaur-driven-update/scripts/migrate.py')
+SPEC = importlib.util.spec_from_file_location('centaur_update', Path(__file__).resolve().parents[1] / 'centaur_cli/skills/update/scripts/migrate.py')
 update = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(update)
 

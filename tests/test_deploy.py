@@ -9,7 +9,7 @@ import threading
 import unittest
 
 
-SCRIPTS = Path(__file__).resolve().parents[1] / 'centaur-driven-deploy' / 'scripts'
+SCRIPTS = Path(__file__).resolve().parents[1] / 'centaur_cli/skills/deploy' / 'scripts'
 
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
