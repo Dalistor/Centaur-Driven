@@ -43,13 +43,14 @@ claude auth login
 centaur --backend claude .
 ```
 
-Antes de abrir o chat, escolha **Backend → Modelo padrão → Effort → Iniciar conversa**.
+Antes de abrir o chat, escolha **Backend → Modelo padrão → Effort → Permissões → Iniciar conversa**.
 As preferências da pasta ficam pré-selecionadas. Flags como `--backend`, `--model` e
 `--effort` também preenchem essas escolhas; `--no-setup` abre diretamente com elas.
 ↑/↓ navegam, Enter confirma e Esc volta ou cancela.
 
 Modelo e effort definem o agente principal. Ao executar tasks com subagentes, o Centaur
-escolhe modelos do mesmo backend conforme complexidade e risco. A conexão é validada antes
+escolhe modelos do mesmo backend conforme complexidade e risco. O modo padrão pede aprovação para gravações e comandos. O modo sem perguntar executa com
+as permissões do usuário, sem sandbox. A conexão é validada antes
 de salvar as preferências e abrir o chat; falhas preservam as escolhas.
 Ao confirmar OpenRouter sem chave, o cadastro usa entrada oculta.
 
@@ -61,7 +62,8 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 - `$config`: seletor de backend, modelo e esforço de raciocínio.
 - `Shift+←` ou `/chats`: histórico por pasta; `/rename` renomeia a conversa.
 - Skills distribuídas no pacote: `$spec`, `$run`, `$check`, `$skill` e outras.
-- Aprovação explícita de gravações e comandos, com executor identificado.
+- Permissões por seletor: pedir aprovação, automático de baixo risco ou sem perguntar; subagentes herdam o modo.
+- `/wide` amplia o chat; erros completos e `/retry` preservam o turno e os resultados anteriores.
 - Validação do ciclo intenção → contrato → implementação → evidência → integração.
 - Emblema Convergência em Braille, com curvas finas, flecha verde, luz e animação.
 - `CENTAUR_REDUCED_MOTION=1` reduz movimento; `CENTAUR_GRAPHICS=0` usa blocos/ASCII.

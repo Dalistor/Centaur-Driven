@@ -7,6 +7,7 @@ from .credentials import CredentialStore
 from .native_client import NativeClient
 from .openrouter import OpenRouter
 from .setup import configure_key
+from .permissions import validate_mode
 
 
 def resolve_model(backend, model=None):
@@ -34,6 +35,11 @@ def resolve_effort(root, backend, effort=None):
     if selected is None and saved.get('backend') == backend:
         selected = saved.get('effort')
     return validate_effort(backend, selected or 'default')
+
+
+def resolve_approval_mode(root, mode=None):
+    return validate_mode(mode or os.environ.get('CENTAUR_APPROVAL_MODE')
+                         or load_config(root).get('approval_mode', 'ask'))
 
 
 def create_client(backend, model, allow_setup=True, include_credits=True):

@@ -27,7 +27,9 @@ class StartupTests(unittest.TestCase):
         self.assertEqual(picker.page, 'effort')
         self.assertEqual(picker.options()[picker.selected][0], 'high')
         picker.handle('\n')
-        self.assertEqual((picker.page, picker.row), ('fields', 3))
+        self.assertEqual(picker.page, 'permissions')
+        picker.handle('\n')
+        self.assertEqual((picker.page, picker.row), ('fields', 4))
         self.assertEqual(picker.handle('\n'), 'save')
 
     def test_backend_change_discards_incompatible_model_and_effort(self):
@@ -74,7 +76,7 @@ class StartupTests(unittest.TestCase):
     def test_narrow_resize_and_all_pages_preserve_selection_and_explanation(self):
         wizard = StartupWizard('claude', 'sonnet', 'medium')
         for size in ((24, 100), (24, 80), (18, 40), (12, 35)):
-            for page in ('backend', 'model', 'effort', 'fields', 'custom'):
+            for page in ('backend', 'model', 'effort', 'permissions', 'fields', 'custom'):
                 wizard.picker.page = page
                 screen = Screen(size)
                 wizard.draw(screen)
@@ -106,14 +108,14 @@ class StartupTests(unittest.TestCase):
             seen.append(run.__self__)
             if isinstance(run.__self__, StartupWizard):
                 self.assertEqual(list(self.root.iterdir()), [])
-                return 'claude', 'sonnet', 'medium'
+                return 'claude', 'sonnet', 'medium', 'auto'
             self.assertEqual(run.__self__.backend, 'claude')
             self.assertEqual(run.__self__.chat['model'], 'sonnet')
             self.assertEqual(run.__self__.chat['effort'], 'medium')
         factory = self.run_main(wrapper, lambda *args: connected)
         factory.assert_called_once_with('claude', 'sonnet')
         self.assertEqual(len(seen), 2)
-        self.assertEqual(load_config(self.root), {'backend': 'claude', 'model': 'sonnet', 'effort': 'medium'})
+        self.assertEqual(load_config(self.root), {'backend': 'claude', 'model': 'sonnet', 'effort': 'medium', 'approval_mode': 'auto'})
 
     def test_auth_failure_keeps_preferences_and_allows_another_backend(self):
         save_config(self.root, 'codex', 'old', 'high')
@@ -124,10 +126,10 @@ class StartupTests(unittest.TestCase):
                 visits.append(owner)
                 if len(visits) == 1:
                     self.assertEqual((owner.picker.backend, owner.picker.model), ('codex', 'old'))
-                    return 'codex', 'old', 'high'
+                    return 'codex', 'old', 'high', 'ask'
                 self.assertIn('codex login', owner.picker.error)
                 self.assertEqual(load_config(self.root)['model'], 'old')
-                return 'claude', 'sonnet', 'medium'
+                return 'claude', 'sonnet', 'medium', 'auto'
             self.assertEqual(owner.backend, 'claude')
         factory = self.run_main(wrapper, [RuntimeError('Execute codex login.'), SimpleNamespace(backend='claude', secrets=())])
         self.assertEqual(factory.call_count, 2)

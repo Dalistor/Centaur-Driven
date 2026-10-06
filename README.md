@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão atual é `0.3.0`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.3.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.3.0).
+A versão atual é `0.4.0`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.4.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.4.0).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.3.0/centaur_cli-0.3.0-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.4.0/centaur_cli-0.4.0-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -52,7 +52,7 @@ Se o comando `centaur` não aparecer, execute `pipx ensurepath` e reabra o termi
 
 ### Antes de iniciar a conversa
 
-Ao executar `centaur .`, escolha **Backend → Modelo padrão → Effort → Iniciar conversa**.
+Ao executar `centaur .`, escolha **Backend → Modelo padrão → Effort → Permissões → Iniciar conversa**.
 OpenRouter usa uma chave de API; Codex e Claude usam o login dos seus CLIs locais.
 As preferências da pasta ficam pré-selecionadas. ↑/↓ navegam, Enter confirma e Esc volta
 ou cancela; é possível revisar qualquer campo antes de abrir o chat.
@@ -100,7 +100,7 @@ centaur --backend claude /caminho/do/projeto
 
 `--backend` aceita `openrouter` (padrão), `codex` ou `claude`; `CENTAUR_BACKEND` define o padrão. Codex/Claude reutilizam sua própria autenticação, sem solicitar chave OpenRouter. Precisam estar no `PATH`, com versões que suportem as opções de isolamento e resposta estruturada usadas pelo adaptador. Versões incompatíveis são recusadas, sem fallback para outro provedor.
 
-Com **Codex ou Claude conectado**, `$run` cria subagentes no mesmo backend e escolhe o modelo por task conforme complexidade e risco. `delegate_task` aceita título, task e um modelo do catálogo; `cost_tier` é exclusivo do OpenRouter. `--model` pré-seleciona o modelo principal; a opção Padrão do provedor usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. `$config` abre o seletor; `$config <backend> [modelo] [effort]` altera a fonte da IA e o modelo principal, salvando a preferência local e abrindo novo chat. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo principal solicitado.
+Com **Codex ou Claude conectado**, `$run` cria subagentes no mesmo backend e escolhe o modelo por task conforme complexidade e risco. `delegate_task` aceita título, task e um modelo do catálogo; `cost_tier` é exclusivo do OpenRouter. `--model` pré-seleciona o modelo principal; a opção Padrão do provedor usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. `$config` abre o seletor; `$config <backend> [modelo] [effort] [ask|auto|never]` altera a fonte da IA e o modelo principal, salvando a preferência local; mudar backend/modelo/effort abre novo chat. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo principal solicitado.
 
 A interface, o autocomplete, `/status` e as aprovações continuam no Centaur. O adaptador usa saídas estruturadas dos CLIs, sem ferramentas nativas de execução/delegação e sem carregar as personalizações locais desses clientes; leituras, gravações e comandos passam pelas ferramentas do harness. Cada etapa envia o contexto Centaur a uma execução efêmera do CLI, com limite de 180 segundos; os históricos ficam no Centaur. O adaptador não interpreta o ID efetivo de modelo quando o CLI não o fornece. As credenciais conhecidas dos backends são ocultadas nas mensagens e saídas e removidas do ambiente dos comandos de projeto.
 
@@ -184,7 +184,7 @@ são reposicionados e o texto é quebrado novamente. O rascunho e a conversa sã
 | `$` | Autocomplete das skills Centaur; digite para filtrar. |
 | `@` | Autocomplete de skills adicionais em `.centaur/skills/`. |
 | ↑ / ↓, Tab ou Enter na lista de skills | Escolher e inserir a skill; Esc fecha a lista. Enter após inserir envia a mensagem. |
-| `$config` | Abrir o seletor de backend, modelo e effort. ↑/↓ escolhem, Enter abre/confirma, Esc volta/cancela. Salvar abre novo chat e preserva os anteriores. |
+| `$config` | Abrir o seletor de backend, modelo e effort. ↑/↓ escolhem, Enter abre/confirma, Esc volta/cancela. Salvar aplica o modo; mudar backend/modelo/effort abre novo chat. |
 | R ou F2 na lista de chats | Renomear a conversa selecionada; Enter salva e Esc cancela. |
 | `/rename` ou `/rename Novo título` | Renomear a conversa atual sem chamar o modelo. |
 | `Ctrl+O` | Alternar resumo e detalhes das ferramentas na conversa. |
@@ -198,15 +198,69 @@ são reposicionados e o texto é quebrado novamente. O rascunho e a conversa sã
 | Ctrl+U | Limpar a mensagem ou o filtro digitado. |
 | `/quit` ou Ctrl+Q | Sair após concluir o turno. |
 
+### Modos de permissões
+
+Na abertura e em `$config`, escolha o modo que vale para o agente principal e todos os
+subagentes. O cabeçalho mostra o modo ativo. A seleção só é aplicada após confirmar e salvar;
+mudar apenas o modo preserva a conversa. Chats antigos não restauram permissões mais amplas.
+
+| Modo | Comportamento |
+| --- | --- |
+| **Pedir aprovação** (`ask`, padrão) | Leituras são livres; gravações e comandos pedem aprovação. |
+| **Automático · baixo risco** (`auto`) | Libera edições comuns no projeto e consultas reconhecidas. Outras ações pedem aprovação. |
+| **Sem perguntar** (`never`) | Executa gravações e comandos sem confirmação, com as permissões do usuário. |
+
+![Modos de permissões no Centaur](docs/cli-permissions.png)
+
+*Terminal real com cliente simulado. O modo selecionado mostra sua explicação antes de salvar.*
+
+O modo automático aceita consultas simples com `pwd`, `ls`, `cat`, `head`, `tail`, `wc`,
+`rg` e operações específicas de Git (`status`, `diff`, `log`, `ls-files`, branch atual).
+As formas aceitas ficam em [permissions.py](centaur_cli/permissions.py). Essas consultas
+usam executáveis do sistema e argumentos diretos, sem shell, configurações de busca ou
+programas externos do Git. Sintaxe de shell, opções desconhecidas, exclusões, testes/builds,
+instalações, rede e operações de Git que alteram estado pedem aprovação. Arquivos ocultos,
+links, arquivos executáveis e pastas de credenciais também exigem revisão para edição.
+A classificação é local; o modelo não pode declarar uma ação como segura para liberá-la.
+
+```bash
+centaur . --approval-mode auto
+centaur . --no-setup --approval-mode ask
+# Dentro do chat: $config codex gpt-6.1-sol high auto
+```
+
+`CENTAUR_APPROVAL_MODE` também define a escolha inicial. Flags têm prioridade sobre ambiente,
+que tem prioridade sobre `.centaur/config.json`. Sem preferência, o modo é `ask`.
+**Sem perguntar não cria uma sandbox**: comandos podem afetar arquivos fora do projeto e
+serviços acessíveis ao usuário. Os limites das ferramentas de arquivo, a proteção das
+credenciais conhecidas e os timeouts permanecem ativos nos três modos. `/status --ai`
+continua somente leitura, independentemente do modo.
+
+### Respostas extensas e recuperação
+
+Use `/wide` para alternar entre a coluna de leitura e a largura disponível do terminal,
+preservando a conversa. PgUp/PgDn permitem revisar respostas e erros extensos.
+O adaptador nativo usa argumentos JSON tipados para evitar dupla serialização de código e
+textos com aspas/quebras de linha. Aceita respostas de até 8 MB; isso não aumenta a janela
+de contexto do modelo. O Codex também pode entregar a resposta final por eventos JSON
+concluídos quando o arquivo final estiver ausente. Eventos de raciocínio não são exibidos.
+
+Falhas distinguem JSON inválido, contrato da ferramenta, resposta ausente, contexto, limite
+de uso e incompatibilidade do CLI. O diagnóstico completo fica na conversa e no histórico.
+`/retry` retoma o turno sem duplicar a mensagem do usuário ou executar novamente ferramentas
+com resultado registrado. É uma nova solicitação ao mesmo backend, sujeita a custos e limites.
+Respostas inválidas são recusadas integralmente antes de executar qualquer ferramenta delas.
+A causa exata de uma falha depende do CLI e modelo; não há troca silenciosa de backend.
+
 ### Preferências e esforço de raciocínio
 
-Use `$config` para escolher **Backend → Modelo → Effort → Salvar e abrir novo chat**.
+Use `$config` para escolher **Backend → Modelo → Effort → Permissões → Salvar preferências**.
 
 ![Seletor de effort no terminal](docs/cli-effort.png)
 
 *Os níveis disponíveis variam conforme o catálogo do modelo.*
-Os campos pertencem à configuração da próxima conversa; nada é aplicado ao navegar ou
-cancelar. A validação de instalação/autenticação roda em segundo plano, sem chamar um
+Nada é aplicado ao navegar ou cancelar. Mudar somente permissões mantém a conversa;
+mudar backend, modelo ou effort abre um chat novo. A validação de instalação/autenticação roda em segundo plano, sem chamar um
 modelo. Se falhar, o seletor conserva as escolhas e mostra como tentar novamente.
 
 No seletor de modelos, digite para filtrar localmente; Ctrl+U limpa. **Modelo personalizado**
@@ -241,7 +295,7 @@ centaur . --no-setup --backend codex --model gpt-6.1-sol --effort high
 ```
 
 Preferências ficam em `.centaur/config.json`, sem credenciais. Arquivos antigos com apenas
-`backend` e `model` continuam válidos. Para backend/modelo/effort, flags têm prioridade sobre
+`backend` e `model` continuam válidos; sem `approval_mode`, usam `ask`. Para backend/modelo/effort, flags têm prioridade sobre
 variáveis de ambiente (`CENTAUR_BACKEND`, `CENTAUR_MODEL` / `OPENROUTER_MODEL`,
 `CENTAUR_EFFORT`), que têm prioridade sobre preferências locais. Ao mudar o backend, modelo
 e effort salvos de outro backend não são reaproveitados. Cada chat novo registra o effort;
@@ -280,7 +334,7 @@ de arquivo restrita ao usuário. Cada execução começa com uma conversa nova; 
 retomar as anteriores, preservando o modelo utilizado. Arquivos de histórico inválidos são
 ignorados. Inclua `.centaur/chats/` no `.gitignore` dos projetos para evitar publicar conversas.
 
-O agente pode listar e ler arquivos UTF-8 dentro da pasta aberta. Gravações mostram o caminho
+O agente pode listar e ler arquivos UTF-8 dentro da pasta aberta. No modo Pedir aprovação, gravações mostram o caminho
 e o conteúdo para aprovação; comandos mostram o shell que será executado. Use PgDown para
 revisar conteúdo longo antes de confirmar. **Comandos aprovados executam com as permissões
 do usuário; a pasta de trabalho não constitui uma sandbox.** O agente recebe o `AGENTS.md`

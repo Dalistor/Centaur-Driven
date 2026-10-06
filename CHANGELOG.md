@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 — 2026-10-06
+
+- Modos ask, auto e never na abertura, `$config`, flags e preferências da pasta.
+- Política compartilhada com subagentes; modo automático libera edições comuns e consultas restritas.
+- Mudar apenas permissões preserva a conversa; chats antigos não ampliam permissões ao retomar.
+- Argumentos JSON tipados, respostas nativas até 8 MB e fallback do Codex por eventos finais concluídos.
+- Diagnósticos específicos e completos no histórico; `/retry` retoma sem repetir ações já registradas.
+- `/wide` alterna a largura da conversa e seletores compactos preservam acesso ao salvamento.
+
 ## 0.3.0 — 2026-10-06
 
 - Seleção inicial de OpenRouter, Codex ou Claude antes da autenticação e do chat.

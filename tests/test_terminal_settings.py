@@ -200,7 +200,7 @@ class SettingsTests(unittest.TestCase):
         self.store.save(terminal.chat)
         terminal.configure('$config')
         picker = terminal.settings
-        picker.row, picker.effort = 3, 'low'
+        picker.row, picker.effort = 4, 'low'
         class ImmediateThread:
             def __init__(self, target, **kwargs): self.target = target
             def start(self): self.target()

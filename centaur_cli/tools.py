@@ -8,6 +8,7 @@ from tempfile import TemporaryFile
 
 from .credentials import credentials_path
 from . import skill_catalog
+from .permissions import validate_mode, ordinary_path, query_command, query_environment
 
 
 def tool(name, description, properties):
@@ -27,20 +28,21 @@ TOOLS = [
           'start_line': 'Número da primeira linha (1 para começar); use chamadas adicionais para continuar'}),
     tool('list_files', 'Listar arquivos de uma pasta do projeto.', {'path': 'Pasta relativa, use . para raiz'}),
     tool('read_file', 'Ler arquivo UTF-8 do projeto.', {'path': 'Arquivo relativo'}),
-    tool('write_file', 'Gravar arquivo; exige confirmação humana.',
+    tool('write_file', 'Gravar arquivo; aprovação segue o modo de permissões selecionado pelo usuário.',
          {'path': 'Arquivo relativo', 'content': 'Conteúdo completo UTF-8'}),
-    tool('run_command', 'Executar comando de shell; exige confirmação humana.',
+    tool('run_command', 'Executar comando; aprovação segue o modo de permissões selecionado pelo usuário.',
          {'command': 'Comando executado na raiz do projeto'}),
 ]
 MAX_OUTPUT = 24000
 
 
 class ProjectTools:
-    def __init__(self, root, approve, api_key=None, protected_keys=()):
+    def __init__(self, root, approve, api_key=None, protected_keys=(), *, approval_mode='ask'):
         self.root = Path(root).resolve()
         self.approve = approve
         self.api_key = api_key
         self.protected_keys = tuple(key for key in (api_key, *protected_keys) if key)
+        self.approval_mode = validate_mode(approval_mode)
 
     def redact(self, text):
         for key in self.protected_keys:
@@ -70,17 +72,24 @@ class ProjectTools:
             return skill_catalog.read(arguments['path'], arguments['start_line'], self.root)
         if name == 'run_command':
             command = arguments['command']
-            if not self.approve(self.redact(f'Executar na pasta {self.root}:\n{command}')):
+            if not isinstance(command, str) or not command.strip():
+                raise ValueError('Informe um comando não vazio.')
+            query = query_command(self.root, command) if self.approval_mode == 'auto' else None
+            automatic = self.approval_mode == 'never' or query is not None
+            if not automatic and not self.approve(self.redact(f'Executar na pasta {self.root}:\n{command}')):
                 return 'Execução recusada pelo usuário.'
             # Shell autorizado pelo usuário; cwd não é uma sandbox.
             with TemporaryFile() as output:
-                process = subprocess.Popen(command, shell=True, cwd=self.root,
+                env = {key: value for key, value in os.environ.items()
+                       if key not in ('OPENROUTER_API_KEY', 'OPENROUTER_CREDITS_KEY', 'OPENAI_API_KEY',
+                                      'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN', 'ANTHROPIC_API_KEY',
+                                      'CLAUDE_CODE_OAUTH_TOKEN')}
+                if query is not None:
+                    env = query_environment(env)
+                process = subprocess.Popen(query if query is not None else command, shell=query is None, cwd=self.root,
                                            stdin=subprocess.DEVNULL, stdout=output,
                                            stderr=subprocess.STDOUT, start_new_session=True,
-                                           env={key: value for key, value in os.environ.items()
-                                                if key not in ('OPENROUTER_API_KEY', 'OPENROUTER_CREDITS_KEY', 'OPENAI_API_KEY',
-                                                                'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN', 'ANTHROPIC_API_KEY',
-                                                                'CLAUDE_CODE_OAUTH_TOKEN')})
+                                           env=env)
                 try:
                     process.wait(timeout=60)
                 except subprocess.TimeoutExpired:
@@ -100,7 +109,11 @@ class ProjectTools:
                 return source.read(MAX_OUTPUT)
         if name == 'write_file':
             content = arguments['content']
-            if not self.approve(self.redact(f'Gravar {path.relative_to(self.root)}:\n{content}')):
+            if not isinstance(content, str):
+                raise ValueError('Conteúdo deve ser texto UTF-8.')
+            automatic = self.approval_mode == 'never' or (self.approval_mode == 'auto'
+                        and ordinary_path(self.root, arguments['path']))
+            if not automatic and not self.approve(self.redact(f'Gravar {path.relative_to(self.root)}:\n{content}')):
                 return 'Alteração recusada pelo usuário.'
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding='utf-8')

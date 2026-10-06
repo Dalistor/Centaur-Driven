@@ -9,24 +9,27 @@ from .appearance import TerminalView, WORDMARK, input_window
 from .config import validate
 from .openrouter import OpenRouter
 from .settings import ConfigPicker
+from .permissions import MODE_LABELS
 
 
 class StartupPicker(ConfigPicker):
     startup = True
-    fields = ('Backend', 'Modelo padrão', 'Effort', 'Iniciar conversa')
+    fields = ('Backend', 'Modelo padrão', 'Effort', 'Permissões', 'Iniciar conversa')
 
-    def __init__(self, backend, model, effort):
-        super().__init__(backend, model, effort)
+    def __init__(self, backend, model, effort, approval_mode='ask'):
+        super().__init__(backend, model, effort, approval_mode)
         self.open_page('backend')
 
     @property
     def values(self):
         return [{'openrouter': 'OpenRouter', 'codex': 'Codex', 'claude': 'Claude'}[self.backend],
-                self.model or 'Padrão do provedor', self.effort, 'Enter para iniciar']
+                self.model or 'Padrão do provedor', self.effort,
+                MODE_LABELS[self.approval_mode], 'Enter para iniciar']
 
     def open_page(self, page):
         self.page, self.query, self.error = page, '', ''
-        current = {'backend': self.backend, 'model': self.model, 'effort': self.effort}[page]
+        current = {'backend': self.backend, 'model': self.model, 'effort': self.effort,
+                   'permissions': self.approval_mode}[page]
         choices = [item[0] for item in self.options()]
         self.selected = choices.index(current) if current in choices else 0
 
@@ -50,25 +53,28 @@ class StartupPicker(ConfigPicker):
         if key == '\x1b':
             if previous in ('backend', 'fields'):
                 return 'cancel'
-            self.open_page('backend' if previous == 'model' else 'model')
+            self.open_page({'model': 'backend', 'custom': 'model', 'effort': 'model',
+                            'permissions': 'effort'}[previous])
             return 'catalog' if self.page == 'model' else None
         action = super().handle(key)
-        if self.page == 'fields' and previous in ('backend', 'model', 'custom', 'effort'):
+        if self.page == 'fields' and previous in ('backend', 'model', 'custom', 'effort', 'permissions'):
             if previous == 'backend':
                 self.open_page('model')
                 return 'catalog'
             if previous in ('model', 'custom'):
                 self.open_page('effort')
+            elif previous == 'effort':
+                self.open_page('permissions')
             else:
-                self.row = 3
+                self.row = len(self.fields) - 1
         if action == 'save':
-            validate(self.backend, self.model, self.effort)
+            validate(self.backend, self.model, self.effort, self.approval_mode)
         return action
 
 
 class StartupWizard:
-    def __init__(self, backend, model, effort):
-        self.picker = StartupPicker(backend, model, effort)
+    def __init__(self, backend, model, effort, approval_mode='ask'):
+        self.picker = StartupPicker(backend, model, effort, approval_mode)
         self.view = TerminalView()
         self.events = queue.Queue()
         self.catalog_request = 0
@@ -106,7 +112,7 @@ class StartupWizard:
             screen.refresh()
             return
         surface = SimpleNamespace(settings=self.picker, busy_started=None)
-        self.view.settings(screen, surface, 3, height - 10, width)
+        self.view.settings(screen, surface, 3, height - 9, width)
         self.view.put(screen, height - 6, 2, '─' * (width - 5), 'line')
         self.view.put(screen, height - 5, 3, 'Modelo e effort: agente principal.', 'text')
         explanation = ('Subagentes: o Centaur escolhe modelos do mesmo backend por complexidade e risco.'
@@ -160,4 +166,4 @@ class StartupWizard:
             elif action == 'cancel':
                 return None
             elif action == 'save':
-                return self.picker.backend, self.picker.model, self.picker.effort
+                return self.picker.backend, self.picker.model, self.picker.effort, self.picker.approval_mode

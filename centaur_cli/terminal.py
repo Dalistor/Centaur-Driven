@@ -18,6 +18,7 @@ from .appearance import TerminalView
 from .graphics import FRAME_SECONDS
 from .subagents import SubagentTools
 from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
+from .permissions import validate_mode, MODE_LABELS
 
 
 def display_lines(text, width):
@@ -57,12 +58,15 @@ def read_key(screen, timeout=100):
 
 
 class Terminal:
-    def __init__(self, root, model, store, client, max_subagent_tier='high', *, effort='default'):
+    def __init__(self, root, model, store, client, max_subagent_tier='high', *, effort='default', approval_mode='ask'):
         self.root, self.model, self.store, self.client = root, model, store, client
         self.backend = getattr(client, 'backend', 'openrouter')
         self.effort = effort
+        self.approval_mode = validate_mode(approval_mode)
+        self.wide_chat = False
         self.chat = store.new(model, backend=self.backend)
         self.chat['effort'] = effort
+        self.chat['approval_mode'] = self.approval_mode
         self.events = queue.Queue()
         self.busy = False
         self.approval = None
@@ -144,6 +148,19 @@ class Terminal:
             self.draft = ''
             self.open_chats()
             return
+        if command == '/wide':
+            self.wide_chat = not self.wide_chat
+            self.draft = ''
+            self.notice = 'Conversa: ' + ('largura do terminal.' if self.wide_chat else 'coluna de leitura.')
+            return
+        if command == '/retry':
+            self.draft = ''
+            if not self.chat.get('last_error'):
+                self.notice = 'Nenhum turno com falha para retomar.'
+                return
+            self.chat.pop('last_error', None)
+            self.start_work()
+            return
         if command == '/rename':
             self.store.save(self.chat)
             self.draft = ''
@@ -172,10 +189,17 @@ class Terminal:
                 self.notice = 'Status local · /status --ai analisa evidências e recomenda próximos passos.'
                 return
         self.chat['messages'].append({'role': 'user', 'content': self.draft})
+        self.chat.pop('last_error', None)
+        self.chat['approval_mode'] = self.approval_mode
         if self.chat['title'] == 'Novo chat' and not self.chat.get('title_custom'):
             self.chat['title'] = self.draft[:80]
         self.store.save(self.chat)
         self.draft = ''
+        self.start_work()
+
+    def start_work(self):
+        self.chat['approval_mode'] = self.approval_mode
+        self.store.save(self.chat)
         self.scroll = 0
         self.busy = True
         self.busy_started = time.monotonic()
@@ -194,33 +218,47 @@ class Terminal:
     def new_chat(self):
         chat = self.store.new(self.model, backend=self.backend)
         chat['effort'] = self.effort
+        chat['approval_mode'] = self.approval_mode
         return chat
 
     def configure(self, command):
         parts = command.split()
         if len(parts) == 1:
-            self.settings = ConfigPicker(self.backend, self.model, self.effort)
+            self.settings = ConfigPicker(self.backend, self.model, self.effort, self.approval_mode)
             self.draft = ''
-            self.notice = 'Escolha backend, modelo e effort. Esc cancela sem salvar.'
+            self.notice = 'Escolha backend, modelo, effort e permissões. Esc cancela sem salvar.'
             return
         try:
-            if len(parts) > 4:
-                raise ValueError('Uso: $config <backend> [modelo] [effort]')
+            if len(parts) > 5:
+                raise ValueError('Uso: $config <backend> [modelo] [effort] [ask|auto|never]')
             backend = parts[1]
             model = parts[2] if len(parts) >= 3 else ''
-            effort = parts[3] if len(parts) == 4 else 'default'
-            validate(backend, model, effort if len(parts) == 4 else None)
-            client = create_client(backend, model, allow_setup=False)
-            # Preserve the older two-field format for legacy command invocations.
-            save_config(self.root, backend, model, effort if len(parts) == 4 else None)
+            effort = parts[3] if len(parts) >= 4 else 'default'
+            approval_mode = parts[4] if len(parts) == 5 else self.approval_mode
+            validate(backend, model, effort if len(parts) >= 4 else None, approval_mode)
+            client = (self.client if self.client is not None and (backend, model, effort) ==
+                      (self.backend, self.model, self.effort) else create_client(backend, model, allow_setup=False))
+            save_config(self.root, backend, model, effort if len(parts) >= 4 else None, approval_mode)
         except (RuntimeError, OSError, ValueError) as error:
             self.notice = f'Configuração não alterada: {error}'
             return
-        self.activate_config(backend, model, effort, client)
+        self.activate_config(backend, model, effort, client, approval_mode)
 
-    def activate_config(self, backend, model, effort, client):
+    def activate_config(self, backend, model, effort, client, approval_mode=None):
+        history_warning = ''
+        new_conversation = (backend, model, effort) != (self.backend, self.model, self.effort)
         self.backend, self.model, self.effort, self.client = backend, model, effort, client
-        self.chat = self.new_chat()
+        if approval_mode is not None:
+            self.approval_mode = validate_mode(approval_mode)
+        if new_conversation:
+            self.chat = self.new_chat()
+        else:
+            self.chat['approval_mode'] = self.approval_mode
+            if self.chat['messages']:
+                try:
+                    self.store.save(self.chat)
+                except OSError:
+                    history_warning = ' Não foi possível registrar o modo no histórico.'
         self.draft = ''
         self.scroll = 0
         self.settings = None
@@ -229,7 +267,8 @@ class Terminal:
         self.credits_next_refresh = 0
         self.credits_status = 'loading' if backend == 'openrouter' else 'unsupported'
         self.credits_dirty = True
-        self.notice = f'Configuração salva: {backend} · {model or "padrão"} · effort {effort}. Novo chat.'
+        self.notice = (f'Configuração salva: {MODE_LABELS[self.approval_mode]}. '
+                       + ('Novo chat.' if new_conversation else 'Conversa preservada.') + history_warning)
 
     def load_catalog(self, picker):
         backend = picker.backend
@@ -265,11 +304,13 @@ class Terminal:
             self.notice = 'Validando configuração…'
             def apply():
                 try:
-                    validate(picker.backend, picker.model, picker.effort)
-                    client = create_client(picker.backend, picker.model, allow_setup=False)
+                    validate(picker.backend, picker.model, picker.effort, picker.approval_mode)
+                    client = (self.client if self.client is not None and (picker.backend, picker.model, picker.effort) ==
+                              (self.backend, self.model, self.effort) else
+                              create_client(picker.backend, picker.model, allow_setup=False))
                     if picker.backend == 'openrouter':
                         client.model_efforts = dict(picker.model_efforts)
-                    save_config(self.root, picker.backend, picker.model, picker.effort)
+                    save_config(self.root, picker.backend, picker.model, picker.effort, picker.approval_mode)
                     self.events.put(('configured', (picker, client, None)))
                 except Exception as error:
                     redact = getattr(self.client, 'redact', str)
@@ -328,7 +369,8 @@ class Terminal:
     def work(self, chat):
         try:
             base = ProjectTools(self.root, self.approve,
-                                protected_keys=getattr(self.client, 'secrets', (getattr(self.client, 'api_key', None),)))
+                                protected_keys=getattr(self.client, 'secrets', (getattr(self.client, 'api_key', None),)),
+                                approval_mode=self.approval_mode)
             status_analysis = chat['messages'][-1].get('content', '').strip() == '/status --ai'
             if status_analysis:
                 tools = StatusTools(self.root, lambda _: False,
@@ -359,7 +401,13 @@ class Terminal:
                     self.title_tasks.discard(chat['id'])
             self.events.put(('done', 'Pronto.'))
         except Exception as error:
-            self.events.put(('done', f'Erro: {error}'))
+            message = getattr(self.client, 'redact', str)(str(error))
+            chat['last_error'] = message
+            try:
+                self.store.save(chat)
+            except OSError:
+                pass
+            self.events.put(('done', f'Erro: {message} · /retry retoma este turno.'))
 
     def make_title(self, chat_id, client, model, messages):
         try:
@@ -408,7 +456,7 @@ class Terminal:
                     picker.error = 'Configuração não alterada: ' + error
                     self.notice = 'Confira a configuração e tente novamente.'
                 else:
-                    self.activate_config(picker.backend, picker.model, picker.effort, client)
+                    self.activate_config(picker.backend, picker.model, picker.effort, client, picker.approval_mode)
             elif kind == 'approval':
                 self.approval = value
                 self.browser = False
@@ -472,6 +520,9 @@ class Terminal:
                 lines.extend(['◆ Centaur'] + display_lines(readable_markdown(content), width) + [''])
         if self.busy and not self.approval:
             lines.extend(['◦ ' + self.view.activity(self, self.notice)])
+        if self.chat.get('last_error'):
+            lines.extend(['', '! Erro no turno'] + display_lines(self.chat['last_error'], width)
+                         + display_lines('/retry retoma sem reenviar a mensagem; /new começa outra conversa.', width))
         return lines or ['Centaur experimental · OpenRouter', '', '/new cria chat · /quit sai']
 
     def draw(self, screen):
@@ -546,6 +597,8 @@ class Terminal:
                     self.notice = 'Este chat usa outro modelo; abra com o mesmo --model ou crie um chat novo.'
                 else:
                     self.chat = self.chats[self.selected]
+                    # Historical metadata never grants permission to the current session.
+                    self.chat['approval_mode'] = self.approval_mode
                     self.browser = False
                     self.draft = ''
                     self.scroll = 0
