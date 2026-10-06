@@ -7,7 +7,7 @@ import time
 import unicodedata
 
 from .credits import credit_label
-from .graphics import WelcomeAnimation
+from .graphics import WelcomeAnimation, flat_symbol
 
 WORDMARK = 'C E N T A U R'
 TAGLINE = 'HUMAN INTENT. AMPLIFIED.'
@@ -38,64 +38,6 @@ def input_window(text, cursor, width):
         start -= 1
         used += cells
     return fit_cells(text[start:], width), used
-ASCII_CENTAUR = (
-    '             __',
-    '            /  `.',
-    '           /     \\',
-    '          / /)    |',
-    '      ___/ / |    |',
-    '     <____/--+----|---------->',
-    '        \\ (  /   /',
-    '         \\ \\(___/',
-    "   .------\\ \\__",
-    ' _/  _     \\   `.',
-    ' /  / \\____/  / /',
-    '/  /   / /   / /',
-    '\\_/   /_/   /_/',
-)
-ASCII_COMPACT_CENTAUR = (
-    '          __',
-    '         /  `.',
-    '     ___/ /)  |',
-    '    <____/----|-------->',
-    '       \\ (___/',
-    '  .-----\\ \\_',
-    ' / _  __/   \\',
-    '/_/ /_/ /_/_/',
-)
-
-
-# Blocos Unicode dão peso à silhueta sem imagens nem fontes externas.
-CENTAUR = (
-    '             ▄▄▄',
-    '             ████    █▄',
-    '             ████▄ ▄▀ ▀█',
-    '            ▄████ ▄    ▀█',
-    '           ▄██  ██      ██',
-    '          ███▄▄▄██████▄▄▄─────▶',
-    '           ▀█▀▀▀██      ▄█',
-    '            ██ ██▀      ██',
-    '    ▄▄▄▄▄▄▄▄█████ ▀    ▄█',
-    '  ███▀▀▀▀▀▀▀  ▀██  ▀▄ ▄█',
-    '  ███          ▄█    █▀',
-    ' █  ██▄▄▄▄▄▄▄▄▄██',
-    '▀▀  █▀▀██▀▀▀▀█▀▀▀██',
-    '   ██  ██   ██  ▄██',
-    '  ██    █▄   ██ ▀',
-    '  ▀▀▀   ▀██   ▀██',
-)
-COMPACT_CENTAUR = (
-    '          ██▄   ▄',
-    '         ▀███   ▀█',
-    '         ██▀█     █',
-    '       ▀██▄▄█████ █───▶',
-    '         █▄▄█     █',
-    '  ▄██████▀███    ▄▀',
-    ' ██▄       ▄█   █▀',
-    '▄▀ █████▄██▀█▄',
-    '  █▀ ██  ██ ▄█',
-    ' ▀█   ██  ▀█▄',
-)
 
 
 def setup_heading():
@@ -213,20 +155,15 @@ class TerminalView:
         self.put(screen, row + rows + 2, column + (columns - len(TAGLINE)) // 2, TAGLINE, 'muted')
 
     def static_logo(self, screen, row, column, compact=False):
-        symbol = COMPACT_CENTAUR if compact else CENTAUR
+        columns, rows = (26, 10) if compact else (36, 16)
         try:
-            ''.join(symbol).encode(sys.stdout.encoding or 'utf-8')
+            '█▀▄'.encode(sys.stdout.encoding or 'utf-8')
+            ascii_only = False
         except (UnicodeEncodeError, LookupError):
-            symbol = ASCII_COMPACT_CENTAUR if compact else ASCII_CENTAUR
+            ascii_only = True
+        symbol = flat_symbol(columns, rows, ascii_only)
         for index, line in enumerate(symbol):
-            split = line.find('─')
-            if split < 0 and '|' in line and line.endswith('>'):
-                split = line.rindex('|') + 1
-            if split >= 0:
-                self.put(screen, row + index, column, line[:split])
-                self.put(screen, row + index, column + split, line[split:], 'green')
-            else:
-                self.put(screen, row + index, column, line)
+            self.put(screen, row + index, column, line, 'green' if index >= rows // 2 else 'text')
         symbol_width = max(map(len, symbol))
         self.put(screen, row + len(symbol) + 1, column + max(0, (symbol_width - len(WORDMARK)) // 2), WORDMARK)
         self.put(screen, row + len(symbol) + 2, column + max(0, (symbol_width - len(TAGLINE)) // 2), TAGLINE, 'muted')

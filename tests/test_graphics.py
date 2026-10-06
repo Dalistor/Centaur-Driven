@@ -108,7 +108,7 @@ class GraphicsTests(unittest.TestCase):
             self.assertTrue(all(ord(char) < 128 for char in screen.text()))
             self.assertFalse(view.animation.active)
 
-    def test_graphics_opt_out_uses_the_original_silhouette(self):
+    def test_graphics_opt_out_uses_the_static_mark(self):
         with patch.dict(os.environ, {'CENTAUR_GRAPHICS': '0'}):
             view = TerminalView()
             screen = Screen((34, 110))

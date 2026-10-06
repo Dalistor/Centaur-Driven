@@ -1,4 +1,4 @@
-"""Small CPU renderer: an extruded archer, lighting, depth and Unicode Braille.
+"""Small CPU renderer: convergence ribbons, lighting, depth and Unicode Braille.
 
 No terminal I/O or dependencies live here. One cached mesh is projected into a
 bounded 2 × 4 dot grid; the view owns colors and writes the resulting cells.
@@ -34,51 +34,61 @@ def polygon(x, y, vertices):
     return inside
 
 
-def stroke(x, y, points, radius):
-    for (ax, ay), (bx, by) in zip(points, points[1:]):
-        dx, dy = bx - ax, by - ay
-        t = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)))
-        if (x - ax - t * dx) ** 2 + (y - ay - t * dy) ** 2 <= radius ** 2:
-            return True
-    return False
+def ribbon(mirrored=False):
+    """Two slim cubic bands meet at a single tip; width tapers at the junction."""
+    control = ((-.80, -.67), (-.06, -.72), (.18, -.23), (.90, 0.0))
+    left, right = [], []
+    for step in range(49):
+        t, u = step / 48, 1 - step / 48
+        x, y = (sum(weight * point[axis] for weight, point in zip(
+            (u ** 3, 3 * u * u * t, 3 * u * t * t, t ** 3), control)) for axis in (0, 1))
+        dx, dy = (3 * sum(weight * (b[axis] - a[axis]) for weight, a, b in zip(
+            (u * u, 2 * u * t, t * t), control, control[1:])) for axis in (0, 1))
+        length = math.hypot(dx, dy)
+        # Full band width is about .13 world units, with a pointed shared tip.
+        width = (.065 + .008 * math.sin(math.pi * t)) * (1 - smooth((t - .78) / .22))
+        nx, ny = -dy / length * width, dx / length * width
+        sign = -1 if mirrored else 1
+        left.append((x + nx, (y + ny) * sign))
+        right.append((x - nx, (y - ny) * sign))
+    return tuple(left + list(reversed(right)))
 
 
-# Original vector silhouette: equine body, four separate legs, human torso,
-# drawn arm, head in profile, longbow and the Centaur's green arrow.
-BODY = (
-    ((-.64, .13), (-.45, .04), (-.18, .10), (.04, .08), (.06, -.10),
-     (.02, -.31), (.13, -.45), (.28, -.43), (.34, -.27), (.32, -.06),
-     (.38, .15), (.37, .31), (.19, .43), (-.23, .38), (-.53, .40), (-.66, .29)),
-    ((-.60, .30), (-.43, .34), (-.47, .54), (-.63, .72), (-.67, .88),
-     (-.79, .88), (-.74, .65), (-.59, .48)),
-    ((-.38, .34), (-.26, .36), (-.21, .56), (-.27, .79), (-.19, .87),
-     (-.34, .88), (-.37, .78), (-.32, .55)),
-    ((.10, .35), (.22, .34), (.18, .59), (.29, .77), (.39, .82),
-     (.39, .88), (.23, .88), (.07, .62)),
-    ((.27, .28), (.37, .27), (.48, .46), (.48, .61), (.40, .68),
-     (.31, .65), (.38, .57), (.36, .48), (.23, .40)),
-    ((.12, -.61), (.27, -.61), (.29, -.46), (.22, -.40), (.12, -.45)),
-    ((.14, -.79), (.25, -.78), (.30, -.72), (.30, -.68), (.35, -.65),
-     (.30, -.62), (.28, -.56), (.15, -.55), (.10, -.64), (.10, -.72)),
-)
-ARMS = (((.13, -.38), (-.12, -.23), (.19, -.34)),
-        ((.24, -.38), (.42, -.33), (.60, -.34)))
-TAIL = ((-.59, .17), (-.77, .22), (-.85, .43), (-.83, .56))
-BOW = ((.59, -.76), (.68, -.58), (.73, -.35), (.70, -.11), (.60, .13))
-STRING = ((.59, -.74), (.20, -.34), (.60, .11))
-ARROW = ((.14, -.34), (.92, -.34))
-ARROWHEAD = ((.83, -.40), (.97, -.34), (.83, -.28))
+# Human judgment (silver) and AI execution (green), converging on one direction.
+UPPER_RIBBON = ribbon()
+LOWER_RIBBON = ribbon(mirrored=True)
 
 
 def material(x, y):
-    if stroke(x, y, ARROW, .013) or polygon(x, y, ARROWHEAD):
+    if polygon(x, y, LOWER_RIBBON):
         return 2
-    if (any(polygon(x, y, shape) for shape in BODY)
-            or any(stroke(x, y, arm, .037) for arm in ARMS)
-            or stroke(x, y, TAIL, .028) or stroke(x, y, BOW, .022)
-            or stroke(x, y, STRING, .008)):
+    if polygon(x, y, UPPER_RIBBON):
         return 1
     return 0
+
+
+@lru_cache(maxsize=4)
+def flat_symbol(columns, rows, ascii_only=False):
+    """Static block/ASCII fallback derived from the same vector mark."""
+    scale = min((columns * 2 - 3) / 2.12, (rows * 4 - 3) / 2.12)
+    lines = []
+    for row in range(rows):
+        line = []
+        for col in range(columns):
+            top, bottom = False, False
+            for dy in range(4):
+                for dx in range(2):
+                    x = (col * 2 + dx - columns) / scale
+                    y = (row * 4 + dy - rows * 2) / scale
+                    if material(x, y):
+                        if dy < 2:
+                            top = True
+                        else:
+                            bottom = True
+            line.append('#' if ascii_only and (top or bottom) else ' ' if ascii_only else
+                        '█' if top and bottom else '▀' if top else '▄' if bottom else ' ')
+        lines.append(''.join(line))
+    return tuple(lines)
 
 
 @lru_cache(maxsize=1)

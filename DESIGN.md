@@ -22,18 +22,20 @@ omitted:
 
 # Centaur CLI
 
-Interface de operação para programação com agentes, inspirada na referência “Concept C”
-fornecida pelo usuário: centauro arqueiro em caracteres de terminal, seta verde e assinatura
+Interface de operação para programação com agentes. A identidade escolhida pelo usuário
+é “Convergência”: duas faixas curvas finas, prateada e verde, que se encontram em uma ponta
+comum. Representa julgamento humano e execução por IA na mesma direção. Mantém a assinatura
 “HUMAN INTENT. AMPLIFIED.”. A marca aparece na abertura; a conversa ocupa a superfície
 assim que o usuário começa a trabalhar.
 
 ## Linguagem visual
 
 - Fundo escuro contínuo, sem painéis sobrepostos ou bordas decorativas em cada mensagem.
-- Palavra CENTAUR espaçada, centauro arqueiro em relevo renderizado com Braille Unicode
-  (2 × 4 pontos por célula), corpo prateado e seta verde. Geometria vetorial própria, quatro
-  pernas, arco e braço tensionado; perspectiva, bisel e iluminação calculados em CPU.
-  Mantém a silhueta anterior em blocos/ASCII como fallback. Não usa imagens nem fontes externas.
+- Palavra CENTAUR espaçada, emblema abstrato de Convergência em relevo Braille Unicode
+  (2 × 4 pontos por célula). Faixa superior prateada e inferior verde; ambas são arcos finos
+  com espaço negativo amplo e ponta compartilhada. Curvas Bézier cúbicas com largura total
+  aproximada de 0,13 unidades e afilamento na junção; perspectiva, bisel e luz em CPU.
+  O fallback em blocos/ASCII deriva da mesma geometria. Não usa imagens nem fontes externas.
 - Branco para conteúdo; verde para comandos e autores; azul para modelo, ferramentas e
   atalhos; tom secundário para caminhos e estados; âmbar para confirmações e erros.
 - Linhas horizontais discretas separam identidade, trabalho e campo de entrada.
@@ -85,7 +87,7 @@ A animação pausa quando outra superfície a oculta; digitar encerra o giro na 
 F5 repete somente na abertura sem rascunho, trabalho ou modal; novos chats não reiniciam
 o giro automaticamente. Movimento não altera foco, seleção, rascunho ou layout.
 `CENTAUR_REDUCED_MOTION=1` apresenta a pose final imediatamente e troca o spinner por
-um marcador fixo. `CENTAUR_GRAPHICS=0` seleciona o desenho estático anterior, também útil
+um marcador fixo. `CENTAUR_GRAPHICS=0` seleciona o emblema estático em blocos/ASCII, também útil
 para fontes sem Braille. Codificação sem Braille usa fallback estático automaticamente.
 
 O indicador de atividade continua com 4 frames a 8 passos por segundo e tempo decorrido;
@@ -105,7 +107,7 @@ controle do terminal do usuário, com autores/ações em negrito e conteúdo em 
 
 | Regra anterior | Evolução autorizada | Execução |
 | --- | --- | --- |
-| A marca aparece só na abertura | Centauro em relevo com giro, luz e pose final | `graphics.Renderer`, `TerminalView.logo` |
+| A marca aparece só na abertura | Convergência em relevo, arcos finos, giro e pose final | `graphics.Renderer`, `TerminalView.logo` |
 | Cabeçalho mostra pasta/modelo | Acrescenta nome do chat, effort e estado | `TerminalView.draw` |
 | Esquerda abre histórico | Shift+← abre; esquerda edita | `Terminal.handle` |
 | Créditos em linha própria | Preservado no redesenho | `TerminalView.draw` |

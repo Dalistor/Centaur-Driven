@@ -7,8 +7,8 @@ Harness de skills para guiar Codex e Claude Code pelos projetos, com uso princip
 A branch `experimental/openrouter-cli` adiciona um executável próprio com interface de terminal,
 histórico por pasta e ferramentas de programação. Requer Python 3.10+ e terminal com curses
 (Linux/macOS). A implementação usa a biblioteca padrão, sem dependências de execução.
-O visual segue a referência Centaur Concept C: centauro em blocos Unicode na abertura (com fallback ASCII), fundo escuro,
-comandos em verde e atalhos em azul. Adapta-se ao tamanho do terminal e respeita `NO_COLOR`.
+O visual usa o emblema Convergência: duas faixas curvas finas que se encontram, com versão
+animada Braille e fallback em blocos/ASCII. Fundo escuro, comandos em verde e atalhos em azul. Adapta-se ao tamanho do terminal e respeita `NO_COLOR`.
 Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.md](UX-CONTRACT.md).
 
 ![Abertura do Centaur CLI](docs/cli-welcome.png)
@@ -161,10 +161,11 @@ variáveis de ambiente (`CENTAUR_BACKEND`, `CENTAUR_MODEL` / `OPENROUTER_MODEL`,
 e effort salvos de outro backend não são reaproveitados. Cada chat novo registra o effort;
 retomar um chat preserva seu modelo e seu effort original. Chats antigos usam `default`.
 
-O terminal desenha o centauro arqueiro com um renderizador gráfico próprio: geometria
-vetorial em relevo, perspectiva, profundidade, iluminação e rasterização Braille Unicode
-(8 pontos por célula). O corpo prateado gira e a seta mantém o verde da marca. A sequência
-dura 6 segundos, com cadência alvo de 20 FPS, e termina em uma pose frontal estável.
+O terminal desenha o emblema **Convergência** com um renderizador gráfico próprio: duas
+faixas curvas finas, prateada e verde, que se encontram em uma ponta comum. O símbolo
+representa julgamento humano e execução por IA seguindo uma intenção compartilhada.
+A geometria vetorial em relevo tem perspectiva, profundidade, iluminação e rasterização
+Braille Unicode (8 pontos por célula). A sequência dura 6 segundos, com cadência alvo de 20 FPS, e termina em uma pose frontal estável.
 F5 repete na abertura sem rascunho; digitar encerra o movimento. Seletores e histórico
 pausam o relógio; redimensionar preserva a fase. O renderizador usa apenas a biblioteca
 padrão do Python, com malha em cache e palco limitado para manter o custo previsível.
@@ -178,7 +179,7 @@ A animação indica atividade, não porcentagem de conclusão. Para reduzir movi
 ```bash
 CENTAUR_REDUCED_MOTION=1 centaur .
 NO_COLOR=1 centaur .
-# Usar o desenho estático anterior (por exemplo, fonte sem Braille):
+# Usar o emblema estático em blocos/ASCII (por exemplo, fonte sem Braille):
 CENTAUR_GRAPHICS=0 centaur .
 ```
 
