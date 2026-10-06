@@ -85,15 +85,22 @@ class StatusTests(unittest.TestCase):
         self.spec('master', '0001')
         store = ChatStore(self.root)
         terminal = Terminal(self.root, 'test', store, None)
-        terminal.draft = '/status'
-        with patch('centaur_cli.terminal.threading.Thread') as thread:
-            terminal.submit()
-            thread.assert_not_called()
-        self.assertFalse(terminal.busy)
-        self.assertIn('master/0001', terminal.chat['messages'][-1]['content'])
-        terminal.draft = '/status --apply'
-        terminal.submit()
-        self.assertIn('Uso: /status', terminal.notice)
+        for command in ('$status', '/status'):
+            with self.subTest(command=command):
+                terminal.draft = command
+                with patch('centaur_cli.terminal.threading.Thread') as thread:
+                    terminal.submit()
+                    thread.assert_not_called()
+                self.assertFalse(terminal.busy)
+                self.assertEqual(terminal.chat['messages'][-2]['content'], command)
+                self.assertIn('master/0001', terminal.chat['messages'][-1]['content'])
+                terminal.draft = command + ' --apply'
+                before = list(terminal.chat['messages'])
+                with patch('centaur_cli.terminal.threading.Thread') as thread:
+                    terminal.submit()
+                    thread.assert_not_called()
+                self.assertEqual(terminal.chat['messages'], before)
+                self.assertIn('Uso: $status', terminal.notice)
 
     def test_standalone_status_needs_neither_key_nor_interactive_terminal(self):
         self.spec('master', '0001')
@@ -143,11 +150,19 @@ class StatusTests(unittest.TestCase):
     def test_terminal_ai_status_uses_read_only_tools(self):
         store = ChatStore(self.root)
         terminal = Terminal(self.root, 'test', store, object())
-        terminal.chat['messages'] = [{'role': 'user', 'content': '/status --ai'}]
-        with patch('centaur_cli.terminal.run_turn') as execute:
-            terminal.work(terminal.chat)
-        self.assertIsInstance(execute.call_args.args[2], StatusTools)
-        self.assertIn(ANALYSIS_INSTRUCTIONS, execute.call_args.args[5])
+        for command in ('$status --ai', '/status --ai'):
+            with self.subTest(command=command):
+                terminal.draft = command
+                with patch('centaur_cli.terminal.threading.Thread') as thread:
+                    terminal.submit()
+                    self.assertTrue(terminal.busy)
+                    self.assertEqual(terminal.chat['messages'][-1]['content'], command)
+                    thread.assert_called_once()
+                with patch('centaur_cli.terminal.run_turn') as execute:
+                    terminal.work(terminal.chat)
+                self.assertIsInstance(execute.call_args.args[2], StatusTools)
+                self.assertIn(ANALYSIS_INSTRUCTIONS, execute.call_args.args[5])
+                terminal.busy = False
 
 
 if __name__ == '__main__':

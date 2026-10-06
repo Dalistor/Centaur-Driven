@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão atual é `0.4.0`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.4.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.4.0).
+A versão atual é `0.4.1`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.4.1`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.4.1).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.4.0/centaur_cli-0.4.0-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.4.1/centaur_cli-0.4.1-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -102,7 +102,7 @@ centaur --backend claude /caminho/do/projeto
 
 Com **Codex ou Claude conectado**, `$run` cria subagentes no mesmo backend e escolhe o modelo por task conforme complexidade e risco. `delegate_task` aceita título, task e um modelo do catálogo; `cost_tier` é exclusivo do OpenRouter. `--model` pré-seleciona o modelo principal; a opção Padrão do provedor usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. `$config` abre o seletor; `$config <backend> [modelo] [effort] [ask|auto|never]` altera a fonte da IA e o modelo principal, salvando a preferência local; mudar backend/modelo/effort abre novo chat. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo principal solicitado.
 
-A interface, o autocomplete, `/status` e as aprovações continuam no Centaur. O adaptador usa saídas estruturadas dos CLIs, sem ferramentas nativas de execução/delegação e sem carregar as personalizações locais desses clientes; leituras, gravações e comandos passam pelas ferramentas do harness. Cada etapa envia o contexto Centaur a uma execução efêmera do CLI, com limite de 180 segundos; os históricos ficam no Centaur. O adaptador não interpreta o ID efetivo de modelo quando o CLI não o fornece. As credenciais conhecidas dos backends são ocultadas nas mensagens e saídas e removidas do ambiente dos comandos de projeto.
+A interface, o autocomplete, `$status` e as aprovações continuam no Centaur. O adaptador usa saídas estruturadas dos CLIs, sem ferramentas nativas de execução/delegação e sem carregar as personalizações locais desses clientes; leituras, gravações e comandos passam pelas ferramentas do harness. Cada etapa envia o contexto Centaur a uma execução efêmera do CLI, com limite de 180 segundos; os históricos ficam no Centaur. O adaptador não interpreta o ID efetivo de modelo quando o CLI não o fornece. As credenciais conhecidas dos backends são ocultadas nas mensagens e saídas e removidas do ambiente dos comandos de projeto.
 
 Também aceita `centaur status --ai --backend codex` ou `--backend claude`. A integração nativa não consulta créditos OpenRouter nem estima saldo de assinatura; o canto do terminal orienta consultar o cliente conectado. Usar esses backends segue a autenticação e os limites do respectivo cliente.
 
@@ -169,7 +169,7 @@ Depois da primeira resposta bem-sucedida, uma chamada adicional ao mesmo backend
 um título curto em segundo plano. Essa chamada segue os custos e limites do backend.
 A conversa fica disponível enquanto o nome é gerado. Falha mantém o título provisório;
 renomear manualmente sempre tem prioridade, inclusive quando a geração termina atrasada.
-`/status` local não faz essa chamada. Credenciais e raciocínio privado não entram no pedido
+`$status` local não faz essa chamada. Credenciais e raciocínio privado não entram no pedido
 de título; a geração recebe apenas trechos da primeira troca da conversa, sem ferramentas.
 
 Ao redimensionar a janela, cabeçalho, histórico, lista de chats, entrada e barra de créditos
@@ -189,14 +189,16 @@ são reposicionados e o texto é quebrado novamente. O rascunho e a conversa sã
 | `/rename` ou `/rename Novo título` | Renomear a conversa atual sem chamar o modelo. |
 | `Ctrl+O` | Alternar resumo e detalhes das ferramentas na conversa. |
 | `/new` | Criar outra conversa. |
-| `/status` | Mostrar a árvore local das specs, sem chamar o modelo. |
-| `/status --ai` | Analisar evidências e recomendar o que pode concluir ou rodar, somente leitura. |
+| `$status` | Mostrar a árvore local das specs, sem chamar o modelo. |
+| `$status --ai` | Analisar evidências e recomendar o que pode concluir ou rodar, somente leitura. |
 | `/credits` | Atualizar o indicador de créditos sem enviar mensagem ao modelo. |
 | PgUp / PgDn | Rolar o histórico ou revisar uma ação pendente. |
 | `y` / `n` | Permitir ou recusar a gravação/comando exibido. |
 | `←` / `→`, Home / End, Delete | Mover o cursor e editar a mensagem. |
 | Ctrl+U | Limpar a mensagem ou o filtro digitado. |
 | `/quit` ou Ctrl+Q | Sair após concluir o turno. |
+
+`/status` e `/status --ai` continuam disponíveis como aliases de compatibilidade.
 
 ### Modos de permissões
 
@@ -214,13 +216,19 @@ mudar apenas o modo preserva a conversa. Chats antigos não restauram permissõe
 
 *Terminal real com cliente simulado. O modo selecionado mostra sua explicação antes de salvar.*
 
-O modo automático aceita consultas simples com `pwd`, `ls`, `cat`, `head`, `tail`, `wc`,
-`rg` e operações específicas de Git (`status`, `diff`, `log`, `ls-files`, branch atual).
+O modo automático aceita consultas com `pwd`, `ls`, `cat`, `head -n`, `tail -n`, `wc`,
+`sed -n '1,200p'`, `rg` (incluindo glob, padrões com alternativas e consultas em `.centaur`)
+e operações específicas de Git (`status`, `diff`, `log`, `ls-files`, branch atual).
+O `validate-lifecycle.py` incluído no CLI também pode validar a pasta atual sem confirmação,
+inclusive com `--ready` e `--complete`: usa Python sem hooks de site/ambiente e Git do sistema.
+Isso não libera scripts Python genéricos. Caminhos absolutos dentro do projeto são aceitos.
 As formas aceitas ficam em [permissions.py](centaur_cli/permissions.py). Essas consultas
 usam executáveis do sistema e argumentos diretos, sem shell, configurações de busca ou
 programas externos do Git. Sintaxe de shell, opções desconhecidas, exclusões, testes/builds,
-instalações, rede e operações de Git que alteram estado pedem aprovação. Arquivos ocultos,
-links, arquivos executáveis e pastas de credenciais também exigem revisão para edição.
+instalações, rede e operações de Git que alteram estado pedem aprovação. Documentos `.md`,
+`.json` e `.html` em `.centaur/specs`, `implements`, `contracts`, `modules` e `system` são
+edições comuns. Outros caminhos ocultos, links, arquivos executáveis e pastas de credenciais
+exigem revisão para edição; configuração, workspace, chats e skills de `.centaur` não são liberados.
 A classificação é local; o modelo não pode declarar uma ação como segura para liberá-la.
 
 ```bash
@@ -233,7 +241,7 @@ centaur . --no-setup --approval-mode ask
 que tem prioridade sobre `.centaur/config.json`. Sem preferência, o modo é `ask`.
 **Sem perguntar não cria uma sandbox**: comandos podem afetar arquivos fora do projeto e
 serviços acessíveis ao usuário. Os limites das ferramentas de arquivo, a proteção das
-credenciais conhecidas e os timeouts permanecem ativos nos três modos. `/status --ai`
+credenciais conhecidas e os timeouts permanecem ativos nos três modos. `$status --ai`
 continua somente leitura, independentemente do modo.
 
 ### Respostas extensas e recuperação
@@ -374,8 +382,8 @@ scripts também acompanham o pacote. A instalação em outros clientes continua 
 ### Validar integração e conclusão
 
 O ciclo mantém contrato aprovado, implementação, evidência e entrega como dimensões
-separadas. `$spec` planeja dentro do contrato; `$run` executa e verifica; `$check` e `/status`
-consultam o estado. `/status --ai` tem somente ferramentas de leitura e recebe também as
+separadas. `$spec` planeja dentro do contrato; `$run` executa e verifica; `$check` e `$status`
+consultam o estado. `$status --ai` tem somente ferramentas de leitura e recebe também as
 pendências de conclusão calculadas localmente.
 
 ```bash
@@ -434,7 +442,7 @@ Os diretórios de skills do Codex e Claude Code continuam sendo usados pela inst
 
 ## Status das specs
 
-No chat, use `/status` para ver as specs master e suas filhas em árvore, inclusive quando as filhas pertencem a outros módulos. Specs independentes ficam agrupadas pelo escopo. A lista mostra o que falta implementar, o que está em revisão, o que foi registrado como concluído, bloqueios, cancelamentos, dependências e tasks ainda desmarcadas.
+No chat, use `$status` para ver as specs master e suas filhas em árvore, inclusive quando as filhas pertencem a outros módulos. Specs independentes ficam agrupadas pelo escopo. A lista mostra o que falta implementar, o que está em revisão, o que foi registrado como concluído, bloqueios, cancelamentos, dependências e tasks ainda desmarcadas.
 
 Também funciona fora do chat, sem chave ou terminal interativo:
 
@@ -446,7 +454,7 @@ centaur status /caminho/do/projeto --ai
 
 Os caminhos vêm de `.centaur/workspace.json`; sem esse arquivo, consulta `.centaur/specs` ou o legado `specs`. Os vínculos usam `Spec mestre` e `Specs filhas` com IDs qualificados, como `master/0001` e `api/0002`. Referências ausentes, divergentes ou circulares aparecem como avisos, sem esconder specs.
 
-`/status --ai` (ou `centaur status --ai`) usa o backend conectado para analisar o que **pode ser marcado como concluído** e o que **pode rodar**, citando fontes, gates e bloqueios. A análise dispõe apenas de leitura e da projeção canônica `lifecycle_status`, que confere contratos, dependências e hashes de evidências; não executa testes novos, não edita specs e não inicia tasks. A conclusão da mestre exige comprovação das filhas e dos critérios de integração. Dados insuficientes aparecem como verificação pendente. A análise é salva no histórico da pasta e usa os limites/créditos do backend; o status local não chama o modelo.
+`$status --ai` (ou `centaur status --ai`) usa o backend conectado para analisar o que **pode ser marcado como concluído** e o que **pode rodar**, citando fontes, gates e bloqueios. A análise dispõe apenas de leitura e da projeção canônica `lifecycle_status`, que confere contratos, dependências e hashes de evidências; não executa testes novos, não edita specs e não inicia tasks. A conclusão da mestre exige comprovação das filhas e dos critérios de integração. Dados insuficientes aparecem como verificação pendente. A análise é salva no histórico da pasta e usa os limites/créditos do backend; o status local não chama o modelo.
 
 O status local mostra o estado registrado, não certifica conclusão. Recomendações da IA são separadas desses registros; alterações e execução seguem os fluxos de coordenação das skills.
 

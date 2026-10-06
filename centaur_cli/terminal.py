@@ -173,11 +173,11 @@ class Terminal:
             return
         if command.split()[0] == '$config':
             return self.configure(command)
-        if command.startswith('/status'):
-            if command not in ('/status', '/status --ai'):
-                self.notice = 'Uso: /status ou /status --ai para analisar com IA.'
+        if command.startswith(('/status', '$status')):
+            if command not in ('/status', '/status --ai', '$status', '$status --ai'):
+                self.notice = 'Uso: $status ou $status --ai para analisar com IA.'
                 return
-            if command == '/status':
+            if command in ('/status', '$status'):
                 self.chat['messages'].extend([
                     {'role': 'user', 'content': command},
                     {'role': 'assistant', 'content': render_status(self.root)}])
@@ -186,7 +186,7 @@ class Terminal:
                 self.store.save(self.chat)
                 self.draft = ''
                 self.scroll = 0
-                self.notice = 'Status local · /status --ai analisa evidências e recomenda próximos passos.'
+                self.notice = 'Status local · $status --ai analisa evidências e recomenda próximos passos.'
                 return
         self.chat['messages'].append({'role': 'user', 'content': self.draft})
         self.chat.pop('last_error', None)
@@ -371,7 +371,7 @@ class Terminal:
             base = ProjectTools(self.root, self.approve,
                                 protected_keys=getattr(self.client, 'secrets', (getattr(self.client, 'api_key', None),)),
                                 approval_mode=self.approval_mode)
-            status_analysis = chat['messages'][-1].get('content', '').strip() == '/status --ai'
+            status_analysis = chat['messages'][-1].get('content', '').strip() in ('/status --ai', '$status --ai')
             if status_analysis:
                 tools = StatusTools(self.root, lambda _: False,
                                     protected_keys=getattr(self.client, 'secrets', ()))

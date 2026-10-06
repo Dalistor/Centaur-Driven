@@ -141,7 +141,7 @@ def render_status(root):
         lines.append('Nenhuma spec encontrada nos escopos configurados.')
     for warning in warnings:
         lines.append('Aviso: ' + warning)
-    lines.extend(['', 'Analisar evidências e próximos passos: /status --ai ou centaur status --ai'])
+    lines.extend(['', 'Analisar evidências e próximos passos: $status --ai ou centaur status --ai'])
     # Arquivos locais podem conter controles de terminal; preserve somente texto.
     return ''.join(char if char.isprintable() or char == '\n' else ' ' for char in '\n'.join(lines))
 
@@ -171,7 +171,7 @@ def lifecycle_status(root, start_line):
 
 
 ANALYSIS_INSTRUCTIONS = '''
-Execute uma análise /status --ai somente leitura com o backend conectado. Leia check/SKILL.md, o ciclo normativo
+Execute uma análise $status --ai somente leitura com o backend conectado. Leia check/SKILL.md, o ciclo normativo
 em graphify/references/lifecycle.md e o contrato de módulos. Consulte project_status
 para a árvore atual; leia READMEs, contratos, estado, evidências e fontes relevantes.
 Use lifecycle_status, paginando até o fim, para conferir hashes de evidências, contratos,

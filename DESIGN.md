@@ -54,7 +54,7 @@ O CLI não altera a paleta global do terminal.
 
 Em janelas amplas, símbolo e wordmark aparecem à esquerda, com apresentação e exemplos de skills
 à direita: `$spec`, `$run master/0001`, `$check` e `$skill`. Comandos próprios, como
-`/status` e `/new`, aparecem separados em azul. Em 80 × 24 o símbolo fica compacto. Em janelas estreitas, prioriza os comandos;
+`$status` e `/new`, aparecem separados em azul. Em 80 × 24 o símbolo fica compacto. Em janelas estreitas, prioriza os comandos;
 abaixo de 40 × 12 mostra orientação de tamanho e preserva o campo de entrada.
 
 O título em negrito fica no topo da coluna de leitura (até 100 células), acima da pasta e do modelo. A conversa e a entrada compartilham o mesmo alinhamento. Mensagens do usuário usam fundo ANSI 236 (`#303030`), texto 252 e negrito; respostas usam o texto normal, com autor em verde. Progresso fica em tom secundário, antes da resposta final. Ações mostram estado por texto e símbolo; Ctrl+O alterna as saídas completas. O cabeçalho identifica a pasta e o modelo. O rodapé mantém estado, mensagem digitada e

@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import shlex
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -17,6 +18,7 @@ from centaur_cli.startup import StartupPicker
 from centaur_cli.subagents import SubagentTools
 from centaur_cli.terminal import Terminal
 from centaur_cli.tools import ProjectTools
+from centaur_cli import skill_catalog
 from test_terminal_settings import Screen
 
 
@@ -80,6 +82,66 @@ class PermissionTests(unittest.TestCase):
             self.assertIn('recusada', tools.execute('write_file', {'path': path, 'content': 'changed'}))
         self.assertEqual((self.root / 'normal').read_text(), 'original')
         self.assertIsNone(query_command(self.root, 'cat link'))
+
+    def test_auto_centaur_documents_and_absolute_project_paths_are_common_edits(self):
+        tools = self.tools('auto')
+        for path in ('.centaur/specs/0001/README.md', '.centaur/implements/status.md',
+                     '.centaur/contracts/agenda.json', '.centaur/modules/api/specs/0001/README.md',
+                     '.centaur/system/volante.html', str(self.root / 'absolute.txt')):
+            self.assertIn('gravado', tools.execute('write_file', {'path': path, 'content': 'document'}))
+        self.assertFalse(self.approvals)
+        for path in ('.centaur/config.json', '.centaur/workspace.json', '.centaur/chats/history.json',
+                     '.centaur/skills/custom/SKILL.md', '.centaur/specs/script.py',
+                     '.centaur/specs/.env', '.centaur/contracts/credentials/token.json'):
+            self.assertIn('recusada', tools.execute('write_file', {'path': path, 'content': 'changed'}))
+
+    def test_auto_common_queries_handle_ranges_globs_patterns_and_centaur_paths(self):
+        (self.root / '.centaur/specs').mkdir(parents=True)
+        source = self.root / '.centaur/specs/example.md'
+        source.write_text('first\nsecond\nthird\n')
+        commands = ["sed -n '1,2p' .centaur/specs/example.md", 'head -n 2 .centaur/specs/example.md',
+                    'tail -n 1 .centaur/specs/example.md', "rg -n --hidden -g '*.md' 'first|second' .centaur/specs",
+                    "rg --files --hidden -g '*.md' .centaur", "rg 'first$|second\\b' .centaur/specs/example.md",
+                    'cat ' + shlex.quote(str(source))]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertIn('Código de saída: 0', self.tools('auto').execute('run_command', {'command': command}))
+        self.assertFalse(self.approvals)
+        for command in ('sed -i 1d .centaur/specs/example.md', 'sed -n 1e .centaur/specs/example.md',
+                        "sed -n '1w changed' .centaur/specs/example.md", 'tail -f .centaur/specs/example.md',
+                        'head -n -1 .centaur/specs/example.md', 'rg -g --pre=touch first .',
+                        'rg --hidden first .centaur/specs | touch bad'):
+            self.assertIsNone(query_command(self.root, command))
+
+    def test_auto_bundled_validator_runs_read_only_with_isolated_imports_and_trusted_git(self):
+        from support import fixture
+        fixture(self.root)
+        script = skill_catalog.SKILL_ROOT / 'graphify/scripts/validate-lifecycle.py'
+        command = 'python3 ' + shlex.quote(str(script)) + ' .'
+        malicious = self.root / 'malicious'
+        malicious.mkdir()
+        (malicious / 'sitecustomize.py').write_text("from pathlib import Path; Path('python-hook').touch()")
+        fake_git = malicious / 'git'
+        fake_git.write_text('#!/bin/sh\ntouch git-hook\n')
+        fake_git.chmod(0o755)
+        subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
+        hook = self.root / 'monitor.sh'
+        hook.write_text('#!/bin/sh\ntouch monitor-executed\n')
+        hook.chmod(0o755)
+        subprocess.run(['git', '-C', str(self.root), 'config', 'core.fsmonitor', str(hook)], check=True)
+        with patch.dict(os.environ, {'PYTHONPATH': str(malicious), 'PATH': str(malicious) + os.pathsep + os.defpath}):
+            result = self.tools('auto').execute('run_command', {'command': command})
+        self.assertIn('"ok": true', result)
+        self.assertFalse(self.approvals)
+        for filename in ('python-hook', 'git-hook', 'monitor-executed'):
+            self.assertFalse((self.root / filename).exists())
+        self.assertIsNotNone(query_command(self.root, command + ' --complete master/0001'))
+        for suffix in (' ../', ' --write', ' --ready --help', ' --complete master/0001 --complete master/0002'):
+            self.assertIsNone(query_command(self.root, command + suffix))
+        fake = self.root / 'validate-lifecycle.py'
+        fake.write_text('raise RuntimeError("untrusted")')
+        self.assertIsNone(query_command(self.root, 'python3 ' + str(fake) + ' .'))
+        self.assertIsNone(query_command(self.root, 'python3 ' + shlex.quote(str(script)) + ' ' + str(self.root.parent)))
 
     def test_never_still_enforces_path_and_credential_guards(self):
         tools = self.tools('never')

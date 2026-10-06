@@ -33,7 +33,7 @@ Para atualizar: `pipx upgrade centaur-cli`, ou `python3 -m pip install --upgrade
 ## Backends
 
 ```bash
-# Abre a seleção inicial: backend, modelo padrão e effort.
+# Abre a seleção inicial: backend, modelo padrão, effort e permissões.
 centaur .
 
 codex login
@@ -60,9 +60,11 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 ## Recursos
 
 - `$config`: seletor de backend, modelo e esforço de raciocínio.
+- `$status`: árvore local das specs; `$status --ai` analisa evidências somente em leitura. `/status` permanece como alias.
 - `Shift+←` ou `/chats`: histórico por pasta; `/rename` renomeia a conversa.
 - Skills distribuídas no pacote: `$spec`, `$run`, `$check`, `$skill` e outras.
 - Permissões por seletor: pedir aprovação, automático de baixo risco ou sem perguntar; subagentes herdam o modo.
+- Automático reconhece o validador de ciclo de vida incluído, documentos de `.centaur` e consultas com glob ou leitura por intervalos.
 - `/wide` amplia o chat; erros completos e `/retry` preservam o turno e os resultados anteriores.
 - Validação do ciclo intenção → contrato → implementação → evidência → integração.
 - Emblema Convergência em Braille, com curvas finas, flecha verde, luz e animação.
