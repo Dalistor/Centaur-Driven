@@ -33,7 +33,7 @@ Para atualizar: `pipx upgrade centaur-cli`, ou `python3 -m pip install --upgrade
 ## Backends
 
 ```bash
-# OpenRouter: inicia o cadastro local da chave, com entrada oculta, se necessário.
+# Abre a seleção inicial: backend, modelo padrão e effort.
 centaur .
 
 codex login
@@ -42,6 +42,16 @@ centaur --backend codex .
 claude auth login
 centaur --backend claude .
 ```
+
+Antes de abrir o chat, escolha **Backend → Modelo padrão → Effort → Iniciar conversa**.
+As preferências da pasta ficam pré-selecionadas. Flags como `--backend`, `--model` e
+`--effort` também preenchem essas escolhas; `--no-setup` abre diretamente com elas.
+↑/↓ navegam, Enter confirma e Esc volta ou cancela.
+
+Modelo e effort definem o agente principal. Ao executar tasks com subagentes, o Centaur
+escolhe modelos do mesmo backend conforme complexidade e risco. A conexão é validada antes
+de salvar as preferências e abrir o chat; falhas preservam as escolhas.
+Ao confirmar OpenRouter sem chave, o cadastro usa entrada oculta.
 
 Uso dos modelos segue a autenticação, custos e limites do backend selecionado.
 Mensagens e arquivos consultados pelo agente são enviados ao provedor.

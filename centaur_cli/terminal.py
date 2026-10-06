@@ -398,17 +398,7 @@ class Terminal:
             if kind == 'catalog':
                 picker, backend, (catalog, efforts, error) = value
                 if self.settings is picker and picker.backend == backend:
-                    # Keep the focused model stable when the async catalog arrives.
-                    choices = picker.options()
-                    current = choices[min(picker.selected, len(choices) - 1)][0]
-                    picker.catalog.update({name: description for name, description in catalog.items()
-                                           if isinstance(name, str)})
-                    picker.model_efforts.update(efforts)
-                    if picker.effort not in picker.model_efforts.get(picker.model, [picker.effort]):
-                        picker.effort = 'default'
-                    choices = [item[0] for item in picker.options()]
-                    picker.selected = choices.index(current) if current in choices else 0
-                    picker.catalog_status = error or f'{len(picker.catalog)} modelos disponíveis'
+                    picker.update_catalog(backend, catalog, efforts, error)
             elif kind == 'configured':
                 picker, client, error = value
                 if self.settings is not picker:

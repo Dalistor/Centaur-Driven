@@ -210,8 +210,13 @@ class TerminalView:
 
     def settings(self, screen, terminal, top, available, width):
         picker = terminal.settings
-        self.put(screen, top, 3, 'PREFERÊNCIAS DA IA', 'green')
-        self.put(screen, top + 1, 3, 'Configure a próxima conversa nesta pasta.', 'muted')
+        startup = getattr(picker, 'startup', False)
+        heading = {'backend': '1/3 · Escolha sua conexão', 'model': '2/3 · Modelo padrão',
+                   'custom': '2/3 · Modelo personalizado', 'effort': '3/3 · Effort',
+                   'fields': 'Tudo pronto para começar'}
+        self.put(screen, top, 3, heading[picker.page] if startup else 'PREFERÊNCIAS DA IA', 'green')
+        self.put(screen, top + 1, 3, 'Revise sua escolha antes de iniciar o chat.' if startup
+                 else 'Configure a próxima conversa nesta pasta.', 'muted')
         if picker.page == 'fields':
             for index, (label, value) in enumerate(zip(picker.fields, picker.values)):
                 row = top + 3 + index
@@ -222,7 +227,8 @@ class TerminalView:
                 self.put(screen, row, width // 2, value, style)
             if available > 9:
                 self.put(screen, top + 8, 3, 'Effort: raciocínio do modelo principal.', 'muted')
-                self.put(screen, top + 9, 3, 'Salvar preserva o histórico e abre um novo chat.', 'muted')
+                self.put(screen, top + 9, 3, 'Enter em Iniciar conversa confirma sua escolha.' if startup
+                         else 'Salvar preserva o histórico e abre um novo chat.', 'muted')
         elif picker.page == 'custom':
             self.put(screen, top + 3, 3, 'ID ou alias do modelo', 'blue')
             visible, _ = input_window(picker.query, len(picker.query), max(1, width - 8))

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 — 2026-10-06
+
+- Seleção inicial de OpenRouter, Codex ou Claude antes da autenticação e do chat.
+- Escolha do modelo padrão e effort, com preferências da pasta pré-selecionadas.
+- Explicação da escolha de modelos por complexidade e risco para subagentes.
+- Revisão antes de iniciar, cancelamento sem chat e recuperação de falhas de conexão.
+- `--no-setup` para abrir diretamente com flags, ambiente ou preferências salvas.
+
 ## 0.2.0 — 2026-10-06
 
 - Conversa em coluna de leitura, título destacado e mensagens do usuário com contraste.

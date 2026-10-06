@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão atual é `0.2.0`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.2.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.2.0).
+A versão atual é `0.3.0`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.3.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.3.0).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.2.0/centaur_cli-0.2.0-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.3.0/centaur_cli-0.3.0-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -32,6 +32,31 @@ Python que permita instalação. Se seu sistema gerencia o Python, use pipx ou u
 Depois da configuração inicial do PyPI e da publicação bem-sucedida, também será possível
 usar `pipx install centaur-cli` ou `python3 -m pip install centaur-cli`.
 Veja [publicação e novas versões](docs/publishing.md) e o [changelog](CHANGELOG.md).
+
+### Antes de iniciar a conversa
+
+Ao executar `centaur .`, escolha **Backend → Modelo padrão → Effort → Iniciar conversa**.
+OpenRouter usa uma chave de API; Codex e Claude usam o login dos seus CLIs locais.
+As preferências da pasta ficam pré-selecionadas. ↑/↓ navegam, Enter confirma e Esc volta
+ou cancela; é possível revisar qualquer campo antes de abrir o chat.
+
+![Seleção inicial do Centaur](docs/cli-startup.png)
+
+*Captura de terminal real em uma demonstração com autenticação e catálogo simulados.*
+
+O modelo e o effort escolhidos definem o **agente principal**. Durante `$run`, o Centaur
+pode escolher outros modelos do mesmo backend para cada subagente, conforme a complexidade
+e o risco da task. Essa explicação permanece visível nas etapas da seleção inicial.
+
+A conexão é validada depois da confirmação. Se falhar, as escolhas são preservadas para
+corrigir ou trocar o backend. Só após a validação as preferências são salvas em
+`.centaur/config.json` e o chat é aberto. Cancelar a seleção não autentica nem cria um chat.
+O catálogo público do OpenRouter pode ser consultado sem chave; escolher um modelo não
+faz uma chamada de geração. O cadastro de chave continua usando entrada oculta.
+
+Flags e variáveis de ambiente definem as escolhas iniciais e podem ser alteradas no seletor.
+Para abrir diretamente com elas ou com as preferências salvas, use `centaur . --no-setup`.
+`centaur status`, `--configure-key` e `--configure-credits-key` continuam com seus fluxos próprios.
 
 ### Desenvolvimento local
 
@@ -58,7 +83,7 @@ centaur --backend claude /caminho/do/projeto
 
 `--backend` aceita `openrouter` (padrão), `codex` ou `claude`; `CENTAUR_BACKEND` define o padrão. Codex/Claude reutilizam sua própria autenticação, sem solicitar chave OpenRouter. Precisam estar no `PATH`, com versões que suportem as opções de isolamento e resposta estruturada usadas pelo adaptador. Versões incompatíveis são recusadas, sem fallback para outro provedor.
 
-Com **Codex ou Claude conectado**, `$run` cria subagentes no mesmo backend e escolhe o modelo por task conforme complexidade e risco. `delegate_task` aceita título, task e um modelo do catálogo; `cost_tier` é exclusivo do OpenRouter. `--model` escolhe o modelo principal; sem ele, usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. `$config` abre o seletor; `$config <backend> [modelo] [effort]` altera a fonte da IA e o modelo principal, salvando a preferência local e abrindo novo chat. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo principal solicitado.
+Com **Codex ou Claude conectado**, `$run` cria subagentes no mesmo backend e escolhe o modelo por task conforme complexidade e risco. `delegate_task` aceita título, task e um modelo do catálogo; `cost_tier` é exclusivo do OpenRouter. `--model` pré-seleciona o modelo principal; a opção Padrão do provedor usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. `$config` abre o seletor; `$config <backend> [modelo] [effort]` altera a fonte da IA e o modelo principal, salvando a preferência local e abrindo novo chat. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo principal solicitado.
 
 A interface, o autocomplete, `/status` e as aprovações continuam no Centaur. O adaptador usa saídas estruturadas dos CLIs, sem ferramentas nativas de execução/delegação e sem carregar as personalizações locais desses clientes; leituras, gravações e comandos passam pelas ferramentas do harness. Cada etapa envia o contexto Centaur a uma execução efêmera do CLI, com limite de 180 segundos; os históricos ficam no Centaur. O adaptador não interpreta o ID efetivo de modelo quando o CLI não o fornece. As credenciais conhecidas dos backends são ocultadas nas mensagens e saídas e removidas do ambiente dos comandos de projeto.
 
@@ -66,10 +91,10 @@ Também aceita `centaur status --ai --backend codex` ou `--backend claude`. A in
 
 Referências: [execução estruturada do Codex](https://developers.openai.com/codex/noninteractive), [Claude programático](https://code.claude.com/docs/en/headless) e [opções de isolamento do Claude](https://code.claude.com/docs/en/cli-reference).
 
-Sem `OPENROUTER_MODEL` ou `--model`, usa o modelo padrão da conta OpenRouter.
+A opção Padrão do provedor usa o modelo padrão da conta OpenRouter.
 A API e as chamadas de ferramentas seguem a [documentação do OpenRouter](https://openrouter.ai/docs/guides/features/tool-calling).
-O modelo precisa aceitar ferramentas. Sem uma chave cadastrada, o CLI inicia um assistente
-local antes de abrir o chat: orienta a criar a chave na [página de chaves do OpenRouter](https://openrouter.ai/settings/keys),
+O modelo precisa aceitar ferramentas. Ao confirmar OpenRouter sem uma chave cadastrada,
+o CLI inicia o cadastro local antes de abrir o chat: orienta a criar a chave na [página de chaves do OpenRouter](https://openrouter.ai/settings/keys),
 oferece abrir o navegador e recebe a chave em um campo sem eco. A validação usa somente
 `GET /api/v1/key`, sem chamar um modelo ou consumir tokens. Chaves recusadas podem ser
 digitadas novamente; entrada vazia ou Ctrl+C cancela. Se o terminal não oferecer entrada
@@ -184,7 +209,7 @@ O nível `ultra` do cache Codex não é exposto porque ativa delegação nativa,
 Centaur. Subagentes continuam com o esforço padrão de seu próprio modelo; o limite
 `--max-subagent-tier` controla a faixa de custo do roteamento, separadamente.
 
-Também são aceitos comandos diretos, preservando compatibilidade:
+Também são aceitos comandos diretos e opções iniciais:
 
 ```bash
 # Dentro do chat:
@@ -192,8 +217,10 @@ $config codex gpt-6.1-sol high
 $config claude sonnet medium
 $config openrouter openrouter/auto
 
-# Ao iniciar:
+# Pré-selecionar as opções iniciais:
 centaur . --backend codex --model gpt-6.1-sol --effort high
+# Abrir diretamente, sem o seletor inicial:
+centaur . --no-setup --backend codex --model gpt-6.1-sol --effort high
 ```
 
 Preferências ficam em `.centaur/config.json`, sem credenciais. Arquivos antigos com apenas

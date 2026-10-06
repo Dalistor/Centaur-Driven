@@ -67,6 +67,24 @@ class ConfigPicker:
         except (OSError, ValueError, KeyError, TypeError):
             self.model_efforts = {}
 
+    def update_catalog(self, backend, catalog, efforts, error=''):
+        if self.backend != backend:
+            return
+        choices = self.options()
+        current = choices[min(self.selected, len(choices) - 1)][0]
+        for name, description in catalog.items():
+            try:
+                validate(backend, name)
+            except ValueError:
+                continue
+            self.catalog[name] = description
+        self.model_efforts.update(efforts)
+        if self.effort not in self.model_efforts.get(self.model, [self.effort]):
+            self.effort = 'default'
+        choices = [item[0] for item in self.options()]
+        self.selected = choices.index(current) if current in choices else 0
+        self.catalog_status = error or f'{len(self.catalog)} modelos disponíveis'
+
     def handle(self, key):
         if self.pending:
             return
