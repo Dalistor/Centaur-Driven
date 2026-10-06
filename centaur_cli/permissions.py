@@ -9,6 +9,8 @@ import sys
 from .credentials import credentials_path
 from . import skill_catalog
 
+TRUSTED_PATH = os.pathsep.join((os.defpath, '/usr/local/bin', '/opt/homebrew/bin'))
+
 APPROVAL_MODES = ('ask', 'auto', 'never')
 MODE_LABELS = {'ask': 'Pedir aprovação', 'auto': 'Automático · baixo risco',
                'never': 'Sem perguntar'}
@@ -25,16 +27,27 @@ def validate_mode(mode):
     return mode
 
 
+def project_relative(root, supplied):
+    """Accept aliases of the project root without resolving away links inside it."""
+    if '..' in supplied.parts:
+        raise ValueError('Parent traversal requires review.')
+    if not supplied.is_absolute():
+        return supplied
+    try:
+        return supplied.relative_to(root)
+    except ValueError:
+        for parent in supplied.parents:
+            if parent.resolve() == root:
+                return supplied.relative_to(parent)
+        raise ValueError('Path outside the project.')
+
+
 def ordinary_path(root, relative):
     """Hidden/configuration, executable and linked files require review in auto."""
     root = Path(root).resolve()
-    supplied = Path(relative)
-    if supplied.is_absolute():
-        try:
-            supplied = supplied.relative_to(root)
-        except ValueError:
-            return False
-    if '..' in supplied.parts:
+    try:
+        supplied = project_relative(root, Path(relative))
+    except (OSError, ValueError):
         return False
     parts = supplied.parts
     centaur_document = (len(parts) >= 3 and parts[0] == '.centaur'
@@ -77,7 +90,7 @@ def query_command(root, command):
     if name in ('python', 'python3'):
         return lifecycle_query(root, rest)
     # A project-local executable or custom PATH must not acquire automatic permission.
-    executable = shutil.which(name, path=os.defpath) if '/' not in name else None
+    executable = shutil.which(name, path=TRUSTED_PATH) if '/' not in name else None
     if not executable:
         return None
     if name == 'pwd' and not rest:
@@ -183,13 +196,11 @@ def lifecycle_query(root, args):
 
 
 def query_path(root, token):
-    path = Path(token)
     root = Path(root).resolve()
-    if path.is_absolute():
-        try:
-            path = path.relative_to(root)
-        except ValueError:
-            return False
+    try:
+        path = project_relative(root, Path(token))
+    except (OSError, ValueError):
+        return False
     if (token.startswith('-') or any(c in token for c in '$`\\') or '..' in path.parts
             or any(p.startswith('.') and p not in ('.', '.centaur') for p in path.parts)):
         return False
@@ -210,7 +221,7 @@ def query_environment(environment):
     """Local Git configuration must not invoke hooks/helpers during automatic queries."""
     env = {k: v for k, v in environment.items() if not k.startswith('GIT_')}
     env.update({'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull,
-                'GIT_OPTIONAL_LOCKS': '0', 'GIT_TERMINAL_PROMPT': '0', 'PATH': os.defpath,
+                'GIT_OPTIONAL_LOCKS': '0', 'GIT_TERMINAL_PROMPT': '0', 'PATH': TRUSTED_PATH,
                 'GIT_CONFIG_COUNT': '3', 'GIT_CONFIG_KEY_0': 'core.fsmonitor',
                 'GIT_CONFIG_VALUE_0': 'false', 'GIT_CONFIG_KEY_1': 'core.pager',
                 'GIT_CONFIG_VALUE_1': 'cat', 'GIT_CONFIG_KEY_2': 'log.showSignature',

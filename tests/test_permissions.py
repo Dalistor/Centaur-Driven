@@ -113,6 +113,20 @@ class PermissionTests(unittest.TestCase):
                         'rg --hidden first .centaur/specs | touch bad'):
             self.assertIsNone(query_command(self.root, command))
 
+    def test_auto_accepts_project_root_aliases_but_preserves_internal_link_checks(self):
+        with tempfile.TemporaryDirectory() as holder:
+            alias = Path(holder) / 'project'
+            alias.symlink_to(self.root, target_is_directory=True)
+            path = alias / 'example.txt'
+            result = self.tools('auto').execute('write_file', {'path': str(path), 'content': 'alias'})
+            self.assertIn('gravado', result)
+            result = self.tools('auto').execute('run_command', {'command': 'cat ' + shlex.quote(str(path))})
+            self.assertIn('alias', result)
+            self.assertFalse(self.approvals)
+            (self.root / 'linked.txt').symlink_to(self.root / 'example.txt')
+            self.assertFalse(ordinary_path(self.root, str(alias / 'linked.txt')))
+            self.assertIsNone(query_command(self.root, 'cat ' + shlex.quote(str(alias / 'linked.txt'))))
+
     def test_auto_bundled_validator_runs_read_only_with_isolated_imports_and_trusted_git(self):
         from support import fixture
         fixture(self.root)

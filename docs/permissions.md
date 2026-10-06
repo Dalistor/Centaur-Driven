@@ -28,6 +28,8 @@ com que foram criadas; configuração fica indisponível enquanto o turno estive
 
 Consultas automáticas usam argumentos diretos e executáveis do sistema, sem shell ou PATH
 customizado. Git desativa pager, fsmonitor, assinatura, ext-diff e textconv; rg ignora configs.
+Diretórios de instalação do sistema incluem `/usr/local/bin` e `/opt/homebrew/bin`;
+aliases do diretório raiz do projeto são normalizados sem ignorar links internos.
 A lista é conservadora e não equivale a análise universal da segurança de um comando.
 
 O modo auto aceita leitura por intervalos com `sed -n`, `head -n` e `tail -n`, globs de `rg`
