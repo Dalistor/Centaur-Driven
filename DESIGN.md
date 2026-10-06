@@ -78,7 +78,7 @@ a área de conteúdo inteira; mensagens curtas não movem os controles de salvar
 Textos largos são recortados por células, incluindo a janela de entrada e seu cursor.
 
 `startup.StartupPicker` reutiliza `ConfigPicker` e o mesmo desenho para a sequência
-Backend → Modelo padrão → Effort → revisão. O rodapé explica o agente principal e a
+Backend → Modelo padrão → Effort → Permissões → revisão. O rodapé explica o agente principal e a
 seleção de modelos por task; erros de conexão têm prioridade nessa área. A tela inicial
 requer 40 × 18 e preserva escolhas ao redimensionar. Autenticação acontece depois da revisão,
 fora de curses para manter entrada de chave oculta; o chat e sua animação começam em seguida.
@@ -119,3 +119,15 @@ controle do terminal do usuário, com autores/ações em negrito e conteúdo em 
 | Créditos em linha própria | Preservado no redesenho | `TerminalView.draw` |
 
 Comportamentos duráveis e recuperação estão em [UX-CONTRACT.md](UX-CONTRACT.md).
+
+## Permissões e amplitude da conversa
+
+O seletor canônico também controla permissões, com explicação da opção focada. “Sem perguntar”
+usa âmbar e descreve o acesso do usuário. O cabeçalho prioriza o nome do modo, inclusive em
+janelas estreitas. A ação final ocupa a linha disponível, sem duplicar o texto em duas colunas.
+Em seletores curtos, a lista acompanha o foco para manter salvar acessível. Alterar somente
+permissões preserva a conversa; mudar conexão/modelo/effort inicia outra.
+
+`/wide` usa a largura disponível para histórico e entrada; o modo normal mantém a coluna de
+100 células. Falhas completas são quebradas em linhas dentro da conversa e podem ser roladas.
+A indicação “Erro no turno” usa âmbar; `/retry` é explícito e preserva checkpoints existentes.

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from .config import BACKENDS, effort_options, validate
+from .permissions import APPROVAL_MODES, MODE_LABELS, MODE_HELP, validate_mode
 
 
 def local_models(backend):
@@ -24,10 +25,11 @@ def local_models(backend):
 
 
 class ConfigPicker:
-    fields = ('Backend', 'Modelo', 'Effort', 'Salvar e abrir novo chat')
+    fields = ('Backend', 'Modelo', 'Effort', 'Permissões', 'Salvar preferências')
 
-    def __init__(self, backend, model, effort):
+    def __init__(self, backend, model, effort, approval_mode='ask'):
         self.backend, self.model, self.effort = backend, model, effort
+        self.approval_mode = validate_mode(approval_mode)
         self.row = 0
         self.page = 'fields'
         self.selected = 0
@@ -44,11 +46,14 @@ class ConfigPicker:
 
     @property
     def values(self):
-        return [self.backend, self.model or 'Padrão do provedor', self.effort, 'Enter para salvar']
+        return [self.backend, self.model or 'Padrão do provedor', self.effort,
+                MODE_LABELS[self.approval_mode], 'Enter para salvar']
 
     def options(self):
         if self.page == 'backend':
             return [(value, value) for value in BACKENDS]
+        if self.page == 'permissions':
+            return [(value, MODE_LABELS[value]) for value in APPROVAL_MODES]
         if self.page == 'effort':
             levels = self.model_efforts.get(self.model, effort_options(self.backend))
             return [(value, 'Padrão do provedor' if value == 'default' else value)
@@ -117,12 +122,12 @@ class ConfigPicker:
             elif key in (curses.KEY_DOWN, '\t'):
                 self.row = (self.row + 1) % len(self.fields)
             elif enter:
-                if self.row == 3:
+                if self.row == len(self.fields) - 1:
                     return 'save'
-                self.page = ('backend', 'model', 'effort')[self.row]
+                self.page = ('backend', 'model', 'effort', 'permissions')[self.row]
                 self.query = ''
                 values = [item[0] for item in self.options()]
-                current = (self.backend, self.model, self.effort)[self.row]
+                current = (self.backend, self.model, self.effort, self.approval_mode)[self.row]
                 self.selected = values.index(current) if current in values else 0
                 if self.page == 'model':
                     return 'catalog'
@@ -144,6 +149,8 @@ class ConfigPicker:
                     self.catalog_status = ''
             elif self.page == 'effort':
                 self.effort = value
+            elif self.page == 'permissions':
+                self.approval_mode = value
             elif value is None:
                 self.page, self.query, self.error = 'custom', self.model, ''
                 return

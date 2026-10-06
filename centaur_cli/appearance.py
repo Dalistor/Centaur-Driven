@@ -209,44 +209,60 @@ class TerminalView:
             self.put(screen, top + 14, text_column, 'F5 · Repetir animação', 'muted')
 
     def settings(self, screen, terminal, top, available, width):
+        from .permissions import MODE_HELP
         picker = terminal.settings
         startup = getattr(picker, 'startup', False)
-        heading = {'backend': '1/3 · Escolha sua conexão', 'model': '2/3 · Modelo padrão',
-                   'custom': '2/3 · Modelo personalizado', 'effort': '3/3 · Effort',
+        heading = {'backend': '1/4 · Escolha sua conexão', 'model': '2/4 · Modelo padrão',
+                   'custom': '2/4 · Modelo personalizado', 'effort': '3/4 · Effort',
+                   'permissions': '4/4 · Permissões',
                    'fields': 'Tudo pronto para começar'}
         self.put(screen, top, 3, heading[picker.page] if startup else 'PREFERÊNCIAS DA IA', 'green')
         self.put(screen, top + 1, 3, 'Revise sua escolha antes de iniciar o chat.' if startup
-                 else 'Configure a próxima conversa nesta pasta.', 'muted')
+                 else 'Escolha como a IA trabalha nesta pasta.', 'muted')
         if picker.page == 'fields':
-            for index, (label, value) in enumerate(zip(picker.fields, picker.values)):
-                row = top + 3 + index
+            visible = max(1, available - 3)
+            start = max(0, picker.row - visible + 1)
+            for index, (label, value) in enumerate(list(zip(picker.fields, picker.values))[start:start + visible], start):
+                row = top + 3 + index - start
                 style = 'selected' if index == picker.row else 'text'
                 self.put(screen, row, 2, ' ' * (width - 5), style)
                 self.put(screen, row, 3, f'{">" if index == picker.row else " "} {label}', style,
-                         max(12, width // 2 - 5))
-                self.put(screen, row, width // 2, value, style)
+                         width - 6 if index == len(picker.fields) - 1 else max(12, width // 2 - 5))
+                if index != len(picker.fields) - 1:
+                    self.put(screen, row, width // 2, value, style)
             if available > 9:
                 self.put(screen, top + 8, 3, 'Effort: raciocínio do modelo principal.', 'muted')
                 self.put(screen, top + 9, 3, 'Enter em Iniciar conversa confirma sua escolha.' if startup
-                         else 'Salvar preserva o histórico e abre um novo chat.', 'muted')
+                         else 'Só mudar permissões mantém a conversa.', 'muted')
         elif picker.page == 'custom':
             self.put(screen, top + 3, 3, 'ID ou alias do modelo', 'blue')
             visible, _ = input_window(picker.query, len(picker.query), max(1, width - 8))
             self.put(screen, top + 5, 3, '> ' + visible)
         else:
             title = {'backend': 'Backend', 'model': 'Modelo · digite para filtrar',
-                     'effort': 'Effort · níveis dependem do modelo'}[picker.page]
+                     'effort': 'Effort · níveis dependem do modelo',
+                     'permissions': 'Permissões das ferramentas'}[picker.page]
             self.put(screen, top + 3, 3, title, 'blue')
             if picker.page == 'model':
                 self.put(screen, top + 4, 3, 'Filtro: ' + (picker.query or 'todos') + ' · Ctrl+U limpar', 'muted')
             choices = picker.options()
-            visible = max(1, available - 6)
+            offset = 5 if picker.page == 'model' else 4
+            visible = max(1, available - offset)
             start = max(0, picker.selected - visible + 1)
             for index, (_, label) in enumerate(choices[start:start + visible]):
                 selected = start + index == picker.selected
                 style = 'selected' if selected else 'text'
-                self.put(screen, top + 5 + index, 2, ' ' * (width - 5), style)
-                self.put(screen, top + 5 + index, 3, f'{">" if selected else " "} {label}', style)
+                self.put(screen, top + offset + index, 2, ' ' * (width - 5), style)
+                self.put(screen, top + offset + index, 3, f'{">" if selected else " "} {label}', style)
+            if picker.page == 'permissions':
+                from .terminal import display_lines
+                mode = choices[picker.selected][0]
+                shown = len(choices[start:start + visible])
+                room = max(0, available - offset - shown)
+                help_text = ('Sem confirmar; acesso do usuário.' if mode == 'never' and room == 1 else MODE_HELP[mode])
+                for line_offset, line in enumerate(display_lines(help_text, width - 6)[:room]):
+                    self.put(screen, top + offset + shown + line_offset, 3, line,
+                             'warning' if mode == 'never' else 'muted')
         if picker.pending:
             self.put(screen, top + 1, 3, self.activity(terminal, 'Validando configuração'), 'blue')
 
@@ -280,17 +296,19 @@ class TerminalView:
         self.put(screen, 1, 2, WORDMARK, 'muted')
         if width >= 66:
             self.put(screen, 1, width - len(TAGLINE) - 3, TAGLINE, 'muted')
-        transcript_width = min(100, width - 6)
+        transcript_width = width - 6 if terminal.wide_chat else min(100, width - 6)
         transcript_left = max(3, (width - transcript_width) // 2)
-        model = terminal.backend + ' · ' + (terminal.chat['model'] or 'padrão')
+        from .permissions import MODE_LABELS
+        model = MODE_LABELS[terminal.approval_mode] + ' · ' + terminal.backend + ' · ' + (terminal.chat['model'] or 'padrão')
         if terminal.chat.get('effort', 'default') != 'default':
             model += ' · ' + terminal.chat['effort']
+        model_style = 'warning' if terminal.approval_mode == 'never' else 'blue'
         self.put(screen, 2, transcript_left, '◆ ' + terminal.chat['title'], 'title', transcript_width)
         if width >= 100:
             self.put(screen, 3, transcript_left, str(terminal.root), 'muted', transcript_width // 2 - 2)
-            self.put(screen, 3, transcript_left + transcript_width // 2, model, 'blue', transcript_width // 2)
+            self.put(screen, 3, transcript_left + transcript_width // 2, model, model_style, transcript_width // 2)
         else:
-            self.put(screen, 3, transcript_left, model, 'muted', transcript_width)
+            self.put(screen, 3, transcript_left, model, model_style, transcript_width)
         self.put(screen, 4, transcript_left, '─' * transcript_width, 'line')
         top, available = 5, height - 11
         if height < 20 and (terminal.settings or terminal.rename_target):
@@ -339,7 +357,7 @@ class TerminalView:
                     style = 'muted'
                 elif line.startswith('↳ Ferramenta'):
                     style = 'blue'
-                elif line.startswith('CONFIRMAÇÃO'):
+                elif line.startswith(('CONFIRMAÇÃO', '! Erro')):
                     style = 'warning'
                 self.put(screen, row, transcript_left, line, style, transcript_width)
         terminal.completion.update(terminal.draft if terminal.cursor == len(terminal.draft) else '')

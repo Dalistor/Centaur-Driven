@@ -1,0 +1,27 @@
+# Política de permissões
+
+Fonte: solicitação do proprietário em 2026-10-06, com escolha explícita de “Edições e consultas”
+para o modo intermediário. Implementação canônica: `centaur_cli/permissions.py` e `ProjectTools`.
+
+- `ask`: leituras livres; toda gravação e comando precisam de aprovação.
+- `auto`: edições comuns em arquivos do projeto e consultas da lista permitida executam sem
+  confirmação. Opções/sintaxe desconhecidas, testes, builds, exclusões, rede, instalações e Git
+  com alteração de estado exigem aprovação. Edições em caminhos ocultos, links, arquivos com
+  bit executável, hardlinks e pastas de credenciais exigem revisão.
+- `never`: ferramentas de gravação e comando executam sem pedir aprovação. Comandos continuam
+  com as permissões do usuário; não há promessa de sandbox. Ferramentas de arquivo mantêm
+  limites de caminho e credenciais, redaction e timeouts.
+
+A escolha explícita do usuário vale para coordenador e subagentes. Modelos e classificações
+fornecidas pelo modelo não ampliam esse modo. `--approval-mode` prevalece sobre
+`CENTAUR_APPROVAL_MODE`, que prevalece sobre `approval_mode` em `.centaur/config.json`.
+Arquivos antigos usam ask. Retomar chats não restaura o modo gravado no histórico.
+
+Trocar somente permissões mantém a conversa. Alterações são aplicadas depois de salvar;
+falha/cancelamento preservam o modo atual. O seletor mostra descrição e revisão antes do
+commit, e o cabeçalho apresenta o modo ativo. Durante um turno, as ferramentas usam o modo
+com que foram criadas; configuração fica indisponível enquanto o turno estiver ativo.
+
+Consultas automáticas usam argumentos diretos e executáveis do sistema, sem shell ou PATH
+customizado. Git desativa pager, fsmonitor, assinatura, ext-diff e textconv; rg ignora configs.
+A lista é conservadora e não equivale a análise universal da segurança de um comando.

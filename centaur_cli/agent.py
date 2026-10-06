@@ -5,18 +5,19 @@ from pathlib import Path
 
 from .tools import TOOLS
 from . import skill_catalog
+from .permissions import MODE_HELP
 
 
 def project_prompt(root):
     prompt = ('Você é Centaur, um assistente de programação no terminal. Responda em português. '
-              'Investigue antes de alterar e valide o trabalho. Use ferramentas para consultar '
+              'Investigue antes de alterar e valide o trabalho. Use ferramentas para consultar arquivos; não invente resultados. '
               'Antes das ferramentas, escreva em content uma frase curta e pública sobre '
               'o próximo passo, o que descobriu ou a decisão prática. Isso é um resumo '
               'de trabalho para o usuário: não exponha raciocínio interno nem análise privada. '
               'Em trabalhos longos, use report_progress para comunicar progresso real '
               'mesmo quando não precisar de outra ferramenta. A resposta final fica em '
               'uma mensagem sem tool_calls. Não anuncie ações como concluídas antes do resultado. '
-              'arquivos; não invente resultados. Alterações e comandos exigem aprovação. '
+              'O harness aplica o modo de permissões do usuário. '
               f'A pasta aberta é {root}. Skills incluídas no CLI: {", ".join(skill_catalog.names())}. '
               'Use read_skill com path <nome>/SKILL.md e start_line 1 para ler uma skill; '
               'continue a leitura se houver mais linhas. Caminhos relativos entre skills são '
@@ -67,6 +68,8 @@ def run_turn(chat, client, tools, store, emit, instructions=''):
                 recovered.append({'role': 'tool', 'tool_call_id': call['id'],
                                  'content': 'Execução interrompida; confira o estado antes de tentar novamente.'})
     messages[:] = recovered
+    mode = getattr(tools, 'approval_mode', 'ask')
+    instructions += '\nModo de permissões: ' + mode + '. ' + MODE_HELP[mode] + '\n'
     for _ in range(20):
         options = {'effort': chat['effort']} if chat.get('effort', 'default') != 'default' else {}
         response = client.complete(chat['model'],

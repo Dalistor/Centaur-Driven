@@ -8,7 +8,7 @@ rename e melhorias visuais; as regras de desenvolvimento vêm de
 | Capacidade | Dono canônico | Estados e contrato | Verificação |
 | --- | --- | --- | --- |
 | Select/Listbox | `settings.ConfigPicker`, `appearance.TerminalView.settings` | ↑/↓ selecionam; Enter abre/confirma; Esc volta/cancela; filtro local; salvar explícito | `tests/test_terminal_settings.py` |
-| Inicialização | `startup.StartupPicker`, `StartupWizard`, `__main__.main` | Backend → modelo → effort → revisão; escolhas antes de autenticar; cancelar não cria chat; falha permite tentar novamente | `tests/test_startup.py`, terminal real com PTY |
+| Inicialização | `startup.StartupPicker`, `StartupWizard`, `__main__.main` | Backend → modelo → effort → permissões → revisão; escolhas antes de autenticar; cancelar não cria chat; falha permite tentar novamente | `tests/test_startup.py`, terminal real com PTY |
 | Form | `Terminal.handle_settings`, `Terminal.handle_rename` | Validação textual, valores preservados em falha; bloqueio de salvamento duplicado | `tests/test_terminal_settings.py` |
 | Feedback | `Terminal.notice`, `ConfigPicker.error`, `TerminalView.draw` | Mensagem no rodapé, erro permanece no seletor; não substituir erro por sucesso | `tests/test_terminal_settings.py` |
 | Chats | `history.ChatStore`, `Terminal` | IDs imutáveis, gravação atômica, retomada por seleção; rename lê conteúdo atual do disco | `tests/test_cli.py`, `tests/test_terminal_settings.py` |
@@ -69,3 +69,24 @@ ficam disponíveis. Catálogos atrasados não alteram escolhas de outro backend.
 
 Verificação com PTY: três backends, NO_COLOR, movimento reduzido, resize, cancelamento e
 falha de Codex seguida de troca para Claude, com autenticação e catálogo simulados.
+
+## Política de permissões
+
+Fonte: pedido do usuário e escolha “Edições e consultas” para o modo automático em 2026-10-06.
+Contrato de execução: [docs/permissions.md](docs/permissions.md). `permissions.py` é o dono da
+classificação; `ProjectTools` aplica a regra; `SubagentTools` herda o modo sem poder ampliá-lo.
+`ConfigPicker` e `StartupPicker` compartilham opções, seleção e confirmação. Padrão legado: ask.
+Cancelar ou falhar ao salvar conserva o modo e a conversa ativos. Aplicar somente permissões
+preserva o chat; mudanças de backend/modelo/effort criam outro. Histórico não concede permissões.
+
+Verificação: `tests/test_permissions.py`, `tests/test_startup.py` e PTY nos três modos, incluindo
+recusa de comandos gerais, escrita automática, consultas, sem confirmação e resize a 40 × 12.
+
+## Falha e retomada nativa
+
+`native_client.reply_schema` usa argumentos tipados; `reply` valida o lote inteiro antes da
+execução. `codex_output` só aceita o arquivo final ou mensagem pública em turno concluído.
+Erro completo é persistido em `last_error`, fora das mensagens enviadas ao modelo. `/retry`
+retoma o histórico sem duplicar o pedido; resultados anteriores não são repetidos. Não há retry
+automático de comandos, mudança de backend ou tentativa de executar fragmentos de resposta.
+`/wide` altera apenas a largura visual. Verificação: `tests/test_native_resilience.py` e PTY.
