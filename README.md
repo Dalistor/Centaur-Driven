@@ -162,7 +162,8 @@ e effort salvos de outro backend não são reaproveitados. Cada chat novo regist
 retomar um chat preserva seu modelo e seu effort original. Chats antigos usam `default`.
 
 O terminal desenha o emblema **Convergência** com um renderizador gráfico próprio: duas
-faixas curvas finas, prateada e verde, que se encontram em uma ponta comum. O símbolo
+faixas curvas finas, prateada e verde, que se encontram em uma ponta comum, e uma flecha
+verde fina que atravessa o centro e avança além da junção. O símbolo
 representa julgamento humano e execução por IA seguindo uma intenção compartilhada.
 A geometria vetorial em relevo tem perspectiva, profundidade, iluminação e rasterização
 Braille Unicode (8 pontos por célula). A sequência dura 6 segundos, com cadência alvo de 20 FPS, e termina em uma pose frontal estável.

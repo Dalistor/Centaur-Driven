@@ -24,7 +24,7 @@ omitted:
 
 Interface de operação para programação com agentes. A identidade escolhida pelo usuário
 é “Convergência”: duas faixas curvas finas, prateada e verde, que se encontram em uma ponta
-comum. Representa julgamento humano e execução por IA na mesma direção. Mantém a assinatura
+comum, com uma flecha verde fina cruzando o centro e avançando além da junção. Representa julgamento humano e execução por IA na mesma direção. Mantém a assinatura
 “HUMAN INTENT. AMPLIFIED.”. A marca aparece na abertura; a conversa ocupa a superfície
 assim que o usuário começa a trabalhar.
 
@@ -33,7 +33,7 @@ assim que o usuário começa a trabalhar.
 - Fundo escuro contínuo, sem painéis sobrepostos ou bordas decorativas em cada mensagem.
 - Palavra CENTAUR espaçada, emblema abstrato de Convergência em relevo Braille Unicode
   (2 × 4 pontos por célula). Faixa superior prateada e inferior verde; ambas são arcos finos
-  com espaço negativo amplo e ponta compartilhada. Curvas Bézier cúbicas com largura total
+  com espaço negativo amplo, ponta compartilhada e flecha verde horizontal ao centro. Curvas Bézier cúbicas com largura total
   aproximada de 0,13 unidades e afilamento na junção; perspectiva, bisel e luz em CPU.
   O fallback em blocos/ASCII deriva da mesma geometria. Não usa imagens nem fontes externas.
 - Branco para conteúdo; verde para comandos e autores; azul para modelo, ferramentas e

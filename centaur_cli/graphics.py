@@ -57,9 +57,13 @@ def ribbon(mirrored=False):
 # Human judgment (silver) and AI execution (green), converging on one direction.
 UPPER_RIBBON = ribbon()
 LOWER_RIBBON = ribbon(mirrored=True)
+ARROWHEAD = ((.82, -.075), (1.01, 0.0), (.82, .075))
 
 
 def material(x, y):
+    # A slender green arrow crosses the negative space and projects past the tip.
+    if (-.72 <= x <= .88 and abs(y) <= .013) or polygon(x, y, ARROWHEAD):
+        return 2
     if polygon(x, y, LOWER_RIBBON):
         return 2
     if polygon(x, y, UPPER_RIBBON):
