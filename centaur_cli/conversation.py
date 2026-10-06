@@ -4,6 +4,14 @@ import json
 import re
 
 
+class TranscriptLine(str):
+    """Display text with a role-derived style, independent of content/markers."""
+    def __new__(cls, text, style='text'):
+        line = super().__new__(cls, text)
+        line.style = style
+        return line
+
+
 def generate_title(client, model, messages):
     """An independent, tool-free request; never changes the conversation itself."""
     sample = [{'role': entry['role'], 'content': str(entry.get('content') or '')[:1800]}

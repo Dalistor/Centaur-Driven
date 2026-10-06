@@ -2,11 +2,14 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
+from centaur_cli.appearance import Palette
 from centaur_cli.conversation import generate_title, readable_markdown, tool_activity
 from centaur_cli.history import ChatStore
 from centaur_cli.terminal import Terminal
 from centaur_cli.tools import ProjectTools
+from test_terminal_settings import Screen
 
 
 def call(name='read_file', **arguments):
@@ -45,6 +48,45 @@ class ConversationTests(unittest.TestCase):
         self.assertTrue(tool_activity(action, 'Código de saída: 2\nfailed').startswith('! Falha'))
         self.assertTrue(tool_activity(action, 'Execução recusada pelo usuário.').startswith('– Recusado'))
         self.assertTrue(tool_activity(action, 'Código de saída: 0\nOK').startswith('✓ Executou'))
+
+    def test_wrapped_actions_comments_and_literal_markers_keep_their_own_styles(self):
+        terminal = self.terminal
+        read = call(path='frontend/src/services/' + 'long-path/' * 8 + 'index.js')
+        progress = dict(call('report_progress', message='✓ Comentário público da IA'), id='progress')
+        failed = dict(call('run_command', command='python -m unittest'), id='failed')
+        refused = dict(call('write_file', path='README.md'), id='refused')
+        terminal.chat['messages'] = [
+            {'role': 'user', 'content': '◆ Centaur\nPedido do usuário'},
+            {'role': 'assistant', 'content': '✓ Comentário que parece ação\n  Texto indentado',
+             'tool_calls': [read, progress, failed, refused]},
+            {'role': 'tool', 'tool_call_id': read['id'], 'content': 'arquivo lido'},
+            {'role': 'tool', 'tool_call_id': progress['id'], 'content': '✓ Comentário público da IA'},
+            {'role': 'tool', 'tool_call_id': failed['id'], 'content': 'Código de saída: 1\nerro'},
+            {'role': 'tool', 'tool_call_id': refused['id'], 'content': 'Execução recusada pelo usuário.'},
+            {'role': 'assistant', 'content': '```python\n  print("✓ Leu arquivo")\n```'}]
+        lines = terminal.lines(28)
+        self.assertEqual(next(line for line in lines if 'Comentário que' in line).style, 'comment')
+        self.assertEqual(next(line for line in lines if 'público da IA' in line).style, 'comment')
+        self.assertTrue(all(line.style == 'user' for line in lines if line.startswith('› ')))
+        self.assertTrue(all(line.style == 'warning' for line in lines if 'Falha' in line or 'Recusado' in line))
+        action_lines = [line for line in lines if line.style == 'action']
+        self.assertGreater(len(action_lines), 2)
+        self.assertTrue(action_lines[0].startswith('  ✓ Leu'))
+        self.assertTrue(all(line.style == 'text' for line in lines if 'print(' in line))
+        # The actual drawing path consumes the same styles after wrapping/scroll.
+        terminal.view.palette.styles.update(comment=101, action=102, warning=103, text=104)
+        screen = Screen((40, 80))
+        with patch('centaur_cli.appearance.curses.curs_set'):
+            terminal.draw(screen)
+        output = screen.output
+        self.assertEqual(next(style for _, _, text, style in output if 'Comentário que' in text), 101)
+        self.assertEqual(next(style for _, _, text, style in output if '✓ Leu frontend' in text), 102)
+        self.assertEqual(next(style for _, _, text, style in output if '! Falha' in text), 103)
+        self.assertEqual(next(style for _, _, text, style in output if 'print(' in text), 104)
+        with patch.dict('os.environ', {'NO_COLOR': '1'}):
+            palette = Palette()
+            palette.initialize()
+        self.assertNotEqual(palette.styles['action'], palette.styles['comment'])
 
     def test_progress_tool_has_no_side_effects_and_redacts_secrets(self):
         tools = ProjectTools(self.root, lambda _: self.fail('Progress requested approval'), protected_keys=('secret',))

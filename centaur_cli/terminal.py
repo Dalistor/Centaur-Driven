@@ -16,7 +16,7 @@ from .context import compact_chat, context_label, estimate_tokens, save_compacti
 from .speed import validate_speed, fast_supported
 from .native_usage import BalanceUnavailable
 from .completion import SkillCompletion
-from .conversation import generate_title, readable_markdown, tool_activity
+from .conversation import TranscriptLine, generate_title, readable_markdown, tool_activity
 from .tools import ProjectTools
 from .appearance import TerminalView
 from .graphics import FRAME_SECONDS
@@ -663,41 +663,51 @@ class Terminal:
             return [f'{">" if index == self.selected else " "} {chat["updated"][:16]}  {chat["title"]}'
                     for index, chat in enumerate(self.chats)] or ['Nenhum chat salvo nesta pasta.']
         lines, actions, working = [], {}, False
+        def append_text(text, style='text', indent=''):
+            lines.extend(TranscriptLine(indent + line, style)
+                         for line in display_lines(text, max(1, width - len(indent))))
         messages = list(self.chat['messages'])
         results = {m.get('tool_call_id'): m.get('content', '') for m in messages if m['role'] == 'tool'}
         for message in messages:
             content = message.get('content') or ''
             if message['role'] == 'user':
                 working = False
-                lines.extend([''] + ['› ' + text for text in display_lines(content, max(1, width - 2))] + [''])
+                lines.append(TranscriptLine(''))
+                append_text(content, 'user', '› ')
+                lines.append(TranscriptLine(''))
             elif message['role'] == 'assistant' and message.get('tool_calls'):
                 if not working:
-                    lines.append('◦ Trabalho · Ctrl+O detalhes')
+                    lines.append(TranscriptLine('◦ Trabalho · Ctrl+O detalhes', 'muted'))
                     working = True
                 if content:
-                    lines.extend('  ' + text for text in display_lines(readable_markdown(content), width - 2))
+                    append_text(readable_markdown(content), 'comment', '  ')
                 for call in message['tool_calls']:
                     actions[call['id']] = call
                     if call['function']['name'] == 'report_progress':
                         continue
                     summary = tool_activity(call, results.get(call['id']))
-                    lines.extend('  ' + text for text in display_lines(summary, width - 2))
+                    append_text(summary, 'warning' if summary.startswith(('!', '–')) else 'action', '  ')
             elif message['role'] == 'tool':
                 call = actions.get(message.get('tool_call_id'), {})
                 if call.get('function', {}).get('name') == 'report_progress':
-                    lines.extend('  ' + text for text in display_lines(readable_markdown(content), width - 2))
+                    append_text(readable_markdown(content), 'comment', '  ')
                 elif self.show_details:
-                    lines.extend(['↳ Ferramenta'] + display_lines(content, width) + [''])
+                    lines.append(TranscriptLine('↳ Ferramenta', 'action'))
+                    append_text(content)
+                    lines.append(TranscriptLine(''))
             elif message['role'] == 'assistant':
                 if working:
-                    lines.append('')
+                    lines.append(TranscriptLine(''))
                     working = False
-                lines.extend(['◆ Centaur'] + display_lines(readable_markdown(content), width) + [''])
+                lines.append(TranscriptLine('◆ Centaur', 'green'))
+                append_text(readable_markdown(content))
+                lines.append(TranscriptLine(''))
         if self.busy and not self.approval:
-            lines.extend(['◦ ' + self.view.activity(self, self.notice)])
+            lines.append(TranscriptLine('◦ ' + self.view.activity(self, self.notice), 'muted'))
         if self.chat.get('last_error'):
-            lines.extend(['', '! Erro no turno'] + display_lines(self.chat['last_error'], width)
-                         + display_lines('/retry retoma sem reenviar a mensagem; /new começa outra conversa.', width))
+            lines.extend([TranscriptLine(''), TranscriptLine('! Erro no turno', 'warning')])
+            append_text(self.chat['last_error'], 'warning')
+            append_text('/retry retoma sem reenviar a mensagem; /new começa outra conversa.', 'muted')
         return lines or ['Centaur experimental · OpenRouter', '', '/new cria chat · /quit sai']
 
     def draw(self, screen):

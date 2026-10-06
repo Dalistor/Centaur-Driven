@@ -56,7 +56,8 @@ class Palette:
             for shade in range(16):
                 self.styles[self.graphic_style(shade, accent)] = (
                     curses.A_DIM if shade < 5 else curses.A_BOLD if shade > 12 else 0)
-        self.styles.update(title=curses.A_BOLD, user=curses.A_BOLD)
+        self.styles.update(title=curses.A_BOLD, user=curses.A_BOLD,
+                           comment=0, action=curses.A_BOLD)
 
     @staticmethod
     def graphic_style(shade, accent):
@@ -91,6 +92,8 @@ class Palette:
             self.styles[name] = curses.color_pair(pair)
         self.styles['green'] |= curses.A_BOLD
         self.styles['title'] = self.styles['text'] | curses.A_BOLD
+        self.styles['comment'] = self.styles['text']
+        self.styles['action'] = self.styles['blue'] | curses.A_BOLD
         self.styles['user'] = self.styles['text'] | curses.A_BOLD
         if extended and curses.COLOR_PAIRS > 40:
             curses.init_pair(40, 252, 236)
@@ -416,18 +419,16 @@ class TerminalView:
                     self.put(screen, composer_separator - 1, transcript_left,
                              f'Histórico · linhas {start + 1}–{min(len(lines), start + available)} de {len(lines)} · Ctrl+E fim', 'blue')
             for row, line in enumerate(lines[start:start + available], top):
-                style = 'text'
-                if line.startswith('› '):
-                    style = 'user'
+                style = getattr(line, 'style', None)
+                if style is None:
+                    style = 'text'
+                    if line.startswith('› '): style = 'user'
+                    elif line.startswith('◆ Centaur'): style = 'green'
+                    elif line.startswith('◦ ') or line.startswith('  '): style = 'muted'
+                    elif line.startswith('↳ Ferramenta'): style = 'blue'
+                    elif line.startswith(('CONFIRMAÇÃO', '! Erro')): style = 'warning'
+                if style == 'user':
                     self.put(screen, row, transcript_left - 1, ' ' * (transcript_width + 2), style)
-                elif line.startswith('◆ Centaur'):
-                    style = 'green'
-                elif line.startswith('◦ ') or line.startswith('  '):
-                    style = 'muted'
-                elif line.startswith('↳ Ferramenta'):
-                    style = 'blue'
-                elif line.startswith(('CONFIRMAÇÃO', '! Erro')):
-                    style = 'warning'
                 self.put(screen, row, transcript_left, line, style, transcript_width)
         terminal.completion.update(terminal.draft if terminal.cursor == len(terminal.draft) else '')
         completing = (terminal.completion.visible and not terminal.browser and not terminal.approval

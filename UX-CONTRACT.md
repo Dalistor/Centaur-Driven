@@ -51,6 +51,10 @@ O harness não transforma uma resposta de IA ou relatório de subagente em aprov
 `conversation.py` é o dono dos resumos de ações, da apresentação de Markdown e do pedido
 de título. `Terminal.lines` preserva a ordem da conversa: usuário, progresso público,
 ferramentas resumidas, resposta final. `Ctrl+O` alterna detalhes sem mudar foco ou rascunho.
+`TranscriptLine` leva o estilo definido pela origem até `TerminalView`: comentário branco,
+ação azul, falha/recusa âmbar. Quebra de linha e rolagem preservam a distinção; marcadores
+ou indentação dentro do conteúdo não mudam o papel visual. `NO_COLOR` distingue ações
+em negrito de comentários normais, conservando símbolos e descrições de estado.
 Resultados continuam íntegros no histórico; campos de reasoning do provedor não são renderizados.
 Marcadores de execução só mostram sucesso quando a ferramenta já retornou sem falha/recusa.
 Confirmações continuam prioritárias e os resumos não concedem aprovação.

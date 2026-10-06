@@ -178,6 +178,9 @@ título em negrito no topo e resposta final separada do trabalho em andamento. O
 pode comunicar próximos passos e descobertas em resumos públicos antes das ferramentas;
 as ações mostram estado pendente, conclusão, falha ou recusa a partir de seus resultados.
 `Ctrl+O` abre as saídas completas; o histórico continua armazenando os resultados originais.
+Comentários públicos da IA ficam em branco; ações de ferramentas em azul/negrito;
+falhas, interrupções e recusas em âmbar. A distinção acompanha as linhas quebradas e a
+rolagem. Com `NO_COLOR`, ações usam negrito e comentários peso normal.
 Esse resumo não exibe raciocínio interno do provedor. Markdown básico fica legível e
 blocos de código preservam seu conteúdo literal.
 

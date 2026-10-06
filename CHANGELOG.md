@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.4 — 2026-10-06
+
+- Comentários públicos da IA ficam em branco; ações de ferramentas em azul/negrito e falhas, interrupções ou recusas em âmbar.
+- Cores seguem a origem da mensagem e permanecem nas linhas quebradas, sem confundir comentários ou código indentado com ações. Em `NO_COLOR`, ações usam negrito e comentários peso normal.
+
 ## 0.7.3 — 2026-10-06
 
 - Compactação tem orçamento total de 180 segundos, separado do timeout do chat; chamadas de resumo recebem até 90 segundos, respeitando o tempo restante. `CENTAUR_COMPACT_TIMEOUT` configura o orçamento (30–3600).

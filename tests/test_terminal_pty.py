@@ -33,7 +33,8 @@ class RecordingTerminal(Terminal):
     def draw(self, screen):
         super().draw(screen)
         data={'draft':self.draft,'cursor':self.cursor,'busy':self.busy,
-              'chat':self.chat,'requests':self.client.requests,'width':self.input_width,'notice':self.notice}
+              'chat':self.chat,'requests':self.client.requests,'width':self.input_width,'notice':self.notice,
+              'action_style':self.view.palette.styles['action'],'comment_style':self.view.palette.styles['comment']}
         pending=root/'snapshot.tmp'
         pending.write_text(json.dumps(data))
         pending.replace(root/'snapshot.json')
@@ -74,7 +75,8 @@ class TerminalPTYTests(unittest.TestCase):
                     self.fail('Terminal did not reach expected state: ' + transcript.decode(errors='replace')[-1000:])
                 def send(value): os.write(master, value)
                 try:
-                    wait_for(lambda s: s['width'] == 73)
+                    snapshot = wait_for(lambda s: s['width'] == 73)
+                    self.assertNotEqual(snapshot['action_style'], snapshot['comment_style'])
                     text = 'abc ' * 30
                     send(text.encode() + b'\x1b[13;2u' + b'segunda\nterceira\x1b[27;2;13~quarta')
                     expected = text + '\nsegunda\nterceira\nquarta'
