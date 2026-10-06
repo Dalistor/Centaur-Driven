@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 — 2026-10-06
+
+- Computer use: zoom de regiões com mapeamento de coordenadas de volta ao desktop e retorno ao monitor inteiro.
+- Novas ações: clique direito/meio/triplo, arrasto e rolagem horizontal; teclas F1–F12 e aliases de modificadores.
+- Espera cancelável de até 10s para observar carregamentos e estabilização visual limitada após input, sem alegar sucesso da tarefa.
+- Quadros idênticos são enviados uma vez por decisão; PNGs são codificados durante a captura e incluem área física, idade e autorização restante.
+- Troca de sessão atômica, proteção contra encerramento por workers antigos e diagnóstico de captura interrompida.
+- Digitação em blocos verifica cancelamento; teclas e botão de arrasto são liberados mesmo após falha/fail-safe.
+- Pesquisa comparativa de Anthropic, Cua, Browser Use e usecomputer; novos testes de contrato e desktop Xvfb real.
+
 ## 0.5.1 — 2026-10-06
 
 - Retomar um turno com `content=null` recupera chamadas pendentes sem repetir ações.

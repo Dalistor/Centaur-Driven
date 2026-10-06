@@ -86,6 +86,9 @@ pipx install --force 'centaur-cli[computer] @ git+https://github.com/Dalistor/Ce
 
 Requer modelo com visão e desktop Linux X11 ou macOS com permissões de tela/acessibilidade.
 Captura autorizada por até 120s, cerca de 2 quadros/s; cada ação pede confirmação.
+Zoom de áreas pequenas, arrasto, cliques adicionais, rolagem horizontal e teclas F1–F12.
+Quadros repetidos são deduplicados. Esperas canceláveis e estabilização visual após input
+ajudam a observar carregamentos; o modelo ainda precisa verificar o resultado da tarefa.
 Ctrl+C para a captura. Não é inferência contínua por vídeo; as decisões seguem a latência
 do modelo. Quadros não ficam no histórico; Codex usa anexos temporários apagados após
 a requisição. No Linux, texto Unicode precisa de xclip/xsel.

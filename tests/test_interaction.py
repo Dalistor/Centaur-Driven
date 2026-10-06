@@ -247,6 +247,7 @@ class InteractionTests(InteractionFixture):
 class ComputerTests(InteractionFixture):
     def session(self, approval=lambda _: True, **options):
         desktop = Desktop()
+        options.setdefault('settle_timeout', 0)
         session = ComputerSession(approval, backend_factory=lambda: desktop, **options)
         self.addCleanup(session.close)
         return session, desktop
@@ -344,6 +345,16 @@ class ComputerTests(InteractionFixture):
             with self.assertRaises(ValueError):
                 client.reply({'content': None, 'calls': [{'name': 'computer_action', 'arguments': {
                     'action': 'click', 'x': x, 'y': 1, 'frame_id': 1}}]}, COMPUTER_TOOLS)
+        for backend in ('codex', 'claude'):
+            with patch('centaur_cli.native_client.shutil.which', return_value='/fake/cli'):
+                client = NativeClient(backend, 'model')
+            for arguments in ({'region': [1, 2, 3], 'frame_id': 1},
+                              {'region': [1, 2, True, 4], 'frame_id': 1}, {'wait_seconds': 11}):
+                with self.assertRaises(ValueError):
+                    client.reply({'content': None, 'calls': [{'name': 'computer_observe', 'arguments': arguments}]}, COMPUTER_TOOLS)
+            result = client.reply({'content': None, 'calls': [{'name': 'computer_observe', 'arguments': {
+                'region': [10, 20, 300, 200], 'frame_id': 1, 'wait_seconds': 2}}]}, COMPUTER_TOOLS)
+            self.assertEqual(json.loads(result['tool_calls'][0]['function']['arguments'])['region'], [10, 20, 300, 200])
 
     def test_native_clients_receive_image_bytes_and_delete_temporary_files(self):
         executable = self.root / 'native-fixture'

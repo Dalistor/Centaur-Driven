@@ -144,6 +144,26 @@ ou diferença visual no alvo após confirmação exige nova observação; essa h
 não substitui uma identificação confiável de aplicativo. Texto/teclas aprovados incluem
 um clique explícito para restaurar foco no alvo. Unicode usa clipboard com restauração.
 
+`computer_observe` permite `region=[x,y,largura,altura]` referente ao último `frame_id`.
+O recorte mantém um mapa de origem/extensão física e fornece nova referência visual;
+coordenadas posteriores são pixels da nova imagem. Sem `region`, retorna ao monitor
+inteiro. Trocar o recorte limpa o buffer/referência anteriores. `wait_seconds` (0–10)
+é cancelável, não gera input, não renova acesso e não exige nova permissão dentro da
+sessão já autorizada. Não reduz o escopo de captura originalmente autorizado.
+
+Cada arrasto confirma origem/destino no mesmo quadro, verifica visualmente ambos e
+libera o botão em `finally`. Atalhos liberam todas as teclas tentadas após falha.
+Fail-safe só é suspenso para liberação de input já pressionado e restaurado em seguida.
+Texto ASCII é aplicado em blocos de até 50 caracteres, com verificação de cancelamento.
+Depois de input, espera limitada de aproximadamente 1,5s procura estabilidade visual;
+estabilidade ou timeout jamais são evidência de sucesso da tarefa. Falha pós-input
+informa que a ação já foi entregue e nunca permite replay automático.
+
+Frames conservam PNG codificado e até três imagens recentes; a decisão recebe somente
+as últimas cópias de imagens idênticas, em ordem temporal. A última sempre é a referência.
+Instalar uma sessão nova é atômico; workers/operações de sessões antigas não podem
+limpar seu backend ou registrar falhas nela. Encerramento descarta também o recorte.
+
 Captura termina com Ctrl+C, expiração, conclusão/falha do turno, `computer_stop` ou
 fail-safe do PyAutoGUI (ponteiro em um canto). Erros não alegam sucesso. Reiniciar exige
 nova autorização. Linux X11/macOS com display e permissões; Wayland, desktop bloqueado,

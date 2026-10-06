@@ -50,7 +50,7 @@ jobs:
       - run: sudo apt-get update -qq && sudo apt-get install -y xvfb xauth xclip
       - run: python -m pip install '.[computer]'
       - name: Verify capture and input in a disposable desktop
-        run: xvfb-run -a env CENTAUR_TEST_DESKTOP=1 python -m unittest discover -s tests -p test_computer_desktop.py -v
+        run: xvfb-run -a -s '-screen 0 800x600x24' env CENTAUR_TEST_DESKTOP=1 python -m unittest discover -s tests -p test_computer_desktop.py -v
 
   build:
     needs: [test, computer]

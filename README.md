@@ -408,6 +408,20 @@ a aproximadamente 2 quadros/s. Um indicador **TELA ATIVA** aparece no cabeçalho
 Até três quadros recentes são enviados a cada decisão do modelo; após clicar, digitar
 ou rolar, uma nova observação permite verificar o resultado. A captura acompanha mudanças
 durante a espera pelo modelo, com memória limitada aos três quadros recentes.
+Quadros idênticos são enviados uma única vez por decisão. Cada imagem informa sua idade,
+área física e o tempo restante da autorização.
+
+O Centaur pode ampliar uma região para ler controles pequenos e voltar ao monitor inteiro.
+O zoom usa os pixels originais do recorte e traduz as coordenadas da nova imagem para o
+desktop. As ações incluem clique esquerdo/direito/meio/duplo/triplo, movimento, arrasto,
+rolagem vertical/horizontal, digitação e atalhos (incluindo F1–F12).
+Peça, por exemplo: **“Amplie a área do formulário, arraste o item e confira o resultado;
+espere o carregamento se necessário.”**
+
+Após input, o Centaur observa a tela por até aproximadamente 1,5s, buscando três intervalos
+sem mudança entre capturas. A IA também pode pedir uma espera cancelável de até 10s antes
+de observar. **Estabilidade visual não confirma o sucesso da tarefa**: o modelo precisa
+conferir o resultado. Essas esperas não renovam a autorização de 120s.
 
 **Isto é captura contínua local com inferência por quadros, não transmissão de vídeo em
 tempo real para o modelo.** A latência das decisões depende do provedor e da conexão.
@@ -425,7 +439,10 @@ mantêm perguntas e ferramentas do projeto.
 
 Ctrl+C para a captura e bloqueia novas ações, mesmo durante uma chamada ao modelo.
 Mover o ponteiro para um canto do monitor principal aciona o fail-safe; o controle não
-desativa essa proteção. A captura também para quando o turno acaba, falha, é interrompido
+desativa essa proteção para iniciar ações. Após uma interrupção, apenas a liberação de
+teclas/botões já pressionados ignora temporariamente o fail-safe, evitando input preso.
+Digitação longa verifica cancelamento entre blocos de até 50 caracteres.
+A captura também para quando o turno acaba, falha, é interrompido
 ou expira; continuar requer nova autorização. O histórico nunca restaura autorização.
 
 Os quadros não são gravados no chat nem em uma gravação de vídeo. Para o Codex, arquivos
@@ -444,6 +461,9 @@ Referências de implementação: [Computer use da OpenAI](https://developers.ope
 [CLI Codex](https://learn.chatgpt.com/docs/developer-commands),
 [CLI Claude](https://code.claude.com/docs/en/cli-reference) e
 [fail-safe do PyAutoGUI](https://pyautogui.readthedocs.io/en/latest/index.html).
+
+A versão 0.6.0 também compara o demo da Anthropic, Cua, Browser Use e usecomputer.
+Veja [pesquisa, contrato de ferramentas e validação](docs/computer-use.md).
 
 ### Validar integração e conclusão
 
