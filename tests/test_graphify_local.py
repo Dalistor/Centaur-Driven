@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 
-SCRIPT = Path(__file__).resolve().parents[1] / 'centaur-driven-graphify/scripts/graphify-local.py'
+SCRIPT = Path(__file__).resolve().parents[1] / 'centaur_cli/skills/graphify/scripts/graphify-local.py'
 spec = importlib.util.spec_from_file_location('graphify_local', SCRIPT)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -25,6 +25,7 @@ class GraphifyLocalTests(unittest.TestCase):
 
     def test_cli_receives_isolated_output_and_literal_arguments(self):
         with tempfile.TemporaryDirectory() as temp:
+            temp = str(Path(temp).resolve())
             root = Path(temp)
             binary = root / 'bin/graphify'
             binary.parent.mkdir()

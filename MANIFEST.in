@@ -1,0 +1,7 @@
+include README.md README.pypi.md CHANGELOG.md pyproject.toml
+recursive-include centaur_cli/skills *
+recursive-include scripts *.py
+recursive-include tests *.py
+include docs/publishing.md
+global-exclude *.py[cod]
+global-exclude __pycache__
