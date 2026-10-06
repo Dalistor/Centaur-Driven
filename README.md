@@ -318,9 +318,27 @@ Em conversas curtas, o comando informa que não há mensagens antigas elegíveis
 
 Digite `$compact` e pressione **Enter uma vez** para iniciar. Tab somente completa o
 comando. Durante a execução, o rodapé mostra o fragmento atual/total e eventuais revisões.
-O tamanho dos fragmentos considera a janela conhecida, com teto de 120 mil caracteres,
-para evitar chamadas pequenas em excesso. O resumo usa effort `low` quando o catálogo
+O tamanho dos fragmentos considera a janela conhecida, com teto de 48 mil caracteres.
+Uma chamada de resumo tem até 90 segundos; se exceder esse prazo, o fragmento é reduzido
+pela metade e tentado novamente, sem descartar texto. O resumo usa effort `low` quando o catálogo
 anuncia esse nível, ou o padrão do provedor; o effort escolhido para o chat não muda.
+
+Cada operação tem orçamento total de **180 segundos**, incluindo revisões e novas tentativas.
+O progresso é salvo em disco após cada fragmento validado. Se o orçamento acabar, ocorrer
+uma falha ou você interromper, execute `$compact` novamente para retomar do trecho salvo,
+inclusive depois de fechar e reabrir o Centaur. Um primeiro fragmento lento também deixa
+salvo seu tamanho reduzido para a próxima tentativa. O rodapé informa a interrupção;
+rascunhos parciais não são enviados como memória do chat. A retomada verifica que o
+prefixo, o modelo e a memória anterior continuam iguais. Esse orçamento é independente
+de `CENTAUR_NATIVE_TIMEOUT`; para permitir uma operação mais longa:
+
+```bash
+CENTAUR_COMPACT_TIMEOUT=300 centaur .
+```
+
+O valor deve ser um inteiro entre 30 e 3600 segundos. No OpenRouter, o timeout de rede
+continua limitado a 60 segundos por chamada; no Codex/Claude, o processo da chamada de
+resumo é encerrado ao exceder seu prazo. Há tempo adicional de encerramento e gravação.
 
 **Autocompact** fica habilitado: antes da próxima chamada, inclusive entre etapas de
 ferramentas, o Centaur compacta mensagens antigas quando o uso estimado chega a **80% da

@@ -7,7 +7,7 @@ from .tools import TOOLS
 from . import skill_catalog
 from .permissions import MODE_HELP
 from .interaction import TurnCancelled
-from .context import active_messages, compaction_state, record_context, auto_compaction_needed, compact_chat, save_compaction
+from .context import active_messages, compaction_state, record_context, auto_compaction_needed, compact_chat, save_compaction, save_compaction_progress
 
 
 def project_prompt(root):
@@ -110,7 +110,8 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
         if auto_compaction_needed(chat, client, payload, definitions):
             if progress: progress('Compactando automaticamente o contexto · histórico preservado…')
             try:
-                state, before, after = compact_chat(chat, client, getattr(tools, 'cancel_event', None), progress=progress)
+                state, before, after = compact_chat(chat, client, getattr(tools, 'cancel_event', None), progress=progress,
+                    checkpoint=lambda pending: save_compaction_progress(chat, store, pending, getattr(tools, 'cancel_event', None)))
                 check_cancelled()
                 save_compaction(chat, store, state, getattr(tools, 'cancel_event', None))
             except TurnCancelled:

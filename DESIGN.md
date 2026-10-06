@@ -81,6 +81,10 @@ Comandos locais isolados executam com um único Enter no autocomplete; Tab só c
 Skills e menções no meio de frases conservam inserção antes do envio. O rodapé diferencia
 essas ações. Compactação mostra fragmento atual/total e a revisão em andamento, com o
 tempo de atividade já existente; progresso não representa uma porcentagem de inferência.
+Compactação informa o orçamento total (180s por padrão) e reduz fragmentos após timeout.
+O progresso é persistido, sem substituir memória ativa; interrupção orienta retomar com
+`$compact`, inclusive após reinício. Rascunhos só são reutilizados para o mesmo prefixo,
+modelo e memória anterior. Nenhuma tentativa prolonga indefinidamente a operação.
 
 Créditos ficam no canto inferior direito. A barra usa
 10 células em janelas amplas e 5 nas estreitas, com valor em US$. Verde indica disponibilidade;

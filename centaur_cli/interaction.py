@@ -7,6 +7,11 @@ class TurnCancelled(RuntimeError):
     pass
 
 
+class RequestTimeout(RuntimeError):
+    """A request exceeded its deadline; never evidence that actions succeeded."""
+    pass
+
+
 ASK_USER = {'type': 'function', 'function': {
     'name': 'ask_user',
     'description': 'Perguntar ao usuário quando uma decisão necessária não puder ser inferida. Não use para aprovar ferramentas.',

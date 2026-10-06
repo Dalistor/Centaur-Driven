@@ -12,7 +12,7 @@ from .settings import ConfigPicker
 from .openrouter import OpenRouter
 from .agent import run_turn, project_prompt
 from .tools import TOOLS
-from .context import compact_chat, context_label, estimate_tokens, save_compaction
+from .context import compact_chat, context_label, estimate_tokens, save_compaction, save_compaction_progress
 from .speed import validate_speed, fast_supported
 from .native_usage import BalanceUnavailable
 from .completion import SkillCompletion
@@ -262,7 +262,8 @@ class Terminal:
     def compact(self, chat, client, cancel_event):
         try:
             state, before, after = compact_chat(chat, client, cancel_event,
-                progress=lambda notice: self.events.put(('progress', notice)))
+                progress=lambda notice: self.events.put(('progress', notice)),
+                checkpoint=lambda pending: save_compaction_progress(chat, self.store, pending, cancel_event))
             self.events.put(('compacted', (chat, cancel_event, state, before, after)))
         except Exception as error:
             message = getattr(client, 'redact', str)(str(error))

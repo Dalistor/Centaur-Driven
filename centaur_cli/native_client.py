@@ -15,7 +15,7 @@ from uuid import uuid4
 from .openrouter import ModelReply
 from .config import validate_effort
 from .vision import split_images, native_input
-from .interaction import TurnCancelled
+from .interaction import TurnCancelled, RequestTimeout
 from .speed import local_speed_support, fast_supported, validate_speed
 from .native_usage import NativeBalance, BalanceUnavailable, claude_windows, read_codex_balance
 
@@ -204,6 +204,7 @@ def process_failure(backend, code, stderr, output=''):
 class NativeClient:
     allows_model_routing = False
     supports_cancellation = True
+    supports_request_timeout = True
 
     def __init__(self, backend, model=''):
         if backend not in ('codex', 'claude'):
@@ -345,7 +346,13 @@ class NativeClient:
             arguments += ['-']
         return arguments
 
-    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', cancel_event=None, speed='standard'):
+    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', cancel_event=None, speed='standard', request_timeout=None):
+        if request_timeout is not None and (isinstance(request_timeout, bool)
+                or not isinstance(request_timeout, (int, float)) or not 0 < request_timeout <= 3600):
+            raise ValueError('Tempo limite de requisição inválido.')
+        timeout = self.timeout if request_timeout is None else min(self.timeout, request_timeout)
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 3600:
+            raise ValueError('Tempo limite de requisição inválido.')
         if cost_tier is not None:
             raise ValueError('cost_tier é exclusivo de OpenRouter.')
         if model != self.fixed_model and model not in self.model_catalog():
@@ -367,9 +374,9 @@ class NativeClient:
                                            start_new_session=True)
                 try:
                     if cancel_event is None:
-                        output, errors = process.communicate(input_text, timeout=self.timeout)
+                        output, errors = process.communicate(input_text, timeout=timeout)
                     else:
-                        deadline, pending_input = time.monotonic() + self.timeout, input_text
+                        deadline, pending_input = time.monotonic() + timeout, input_text
                         while True:
                             if cancel_event.is_set():
                                 os.killpg(process.pid, signal.SIGKILL)
@@ -377,7 +384,7 @@ class NativeClient:
                                 raise TurnCancelled('Turno interrompido pelo usuário.')
                             remaining = deadline - time.monotonic()
                             if remaining <= 0:
-                                raise subprocess.TimeoutExpired(arguments, self.timeout)
+                                raise subprocess.TimeoutExpired(arguments, timeout)
                             try:
                                 output, errors = process.communicate(pending_input, timeout=min(0.1, remaining))
                                 break
@@ -386,7 +393,10 @@ class NativeClient:
                 except subprocess.TimeoutExpired:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.communicate()
-                    raise RuntimeError(f'{self.backend}: tempo limite de {self.timeout} segundos; '
+                    if request_timeout is not None:
+                        raise RequestTimeout(f'{self.backend}: tempo limite de {timeout:g} segundos na requisição de resumo; '
+                                           'nenhuma ferramenta foi executada.') from None
+                    raise RuntimeError(f'{self.backend}: tempo limite de {timeout:g} segundos; '
                                        'ajuste CENTAUR_NATIVE_TIMEOUT ou use $compact e /retry. '
                                        'Nenhuma chamada pendente foi aplicada.') from None
                 if process.returncode:

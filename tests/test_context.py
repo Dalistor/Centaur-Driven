@@ -10,9 +10,9 @@ import unittest
 from unittest.mock import Mock, patch
 
 from centaur_cli.agent import project_prompt, run_turn
-from centaur_cli.context import active_messages, compact_chat, context_label, estimate_tokens, record_context, auto_compaction_needed
+from centaur_cli.context import active_messages, compact_chat, context_label, estimate_tokens, record_context, auto_compaction_needed, save_compaction_progress, save_compaction
 from centaur_cli.history import ChatStore
-from centaur_cli.interaction import TurnCancelled
+from centaur_cli.interaction import TurnCancelled, RequestTimeout
 from centaur_cli.native_client import NativeClient, codex_usage
 from centaur_cli.openrouter import ModelReply, OpenRouter
 from centaur_cli.terminal import Terminal
@@ -231,7 +231,9 @@ class ContextTests(unittest.TestCase):
                                  'content': f'Parte {index}: ' + 'contexto ' * 2000} for index in range(24)]
         original = copy.deepcopy(self.chat['messages'])
         compact_chat(self.chat, self.client)
-        self.assertLessEqual(self.client.complete.call_count, 3)
+        self.assertLessEqual(self.client.complete.call_count, 7)
+        self.assertTrue(all(len(json.loads(call.args[1][1]['content'])['fragmento']) <= 48000
+                            for call in self.client.complete.call_args_list))
         self.assertEqual(self.chat['messages'], original)
         self.assertTrue(all(call.args[2] == [] for call in self.client.complete.call_args_list))
 
@@ -252,6 +254,166 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(self.chat['messages'][:-1], before)
         self.assertEqual(self.chat['context_usage']['used'], 1220)
         self.assertTrue(self.chat['context_usage']['provider_count'])
+
+    def test_timeout_stops_large_compaction_and_resume_skips_saved_fragments(self):
+        self.client.context_windows = {'main': 200000}
+        self.client.supports_request_timeout = True
+        self.chat['messages'][0]['content'] = 'histórico importante ' * 55000
+        original = copy.deepcopy(self.chat['messages'])
+        elapsed = [0]
+        def reply(*args, **kwargs):
+            elapsed[0] += 90
+            return {'content': 'Objetivos, decisões e validações preservados.'}
+        self.client.complete.side_effect = reply
+        checkpoint = lambda pending: save_compaction_progress(self.chat, self.store, pending)
+        with patch('centaur_cli.context.time.monotonic', side_effect=lambda: elapsed[0]):
+            with self.assertRaisesRegex(RuntimeError, 'limite de 180s'):
+                compact_chat(self.chat, self.client, checkpoint=checkpoint)
+        self.assertEqual(self.client.complete.call_count, 2)
+        pending = self.store.list()[0]['compaction_pending']
+        self.assertEqual(pending['offset'], 96000)
+        self.assertNotIn('compaction', self.chat)
+        self.assertEqual(active_messages(self.chat), original)
+        self.chat = self.store.list()[0]  # Survives restarting the terminal.
+        self.client.complete.reset_mock()
+        self.client.complete.side_effect = None
+        notices = []
+        state, _, _ = compact_chat(self.chat, self.client, progress=notices.append,
+            checkpoint=lambda pending: save_compaction_progress(self.chat, self.store, pending))
+        self.assertIn('fragmento 3/', notices[0])
+        self.assertEqual(json.loads(self.client.complete.call_args_list[0].args[1][1]['content'])['resumo_anterior'],
+                         pending['summary'])
+        save_compaction(self.chat, self.store, state)
+        self.assertNotIn('compaction_pending', self.store.list()[0])
+        self.assertEqual(self.chat['messages'], original)
+
+    def test_failed_fragment_resumes_after_checkpoint_and_new_messages(self):
+        original = copy.deepcopy(self.chat['messages'])
+        self.client.complete.side_effect = [{'content': 'Memória validada.'}, RuntimeError('provedor indisponível')]
+        with self.assertRaisesRegex(RuntimeError, 'fragmento 2/'):
+            compact_chat(self.chat, self.client,
+                checkpoint=lambda pending: save_compaction_progress(self.chat, self.store, pending))
+        pending = copy.deepcopy(self.chat['compaction_pending'])
+        self.chat['messages'].append({'role': 'user', 'content': 'Novo requisito; não descartar.'})
+        self.client.complete.reset_mock()
+        self.client.complete.side_effect = None
+        state, _, _ = compact_chat(self.chat, self.client)
+        self.assertEqual(state['through'], pending['through'])
+        self.assertNotIn('Mensagem 0:', self.client.complete.call_args.args[1][1]['content'])
+        self.assertEqual(self.chat['messages'][:-1], original)
+        self.assertIn('Novo requisito', active_messages({**self.chat, 'compaction': state})[-1]['content'])
+
+    def test_changed_history_or_model_invalidates_saved_summary(self):
+        self.client.complete.side_effect = [{'content': 'Memória validada.'}, RuntimeError('offline')]
+        with self.assertRaises(RuntimeError):
+            compact_chat(self.chat, self.client,
+                checkpoint=lambda pending: save_compaction_progress(self.chat, self.store, pending))
+        pending = copy.deepcopy(self.chat['compaction_pending'])
+        for change in ('history', 'model'):
+            chat = copy.deepcopy(self.chat)
+            chat['compaction_pending'] = pending
+            if change == 'history': chat['messages'][0]['content'] = 'Requisito corrigido.'
+            else: chat['model'] = 'other'
+            self.client.complete.reset_mock()
+            self.client.complete.side_effect = None
+            notices = []
+            compact_chat(chat, self.client, progress=notices.append)
+            self.assertIn('fragmento 1/', notices[0])
+            first = json.loads(self.client.complete.call_args_list[0].args[1][1]['content'])
+            self.assertEqual(first['resumo_anterior'], '')
+            self.assertIn(chat['messages'][0]['content'][:30], first['fragmento'])
+
+    def test_checkpoint_write_failure_and_cancel_never_apply_partial_memory(self):
+        original = copy.deepcopy(self.chat)
+        pending = {'summary': 'rascunho'}
+        with patch.object(self.store, 'save', side_effect=OSError('disco cheio')):
+            with self.assertRaises(OSError): save_compaction_progress(self.chat, self.store, pending)
+        self.assertEqual(self.chat, original)
+        cancel = threading.Event()
+        cancel.set()
+        with self.assertRaises(TurnCancelled): save_compaction_progress(self.chat, self.store, pending, cancel)
+        self.assertEqual(self.chat, original)
+
+    def test_summary_repair_shares_deadline_and_requests_use_remaining_budget(self):
+        self.client.supports_request_timeout = True
+        elapsed = [0]
+        def reply(*args, **kwargs):
+            elapsed[0] += 80
+            return {'content': 'x' * 4000}
+        self.client.complete.side_effect = reply
+        with patch('centaur_cli.context.time.monotonic', side_effect=lambda: elapsed[0]):
+            with self.assertRaises(ValueError): compact_chat(self.chat, self.client)
+        self.assertEqual([call.kwargs['request_timeout'] for call in self.client.complete.call_args_list], [90, 90, 20])
+        self.assertNotIn('compaction', self.chat)
+
+    def test_invalid_timeout_does_not_call_provider_or_change_history(self):
+        original = copy.deepcopy(self.chat)
+        for value in ('0', '29', '3601', 'forever'):
+            with patch.dict(os.environ, {'CENTAUR_COMPACT_TIMEOUT': value}):
+                with self.assertRaisesRegex(ValueError, 'CENTAUR_COMPACT_TIMEOUT'):
+                    compact_chat(self.chat, self.client)
+        self.client.complete.assert_not_called()
+        self.assertEqual(self.chat, original)
+
+    def test_slow_first_fragment_shrinks_and_finishes_without_losing_material(self):
+        original = copy.deepcopy(self.chat)
+        sent = []
+        def reply(model, messages, tools, **options):
+            data = json.loads(messages[1]['content'])
+            sent.append(data['fragmento'])
+            if len(sent) == 1: raise RequestTimeout('Codex demorou')
+            return {'content': 'Requisitos e pendências preservados.'}
+        self.client.complete.side_effect = reply
+        notices = []
+        state, _, _ = compact_chat(self.chat, self.client, progress=notices.append)
+        self.assertEqual(len(sent[1]), len(sent[0]) // 2)
+        self.assertTrue(any('reduzindo' in notice for notice in notices))
+        source = json.dumps([{key: value for key, value in message.items()
+            if key in ('role', 'content', 'tool_calls', 'tool_call_id')}
+            for message in self.chat['messages'][:state['through']]], ensure_ascii=False)
+        self.assertEqual(''.join(sent[1:]), source)
+        self.assertEqual(self.chat, original)
+
+    def test_repeated_native_timeouts_save_smaller_first_fragment_for_restart(self):
+        elapsed = [0]
+        def timeout(*args, **options):
+            elapsed[0] += 90
+            raise RequestTimeout('Codex demorou')
+        self.client.complete.side_effect = timeout
+        self.client.supports_request_timeout = True
+        with patch('centaur_cli.context.time.monotonic', side_effect=lambda: elapsed[0]):
+            with self.assertRaisesRegex(RuntimeError, 'limite de 180s'):
+                compact_chat(self.chat, self.client,
+                    checkpoint=lambda pending: save_compaction_progress(self.chat, self.store, pending))
+        pending = self.store.list()[0]['compaction_pending']
+        self.assertEqual(pending['offset'], 0)
+        self.assertEqual(pending['chunk_size'], 3000)
+        self.assertEqual(pending['summary'], '')
+        self.assertEqual(self.client.complete.call_count, 2)
+        self.client.complete.reset_mock()
+        self.client.complete.side_effect = None
+        compact_chat(self.store.list()[0], self.client)
+        self.assertEqual(len(json.loads(self.client.complete.call_args_list[0].args[1][1]['content'])['fragmento']), 3000)
+
+    def test_auto_failure_saves_progress_without_running_main_request(self):
+        original = copy.deepcopy(self.chat['messages'])
+        self.client.complete.side_effect = [{'content': 'Objetivos e validações.'}, RuntimeError('offline')]
+        with self.assertRaisesRegex(RuntimeError, 'automática falhou'):
+            run_turn(self.chat, self.client, ProjectTools(self.root, lambda _: True), self.store, lambda: None)
+        self.assertGreater(self.store.list()[0]['compaction_pending']['offset'], 0)
+        self.assertNotIn('compaction', self.chat)
+        self.assertEqual(self.chat['messages'], original)
+        self.assertTrue(all(call.args[2] == [] for call in self.client.complete.call_args_list))
+
+    def test_non_reducing_final_summary_is_not_cached_as_completed_work(self):
+        self.chat['messages'] = [{'role': 'user', 'content': 'a'}] * 9
+        self.client.complete.return_value = {'content': 'Resumo longo ' * 15}
+        original = copy.deepcopy(self.chat)
+        with self.assertRaisesRegex(ValueError, 'não reduziu'):
+            compact_chat(self.chat, self.client,
+                checkpoint=lambda pending: save_compaction_progress(self.chat, self.store, pending))
+        self.assertEqual(self.chat, original)
+        self.assertEqual(self.store.list(), [])
 
     def test_bar_uses_current_usage_and_marks_estimates_and_unknown_limits(self):
         record_context(self.chat, self.client, active_messages(self.chat), [],
@@ -360,3 +522,27 @@ class NativeContextTests(unittest.TestCase):
             {'type': 'turn.completed', 'usage': {'input_tokens': 100, 'cached_input_tokens': 80, 'output_tokens': 30}}]))
         self.assertEqual(codex_usage(output), {'prompt_tokens': 100, 'completion_tokens': 30})
         self.assertEqual(codex_usage('invalid\n{"type":"turn.completed","usage":null}'), {'prompt_tokens': None, 'completion_tokens': None})
+
+    def test_summary_timeout_kills_real_native_process_without_changing_chat_timeout(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            executable = Path(temporary, 'slow-codex')
+            executable.write_text('#!/usr/bin/env python3\nimport sys,time\nsys.stdin.read()\ntime.sleep(30)\n')
+            executable.chmod(0o700)
+            with patch('centaur_cli.native_client.shutil.which', return_value=str(executable)):
+                client = NativeClient('codex', 'main')
+            original_timeout = client.timeout
+            with self.assertRaisesRegex(RuntimeError, 'requisição de resumo'):
+                client.complete('main', [], [], request_timeout=0.1, cancel_event=threading.Event())
+            self.assertEqual(client.timeout, original_timeout)
+            for value in (0, -1, True, '90', float('nan')):
+                with self.assertRaises(ValueError): client.complete('main', [], [], request_timeout=value)
+
+    def test_openrouter_summary_timeout_does_not_extend_normal_network_timeout(self):
+        client = OpenRouter('fake-key')
+        payload = {'choices': [{'message': {'content': 'Memória'}}]}
+        with patch('centaur_cli.openrouter.urlopen', return_value=io.BytesIO(json.dumps(payload).encode())) as request:
+            client.complete('main', [], [], request_timeout=12.5)
+        self.assertEqual(request.call_args.kwargs['timeout'], 12.5)
+        with patch('centaur_cli.openrouter.urlopen', return_value=io.BytesIO(json.dumps(payload).encode())) as request:
+            client.complete('main', [], [])
+        self.assertEqual(request.call_args.kwargs['timeout'], 60)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.3 — 2026-10-06
+
+- Compactação tem orçamento total de 180 segundos, separado do timeout do chat; chamadas de resumo recebem até 90 segundos, respeitando o tempo restante. `CENTAUR_COMPACT_TIMEOUT` configura o orçamento (30–3600).
+- Fragmentos têm teto de 48 mil caracteres. Timeout reduz o fragmento pela metade e tenta novamente dentro do mesmo orçamento, sem cortar material do histórico.
+- Cada fragmento validado salva progresso em disco; `$compact` e autocompact retomam após falha, cancelamento ou reinício, sem refazer os fragmentos concluídos. Alterações no prefixo, modelo ou memória invalidam o rascunho.
+- Progresso parcial não substitui a memória ativa. Somente um resumo completo, válido e que reduza contexto é aplicado; o histórico e os lotes de ferramentas continuam intactos.
+
 ## 0.7.2 — 2026-10-06
 
 - `$compact` inicia com um único Enter mesmo com autocomplete aberto; comandos locais também executam diretamente, enquanto Tab continua apenas completando.

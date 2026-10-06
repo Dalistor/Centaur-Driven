@@ -7,6 +7,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .credits import CreditBalance, amount
 from .speed import validate_speed
+from .interaction import RequestTimeout
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -29,6 +30,7 @@ class ModelReply(dict):
 class OpenRouter:
     backend = 'openrouter'
     allows_model_routing = True
+    supports_request_timeout = True
 
     def __init__(self, api_key, credits_key=None):
         self.api_key = api_key
@@ -134,7 +136,13 @@ class OpenRouter:
         except (HTTPError, URLError, TimeoutError, OSError, ValueError, KeyError, TypeError):
             raise RuntimeError('Catálogo indisponível; use Modelo personalizado ou tente novamente.') from None
 
-    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', speed='standard'):
+    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', speed='standard', request_timeout=None):
+        if request_timeout is not None and (isinstance(request_timeout, bool)
+                or not isinstance(request_timeout, (int, float)) or not 0 < request_timeout <= 3600):
+            raise ValueError('Tempo limite de requisição inválido.')
+        timeout = 60 if request_timeout is None else min(60, request_timeout)
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 60:
+            raise ValueError('Tempo limite de requisição inválido.')
         from .config import validate_effort
         validate_effort(self.backend, effort)
         self.check_speed(model, speed)
@@ -163,7 +171,7 @@ class OpenRouter:
                                    'Content-Type': 'application/json',
                                    'X-OpenRouter-Title': 'Centaur CLI'})
         try:
-            with urlopen(request, timeout=60) as response:
+            with urlopen(request, timeout=timeout) as response:
                 result = json.load(response)
             if 'error' in result:
                 raise RuntimeError('OpenRouter recusou a requisição. Confira chave, saldo e modelo.')
@@ -176,7 +184,11 @@ class OpenRouter:
                               result.get('service_tier'))
         except HTTPError as error:
             raise RuntimeError(f'OpenRouter HTTP {error.code}. Confira chave, saldo e modelo.') from error
-        except (URLError, TimeoutError) as error:
+        except TimeoutError as error:
+            raise RequestTimeout('Tempo limite da requisição OpenRouter; tente novamente.') from error
+        except URLError as error:
+            if isinstance(error.reason, TimeoutError):
+                raise RequestTimeout('Tempo limite da requisição OpenRouter; tente novamente.') from error
             raise RuntimeError('Falha de conexão com OpenRouter; tente novamente.') from error
         except (ValueError, KeyError, IndexError, TypeError) as error:
             raise RuntimeError('Resposta inválida do OpenRouter.') from error
