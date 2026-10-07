@@ -33,5 +33,3 @@ def omit_optional_nulls(value, spec):
     if isinstance(value, list) and spec.get('type') == 'array':
         return [omit_optional_nulls(item, spec['items']) for item in value]
     return value
-
-
