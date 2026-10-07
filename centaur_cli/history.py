@@ -8,20 +8,34 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 from .attachments import attachment_directory
+from .sessions import read_state
 
 
 class ChatStore:
     def __init__(self, root):
-        self.directory = Path(root).resolve() / '.centaur' / 'chats'
+        self.root = Path(root).resolve()
+        self.directory = self.root / '.centaur' / 'chats'
 
     def new(self, model, backend='openrouter'):
-        return {'id': uuid4().hex, 'title': 'Novo chat', 'model': model, 'backend': backend,
-                'updated': datetime.now(timezone.utc).isoformat(), 'messages': []}
+        created = datetime.now(timezone.utc).isoformat()
+        return {'created': created, 'id': uuid4().hex, 'title': 'Novo chat', 'model': model, 'backend': backend,
+                'updated': created, 'messages': []}
 
-    def save(self, chat):
-        self.path(chat['id'])
+    def save(self, chat, *, touch=True):
+        path = self.path(chat['id'])
+        if path.exists():
+            try:
+                existing = json.loads(path.read_text(encoding='utf-8'))
+                if not isinstance(existing, dict):
+                    raise ValueError('Histórico inválido.')
+                chat['created'] = existing.get('created') or existing['updated']
+            except (OSError, ValueError, KeyError, TypeError):
+                chat.setdefault('created', chat.get('updated') or datetime.now(timezone.utc).isoformat())
+        else:
+            chat.setdefault('created', chat.get('updated') or datetime.now(timezone.utc).isoformat())
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-        chat['updated'] = datetime.now(timezone.utc).isoformat()
+        if touch:
+            chat['updated'] = datetime.now(timezone.utc).isoformat()
         descriptor, temporary = tempfile.mkstemp(dir=self.directory, suffix='.tmp')
         try:
             with os.fdopen(descriptor, 'w', encoding='utf-8') as output:
@@ -36,6 +50,8 @@ class ChatStore:
         chats = []
         for path in self.directory.glob('*.json'):
             try:
+                if path.is_symlink():
+                    continue
                 chat = json.loads(path.read_text(encoding='utf-8'))
                 if (chat['id'] == path.stem and len(chat['id']) == 32
                         and all(c in '0123456789abcdef' for c in chat['id'])
@@ -44,6 +60,9 @@ class ChatStore:
                         and isinstance(chat['messages'], list)
                         and isinstance(chat['title'], str)
                         and isinstance(chat['updated'], str)):
+                    if not chat.get('created'):
+                        chat['created'] = chat['updated']
+                        self.save(chat, touch=False)
                     chats.append(chat)
             except (OSError, ValueError, KeyError, TypeError):
                 continue
@@ -51,10 +70,75 @@ class ChatStore:
 
     def delete(self, chat_id):
         path = self.path(chat_id)
-        directory = attachment_directory(self.directory.parent.parent, chat_id)
+        if read_state(self.root, chat_id) != 'stopped':
+            raise ValueError('Aguarde a sessão terminar antes de excluir o chat.')
+        directory = attachment_directory(self.root, chat_id)
+        descendants = self.root / '.centaur' / 'agents' / chat_id
+        runtime = self.root / '.centaur' / 'runtime'
+        if descendants.is_symlink() or descendants.parent.is_symlink() or runtime.is_symlink():
+            raise ValueError('Histórico de agentes/runtime não pode ser redirecionado.')
+        if self.directory == self.root / '.centaur' / 'chats' and descendants.exists():
+            children = self.agents(parent_id=chat_id)
+            if any(read_state(self.root, child['id']) != 'stopped' for child in children):
+                raise ValueError('Aguarde os subagentes terminarem antes de excluir o chat.')
+            for child in children:
+                (runtime / (child['id'] + '.json')).unlink(missing_ok=True)
+                child_attachments = attachment_directory(self.root, child['id'])
+                if child_attachments.exists():
+                    shutil.rmtree(child_attachments)
+            shutil.rmtree(descendants)
         if directory.exists():
             shutil.rmtree(directory)
+        (runtime / (chat_id + '.json')).unlink(missing_ok=True)
         path.unlink(missing_ok=True)
+
+    def agents(self, parent_id=None):
+        base = self.root / '.centaur' / 'agents'
+        if base.is_symlink():
+            return []
+        output = []
+        for directory in base.glob('*'):
+            if not directory.is_dir() or directory.is_symlink():
+                continue
+            try:
+                self.path(directory.name)
+            except ValueError:
+                continue
+            if parent_id and directory.name != parent_id:
+                continue
+            store = ChatStore(self.root)
+            store.directory = directory
+            output.extend(chat for chat in store.list() if chat.get('parent_id') == directory.name)
+        return sorted(output, key=lambda chat: chat['updated'], reverse=True)
+
+    def prune(self, protected=(), now=None):
+        """Delete expired, inactive sessions by immutable creation time."""
+        now = datetime.now(timezone.utc) if now is None else now
+        protected = set(protected)
+        agents = self.agents() if self.directory == self.root / '.centaur' / 'chats' else []
+        protected.update(chat['parent_id'] for chat in agents if read_state(self.root, chat['id']) != 'stopped')
+        removed = []
+        for chat in self.list():
+            try:
+                if not isinstance(chat.get('created'), str):
+                    continue
+                created = datetime.fromisoformat(chat['created'].replace('Z','+00:00'))
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+                expired = (now - created).total_seconds() > 64 * 3600
+                if expired and chat['id'] not in protected and read_state(self.root, chat['id']) == 'stopped':
+                    self.delete(chat['id'])
+                    removed.append(chat['id'])
+            except (OSError, ValueError, TypeError):
+                continue
+        # Subagent records also expire independently, unless their parent is active.
+        for chat in agents:
+            if chat['parent_id'] in protected or read_state(self.root, chat['parent_id']) != 'stopped':
+                continue
+            store = ChatStore(self.root)
+            store.directory = self.root / '.centaur' / 'agents' / chat['parent_id']
+            removed.extend(store.prune(protected, now))
+        return removed
 
     def path(self, chat_id):
         if (not isinstance(chat_id, str) or len(chat_id) != 32

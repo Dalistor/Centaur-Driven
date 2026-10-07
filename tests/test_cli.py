@@ -52,14 +52,16 @@ class CliTests(unittest.TestCase):
         self.assertEqual(terminal.chat['id'], first['id'])
         self.assertEqual(terminal.chat['model'], 'model/first')
 
-    def test_chat_switch_is_blocked_during_request(self):
+    def test_chat_switch_leaves_original_request_running(self):
         self.store.save(self.store.new('test'))
         terminal = Terminal(self.root, 'test', self.store, None)
         current = terminal.chat['id']
         terminal.busy = True
         terminal.handle(curses.KEY_SLEFT)
         terminal.handle('\n')
-        self.assertEqual(terminal.chat['id'], current)
+        self.assertNotEqual(terminal.chat['id'], current)
+        self.assertTrue(terminal.session_states[current]['busy'])
+        self.assertFalse(terminal.busy)
 
     def test_delete_removes_selected_chat_from_disk_and_preserves_other_chat(self):
         first = self.store.new('first')

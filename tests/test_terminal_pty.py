@@ -18,6 +18,7 @@ import unittest
 
 CHILD = r'''
 import copy, curses, json, sys
+import centaur_cli.terminal as terminal_module
 from pathlib import Path
 from centaur_cli.history import ChatStore
 from centaur_cli.terminal import Terminal
@@ -40,6 +41,7 @@ class RecordingTerminal(Terminal):
         pending.write_text(json.dumps(data))
         pending.replace(root/'snapshot.json')
 root=Path(sys.argv[1]); client=Client()
+terminal_module.clipboard_content=lambda **kwargs: ('text', (root/'fixture com espaço.txt').as_uri())
 terminal=RecordingTerminal(root,'fixture',ChatStore(root),client)
 terminal.chat['messages']=[{'role':'user' if i%2==0 else 'assistant','content':f'log {i}: '+'details '*150} for i in range(14)]
 terminal.chat['title_attempted']=True
@@ -114,14 +116,22 @@ class TerminalPTYTests(unittest.TestCase):
                     attachment = root / 'fixture com espaço.txt'
                     attachment.write_text('fact-from-attachment', encoding='utf-8')
                     requests_before = len(snapshot['requests'])
-                    send('$attach \"fixture com espaço.txt\"\r'.encode())
-                    snapshot = wait_for(lambda s: s['pending_attachments'] == 1 and not s['draft'])
+                    send(b'\x1b[200~' + str(attachment).encode() + b'\x1b[201~')
+                    snapshot = wait_for(lambda s: s['pending_attachments'] == 1 and '[Arquivo #' in s['draft'])
                     self.assertEqual(len(snapshot['requests']), requests_before)
+                    send(b'\x7f')
+                    wait_for(lambda s: not s['pending_attachments'] and not s['draft'])
+                    send(b'\x16')
+                    wait_for(lambda s: s['pending_attachments'] == 1 and '[Arquivo #' in s['draft'])
                     send(b'examine\r')
                     snapshot = wait_for(lambda s: not s['busy'] and len(s['chat']['messages']) == 20)
                     self.assertEqual(snapshot['pending_attachments'], 0)
                     self.assertIn('fact-from-attachment', json.dumps(snapshot['requests'][-1]['messages']))
                     self.assertIn('attachments', snapshot['chat']['messages'][-2])
+                    send(b'\x1b[A')
+                    wait_for(lambda s: s['pending_attachments'] == 1 and 'examine' in s['draft'])
+                    send(b'\x1b[B')
+                    wait_for(lambda s: not s['pending_attachments'] and not s['draft'])
                     self.assertIn(b'\x1b[?2004h', transcript)
                     send(b'\x11')
                     # BSD PTYs have smaller output buffers: consume curses teardown

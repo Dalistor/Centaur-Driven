@@ -36,7 +36,7 @@ class RoutedClient:
 
 
 class SubagentTools:
-    def __init__(self, base, client, parent_id, emit, max_tier='high'):
+    def __init__(self, base, client, parent_id, emit, max_tier='high', *, registry=None):
         if max_tier not in COST_TIERS:
             raise ValueError('Faixa máxima de subagentes inválida.')
         if (not isinstance(parent_id, str) or len(parent_id) != 32
@@ -44,6 +44,7 @@ class SubagentTools:
             raise ValueError('Identificador do chat coordenador inválido.')
         self.base, self.client, self.parent_id = base, client, parent_id
         self.root, self.emit, self.max_tier = base.root, emit, max_tier
+        self.registry = registry
         self.approval_mode = base.approval_mode
         self.cancel_event = base.cancel_event
         self.routing = getattr(client, 'allows_model_routing', True)
@@ -99,26 +100,40 @@ class SubagentTools:
                      'approval_mode': self.approval_mode,
                      'status': 'running', 'messages': [{'role': 'user', 'content': self.base.redact(task)}]})
         store.save(chat)
-        self.emit(f'Subagente: {title} · {model or getattr(self.client, "backend", "openrouter")} · {"faixa " + tier if tier else "backend conectado"}')
-        tools = ProjectTools(self.root,
-                             lambda description: self.base.approve(f'Subagente {title}\n{description}'),
-                             protected_keys=self.base.protected_keys, approval_mode=self.approval_mode,
-                             ask_user=self.base.ask_user, cancel_event=self.base.cancel_event)
-        instructions = ('\nVocê é executor de UMA task delegada. Não é o coordenador. '
-                        'Leia clean-code e a skill implement/tdd conforme o modo. '
-                        'Não crie outros subagentes. Edite somente os arquivos sob sua posse; '
-                        'contratos, spec, índices, estado e documentos compartilhados são do coordenador. '
-                        'Não substitua critérios de aceite. Relate arquivos, verificações, '
-                        'evidências, pendências e limites. Seu relatório ainda será conferido.\n')
+        if self.registry:
+            self.registry.set(chat['id'], 'running')
         try:
-            run_turn(chat, RoutedClient(self.client, chat['id'], tier) if self.routing else self.client, tools, store,
-                     lambda: self.emit(f'Subagente: {title} · {chat.get("models_used", [model])[-1]}'),
-                     instructions)
-            chat['status'] = 'reported'
-            report = chat['messages'][-1].get('content') or ''
-        except Exception as error:
-            chat['status'] = 'failed'
-            report = self.base.redact(str(error))
+            self.emit(f'Subagente: {title} · {model or getattr(self.client, "backend", "openrouter")} · {"faixa " + tier if tier else "backend conectado"}')
+            def interact(callback, *args):
+                if self.registry:
+                    self.registry.set(chat['id'], 'waiting_input')
+                try:
+                    return callback(*args)
+                finally:
+                    if self.registry:
+                        self.registry.set(chat['id'], 'running')
+            tools = ProjectTools(self.root,
+                                 lambda description: interact(self.base.approve, f'Subagente {title}\n{description}'),
+                                 protected_keys=self.base.protected_keys, approval_mode=self.approval_mode,
+                                 ask_user=lambda question, options: interact(self.base.ask_user, question, options), cancel_event=self.base.cancel_event)
+            instructions = ('\nVocê é executor de UMA task delegada. Não é o coordenador. '
+                            'Leia clean-code e a skill implement/tdd conforme o modo. '
+                            'Não crie outros subagentes. Edite somente os arquivos sob sua posse; '
+                            'contratos, spec, índices, estado e documentos compartilhados são do coordenador. '
+                            'Não substitua critérios de aceite. Relate arquivos, verificações, '
+                            'evidências, pendências e limites. Seu relatório ainda será conferido.\n')
+            try:
+                run_turn(chat, RoutedClient(self.client, chat['id'], tier) if self.routing else self.client, tools, store,
+                         lambda: self.emit(f'Subagente: {title} · {chat.get("models_used", [model])[-1]}'),
+                         instructions)
+                chat['status'] = 'reported'
+                report = chat['messages'][-1].get('content') or ''
+            except Exception as error:
+                chat['status'] = 'failed'
+                report = self.base.redact(str(error))
+        finally:
+            if self.registry:
+                self.registry.set(chat['id'], 'stopped')
         store.save(chat)
         models = list(dict.fromkeys(chat.get('models_used', [])))
         self.emit(f'Subagente: {title} · {chat["status"]} · {", ".join(models) or "modelo não informado"}')

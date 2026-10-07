@@ -4,11 +4,12 @@ import copy
 import curses
 import shlex
 import queue
+import re
 import textwrap
 import threading
 import time
 
-from .attachments import prepare_file, capture_screen, check_support, persist, summary_attachments, MAX_PENDING
+from .attachments import prepare_file, capture_screen, check_support, persist, summary_attachments, load_copy, prepare_bytes, MAX_PENDING
 from .backends import create_client
 from .config import save_config, validate
 from .settings import ConfigPicker
@@ -24,11 +25,13 @@ from .tools import ProjectTools
 from .appearance import TerminalView
 from .graphics import FRAME_SECONDS
 from .subagents import SubagentTools
+from .sessions import SessionRegistry, LABELS
 from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 from .permissions import validate_mode, MODE_LABELS
 from .interaction import QuestionPicker, TurnCancelled
 from .computer import ComputerSession
-from .composer import layout_input
+from .composer import layout_input, attachment_span, atomic_cursor, replace_input, without_attachment_markers
+from .clipboard import clipboard_content, pasted_paths
 from .keyboard import KEY_NEWLINE, PastedText, KeyboardReader, keyboard_protocol, read_key
 
 
@@ -39,7 +42,40 @@ def display_lines(text, width):
             for line in (textwrap.wrap(paragraph, max(1, width)) or [''])]
 
 
+class SessionEvents:
+    """Tag worker output with its originating chat, including late replies."""
+    def __init__(self, events, chat_id):
+        self.events, self.chat_id = events, chat_id
+
+    def put(self, event):
+        self.events.put(('session', (self.chat_id, *event)))
+
+
 class Terminal:
+    SESSION_DEFAULTS = {'busy': False, 'approval': None, 'question': None,
+                        'computer': None, 'busy_started': None, 'saved_scroll': 0,
+                        'notice': ''}
+
+    def session_value(name):
+        def get(self):
+            state = self.session_states.setdefault(self.chat['id'], {})
+            if name == 'cancel_event':
+                return state.setdefault(name, threading.Event())
+            return state.get(name, self.SESSION_DEFAULTS[name])
+        def set(self, value):
+            self.session_states.setdefault(self.chat['id'], {})[name] = value
+        return property(get, set)
+
+    busy = session_value('busy')
+    approval = session_value('approval')
+    question = session_value('question')
+    computer = session_value('computer')
+    busy_started = session_value('busy_started')
+    saved_scroll = session_value('saved_scroll')
+    notice = session_value('notice')
+    cancel_event = session_value('cancel_event')
+    del session_value
+
     def __init__(self, root, model, store, client, max_subagent_tier='high', *, effort='default', approval_mode='ask', speed='standard'):
         self.root, self.model, self.store, self.client = root, model, store, client
         self.backend = getattr(client, 'backend', 'openrouter')
@@ -51,6 +87,14 @@ class Terminal:
         self.chat['effort'] = effort
         self.chat['approval_mode'] = self.approval_mode
         self.chat['speed'] = self.speed
+        self.session_states = {}
+        self.session_contexts = {}
+        self.live_chats = {}
+        self.registry = SessionRegistry(root)
+        self.browser_mode = 'chats'
+        self.agent_preview = None
+        self.browser_refreshed = 0
+        self.next_cleanup = 0
         self.events = queue.Queue()
         self.busy = False
         self.approval = None
@@ -62,6 +106,9 @@ class Terminal:
         self.viewport_lines = 0
         self.scroll_limit = 0
         self.pending_by_chat = {}
+        self.drafts_by_chat = {}
+        self.attachment_sequence = 0
+        self.preparation_context = {}
         self.preparing_attachment = None
         self.attachment_cancel = threading.Event()
         self.draft = ''
@@ -70,7 +117,7 @@ class Terminal:
         self.prompt_index = None
         self.prompt_current = ('', 0)
         self.completion = SkillCompletion(root)
-        self.notice = 'Digite sua intenção · $attach arquivo · $screenshot · $config.'
+        self.notice = 'Digite sua intenção · Ctrl+V cola imagem · arraste um arquivo · $config.'
         self.settings = None
         self.rename_target = None
         self.rename_text = ''
@@ -132,8 +179,12 @@ class Terminal:
 
     def approve(self, description):
         answer = queue.Queue()
+        self.registry.set(self.chat['id'], 'waiting_input')
         self.events.put(('approval', (description, answer)))
-        return self.wait_answer(answer)
+        try:
+            return self.wait_answer(answer)
+        finally:
+            self.registry.set(self.chat['id'], 'running')
 
     def wait_answer(self, answer):
         while True:
@@ -146,8 +197,12 @@ class Terminal:
 
     def ask_user(self, question, options):
         answer = queue.Queue()
+        self.registry.set(self.chat['id'], 'waiting_input')
         self.events.put(('question', QuestionPicker(question, options, answer)))
-        return self.wait_answer(answer)
+        try:
+            return self.wait_answer(answer)
+        finally:
+            self.registry.set(self.chat['id'], 'running')
 
     def cancel_work(self):
         self.cancel_event.set()
@@ -160,7 +215,7 @@ class Terminal:
         self.notice = 'Interrompendo · captura parada e novas ações bloqueadas. Aguardando a chamada atual ao modelo.'
 
     def transcript_start(self, count, available, width):
-        key = (self.chat['id'], width, self.show_details)
+        key = ((self.agent_preview or self.chat)['id'], width, self.show_details)
         # Preserve the top visible row when new content arrives during manual reading.
         if self.viewport_key == key and self.scroll and count > self.viewport_lines:
             self.scroll += count - self.viewport_lines
@@ -176,6 +231,65 @@ class Terminal:
     def pending_attachments(self):
         return self.pending_by_chat.setdefault(self.chat['id'], [])
 
+    def add_attachment(self, item, chat_id=None):
+        chat_id = chat_id or self.chat['id']
+        pending = self.pending_by_chat.setdefault(chat_id, [])
+        self.attachment_sequence += 1
+        item = dict(item)
+        text = self.draft if chat_id == self.chat['id'] else self.drafts_by_chat.get(chat_id, ('', 0))[0]
+        while True:
+            item['marker'] = f'[{"Imagem" if item["kind"] == "image" else "Arquivo"} #{self.attachment_sequence}]'
+            if item['marker'] not in text:
+                break
+            self.attachment_sequence += 1
+        if chat_id == self.chat['id']:
+            self.insert_text(item['marker'])
+            item['span'] = [self.cursor - len(item['marker']), self.cursor]
+            pending.append(item)
+        else:
+            text, cursor = self.drafts_by_chat.get(chat_id, ('', 0))
+            text, cursor = replace_input(text, pending, cursor, cursor, item['marker'])
+            item['span'] = [cursor - len(item['marker']), cursor]
+            pending.append(item)
+            self.drafts_by_chat[chat_id] = (text, cursor)
+
+    def remove_attachment(self, item):
+        span = attachment_span(item, self.draft)
+        if span:
+            self.replace_draft(*span, '')
+        elif item in self.pending_attachments:
+            self.pending_attachments.remove(item)
+
+    def begin_attachment_read(self, prepare, label, *, command='', replace_range=None, snapshot=None):
+        if self.preparing_attachment:
+            self.notice = 'Preparando a colagem anterior · Ctrl+C cancela.'
+            return
+        try:
+            if len(self.pending_attachments) >= MAX_PENDING:
+                raise ValueError('Até oito anexos por mensagem; apague um marcador ou use $detach.')
+            self.store.save(self.chat)
+        except (ValueError, OSError) as error:
+            self.notice = 'Erro ao preparar anexo: ' + str(error)
+            return
+        token, chat_id = object(), self.chat['id']
+        cancellation = self.attachment_cancel = threading.Event()
+        self.preparing_attachment = token
+        self._preparing_chat_id = chat_id
+        self.attachment_command = command
+        self.preparation_context = {'snapshot': snapshot, 'replace_range': replace_range}
+        self.notice = label + ' · Ctrl+C cancela.'
+        def work():
+            try:
+                result = prepare(cancellation)
+                if not cancellation.is_set():
+                    self.events.put(('attachment_ready', (token, chat_id, result, None)))
+            except Exception as error:
+                if not cancellation.is_set():
+                    self.events.put(('attachment_ready', (token, chat_id, None,
+                        getattr(client, 'redact', str)(str(error)))))
+        client = self.client
+        threading.Thread(target=work, daemon=True).start()
+
     def prepare_attachment(self, command):
         client, model = self.client, self.chat['model']
         try:
@@ -183,56 +297,77 @@ class Terminal:
             name = parts[0].lstrip('$/')
             if name == 'attach':
                 if len(parts) != 2:
-                    raise ValueError('Uso: $attach "caminho do arquivo". Texto UTF-8, imagens estáticas ou PDF compatível.')
-                prepare = lambda: prepare_file(self.root, parts[1], client, model)
+                    raise ValueError('Uso: $attach "caminho"; você também pode colar/arrastar o arquivo no campo.')
+                prepare = lambda cancellation: {'items': [prepare_file(self.root, parts[1], client, model)]}
+                label = 'Preparando anexo'
             else:
                 if len(parts) > 2 or len(parts) == 2 and not parts[1].isdigit():
                     raise ValueError('Uso: $screenshot [segundos de espera, 0–10]. Captura única do monitor principal.')
                 delay = int(parts[1]) if len(parts) == 2 else 0
                 if not 0 <= delay <= 10:
                     raise ValueError('Espera deve ser de 0 a 10 segundos.')
-                prepare = lambda: capture_screen(client, model)
-            if len(self.pending_attachments) >= MAX_PENDING:
-                raise ValueError('Até oito anexos por mensagem. Use $detach <número|all>.')
+                def prepare(cancellation):
+                    if cancellation.wait(delay):
+                        return None
+                    return {'items': [capture_screen(client, model)]}
+                label = f'Capturando em {delay}s'
         except ValueError as error:
             self.notice = 'Erro: ' + str(error)
             return
-        try:
-            self.store.save(self.chat)  # Prepared queues remain reachable through the chat picker.
-        except OSError as error:
-            self.notice = 'Erro ao preparar anexo: ' + str(error)
-            return
-        token, chat_id = object(), self.chat['id']
-        self.preparing_attachment = token
-        self.attachment_command = command
-        cancellation = self.attachment_cancel = threading.Event()
         self.draft = ''
-        self.notice = ('Capturando em ' + str(delay) + 's · Ctrl+C cancela.' if name == 'screenshot'
-                       else 'Preparando anexo · Ctrl+C cancela.')
-        def work():
-            try:
-                if name == 'screenshot' and cancellation.wait(delay):
-                    return
-                item = prepare()
-                if not cancellation.is_set():
-                    self.events.put(('attachment_ready', (token, chat_id, item, None)))
-            except Exception as error:
-                if not cancellation.is_set():
-                    self.events.put(('attachment_ready', (token, chat_id, None,
-                        getattr(self.client, 'redact', str)(str(error)))))
-        threading.Thread(target=work, daemon=True).start()
+        self.begin_attachment_read(prepare, label, command=command)
+        if not self.preparing_attachment:
+            self.draft = command
+
+    def paste_text(self, text):
+        text = self.clean_pasted_text(text)
+        paths = pasted_paths(self.root, text)
+        start = self.cursor
+        self.insert_text(text)
+        if paths and not self.busy:
+            self.prepare_paths(paths, replace_range=(start, self.cursor), snapshot=(self.draft, self.cursor))
+
+    def prepare_paths(self, paths, *, replace_range=None, snapshot=None):
+        if len(paths) + len(self.pending_attachments) > MAX_PENDING:
+            self.notice = 'Erro: até oito anexos por mensagem; caminhos preservados.'
+            return
+        client, model = self.client, self.chat['model']
+        self.begin_attachment_read(lambda cancellation: {'items': [prepare_file(self.root, path, client, model) for path in paths]},
+                                   'Preparando arquivos colados', replace_range=replace_range, snapshot=snapshot)
+
+    def paste_clipboard(self):
+        if self.busy:
+            self.notice = 'Aguarde o turno terminar para colar anexos.'
+            return
+        client, model = self.client, self.chat['model']
+        root = self.root
+        def prepare(cancellation):
+            kind, value = clipboard_content(cancellation=cancellation)
+            if kind == 'image':
+                return {'items': [prepare_bytes('clipboard.png', value, client, model)]}
+            paths = pasted_paths(root, value)
+            if paths:
+                if len(paths) > MAX_PENDING:
+                    raise ValueError('Até oito anexos por mensagem; colagem não aplicada.')
+                return {'items': [prepare_file(root, path, client, model) for path in paths]}
+            return {'text': value}
+        self.begin_attachment_read(prepare, 'Lendo clipboard', snapshot=(self.draft, self.cursor))
 
     def submit(self):
         if self.busy or self.preparing_attachment or not (self.draft.strip() or self.pending_attachments):
             return
-        if self.draft.strip() == '/quit':
+        command = without_attachment_markers(self.draft, self.pending_attachments).strip()
+        if command == '/quit':
+            if any(state.get('busy') for state in self.session_states.values()):
+                self.notice = 'Aguarde as sessões terminarem ou interrompa cada uma com Ctrl+C para sair.'
+                return
             return 'quit'
-        if self.draft.strip() == '/new':
+        if command == '/new':
             self.chat = self.new_chat()
             self.draft = ''
             self.scroll = 0
             return
-        if self.draft.strip() in ('/credits', '$credits'):
+        if command in ('/credits', '$credits'):
             self.draft = ''
             self.credits_dirty = True
             self.notice = ('Atualizando créditos. Saldo da conta: cadastre com --configure-credits-key.'
@@ -243,7 +378,7 @@ class Terminal:
             self.draft = ''
             self.notice = 'Chave detectada: mensagem descartada para proteger a credencial.'
             return
-        command = self.draft.strip()
+        command = without_attachment_markers(self.draft, self.pending_attachments).strip()
         local_name = command.split(maxsplit=1)[0] if command else ''
         if local_name in ('$attach', '/attach', '$screenshot', '/screenshot'):
             return self.prepare_attachment(command)
@@ -255,14 +390,19 @@ class Terminal:
         if local_name in ('$detach', '/detach'):
             parts = command.split()
             if len(parts) == 2 and parts[1] == 'all':
-                self.pending_attachments.clear()
+                for item in list(self.pending_attachments):
+                    self.remove_attachment(item)
             elif len(parts) == 2 and parts[1].isdigit() and 1 <= int(parts[1]) <= len(self.pending_attachments):
-                self.pending_attachments.pop(int(parts[1]) - 1)
+                self.remove_attachment(self.pending_attachments[int(parts[1]) - 1])
             else:
                 self.notice = 'Erro: use $detach <número|all>; $attachments lista os anexos.'
                 return
             self.draft = ''
             self.notice = 'Anexo removido; Enter envia os restantes com sua mensagem.'
+            return
+        if command in ('/agents', '$agents'):
+            self.draft = ''
+            self.open_chats('agents')
             return
         if command == '/chats':
             self.draft = ''
@@ -278,8 +418,10 @@ class Terminal:
             self.cancel_event = threading.Event()
             self.busy = True
             self.busy_started = time.monotonic()
+            self.registry.set(self.chat['id'], 'running')
             self.notice = 'Compactando contexto com IA · histórico completo preservado · Ctrl+C interrompe.'
-            threading.Thread(target=self.compact, args=(self.chat, self.client, self.cancel_event), daemon=True).start()
+            worker = self.worker_context()
+            threading.Thread(target=worker.compact, args=(worker.chat, worker.client, worker.cancel_event), daemon=True).start()
             return
         if command == '/retry':
             self.draft = ''
@@ -316,6 +458,11 @@ class Terminal:
                 self.scroll = 0
                 self.notice = 'Status local · $status --ai analisa evidências e recomenda próximos passos.'
                 return
+        if command.startswith(("'", '"', '/', './', '../', '~/', 'file:')):
+            paths = pasted_paths(self.root, command)
+            if paths:
+                self.prepare_paths(paths, replace_range=(0, len(self.draft)), snapshot=(self.draft, self.cursor))
+                return
         try:
             check_support(self.client, self.chat['model'], self.pending_attachments)
             attachments = persist(self.root, self.chat['id'], self.pending_attachments) if self.pending_attachments else []
@@ -346,9 +493,46 @@ class Terminal:
         self.viewport_key = None
         self.cancel_event = threading.Event()
         self.busy = True
+        self.registry.set(self.chat['id'], 'running')
         self.busy_started = time.monotonic()
         self.notice = f'Aguardando {self.backend}…'
-        threading.Thread(target=self.work, args=(self.chat,), daemon=True).start()
+        worker = self.worker_context()
+        threading.Thread(target=worker.work, args=(worker.chat,), daemon=True).start()
+
+    def worker_context(self):
+        # The worker keeps its chat, client and permissions even when the UI changes.
+        worker = copy.copy(self)
+        worker.events = SessionEvents(self.events, self.chat['id'])
+        self.live_chats[self.chat['id']] = self.chat
+        self.session_contexts[self.chat['id']] = worker
+        return worker
+
+    def switch_chat(self, chat):
+        if chat["id"] != self.chat["id"] and self.computer:
+            self.computer.close()
+        self.chat = self.live_chats.get(chat['id'], chat)
+        context = self.session_contexts.get(chat['id'])
+        if context:
+            for name in ('client', 'backend', 'model', 'effort', 'speed', 'approval_mode'):
+                setattr(self, name, getattr(context, name))
+        if not context:
+            self.chat['approval_mode'] = self.approval_mode
+        self.draft = ''  # The setter saves/restores each chat's unsent input.
+        self.scroll = 0
+        self.viewport_key = None
+        self.completion.update('')
+        self.browser = False
+        self.agent_preview = None
+
+    def create_chat_from_menu(self):
+        if self.chat.get('messages') or self.draft or self.pending_attachments:
+            # Running workers already saved their messages; do not race their writes.
+            if not self.busy:
+                self.store.save(self.chat)
+        chat = self.new_chat()
+        self.store.save(chat)
+        self.switch_chat(chat)
+        self.notice = 'Novo chat · outras sessões continuam trabalhando.'
 
     def compact(self, chat, client, cancel_event):
         try:
@@ -366,37 +550,73 @@ class Terminal:
 
     @draft.setter
     def draft(self, value):
-        self._draft = value
-        self.cursor = len(value)
+        old_id = getattr(self, '_draft_chat_id', None)
+        current_id = self.chat['id']
+        if old_id and old_id != current_id:
+            self.drafts_by_chat[old_id] = (self._draft, self.cursor)
+            value, cursor = self.drafts_by_chat.get(current_id, (value, len(value)))
+        else:
+            if not value:
+                value = ''.join(item.get('marker', '') for item in self.pending_attachments)
+            cursor = len(value)
+        self._draft, self.cursor, self._draft_chat_id = value, cursor, current_id
+        for item in self.pending_attachments:
+            marker = item.get('marker')
+            index = value.find(marker) if marker else -1
+            item['span'] = [index, index + len(marker)] if index >= 0 else None
         self.preferred_input_column = None
         self.prompt_history = None
         self.prompt_index = None
+
+    def replace_draft(self, start, end, text):
+        self.prompt_history = self.prompt_index = None
+        self._draft, self.cursor = replace_input(self.draft, self.pending_attachments, start, end, text)
+        self.preferred_input_column = None
+
+    @staticmethod
+    def clean_pasted_text(text):
+        text = str(text).replace('\r\n', '\n').replace('\r', '\n').replace('\t', '    ')
+        return ''.join(c for c in text if c.isprintable() or c == '\n')
 
     def insert_text(self, text):
-        self.prompt_history = None
-        self.prompt_index = None
-        self._draft = self.draft[:self.cursor] + text + self.draft[self.cursor:]
-        self.cursor += len(text)
-        self.preferred_input_column = None
+        self.replace_draft(self.cursor, self.cursor, text)
 
     def recall_prompt(self, direction):
+        if self.preparing_attachment:
+            return True
         if self.prompt_history is None:
             if direction > 0: return False
-            self.prompt_history = [m['content'] for m in self.chat['messages']
+            self.prompt_history = [m for m in self.chat['messages']
                                    if m.get('role') == 'user' and isinstance(m.get('content'), str)]
             if not self.prompt_history:
                 self.prompt_history = None
                 return False
-            self.prompt_current = (self.draft, self.cursor)
+            self.prompt_current = (self.draft, self.cursor, copy.deepcopy(self.pending_attachments))
             self.prompt_index = len(self.prompt_history)
-        self.prompt_index = max(0, min(len(self.prompt_history), self.prompt_index + direction))
-        if self.prompt_index == len(self.prompt_history):
-            self._draft, self.cursor = self.prompt_current
+        index = max(0, min(len(self.prompt_history), self.prompt_index + direction))
+        if index == len(self.prompt_history):
+            self._draft, self.cursor, pending = self.prompt_current
+            self.pending_by_chat[self.chat['id']] = pending
             self.prompt_history = None
             self.prompt_index = None
         else:
-            self._draft = self.prompt_history[self.prompt_index]
+            message = self.prompt_history[index]
+            try:
+                pending = [dict(item, data=load_copy(self.root, self.chat['id'], item)) for item in message.get('attachments', [])]
+            except (ValueError, OSError) as error:
+                self.notice = 'Erro ao recuperar anexos: ' + str(error)
+                return True
+            self._draft = message['content']
             self.cursor = len(self._draft)
+            self.pending_by_chat[self.chat['id']] = pending
+            for item in pending:
+                marker = item.get('marker')
+                start = self._draft.find(marker) if marker else -1
+                item['span'] = [start, start + len(marker)] if start >= 0 else None
+                match = re.fullmatch(r'\[(?:Imagem|Arquivo) #(\d{1,6})\]', marker or '')
+                if match:
+                    self.attachment_sequence = max(self.attachment_sequence, int(match.group(1)))
+        self.prompt_index = index if self.prompt_history is not None else None
         self.preferred_input_column = None
         self.completion.update('')
         return True
@@ -539,7 +759,7 @@ class Terminal:
             threading.Thread(target=apply, daemon=True).start()
 
     def begin_rename(self, chat):
-        if self.busy and chat['id'] == self.chat['id']:
+        if self.session_state(chat) != 'stopped':
             self.notice = 'Aguarde o turno terminar para renomear o chat em execução.'
             return
         self.rename_target = chat
@@ -548,7 +768,7 @@ class Terminal:
         self.notice = 'Renomear chat · 1 a 80 caracteres · Enter salvar · Esc cancelar.'
 
     def rename_chat(self, chat, title):
-        if self.busy and chat['id'] == self.chat['id']:
+        if self.session_state(chat) != 'stopped':
             self.notice = 'Aguarde o turno terminar para renomear o chat em execução.'
             return False
         if any(secret and secret in title for secret in getattr(self.client, 'secrets', ())):
@@ -559,9 +779,13 @@ class Terminal:
         except (OSError, ValueError) as error:
             self.notice = f'Não foi possível renomear: {error}'
             return False
+        live = self.live_chats.get(chat['id'])
+        if live is not None:
+            live.clear()
+            live.update(renamed)
         if chat['id'] == self.chat['id']:
-            self.chat = renamed
-        self.chats = self.store.list()
+            self.chat = live if live is not None else renamed
+        self.refresh_browser()
         self.selected = next((index for index, item in enumerate(self.chats)
                               if item['id'] == chat['id']), 0)
         self.notice = 'Chat renomeado.'
@@ -588,6 +812,7 @@ class Terminal:
             self.rename_cursor += 1
 
     def work(self, chat):
+        completion_notice = 'Turno encerrado.'
         computer = ComputerSession(self.approve, self.cancel_event)
         self.computer = computer
         try:
@@ -604,7 +829,7 @@ class Terminal:
                 tools.cancel_event = self.cancel_event
             else:
                 tools = SubagentTools(base, self.client, chat['id'],
-                                      lambda notice: self.events.put(('progress', notice)), self.max_subagent_tier)
+                                      lambda notice: self.events.put(('progress', notice)), self.max_subagent_tier, registry=self.registry)
             backend_instructions = (f'\nBackend conectado: {self.backend}. Escolha o modelo por complexidade e risco '
                                     'entre os modelos listados em delegate_task. Não use cost_tier ou outro provedor. '
                                     'Se não houver catálogo, mantenha o modelo principal.\n'
@@ -627,7 +852,7 @@ class Terminal:
                                      args=(chat['id'], self.client, chat['model'], snapshot), daemon=True).start()
                 except (OSError, RuntimeError):
                     self.title_tasks.discard(chat['id'])
-            self.events.put(('done', 'Pronto.'))
+            completion_notice = 'Pronto.'
         except CompactionPaused as error:
             chat['turn_paused'] = str(error)
             notice = str(error)
@@ -635,11 +860,14 @@ class Terminal:
                 self.store.save(chat)
             except OSError:
                 notice += ' Não foi possível salvar a pausa; confira o armazenamento antes de fechar a sessão.'
-            self.events.put(('done', notice))
+            completion_notice = notice
         except TurnCancelled as error:
             chat['last_error'] = str(error)
-            self.store.save(chat)
-            self.events.put(('done', 'Turno interrompido. /retry retoma; confira ações já aplicadas.'))
+            try:
+                self.store.save(chat)
+            except OSError:
+                pass
+            completion_notice = 'Turno interrompido. /retry retoma; confira ações já aplicadas.'
         except Exception as error:
             message = getattr(self.client, 'redact', str)(str(error))
             chat['last_error'] = message
@@ -647,11 +875,13 @@ class Terminal:
                 self.store.save(chat)
             except OSError:
                 pass
-            self.events.put(('done', f'Erro: {message} · /retry retoma este turno.'))
+            completion_notice = f'Erro: {message} · /retry retoma este turno.'
         finally:
+            self.registry.set(chat['id'], 'stopped')
             computer.close()
             if self.computer is computer:
                 self.computer = None
+            self.events.put(('done', completion_notice))
 
     def make_title(self, chat_id, client, model, messages):
         try:
@@ -662,7 +892,7 @@ class Terminal:
 
     def apply_titles(self):
         for chat_id, title in list(self.pending_titles.items()):
-            if self.busy and self.chat['id'] == chat_id:
+            if self.session_states.get(chat_id, {}).get('busy'):
                 continue
             del self.pending_titles[chat_id]
             self.title_tasks.discard(chat_id)
@@ -670,34 +900,85 @@ class Terminal:
                 continue
             try:
                 renamed = self.store.generated_title(chat_id, title)
-                if renamed and self.chat['id'] == chat_id:
-                    self.chat.update(title=renamed['title'], title_generated=True)
+                if renamed:
+                    target = self.live_chats.get(chat_id)
+                    if target is not None:
+                        target.update(title=renamed['title'], title_generated=True)
+                    if self.chat['id'] == chat_id:
+                        self.chat.update(title=renamed['title'], title_generated=True)
                 if self.browser:
-                    selected_id = self.chats[self.selected]['id'] if self.chats else None
-                    self.chats = self.store.list()
-                    self.selected = next((i for i, c in enumerate(self.chats) if c['id'] == selected_id), 0)
+                    self.refresh_browser()
             except (OSError, ValueError):
                 pass  # Deleted/renamed chats are not recreated by late title requests.
 
-    def drain_events(self):
+    def drain_events(self, *, apply_titles=True):
         while not self.events.empty():
             kind, value = self.events.get_nowait()
+            if kind == 'session':
+                chat_id, kind, value = value
+                if chat_id != self.chat['id']:
+                    context = self.session_contexts.get(chat_id)
+                    if context:
+                        receiver = copy.copy(context)
+                        receiver.events = queue.Queue()
+                        receiver.events.put((kind, value))
+                        receiver.browser = False
+                        receiver.drain_events(apply_titles=False)
+                    continue
             if kind == 'backend_credits':
                 source, event = value
                 if source is not self.client:
                     continue
                 kind, value = event
             if kind == 'attachment_ready':
-                token, chat_id, item, error = value
+                token, chat_id, result, error = value
                 if token is not self.preparing_attachment:
                     continue
                 self.preparing_attachment = None
-                if item:
-                    self.pending_by_chat.setdefault(chat_id, []).append(item)
+                context = self.preparation_context
+                if error:
+                    if chat_id == self.chat['id']:
+                        if not self.draft:
+                            self.draft = self.attachment_command
+                        self.notice = 'Erro: ' + error
+                    continue
+                if not result:
+                    continue
+                # Accept the old single-item event shape for internal integrations.
+                if 'kind' in result:
+                    result = {'items': [result]}
+                snapshot = context.get('snapshot')
+                replacement = context.get('replace_range')
+                origin = (self.draft, self.cursor) if chat_id == self.chat['id'] else self.drafts_by_chat.get(chat_id, ('', 0))
+                if (replacement or 'text' in result) and snapshot and origin != snapshot:
+                    if chat_id == self.chat['id']:
+                        self.notice = 'Colagem alterada durante a leitura; rascunho preservado. Cole novamente.'
+                    continue
+                items = result.get('items', [])
+                if len(items) + len(self.pending_by_chat.setdefault(chat_id, [])) > MAX_PENDING:
+                    if chat_id == self.chat['id']:
+                        self.notice = 'Erro: até oito anexos; colagem não aplicada.'
+                    continue
+                if replacement:
+                    if chat_id == self.chat['id']:
+                        self.replace_draft(*replacement, '')
+                    else:
+                        text, cursor = replace_input(origin[0], self.pending_by_chat[chat_id], *replacement, '')
+                        self.drafts_by_chat[chat_id] = (text, cursor)
+                for item in items:
+                    self.add_attachment(item, chat_id)
+                if 'text' in result:
+                    result['text'] = self.clean_pasted_text(result['text'])
+                    if chat_id == self.chat['id']:
+                        self.insert_text(result['text'])
+                    else:
+                        text, cursor = origin
+                        text, cursor = replace_input(text, self.pending_by_chat[chat_id], cursor, cursor, result['text'])
+                        self.drafts_by_chat[chat_id] = (text, cursor)
                 if chat_id == self.chat['id']:
-                    if error and not self.draft:
-                        self.draft = self.attachment_command
-                    self.notice = ('Erro: ' + error if error else 'Anexo pronto · revise abaixo · Enter envia · $detach remove.')
+                    self.scroll = 0
+                    self.notice = ('Anexo inserido na mensagem · Backspace/Delete remove · Enter envia.' if items
+                                   else 'Texto colado; Enter envia.' if result.get('text') else 'Clipboard sem imagem ou texto.')
             elif kind == 'catalog':
                 picker, backend, (catalog, efforts, error) = value
                 if self.settings is picker and picker.backend == backend:
@@ -723,23 +1004,23 @@ class Terminal:
                 if self.cancel_event.is_set():
                     continue
                 self.approval = value
-                self.browser = False
                 self.rename_target = None
                 self.saved_scroll, self.scroll = self.scroll, 0
             elif kind == 'question':
                 if self.cancel_event.is_set():
                     continue
                 self.question = value
-                self.browser = False
                 self.rename_target = None
                 self.saved_scroll = self.scroll
             elif kind == 'done':
+                self.registry.set(self.chat['id'], 'stopped')
                 self.busy = False
                 self.approval = None
                 self.question = None
                 self.notice = value
                 self.credits_dirty = True
             elif kind == 'compacted':
+                self.registry.set(self.chat['id'], 'stopped')
                 chat, cancellation, state, before, after = value
                 self.busy = False
                 self.credits_dirty = True
@@ -766,19 +1047,21 @@ class Terminal:
                 self.credits_status = 'ready' if kind == 'credits' else value if kind == 'credits_unavailable' else 'error'
                 if kind == 'credits':
                     self.credits = value
-        self.apply_titles()
+        if apply_titles:
+            self.apply_titles()
 
     def lines(self, width):
-        if self.approval:
+        if self.approval and not self.agent_preview:
             return display_lines('CONFIRMAÇÃO — y: permitir / n: recusar\n\n' + self.approval[0], width)
-        if self.browser:
+        if self.browser and not self.agent_preview:
             return [f'{">" if index == self.selected else " "} {chat["updated"][:16]}  {chat["title"]}'
                     for index, chat in enumerate(self.chats)] or ['Nenhum chat salvo nesta pasta.']
         lines, actions, working = [], {}, False
         def append_text(text, style='text', indent=''):
             lines.extend(TranscriptLine(indent + line, style)
                          for line in display_lines(text, max(1, width - len(indent))))
-        messages = list(self.chat['messages'])
+        current_chat = self.agent_preview if self.browser and self.agent_preview else self.chat
+        messages = list(current_chat['messages'])
         results = {m.get('tool_call_id'): m.get('content', '') for m in messages if m['role'] == 'tool'}
         for message in messages:
             content = message.get('content') or ''
@@ -816,10 +1099,10 @@ class Terminal:
                 lines.append(TranscriptLine('◆ Centaur', 'green'))
                 append_text(readable_markdown(content))
                 lines.append(TranscriptLine(''))
-        if self.busy and not self.approval:
+        if self.busy and not self.approval and not self.agent_preview:
             lines.append(TranscriptLine('◦ ' + self.view.activity(self, self.notice), 'muted'))
-        if self.chat.get('last_error'):
-            error = self.chat['last_error']
+        if current_chat.get('last_error'):
+            error = current_chat['last_error']
             legacy_pause = (error.startswith('Compactação automática falhou;')
                             and 'Compactação atingiu o limite de ' in error)
             if legacy_pause:
@@ -829,10 +1112,10 @@ class Terminal:
                 lines.extend([TranscriptLine(''), TranscriptLine('! Erro anterior' if self.busy else '! Erro no turno', 'warning')])
                 append_text(error, 'warning')
             append_text('/retry retoma sem reenviar a mensagem; /new começa outra conversa.', 'muted')
-        if self.chat.get('turn_paused'):
+        if current_chat.get('turn_paused'):
             lines.append(TranscriptLine('◦ Pausa anterior do turno' if self.busy else '◦ Turno pausado', 'muted'))
-            append_text(self.chat['turn_paused'], 'muted')
-        if self.pending_attachments:
+            append_text(current_chat['turn_paused'], 'muted')
+        if self.pending_attachments and not self.agent_preview:
             lines.append(TranscriptLine('▧ Anexos pendentes · Enter envia · $detach <número|all> remove', 'blue'))
             for index, item in enumerate(self.pending_attachments, 1):
                 if width < 45:
@@ -849,7 +1132,7 @@ class Terminal:
             return
         selected_chat = self.chats[self.selected]
         is_current_chat = selected_chat['id'] == self.chat['id']
-        if self.busy and is_current_chat:
+        if self.session_state(selected_chat) != 'stopped':
             self.notice = 'Aguarde o turno terminar para excluir o chat em execução.'
             return
         try:
@@ -861,15 +1144,113 @@ class Terminal:
             self.chat = self.new_chat()
             self.draft = ''
             self.scroll = 0
-        self.chats = self.store.list()
+        self.refresh_browser()
         self.selected = min(self.selected, max(0, len(self.chats) - 1))
+        if self.preparing_attachment and selected_chat['id'] == getattr(self, '_preparing_chat_id', None):
+            self.attachment_cancel.set()
+            self.preparing_attachment = None
         self.pending_by_chat.pop(selected_chat['id'], None)
+        self.drafts_by_chat.pop(selected_chat['id'], None)
+        self.live_chats.pop(selected_chat['id'], None)
+        self.session_contexts.pop(selected_chat['id'], None)
+        self.session_states.pop(selected_chat['id'], None)
         self.notice = 'Chat excluído.'
 
-    def open_chats(self):
-        self.browser = True
+    def session_state(self, chat):
+        state = self.session_states.get(chat['id'], {})
+        if state.get('busy'):
+            return 'waiting_input' if state.get('approval') or state.get('question') else self.registry.state(chat['id']) if self.registry.state(chat['id']) != 'stopped' else 'running'
+        return self.registry.state(chat['id'])
+
+    def housekeeping(self):
+        self.registry.heartbeat()
+        now = time.monotonic()
+        if now >= self.next_cleanup:
+            protected = set(self.title_tasks)
+            protected.update(chat_id for chat_id, state in self.session_states.items() if state.get('busy'))
+            protected.update(chat_id for chat_id, draft in self.drafts_by_chat.items() if draft[0])
+            protected.update(chat_id for chat_id, pending in self.pending_by_chat.items() if pending)
+            if self.preparing_attachment:
+                protected.add(self._preparing_chat_id)
+            if self.busy or self.preparing_attachment or self.draft or self.pending_attachments:
+                protected.add(self.chat['id'])
+            removed = self.store.prune(protected)
+            for chat_id in removed:
+                self.pending_by_chat.pop(chat_id, None)
+                self.drafts_by_chat.pop(chat_id, None)
+                self.live_chats.pop(chat_id, None)
+                self.session_contexts.pop(chat_id, None)
+                self.session_states.pop(chat_id, None)
+            if self.chat['id'] in removed:
+                self.chat = self.new_chat()
+                self.draft = ''
+                self.notice = 'Chat com mais de 64h removido; nova conversa aberta.'
+            self.next_cleanup = now + 60
+        if self.browser and now - self.browser_refreshed >= .5:
+            self.refresh_browser()
+
+    def refresh_browser(self):
+        selected_id = self.chats[self.selected]['id'] if self.chats and self.selected < len(self.chats) else None
         self.chats = self.store.list()
+        if self.browser_mode == 'agents':
+            self.chats = sorted([*self.chats, *self.store.agents()], key=lambda chat: chat['updated'], reverse=True)
+        self.selected = next((i for i, chat in enumerate(self.chats) if chat['id'] == selected_id), min(self.selected, max(0,len(self.chats)-1)))
+        if self.agent_preview:
+            self.agent_preview = next((chat for chat in self.chats if chat['id'] == self.agent_preview['id']), None)
+        self.browser_refreshed = time.monotonic()
+
+    def open_chats(self, mode='chats'):
+        self.browser = True
+        self.browser_mode = mode
+        self.agent_preview = None
         self.selected = 0
+        self.housekeeping()
+        self.chats = []
+        self.refresh_browser()
+
+    def handle_browser(self, key):
+        if key in ('n', 'N', '\x0e') and not self.agent_preview:
+            self.create_chat_from_menu()
+        elif key == '\t':
+            self.browser_mode = 'agents' if self.browser_mode == 'chats' else 'chats'
+            self.agent_preview = None
+            self.selected = 0
+            self.refresh_browser()
+        elif key in ('\x1b', curses.KEY_RIGHT):
+            if self.agent_preview:
+                self.agent_preview = None
+            else:
+                self.browser = False
+        elif key in (curses.KEY_UP, curses.KEY_DOWN) and not self.agent_preview:
+            self.selected = min(max(0,len(self.chats)-1), max(0,self.selected + (-1 if key == curses.KEY_UP else 1)))
+        elif key in (curses.KEY_PPAGE, curses.KEY_NPAGE) and self.agent_preview:
+            self.scroll_chat(5 if key == curses.KEY_PPAGE else -5)
+        elif self.agent_preview and key in ('\n', '\r', curses.KEY_ENTER):
+            parent_id = self.agent_preview['parent_id']
+            parent = self.live_chats.get(parent_id) or next((chat for chat in self.store.list() if chat['id'] == parent_id), None)
+            if parent and parent_id in self.session_contexts:
+                self.switch_chat(parent)
+            else:
+                self.notice = 'Abra o chat coordenador no processo que executa o subagente para responder.'
+        elif self.chats and self.chats[self.selected].get('parent_id'):
+            if key in ('\n', '\r', curses.KEY_ENTER):
+                self.agent_preview = self.chats[self.selected]
+                self.scroll = 0
+        elif key in ('r','R',curses.KEY_F2) and self.chats:
+            self.begin_rename(self.chats[self.selected])
+        elif key == curses.KEY_DC:
+            self.delete_selected_chat()
+        elif key in ('\n','\r',curses.KEY_ENTER) and self.chats:
+            selected = self.chats[self.selected]
+            owned = selected['id'] in self.session_contexts
+            if not owned and selected.get('backend','openrouter') != self.backend:
+                self.notice = 'Este chat usa outro backend; abra o Centaur com --backend ' + selected.get('backend','openrouter')
+            elif not owned and self.backend != 'openrouter' and selected['model'] != self.model:
+                self.notice = 'Este chat usa outro modelo; abra com o mesmo --model ou crie um chat novo.'
+            elif not owned and self.session_state(selected) != 'stopped':
+                self.notice = 'Esta sessão está ativa em outro processo; acompanhe seu estado pelo menu.'
+            else:
+                self.switch_chat(selected)
 
     def handle(self, key):
         if key in ('\x11', '\x03'):
@@ -881,10 +1262,19 @@ class Terminal:
             if key == '\x03' and self.busy:
                 self.cancel_work()
                 return
-            if self.busy or (self.settings and self.settings.pending):
+            if any(state.get('busy') for state in self.session_states.values()) or (self.settings and self.settings.pending):
                 self.notice = 'Aguarde o turno ou configuração terminar para sair; recuse ações pendentes com n.'
                 return
             return 'quit'
+        if key == curses.KEY_SLEFT and not self.settings and not self.rename_target:
+            self.open_chats()
+            return
+        if self.browser and not self.rename_target:
+            return self.handle_browser(key)
+        if self.settings:
+            return self.handle_settings(key)
+        if self.rename_target:
+            return self.handle_rename(key)
         if self.question:
             result = self.question.handle(key, getattr(self.client, 'secrets', ()))
             if result is not None:
@@ -902,39 +1292,6 @@ class Terminal:
                 self.scroll += 5
             elif key == curses.KEY_PPAGE:
                 self.scroll = max(0, self.scroll - 5)
-            return
-        if self.settings:
-            return self.handle_settings(key)
-        if self.rename_target:
-            return self.handle_rename(key)
-        if key == curses.KEY_SLEFT:
-            self.open_chats()
-            return
-        if self.browser:
-            if key in ('\x1b', curses.KEY_RIGHT):
-                self.browser = False
-            elif key == curses.KEY_UP:
-                self.selected = max(0, self.selected - 1)
-            elif key == curses.KEY_DOWN:
-                self.selected = min(max(0, len(self.chats) - 1), self.selected + 1)
-            elif key in ('r', 'R', curses.KEY_F2) and self.chats:
-                self.begin_rename(self.chats[self.selected])
-            elif key == curses.KEY_DC:
-                self.delete_selected_chat()
-            elif key in ('\n', '\r', curses.KEY_ENTER) and self.chats:
-                if self.busy:
-                    self.notice = 'Aguarde o turno terminar para retomar outro chat.'
-                elif self.chats[self.selected].get('backend', 'openrouter') != self.backend:
-                    self.notice = 'Este chat usa outro backend; abra o Centaur com --backend ' + self.chats[self.selected].get('backend', 'openrouter')
-                elif (self.backend != 'openrouter' and self.chats[self.selected]['model'] != self.model):
-                    self.notice = 'Este chat usa outro modelo; abra com o mesmo --model ou crie um chat novo.'
-                else:
-                    self.chat = self.chats[self.selected]
-                    # Historical metadata never grants permission to the current session.
-                    self.chat['approval_mode'] = self.approval_mode
-                    self.browser = False
-                    self.draft = ''
-                    self.scroll = 0
             return
         if key == curses.KEY_F5:
             if not self.chat['messages'] and not self.busy and not self.draft:
@@ -954,8 +1311,10 @@ class Terminal:
             elif state & getattr(curses, 'BUTTON5_PRESSED', 0):
                 self.scroll_chat(-3)
             return
+        if key == '\x16':
+            return self.paste_clipboard()
         if isinstance(key, PastedText):
-            self.insert_text(key.text)
+            self.paste_text(key.text)
             return
         if key in (KEY_NEWLINE, '\n'):
             self.insert_text('\n')
@@ -982,9 +1341,9 @@ class Terminal:
         if key not in (curses.KEY_UP, curses.KEY_DOWN):
             self.preferred_input_column = None
         if key == curses.KEY_LEFT:
-            self.cursor = max(0, self.cursor - 1)
+            self.cursor = atomic_cursor(self.draft, self.pending_attachments, max(0, self.cursor - 1), -1)
         elif key == curses.KEY_RIGHT:
-            self.cursor = min(len(self.draft), self.cursor + 1)
+            self.cursor = atomic_cursor(self.draft, self.pending_attachments, min(len(self.draft), self.cursor + 1))
         elif key == curses.KEY_HOME:
             self.cursor = 0
         elif key == curses.KEY_END:
@@ -996,6 +1355,7 @@ class Terminal:
                 return
             elif len(layout.lines) > 1:
                 self.cursor, self.preferred_input_column = layout.vertical(self.cursor, direction, self.preferred_input_column)
+                self.cursor = atomic_cursor(self.draft, self.pending_attachments, self.cursor, direction)
             else:
                 self.scroll_chat(-direction)
         elif key in (curses.KEY_PPAGE, curses.KEY_NPAGE):
@@ -1007,13 +1367,14 @@ class Terminal:
         elif key in (curses.KEY_BACKSPACE, '\x7f', '\b'):
             self.prompt_history = self.prompt_index = None
             if self.cursor:
-                self._draft = self.draft[:self.cursor - 1] + self.draft[self.cursor:]
-                self.cursor -= 1
+                self.replace_draft(self.cursor - 1, self.cursor, '')
+            elif not self.draft and self.pending_attachments:
+                self.remove_attachment(self.pending_attachments[-1])
         elif key == curses.KEY_DC:
-            self.prompt_history = self.prompt_index = None
-            self._draft = self.draft[:self.cursor] + self.draft[self.cursor + 1:]
+            self.replace_draft(self.cursor, self.cursor + 1, '')
         elif key == '\x15':
-            self.draft = ''
+            self.replace_draft(0, len(self.draft), '')
+            self.pending_attachments.clear()
         elif isinstance(key, str) and key.isprintable():
             self.insert_text(key)
 
@@ -1036,9 +1397,10 @@ class Terminal:
         while True:
             frame_start = time.monotonic()
             self.drain_events()
+            self.housekeeping()
             self.request_credits()
             try:
-                curses.curs_set(0 if self.approval or (self.question and not self.question.custom) or (self.browser and not self.rename_target)
+                curses.curs_set(1 if self.rename_target else 0 if self.approval or (self.question and not self.question.custom) or (self.browser and not self.rename_target)
                                 or (self.settings and self.settings.page != 'custom') else 1)
             except curses.error:
                 pass

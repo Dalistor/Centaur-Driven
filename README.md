@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão atual é `0.8.0`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.8.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.8.0).
+A versão atual é `0.9.0`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.9.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.9.0).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.8.0/centaur_cli-0.8.0-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.9.0/centaur_cli-0.9.0-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -208,7 +208,10 @@ o cursor no rascunho multilinha; PgUp/PgDn e o mouse continuam rolando a convers
 | Controle | Ação |
 | --- | --- |
 | `Shift+←` ou `/chats` | Abrir os chats salvos da pasta, inclusive durante uma resposta. `←` e `→` editam a mensagem. |
-| `↑` / `↓` e Enter | Selecionar e retomar um chat quando o turno atual terminar. |
+| `↑` / `↓` e Enter no menu | Selecionar e abrir um chat; outras sessões deste processo continuam trabalhando. |
+| N no menu / `/new` no chat | Criar outra conversa. N funciona mesmo durante uma pergunta ou aprovação de outro chat. |
+| Tab no menu / `$agents` | Alternar chats e todos os agentes, com estados Trabalhando, Aguardando input e Parado. |
+| Ctrl+V / colar ou arrastar caminhos | Inserir imagem ou arquivos como elementos da mensagem. Backspace/Delete remove o elemento inteiro. |
 | Delete | Excluir o chat selecionado na lista e seu histórico salvo. Chats em execução aguardam o fim do turno. |
 | Esc ou `→` | Voltar da lista para a conversa. |
 | `$` | Autocomplete das skills Centaur e comandos locais (`config`, `status`, `compact`); digite para filtrar. |
@@ -471,7 +474,28 @@ cursor ao redimensionar. Em terminais que interceptem Shift+←, use `/chats`.
 Os chats ficam em `.centaur/chats/*.json` na pasta aberta, com gravação atômica e permissão
 de arquivo restrita ao usuário. Cada execução começa com uma conversa nova; use `Shift+←` para
 retomar as anteriores, preservando o modelo utilizado. Arquivos de histórico inválidos são
-ignorados. Inclua `.centaur/chats/` no `.gitignore` dos projetos para evitar publicar conversas.
+ignorados. Inclua `.centaur/` no `.gitignore` dos projetos para evitar publicar conversas.
+
+No menu, **N cria outro chat** e Enter abre o selecionado, inclusive quando outra sessão
+está trabalhando ou esperando sua resposta. Cada conversa mantém rascunho, anexos,
+modelo, permissões, pergunta/aprovação e cancelamento próprios. Ctrl+C interrompe apenas
+a conversa aberta; o CLI aguarda todas as sessões terminarem antes de sair. Os agentes
+compartilham a pasta de trabalho: distribua arquivos/tarefas para evitar edições concorrentes
+no mesmo arquivo. Fechar o terminal encerra o processo; não há serviço de execução após sair.
+
+**Tab** mostra todos os agentes: chats principais e subagentes delegados. Cada linha
+informa **Trabalhando**, **Aguardando input** ou **Parado**, com atualização ao vivo. Enter
+em um subagente abre seu histórico para leitura; outro Enter abre o chat coordenador deste
+processo para responder. Pedidos de input permanecem pendentes ao abrir o menu ou mudar
+de conversa. Sessões de outro processo são observadas, sem assumir suas aprovações.
+
+A cada minuto e ao abrir o menu, chats com **mais de 64 horas desde a criação** são
+apagados junto com suas cópias de anexos, registros de execução e subagentes. Atividade
+ou renomeação não reinicia o prazo. Chats legados usam a data `updated` disponível como
+origem, preservada na migração. Sessões trabalhando/aguardando input e conversas com
+rascunho/anexos pendentes são protegidas; após ficarem livres, a próxima limpeza remove
+as expiradas. Estados abandonados expiram após 120s sem heartbeat ou com processo morto.
+Trocar de chat interrompe a captura de computer use, exigindo nova autorização ao retomá-la.
 
 O agente pode listar e ler arquivos UTF-8 dentro da pasta aberta. No modo Pedir aprovação, gravações mostram o caminho
 e o conteúdo para aprovação; comandos mostram o shell que será executado. Use PgDown para
@@ -524,12 +548,29 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.8.0'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.0'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```
 
-No chat, execute cada comando com Enter:
+No campo de mensagem, **Ctrl+V cola uma imagem do clipboard**, texto ou arquivos
+copiados pelo gerenciador. Você também pode **arrastar um arquivo** ou colar seu caminho
+(com aspas para vários caminhos contendo espaços, ou URI `file://`). Uma colagem que
+contém apenas arquivos existentes insere `[Imagem #1]` / `[Arquivo #1]` na posição do
+cursor. Continue escrevendo e pressione Enter para enviar. Se o terminal enviar o caminho
+como teclas comuns, o primeiro Enter prepara e o próximo envia. Texto colado não é executado.
+
+Marcadores são elementos inteiros: ←/→ os atravessam e Backspace/Delete remove o anexo.
+Ctrl+U limpa a mensagem e seus anexos. ↑ recupera texto e cópias dos anexos da mensagem
+anterior; ↓ retorna ao rascunho atual, incluindo um campo vazio. Uma cópia ausente/alterada
+impede a restauração sem destruir o rascunho. A fila e o texto voltam ao retornar ao chat.
+
+No Linux, instale `xclip` para X11 ou `wl-clipboard` para Wayland. No macOS, imagens usam
+Pillow e texto usa `pbpaste`. Em SSH, o clipboard é da máquina que executa o Centaur;
+cole caminhos acessíveis nessa máquina. Colagem lê o clipboard apenas por ação explícita,
+sem monitoramento. O modelo precisa aceitar o formato; falhas preservam o texto existente.
+
+Os comandos de anexo continuam disponíveis; execute cada um com Enter:
 
 ```text
 $attach "logs/erro com espaço.txt"
@@ -570,13 +611,13 @@ o histórico registra identidade, formato e texto, sem base64 de imagens/PDFs. `
 e retomada usam a mesma cópia, mesmo se o original mudar ou desaparecer. Uma cópia
 alterada/ausente bloqueia o envio com diagnóstico. Mantenha a pasta junto aos chats nos
 backups; excluir um chat remove suas cópias. Filas ainda não enviadas são locais à sessão
-e ao chat, não são restauradas após encerrar o CLI. Recuperar um prompt com ↑ não reanexa
-os arquivos de uma mensagem anterior.
+e ao chat, não são restauradas após encerrar o CLI. Recuperar um prompt com ↑ reanexa
+as cópias da mensagem anterior e preserva o rascunho para voltar com ↓.
 
 Compactação inclui texto e nomes dos anexos, preservando observações já registradas
 sobre imagens/PDFs. Originais visuais do prefixo compactado ficam arquivados e deixam de
 ser reenviados; o resumo não inventa seu conteúdo visual. Para analisar novamente um
-original arquivado, use `$attach` no arquivo original ou na cópia pelo hash em
+original arquivado, recupere o prompt com ↑ ou use `$attach` no original/cópia pelo hash em
 `.centaur/attachments/<chat>/`. A barra de contexto considera texto pendente; consumo
 visual é aproximado até o provedor informar uso. Anexos enviados seguem a política de
 retenção e os custos do backend escolhido.

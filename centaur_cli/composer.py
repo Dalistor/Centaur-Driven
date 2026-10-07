@@ -46,3 +46,50 @@ def layout_input(text, width):
         lines.append('')
         positions[-1] = (row + 1, 0)
     return InputLayout(lines, positions)
+
+
+def attachment_span(item, text):
+    span = item.get('span')
+    if (isinstance(span, (list, tuple)) and len(span) == 2
+            and all(type(position) is int for position in span)
+            and 0 <= span[0] < span[1] <= len(text)
+            and text[span[0]:span[1]] == item.get('marker')):
+        return span
+    return None
+
+
+def atomic_cursor(text, items, cursor, direction=1):
+    for item in items:
+        span = attachment_span(item, text)
+        if span and span[0] < cursor < span[1]:
+            return span[1] if direction > 0 else span[0]
+    return cursor
+
+
+def replace_input(text, items, start, end, replacement):
+    """Attachment placeholders behave as indivisible editor elements."""
+    start, end = max(0, start), min(len(text), end)
+    for item in items:
+        span = attachment_span(item, text)
+        if span and start != end and start < span[1] and end > span[0]:
+            start, end = min(start, span[0]), max(end, span[1])
+        elif span and start == end and span[0] < start < span[1]:
+            start = end = span[1]
+    delta = len(replacement) - (end - start)
+    kept = []
+    for item in items:
+        span = attachment_span(item, text)
+        if span and start < span[1] and end > span[0]:
+            continue
+        if span and span[0] >= end:
+            item['span'] = [span[0] + delta, span[1] + delta]
+        kept.append(item)
+    items[:] = kept
+    return text[:start] + replacement + text[end:], start + len(replacement)
+
+
+def without_attachment_markers(text, items):
+    spans = sorted([span for item in items if (span := attachment_span(item, text))], reverse=True)
+    for start, end in spans:
+        text = text[:start] + text[end:]
+    return text

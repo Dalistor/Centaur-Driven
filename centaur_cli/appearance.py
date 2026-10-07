@@ -304,6 +304,37 @@ class TerminalView:
             self.put(screen, row, 2, ' ' * (width - 5), style)
             self.put(screen, row, 3, line, style)
 
+    def browser(self, screen, terminal, top, available, width):
+        from .sessions import LABELS
+        if terminal.agent_preview:
+            agent = terminal.agent_preview
+            self.put(screen, top, 3, 'SUBAGENTE · ' + agent['title'], 'green')
+            self.put(screen, top + 1, 3, LABELS[terminal.session_state(agent)] + ' · ' + agent['model'], 'blue')
+            lines = terminal.lines(width - 6)
+            room = max(1, available - 3)
+            start = terminal.transcript_start(len(lines), room, width - 6)
+            for row, line in enumerate(lines[start:start + room], top + 3):
+                self.put(screen, row, 3, line, getattr(line, 'style', 'text'), width - 6)
+            return
+        states = [terminal.session_state(chat) for chat in terminal.chats]
+        self.put(screen, top, 2, 'AGENTES DESTA PASTA' if terminal.browser_mode == 'agents' else 'CHATS DESTA PASTA', 'green')
+        self.put(screen, top + 1, 2, f'{len(states)} sessões · {states.count("running")} trabalhando · {states.count("waiting_input")} input · {states.count("stopped")} paradas', 'muted')
+        self.put(screen, top + 2, 2, 'N + Novo chat · sessões anteriores continuam', 'blue')
+        visible = max(1, available - 3)
+        start = max(0, terminal.selected - visible + 1)
+        for row, chat in enumerate(terminal.chats[start:start + visible], top + 3):
+            selected = start + row - top - 3 == terminal.selected
+            state = terminal.session_state(chat)
+            title = f' {">" if selected else " "} {LABELS[state]} · [{chat.get("backend", "openrouter")}] {chat["title"]}'
+            style = 'selected' if selected else 'warning' if state == 'waiting_input' else 'green' if state == 'running' else 'muted'
+            self.put(screen, row, 2, ' ' * (width - 5), style)
+            self.put(screen, row, 2, title, style, width - 25 if width >= 78 else width - 5)
+            if width >= 78:
+                self.put(screen, row, width - 21, chat['updated'][:16],
+                         'selected' if selected else 'muted')
+        if not terminal.chats:
+            self.put(screen, top + 4, 3, 'Nenhum subagente registrado. Tab mostra chats.' if terminal.browser_mode == 'agents' else 'Nenhum chat salvo. Esc volta para começar.', 'muted')
+
     def draw(self, screen, terminal):
         # Only the welcome surface owns animation time; hidden editors never advance it.
         if (terminal.settings or terminal.rename_target or terminal.browser
@@ -351,8 +382,8 @@ class TerminalView:
         self.put(screen, 4, transcript_left, '─' * transcript_width, 'line')
         top, available = 5, height - 11
         modal = bool(terminal.settings or terminal.rename_target or terminal.browser or terminal.approval or terminal.question)
-        draft = terminal.question.text if terminal.question and terminal.question.custom else '' if terminal.question else terminal.rename_text if terminal.rename_target else terminal.draft
-        cursor = terminal.question.cursor if terminal.question and terminal.question.custom else 0 if terminal.question else terminal.rename_cursor if terminal.rename_target else terminal.cursor
+        draft = terminal.rename_text if terminal.rename_target else '' if terminal.browser else terminal.question.text if terminal.question and terminal.question.custom else '' if terminal.question else terminal.draft
+        cursor = terminal.rename_cursor if terminal.rename_target else 0 if terminal.browser else terminal.question.cursor if terminal.question and terminal.question.custom else 0 if terminal.question else terminal.cursor
         composer_left = 2 if modal else transcript_left - 1
         composer_width = width - 5 if composer_left == 2 else transcript_width + 2
         input_width = max(1, composer_width - 2)
@@ -386,28 +417,14 @@ class TerminalView:
         input_start = max(0, min(cursor_row - composer_rows + 1, len(layout.lines) - composer_rows))
         if terminal.settings:
             self.settings(screen, terminal, top, available, width)
-        elif terminal.question:
-            self.question(screen, terminal, top, available, width)
         elif terminal.rename_target:
             self.put(screen, top, 3, 'RENOMEAR CHAT', 'green')
             self.put(screen, top + 2, 3, terminal.rename_target['title'], 'muted')
             self.put(screen, top + 4, 3, 'Título · 1 a 80 caracteres', 'blue')
         elif terminal.browser:
-            self.put(screen, top, 2, 'CHATS DESTA PASTA', 'green')
-            self.put(screen, top + 1, 2, f'{len(terminal.chats)} conversas salvas', 'muted')
-            visible = max(1, available - 3)
-            start = max(0, terminal.selected - visible + 1)
-            for row, chat in enumerate(terminal.chats[start:start + visible], top + 3):
-                selected = start + row - top - 3 == terminal.selected
-                title = f' {">" if selected else " "} [{chat.get("backend", "openrouter")}] {chat["title"]}'
-                style = 'selected' if selected else 'text'
-                self.put(screen, row, 2, ' ' * (width - 5), style)
-                self.put(screen, row, 2, title, style, width - 25 if width >= 78 else width - 5)
-                if width >= 78:
-                    self.put(screen, row, width - 21, chat['updated'][:16],
-                             'selected' if selected else 'muted')
-            if not terminal.chats:
-                self.put(screen, top + 4, 3, 'Nenhum chat salvo. Esc volta para começar.', 'muted')
+            self.browser(screen, terminal, top, available, width)
+        elif terminal.question:
+            self.question(screen, terminal, top, available, width)
         elif not terminal.chat['messages'] and not terminal.approval and not terminal.pending_attachments:
             self.welcome(screen, top, available, width, terminal)
         else:
@@ -452,7 +469,9 @@ class TerminalView:
         # The composer follows the same reading column as the conversation.
         self.put(screen, composer_separator, composer_left, '─' * composer_width, 'line')
         notice = terminal.notice
-        if terminal.question:
+        if terminal.browser and not terminal.rename_target and not notice.startswith(('Aguarde', 'Não', 'Este', 'Esta', 'Abra', 'Erro', 'Chat', 'Chave')):
+            notice = ('Enter abre coordenador/input · Esc lista · PgUp/PgDn lê.' if terminal.agent_preview else 'N cria chat · Tab alterna chats/agentes · Esc volta ao chat/input · limpeza após 64h.')
+        elif terminal.question:
             notice = terminal.question.error or ('Digite abaixo e pressione Enter.' if terminal.question.custom else 'Escolha uma resposta; Esc pula a pergunta.')
         elif terminal.busy and not terminal.approval:
             notice = self.activity(terminal, notice)
@@ -479,6 +498,17 @@ class TerminalView:
             self.put(screen, input_top + offset, composer_left, ' ' * composer_width, 'user')
             if offset < len(visible_lines):
                 self.put(screen, input_top + offset, composer_left + 2, visible_lines[offset], 'user', input_width)
+        if not modal:
+            from .composer import attachment_span
+            for item in terminal.pending_attachments:
+                span = attachment_span(item, draft)
+                if not span:
+                    continue
+                for index in range(*span):
+                    row, column = layout.positions[index]
+                    if input_start <= row < input_start + composer_rows:
+                        self.put(screen, input_top + row - input_start, composer_left + 2 + column,
+                                 draft[index], 'blue', 1)
         self.put(screen, input_top, composer_left, '↑' if input_start else '›', 'green')
         if input_start + composer_rows < len(layout.lines) and not modal:
             self.put(screen, input_top + composer_rows - 1, composer_left, '↓', 'muted')
@@ -494,7 +524,10 @@ class TerminalView:
         context, context_style = terminal.context_label(context_width)
         self.put(screen, height - 2, 2, context, context_style, context_width)
         self.put(screen, height - 2, width - cell_width(credits) - 3, credits, credit_style)
-        hints = ('Aguarde a validação…' if terminal.settings and terminal.settings.pending else
+        hints = ('Enter salvar · Esc cancelar · Ctrl+U limpar' if terminal.rename_target else
+                 'Enter coordenador · Esc lista · PgUp/PgDn ler subagente' if terminal.agent_preview and terminal.browser else
+                 '↑↓ escolher · Enter abrir · N novo chat · Tab chats/agentes · Esc voltar' if terminal.browser else
+                 'Aguarde a validação…' if terminal.settings and terminal.settings.pending else
                  '↑↓/Tab escolher · Enter responder · Esc pular · PgUp/PgDn ler' if terminal.question else
                  '↑↓ escolher · Enter abrir/salvar · Esc voltar/cancelar' if terminal.settings else
                  'Enter salvar · Esc cancelar · Ctrl+U limpar' if terminal.rename_target else
@@ -504,9 +537,9 @@ class TerminalView:
                  'y permitir · n recusar · PgUp/PgDn revisar' if terminal.approval else
                  '↑↓ selecionar · Enter retomar · R renomear · Del excluir · Esc voltar' if terminal.browser else
                  '↑↓ prompts · PgUp/PgDn rolar · Ctrl+C parar' if terminal.busy else
-                 '↑↓ prompts · Enter enviar · Shift+Enter/Ctrl+J linha · Shift+← chats · PgUp/PgDn rolar')
+                 'Ctrl+V imagem · ↑↓ prompts · Enter enviar · Shift+Enter linha · Shift+← chats')
         self.put(screen, height - 1, 2, hints, 'blue')
-        if not terminal.approval and (terminal.rename_target or not terminal.browser):
+        if terminal.rename_target or (not terminal.approval and not terminal.browser):
             if terminal.settings and terminal.settings.page == 'custom':
                 _, custom_cursor = input_window(terminal.settings.query, len(terminal.settings.query),
                                                 max(1, width - 8))

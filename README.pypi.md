@@ -60,8 +60,12 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 ## Anexos e capturas
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.8.0'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.0'
 ```
+
+Ctrl+V cola imagem/texto/arquivos; arrastar ou colar caminhos insere marcadores atômicos
+na mensagem. Backspace/Delete remove o anexo; ↑/↓ restaura prompts com anexos e volta ao
+rascunho. Linux: xclip (X11) ou wl-clipboard (Wayland); macOS: Pillow/pbpaste.
 
 No chat, `$attach "caminho do arquivo"` prepara um anexo e `$screenshot 3` captura uma
 vez o monitor principal após três segundos. Revise os nomes junto à mensagem;
@@ -125,3 +129,15 @@ a requisição. No Linux, texto Unicode precisa de xclip/xsel.
 
 Versão inicial experimental. A instalação não substitui os CLIs nativos opcionais,
 não configura servidores externos e não inicia chamadas pagas automaticamente.
+
+## Chats e agentes simultâneos
+
+Shift+← abre o menu; **N cria outro chat**, **Enter abre** e **Tab mostra todos os agentes**.
+Estados: Trabalhando, Aguardando input e Parado. Conversas deste processo continuam
+executando ao trocar de chat, com perguntas/aprovações e Ctrl+C separados. Enter em um
+subagente permite ler; outro Enter abre seu coordenador para responder. Agentes usam a
+mesma pasta: distribua arquivos/tarefas entre eles. Captura de computer use para ao trocar.
+
+Chats com mais de **64h desde a criação** são apagados com anexos e subagentes na limpeza
+periódica. Sessões ativas ou com rascunho/anexos aguardam ficar livres para a limpeza.
+Atividade e renomeação não reiniciam o prazo. Não há execução após fechar o terminal.

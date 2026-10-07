@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0 — 2026-10-06
+
+- Composer com Ctrl+V de imagens, texto e caminhos/URIs locais; drag-and-drop, marcadores atômicos, remoção inteira e recuperação de anexos com ↑/↓. Rascunhos e filas separados por conversa.
+- Menu de chats/agentes atualizado ao vivo: Trabalhando, Aguardando input e Parado. N cria outra conversa durante execuções ou pedidos de input; múltiplos chats podem trabalhar simultaneamente.
+- Eventos, modelo, permissões, perguntas/aprovações, compactação, cancelamento e título pertencem à sessão de origem. Histórico de subagentes pode ser consultado e seu coordenador aberto para responder.
+- Limpeza automática após 64h da criação, incluindo anexos/subagentes; data imutável e migração legada sem tocar atividade. Sessões ativas e rascunhos são preservados até ficarem livres. Captura para ao trocar de chat.
+- Testes de clipboard, PTY real, sessões concorrentes e retenção; CI inclui colagem real de imagem em Xvfb.
+
 ## 0.8.0 — 2026-10-06
 
 - `$attach`, `$screenshot [0–10]`, `$attachments` e `$detach <número|all>` preparam anexos revisáveis antes do envio; captura única, espera cancelável e fila separada por chat.

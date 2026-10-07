@@ -38,6 +38,12 @@ jobs:
       # interaction (including teardown output draining) also run on macOS.
       - run: python -m unittest discover -s tests -v
       - run: python -m compileall -q centaur_cli
+      - name: Install optional macOS clipboard dependencies
+        if: matrix.os == 'macos-latest'
+        run: python -m pip install '.[attachments]'
+      - name: Verify image and Finder file paste in the disposable macOS clipboard
+        if: matrix.os == 'macos-latest'
+        run: env CENTAUR_TEST_MAC_CLIPBOARD=1 python -m unittest discover -s tests -p test_attachment_composer.py -v
 
   computer:
     runs-on: ubuntu-latest
@@ -51,7 +57,7 @@ jobs:
       - run: sudo apt-get update -qq && sudo apt-get install -y xvfb xauth xclip
       - run: python -m pip install '.[computer]'
       - name: Verify attachments and one-shot screenshots in a disposable desktop
-        run: xvfb-run -a -s '-screen 0 800x600x24' env CENTAUR_TEST_DESKTOP=1 python -m unittest discover -s tests -p test_attachments.py -v
+        run: xvfb-run -a -s '-screen 0 800x600x24' env CENTAUR_TEST_DESKTOP=1 python -m unittest discover -s tests -p 'test_attachment*.py' -v
       - name: Verify capture and input in a disposable desktop
         run: xvfb-run -a -s '-screen 0 800x600x24' env CENTAUR_TEST_DESKTOP=1 python -m unittest discover -s tests -p test_computer_desktop.py -v
 

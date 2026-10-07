@@ -230,3 +230,29 @@ os até três quadros recentes da sessão computer use.
 
 Verificação: test_attachments.py e test_terminal_pty.py; CI com desktop descartável,
 sem credenciais reais ou inferências pagas. Instalação base continua sem dependências.
+
+## Composer e sessões — 0.9.0
+
+O campo aceita Ctrl+V e caminhos locais com marcadores azuis `[Imagem #N]`/`[Arquivo #N]`.
+Os marcadores são elementos atômicos, visíveis antes do envio e removíveis com Backspace/
+Delete. Navegação ↑/↓ restaura anexos e preserva o rascunho atual; controles do clipboard
+não entram como comandos. Falhas ou resultados tardios não sobrescrevem texto novo.
+
+Shift+← abre o menu mesmo durante input. N + Novo chat fica abaixo do resumo dos estados;
+Tab alterna chats/todos os agentes. Cada linha informa Trabalhando (verde), Aguardando
+input (âmbar) ou Parado (cinza), também por texto sem cor. Perguntas/aprovações continuam
+pendentes no chat de origem. Enter em subagente abre leitura; Enter no preview abre seu
+coordenador local. Editores de título têm prioridade visual sobre lista e input pendente.
+
+Vários chats deste processo executam simultaneamente, com eventos/cancelamento/config
+capturados por sessão. Rascunhos e anexos retornam ao trocar. Ctrl+C afeta apenas o chat
+aberto; sair exige que todos terminem. Captura de computer use para ao trocar de sessão.
+Chats e agentes compartilham o diretório de trabalho; não há isolamento de arquivos.
+
+Retenção: mais de 64h da criação imutável, verificação ao abrir menu e a cada minuto.
+Expirados livres removem histórico/anexos/subagentes. Sessões vivas e rascunhos/anexos
+pendentes adiam a remoção. Runtime usa registros privados separados dos chats, PID e
+heartbeat de 20s com validade de 120s. Histórico legado preserva updated como criação.
+
+Verificação: test_attachment_composer.py, test_sessions.py e PTY real em cores, NO_COLOR,
+movimento reduzido e resize 40×12; clipboard/captura reais em desktop Xvfb no CI.

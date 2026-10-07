@@ -221,7 +221,8 @@ class AttachmentTests(unittest.TestCase):
         capture.assert_called_once()
         self.assertFalse(start.called)
         self.assertIsNone(self.terminal.computer)
-        self.assertEqual(self.terminal.pending_attachments, [image])
+        self.assertEqual(self.terminal.pending_attachments[0]['digest'], image['digest'])
+        self.assertIn('[Imagem #', self.terminal.draft)
 
     def test_screenshot_delay_cancel_and_stale_result_never_add_attachment(self):
         with patch('centaur_cli.terminal.capture_screen') as capture:

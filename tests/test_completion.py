@@ -47,7 +47,8 @@ class CompletionTests(unittest.TestCase):
                 with patch('centaur_cli.terminal.threading.Thread') as thread:
                     self.terminal.handle('\r')
                     thread.return_value.start.assert_called_once()
-                    self.assertEqual(thread.call_args.kwargs['target'], self.terminal.compact)
+                    self.assertEqual(thread.call_args.kwargs['target'].__func__, self.terminal.compact.__func__)
+                    self.assertIs(thread.call_args.kwargs['args'][0], self.terminal.chat)
                 self.assertTrue(self.terminal.busy)
                 self.assertEqual(self.terminal.draft, '')
                 self.assertFalse(self.terminal.chat['messages'])
