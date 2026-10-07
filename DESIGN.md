@@ -217,3 +217,18 @@ heartbeat de 20s com validade de 120s. Histórico legado preserva updated como c
 
 Verificação: test_attachment_composer.py, test_sessions.py e PTY real em cores, NO_COLOR,
 movimento reduzido e resize 40×12; clipboard/captura reais em desktop Xvfb no CI.
+
+## Prazos e diagnósticos — 0.9.1
+
+Inferência e operação de compactação têm padrão de 1800s, configurável de 30–3600s.
+Resumo usa o orçamento restante e o limite do backend, sem teto fixo de 90s; roteamento
+de subagente repassa capacidades/effort/prazo. Cancelamento/checkpoints continuam ativos.
+
+O aviso do composer fica em uma linha, na largura exata do campo. Erro do turno tem
+aviso curto com orientação para ler a conversa e retomar. Outros avisos longos recebem
+reticências. Diagnósticos públicos completos ficam no transcript com quebra por células,
+inclusive Unicode e palavras/caminhos longos. Falha de compactação é persistida; sucesso
+remove o erro antigo somente após salvar a nova memória. Cancelamento não vira erro.
+
+Verificação: test_timeout_layout.py, test_context.py e PTY real; tela 40×12, 80×24 e
+140×30. Testes simulam relógio para 30 minutos sem esperar uma chamada real desse tempo.

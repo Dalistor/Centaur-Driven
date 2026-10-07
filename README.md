@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão atual é `0.9.0`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.9.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.9.0).
+A versão atual é `0.9.1`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.9.1`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.9.1).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.9.0/centaur_cli-0.9.0-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.9.1/centaur_cli-0.9.1-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -102,7 +102,7 @@ centaur --backend claude /caminho/do/projeto
 
 Com **Codex ou Claude conectado**, `$run` cria subagentes no mesmo backend e escolhe o modelo por task conforme complexidade e risco. `delegate_task` aceita título, task e um modelo do catálogo; `cost_tier` é exclusivo do OpenRouter. `--model` pré-seleciona o modelo principal; a opção Padrão do provedor usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. `$config` abre o seletor; `$config <backend> [modelo] [effort] [ask|auto|never] [standard|fast]` altera a fonte da IA e o modelo principal, salvando a preferência local; mudar o backend abre novo chat; modelo, effort e velocidade mantêm a conversa no mesmo backend. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo principal solicitado.
 
-A interface, o autocomplete, `$status` e as aprovações continuam no Centaur. O adaptador usa saídas estruturadas dos CLIs, sem ferramentas nativas de execução/delegação e sem carregar as personalizações locais desses clientes; leituras, gravações e comandos passam pelas ferramentas do harness. Cada etapa envia o contexto ativo do Centaur a uma execução efêmera do CLI, com limite padrão de 600 segundos (`CENTAUR_NATIVE_TIMEOUT`, 30–3600); os históricos ficam no Centaur. O adaptador não interpreta o ID efetivo de modelo quando o CLI não o fornece. As credenciais conhecidas dos backends são ocultadas nas mensagens e saídas e removidas do ambiente dos comandos de projeto.
+A interface, o autocomplete, `$status` e as aprovações continuam no Centaur. O adaptador usa saídas estruturadas dos CLIs, sem ferramentas nativas de execução/delegação e sem carregar as personalizações locais desses clientes; leituras, gravações e comandos passam pelas ferramentas do harness. Cada etapa envia o contexto ativo do Centaur a uma execução efêmera do CLI, com limite padrão de 30 minutos (`CENTAUR_NATIVE_TIMEOUT=1800`, faixa de 30–3600 segundos); os históricos ficam no Centaur. O adaptador não interpreta o ID efetivo de modelo quando o CLI não o fornece. As credenciais conhecidas dos backends são ocultadas nas mensagens e saídas e removidas do ambiente dos comandos de projeto.
 
 Também aceita `centaur status --ai --backend codex` ou `--backend claude`. A integração nativa consulta cotas do próprio cliente quando disponíveis, sem acessar créditos OpenRouter ou estimar saldo de assinatura. Usar esses backends segue a autenticação e os limites do respectivo cliente.
 
@@ -193,6 +193,10 @@ de título; a geração recebe apenas trechos da primeira troca da conversa, sem
 
 Ao redimensionar a janela, cabeçalho, histórico, lista de chats, entrada e barras do rodapé
 são reposicionados e o texto é quebrado novamente. O rascunho e a conversa são preservados.
+Erros completos ficam na conversa, com quebra por largura de células do terminal, incluindo
+Unicode e caminhos longos. O rodapé mostra um aviso curto dentro da largura do campo;
+outros avisos extensos recebem reticências. Falhas de compactação também são salvas
+para consultar ou retomar com `$compact`, preservando o histórico e a memória anterior.
 
 A caixa cinza de mensagem começa com três linhas e cresce até oito, conforme o espaço.
 O texto quebra visualmente na borda sem alterar a mensagem enviada. **Shift+Enter** insere
@@ -328,11 +332,12 @@ Em conversas curtas, o comando informa que não há mensagens antigas elegíveis
 Digite `$compact` e pressione **Enter uma vez** para iniciar. Tab somente completa o
 comando. Durante a execução, o rodapé mostra o fragmento atual/total e eventuais revisões.
 O tamanho dos fragmentos considera a janela conhecida, com teto de 48 mil caracteres.
-Uma chamada de resumo tem até 90 segundos; se exceder esse prazo, o fragmento é reduzido
-pela metade e tentado novamente, sem descartar texto. O resumo usa effort `low` quando o catálogo
+Cada resumo pode usar o orçamento restante da compactação, limitado pelo timeout
+configurado no backend. Não há mais o teto de 90 segundos por fragmento. Se a chamada
+exceder seu prazo, o fragmento é reduzido pela metade e o progresso é preservado. O resumo usa effort `low` quando o catálogo
 anuncia esse nível, ou o padrão do provedor; o effort escolhido para o chat não muda.
 
-Cada operação tem orçamento total de **180 segundos**, incluindo revisões e novas tentativas.
+Cada operação tem orçamento total padrão de **30 minutos (1800 segundos)**, incluindo revisões e novas tentativas.
 O progresso é salvo em disco após cada fragmento validado. Se o orçamento acabar, ocorrer
 uma falha ou você interromper, execute `$compact` novamente para retomar do trecho salvo,
 inclusive depois de fechar e reabrir o Centaur. Um primeiro fragmento lento também deixa
@@ -342,15 +347,19 @@ segura entre mensagens e lotes de ferramentas, o trecho concluído já reduz o c
 as mensagens restantes, inclusive qualquer mensagem parcialmente lida, ficam integrais.
 Sem divisão segura, a operação fica **pausada**, sem marcar falha do modelo. A retomada verifica que o
 prefixo, o modelo e a memória anterior continuam iguais. Esse orçamento é independente
-de `CENTAUR_NATIVE_TIMEOUT`; para permitir uma operação mais longa:
+de `CENTAUR_NATIVE_TIMEOUT`/`CENTAUR_OPENROUTER_TIMEOUT`; para personalizar os limites:
 
 ```bash
-CENTAUR_COMPACT_TIMEOUT=300 centaur .
+CENTAUR_COMPACT_TIMEOUT=1800 CENTAUR_NATIVE_TIMEOUT=1800 centaur --backend codex .
+CENTAUR_COMPACT_TIMEOUT=1800 CENTAUR_OPENROUTER_TIMEOUT=1800 centaur --backend openrouter .
 ```
 
-O valor deve ser um inteiro entre 30 e 3600 segundos. No OpenRouter, o timeout de rede
-continua limitado a 60 segundos por chamada; no Codex/Claude, o processo da chamada de
-resumo é encerrado ao exceder seu prazo. Há tempo adicional de encerramento e gravação.
+Os valores devem ser inteiros entre 30 e 3600 segundos. O timeout padrão da inferência
+é de 30 minutos nos três backends; cada chamada de resumo usa o menor entre esse limite
+e o orçamento restante da operação. Variáveis já exportadas continuam prevalecendo.
+No Codex/Claude, o processo é encerrado ao exceder seu prazo. No OpenRouter, Ctrl+C
+bloqueia novas ações, mas a chamada HTTP pendente pode aguardar seu timeout de rede.
+Há tempo adicional de encerramento e gravação.
 
 **Autocompact** fica habilitado: antes da próxima chamada, inclusive entre etapas de
 ferramentas, o Centaur compacta mensagens antigas quando o uso estimado chega a **80% da
@@ -372,7 +381,7 @@ do provedor continuam sendo erros; uma pausa por orçamento conserva o progresso
 Para requisições nativas mais demoradas:
 
 ```bash
-CENTAUR_NATIVE_TIMEOUT=900 centaur --backend codex .
+CENTAUR_NATIVE_TIMEOUT=1800 centaur --backend codex .
 ```
 
 Esse timeout é por chamada ao Codex/Claude; Ctrl+C continua encerrando o processo.
@@ -525,7 +534,8 @@ O autocomplete `@` lista somente skills adicionais da pasta `.centaur/skills/` d
 
 Limites desta versão: respostas completas, sem streaming; uma execução ativa por conversa;
 sem limite fixo de etapas no agente principal ou nos executores; Ctrl+C interrompe o turno.
-Timeout de 60 segundos por requisição OpenRouter/comando e 600 segundos por requisição nativa (configurável); compactação manual com `$compact`, sem compactação
+Timeout padrão de 30 minutos por inferência e por operação de compactação (configurável);
+comandos locais continuam com limite de 60 segundos; compactação manual com `$compact`, sem compactação
 automática do contexto, MCP ou importação de chats de outros clientes. Subagentes executam
 sequencialmente, até 12 por turno, sem delegação recursiva. Use uma única instância
 por conversa para evitar sobrescrever histórico. Ferramentas de leitura retornam até 24 mil
@@ -548,7 +558,7 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.0'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.1'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```

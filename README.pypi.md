@@ -60,7 +60,7 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 ## Anexos e capturas
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.0'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.1'
 ```
 
 Ctrl+V cola imagem/texto/arquivos; arrastar ou colar caminhos insere marcadores atômicos
@@ -94,10 +94,10 @@ não sobrevivem ao encerramento do CLI. Veja formatos, limites e detalhes no REA
 - Skills distribuídas no pacote: `$spec`, `$run`, `$check`, `$skill` e outras.
 - Permissões por seletor: pedir aprovação, automático de baixo risco ou sem perguntar; subagentes herdam o modo.
 - Automático reconhece o validador de ciclo de vida incluído, documentos de `.centaur` e consultas com glob ou leitura por intervalos.
-- `/wide` amplia o chat; erros completos e `/retry` preservam o turno e os resultados anteriores.
+- `/wide` amplia o chat; erros completos e `/retry` preservam o turno e os resultados anteriores. Rodapé limitado à largura do campo; diagnósticos longos/Unicode quebram na conversa sem overflow.
 - Entrada com quebra automática, Shift+Enter/Ctrl+J para nova linha e campo de três a oito linhas; colagem protegida não envia automaticamente.
 - Barra de contexto livre estimado; `$compact` resume mensagens antigas com IA sem apagar o histórico ou repetir ferramentas. `/compact` é alias.
-- Timeout Codex/Claude de 600s por chamada; `CENTAUR_NATIVE_TIMEOUT=900` ajusta (30–3600s). `CENTAUR_CONTEXT_WINDOW` informa a janela real quando não consta no catálogo.
+- Timeout de inferência e compactação de 30min por padrão; `CENTAUR_NATIVE_TIMEOUT`, `CENTAUR_OPENROUTER_TIMEOUT` e `CENTAUR_COMPACT_TIMEOUT` ajustam (30–3600s). Cada resumo usa o orçamento restante, sem teto de 90s. `CENTAUR_CONTEXT_WINDOW` informa a janela real quando não consta no catálogo.
 - Turnos sem limite fixo de etapas; Ctrl+C interrompe comandos e bloqueia novas ações.
 - ↑/↓ recuperam prompts anteriores e avançam até o rascunho atual, inclusive vazio; prompts salvos não são alterados. PgUp/PgDn e roda do mouse rolam a conversa; Ctrl+E volta ao fim.
 - Autocompact a 80% da janela conhecida, sem apagar histórico; `CENTAUR_AUTOCOMPACT=0` desativa. Resumos longos recebem até duas revisões sem truncar a memória.

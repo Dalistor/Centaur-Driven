@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.1 — 2026-10-06
+
+- Inferência Codex/Claude/OpenRouter e orçamento da compactação passam a 30 minutos por padrão, configuráveis de 30 a 3600 segundos.
+- Resumos usam o orçamento restante, sem o teto antigo de 90s; subagentes roteados repassam prazo, effort e capacidades do backend. Cancelamento, checkpoints e retomada permanecem ativos.
+- Rodapé respeita a largura do composer, resume erros já presentes na conversa e indica avisos truncados com reticências. Diagnósticos completos quebram por células do terminal, incluindo Unicode e caminhos longos.
+- Falhas reais de compactação ficam salvas na conversa e são removidas após compactação bem-sucedida; interrupção do usuário não vira erro.
+
 ## 0.9.0 — 2026-10-06
 
 - Composer com Ctrl+V de imagens, texto e caminhos/URIs locais; drag-and-drop, marcadores atômicos, remoção inteira e recuperação de anexos com ↑/↓. Rascunhos e filas separados por conversa.

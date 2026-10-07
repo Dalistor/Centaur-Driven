@@ -187,7 +187,7 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
     offset = pending['offset'] if pending else 0
     summary = pending['summary'] if pending else old['summary'] if old else ''
     try:
-        budget = int(os.environ.get('CENTAUR_COMPACT_TIMEOUT', '180'))
+        budget = int(os.environ.get('CENTAUR_COMPACT_TIMEOUT', '1800'))
         if not 30 <= budget <= 3600: raise ValueError
     except ValueError:
         raise ValueError('CENTAUR_COMPACT_TIMEOUT deve ser um inteiro entre 30 e 3600 segundos.') from None
@@ -226,7 +226,7 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
                                    'Use $compact para continuar; histórico preservado.')
         request_options = dict(options)
         if getattr(client, 'supports_request_timeout', False) is True:
-            request_options['request_timeout'] = min(90, remaining)
+            request_options['request_timeout'] = remaining
         reply = client.complete(chat['model'], [
             {'role': 'system', 'content': prompt},
             {'role': 'user', 'content': json.dumps({'resumo_anterior': previous,
@@ -328,10 +328,12 @@ def save_compaction(chat, store, state, cancel_event=None):
     candidate = {**chat, 'compaction': state}
     candidate.pop('context_usage', None)
     candidate.pop('compaction_pending', None)
+    candidate.pop('compaction_error', None)
     store.save(candidate)
     chat.update(candidate)
     chat.pop('context_usage', None)
     chat.pop('compaction_pending', None)
+    chat.pop('compaction_error', None)
 
 
 def save_compaction_progress(chat, store, pending, cancel_event=None):

@@ -30,9 +30,12 @@ class RoutedClient:
     def __init__(self, client, session_id, cost_tier):
         self.client, self.session_id, self.cost_tier = client, session_id, cost_tier
 
-    def complete(self, model, messages, tools):
+    def __getattr__(self, name):
+        return getattr(self.client, name)
+
+    def complete(self, model, messages, tools, **options):
         return self.client.complete(model, messages, tools,
-                                    cost_tier=self.cost_tier, session_id=self.session_id)
+                                    cost_tier=self.cost_tier, session_id=self.session_id, **options)
 
 
 class SubagentTools:

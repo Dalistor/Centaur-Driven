@@ -22,7 +22,7 @@ from .native_usage import BalanceUnavailable
 from .completion import SkillCompletion
 from .conversation import TranscriptLine, generate_title, readable_markdown, tool_activity
 from .tools import ProjectTools
-from .appearance import TerminalView
+from .appearance import TerminalView, fit_cells, cell_width
 from .graphics import FRAME_SECONDS
 from .subagents import SubagentTools
 from .sessions import SessionRegistry, LABELS
@@ -38,8 +38,22 @@ from .keyboard import KEY_NEWLINE, PastedText, KeyboardReader, keyboard_protocol
 def display_lines(text, width):
     clean = ''.join(character if character.isprintable() or character == '\n' else ' '
                     for character in str(text))
-    return [line for paragraph in clean.split('\n')
-            for line in (textwrap.wrap(paragraph, max(1, width)) or [''])]
+    lines = []
+    width = max(1, width)
+    for paragraph in clean.split('\n'):
+        for line in textwrap.wrap(paragraph, width) or ['']:
+            while cell_width(line) > width:
+                part = fit_cells(line, width)
+                if not part:  # A wide glyph cannot fit a one-cell viewport.
+                    lines.append('�')
+                    line = line[1:]
+                else:
+                    lines.append(part)
+                    line = line[len(part):]
+            if line or not lines or not paragraph:
+                lines.append(line)
+    return lines
+
 
 
 class SessionEvents:
@@ -542,7 +556,10 @@ class Terminal:
             self.events.put(('compacted', (chat, cancel_event, state, before, after)))
         except Exception as error:
             message = getattr(client, 'redact', str)(str(error))
-            self.events.put(('done', 'Compactação: ' + message))
+            if isinstance(error, (TurnCancelled, CompactionPaused)):
+                self.events.put(('done', message))
+            else:
+                self.events.put(('compaction_failed', (chat, message)))
 
     @property
     def draft(self):
@@ -1019,6 +1036,17 @@ class Terminal:
                 self.question = None
                 self.notice = value
                 self.credits_dirty = True
+            elif kind == 'compaction_failed':
+                chat, message = value
+                chat['compaction_error'] = message
+                try:
+                    self.store.save(chat)
+                except OSError:
+                    pass
+                self.registry.set(chat['id'], 'stopped')
+                self.busy = False
+                self.notice = 'Erro na compactação · detalhes na conversa · $compact retoma.'
+                self.credits_dirty = True
             elif kind == 'compacted':
                 self.registry.set(self.chat['id'], 'stopped')
                 chat, cancellation, state, before, after = value
@@ -1100,7 +1128,7 @@ class Terminal:
                 append_text(readable_markdown(content))
                 lines.append(TranscriptLine(''))
         if self.busy and not self.approval and not self.agent_preview:
-            lines.append(TranscriptLine('◦ ' + self.view.activity(self, self.notice), 'muted'))
+            append_text('◦ ' + self.view.activity(self, self.notice), 'muted')
         if current_chat.get('last_error'):
             error = current_chat['last_error']
             legacy_pause = (error.startswith('Compactação automática falhou;')
@@ -1112,6 +1140,10 @@ class Terminal:
                 lines.extend([TranscriptLine(''), TranscriptLine('! Erro anterior' if self.busy else '! Erro no turno', 'warning')])
                 append_text(error, 'warning')
             append_text('/retry retoma sem reenviar a mensagem; /new começa outra conversa.', 'muted')
+        if current_chat.get('compaction_error'):
+            lines.extend([TranscriptLine(''), TranscriptLine('! Erro anterior na compactação' if self.busy else '! Erro na compactação', 'warning')])
+            append_text(current_chat['compaction_error'], 'warning')
+            append_text('$compact retoma o progresso salvo; histórico preservado.', 'muted')
         if current_chat.get('turn_paused'):
             lines.append(TranscriptLine('◦ Pausa anterior do turno' if self.busy else '◦ Turno pausado', 'muted'))
             append_text(current_chat['turn_paused'], 'muted')

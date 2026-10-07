@@ -1,6 +1,7 @@
 """Adaptador HTTP do OpenRouter, sem dependências externas."""
 
 import json
+import os
 from decimal import Decimal, InvalidOperation
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -33,6 +34,12 @@ class OpenRouter:
     supports_request_timeout = True
 
     def __init__(self, api_key, credits_key=None):
+        try:
+            self.timeout = int(os.environ.get('CENTAUR_OPENROUTER_TIMEOUT', '1800'))
+            if not 30 <= self.timeout <= 3600:
+                raise ValueError
+        except ValueError:
+            raise ValueError('CENTAUR_OPENROUTER_TIMEOUT deve ser um inteiro de 30 a 3600 segundos.') from None
         self.api_key = api_key
         self.credits_key = credits_key
         self.model_efforts = {}
@@ -141,8 +148,8 @@ class OpenRouter:
         if request_timeout is not None and (isinstance(request_timeout, bool)
                 or not isinstance(request_timeout, (int, float)) or not 0 < request_timeout <= 3600):
             raise ValueError('Tempo limite de requisição inválido.')
-        timeout = 60 if request_timeout is None else min(60, request_timeout)
-        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 60:
+        timeout = self.timeout if request_timeout is None else min(self.timeout, request_timeout)
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 3600:
             raise ValueError('Tempo limite de requisição inválido.')
         from .config import validate_effort
         validate_effort(self.backend, effort)

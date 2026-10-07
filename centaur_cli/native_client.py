@@ -211,7 +211,7 @@ class NativeClient:
             raise ValueError('Backend nativo inválido.')
         self.backend, self.fixed_model = backend, model
         try:
-            self.timeout = int(os.environ.get('CENTAUR_NATIVE_TIMEOUT', '600'))
+            self.timeout = int(os.environ.get('CENTAUR_NATIVE_TIMEOUT', '1800'))
             if not 30 <= self.timeout <= 3600:
                 raise ValueError
         except ValueError:

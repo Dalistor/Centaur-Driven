@@ -30,6 +30,15 @@ def fit_cells(text, width):
     return ''.join(result)
 
 
+def fit_notice(text, width):
+    """Single row inside the composer; preserve an explicit truncation marker."""
+    text = ' '.join(str(text).split())
+    text = ''.join(c if c.isprintable() else ' ' for c in text)
+    if cell_width(text) <= width:
+        return text
+    return fit_cells(text, max(0, width - 1)) + ('…' if width > 0 else '')
+
+
 def input_window(text, cursor, width):
     start, used = cursor, 0
     while start > 0:
@@ -483,8 +492,10 @@ class TerminalView:
             prefix = terminal.completion.context[1]
             notice = ('Nenhuma skill adicional encontrada em .centaur/skills/.' if prefix == '@'
                       else 'Nenhuma skill Centaur corresponde ao nome digitado.')
-        self.put(screen, composer_separator + 1, composer_left, notice,
-                 'warning' if notice.startswith(('Erro', 'Não foi', 'Chave detectada')) else 'muted')
+        if terminal.chat.get('last_error') and notice.startswith('Erro: ' + terminal.chat['last_error']):
+            notice = 'Erro no turno · detalhes na conversa · /retry retoma.'
+        self.put(screen, composer_separator + 1, composer_left, fit_notice(notice, composer_width),
+                 'warning' if notice.startswith(('Erro', 'Não foi', 'Chave detectada')) else 'muted', composer_width)
         if attachment_rows:
             names = ', '.join(item['name'] for item in terminal.pending_attachments)
             self.put(screen, composer_separator + 2, composer_left,

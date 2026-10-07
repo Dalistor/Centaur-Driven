@@ -22,6 +22,10 @@ from test_terminal_settings import Screen
 
 class ContextTests(unittest.TestCase):
     def setUp(self):
+        # Short budgets are explicit test fixtures; production defaults are tested below.
+        budget = patch.dict(os.environ, {'CENTAUR_COMPACT_TIMEOUT': '180'})
+        budget.start()
+        self.addCleanup(budget.stop)
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
@@ -343,7 +347,7 @@ class ContextTests(unittest.TestCase):
         self.client.complete.side_effect = reply
         with patch('centaur_cli.context.time.monotonic', side_effect=lambda: elapsed[0]):
             with self.assertRaises(ValueError): compact_chat(self.chat, self.client)
-        self.assertEqual([call.kwargs['request_timeout'] for call in self.client.complete.call_args_list], [90, 90, 20])
+        self.assertEqual([call.kwargs['request_timeout'] for call in self.client.complete.call_args_list], [180, 100, 20])
         self.assertNotIn('compaction', self.chat)
 
     def test_invalid_timeout_does_not_call_provider_or_change_history(self):
@@ -640,7 +644,7 @@ class NativeContextTests(unittest.TestCase):
             return NativeClient('codex', 'main')
 
     def test_timeout_default_override_validation_and_process_cleanup(self):
-        with patch.dict(os.environ, {}, clear=True): self.assertEqual(self.client().timeout, 600)
+        with patch.dict(os.environ, {}, clear=True): self.assertEqual(self.client().timeout, 1800)
         with patch.dict(os.environ, {'CENTAUR_NATIVE_TIMEOUT': '900'}): client = self.client()
         self.assertEqual(client.timeout, 900)
         for value in ('no', '0', '29', '3601'):
@@ -693,4 +697,4 @@ class NativeContextTests(unittest.TestCase):
         self.assertEqual(request.call_args.kwargs['timeout'], 12.5)
         with patch('centaur_cli.openrouter.urlopen', return_value=io.BytesIO(json.dumps(payload).encode())) as request:
             client.complete('main', [], [])
-        self.assertEqual(request.call_args.kwargs['timeout'], 60)
+        self.assertEqual(request.call_args.kwargs['timeout'], 1800)
