@@ -21,9 +21,11 @@ fechamento automático, timeout considerando subagentes e cursor por clique.
   heartbeat com relógio avançado 1900s, protege coordenador criado há 65h e fecha após
   sucesso/falha/cancelamento. Cada inferência conserva seu prazo; não há deadline global
   do coordenador para a espera de filhos. Não se aguardou uma chamada real de 30min.
-- PTY curses real envia press/release SGR, clica no prompt multilinha e insere no índice
+- PTY curses real envia press/release no protocolo negociado (SGR ou X10 no curses
+  antigo do macOS), clica no prompt multilinha e insere no índice
   escolhido antes de resize/envio/compactação/retomada. Executa em cor, NO_COLOR e
-  reduced motion, sem inserir escape no prompt nem acionar o modelo pelo clique.
+  reduced motion e xterm-color/X10, sem inserir escape no prompt nem acionar o modelo
+  pelo clique. CI macOS verifica o protocolo pedido pelo curses daquela plataforma.
 - Suíte: 431 casos, 425 aprovados localmente e seis opt-in de desktop/clipboard no CI;
   15 casos dedicados a painéis/mouse, além do PTY e da cobertura de sessões/prazos.
 - Wheel/sdist, twine strict, check_dist com 67 recursos e instalação isolada; compileall,

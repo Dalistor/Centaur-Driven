@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import pty
+import re
 import select
 import signal
 import struct
@@ -52,12 +53,12 @@ curses.wrapper(terminal.run)
 
 class TerminalPTYTests(unittest.TestCase):
     def test_multiline_protocols_paste_resize_compaction_and_resume_in_real_curses(self):
-        for mode in ('color', 'monochrome', 'reduced'):
+        for mode in ('color', 'monochrome', 'reduced', 'legacy'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 master, slave = pty.openpty()
                 fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 80, 0, 0))
-                env = {**os.environ, 'TERM': 'xterm-256color', 'CENTAUR_GRAPHICS': '0'}
+                env = {**os.environ, 'TERM': 'xterm-color' if mode == 'legacy' else 'xterm-256color', 'CENTAUR_GRAPHICS': '0'}
                 if mode == 'monochrome': env['NO_COLOR'] = '1'
                 if mode == 'reduced': env['CENTAUR_REDUCED_MOTION'] = '1'
                 env['PYTHONPATH'] = str(Path(__file__).resolve().parents[1])
@@ -91,7 +92,13 @@ class TerminalPTYTests(unittest.TestCase):
                     self.assertFalse(snapshot['requests'])
                     box = snapshot['input_hitbox']
                     x, y = box['text_left'] + 3, box['top']
-                    send(f'\x1b[<0;{x+1};{y+1}M\x1b[<0;{x+1};{y+1}m'.encode())
+                    # Behave like an emulator: old macOS curses requests X10,
+                    # modern ncurses explicitly negotiates SGR coordinates.
+                    if re.search(rb'\x1b\[\?[0-9;]*\b1006\b[0-9;]*h', transcript):
+                        send(f'\x1b[<0;{x+1};{y+1}M\x1b[<0;{x+1};{y+1}m'.encode())
+                    else:
+                        send(b'\x1b[M'+bytes((32,x+33,y+33)))
+                        send(b'\x1b[M'+bytes((35,x+33,y+33)))
                     snapshot = wait_for(lambda s: s['cursor'] == 3)
                     self.assertEqual(snapshot['draft'], expected)
                     self.assertFalse(snapshot['requests'])

@@ -35,7 +35,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       # Static deployment tests require Linux. CLI/installer and real curses PTY
-      # interaction (including teardown output draining) also run on macOS.
+      # interaction (negotiated SGR/X10 mouse input and teardown draining)
+      # also run on macOS.
       - run: python -m unittest discover -s tests -v
       - run: python -m compileall -q centaur_cli
       - name: Install optional macOS clipboard dependencies
