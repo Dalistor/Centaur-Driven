@@ -81,11 +81,15 @@ def mac_file_urls(cancellation=None):
     # Keep an explicit return and legacy-compatible bindings in JXA's
     # automation context instead of relying on top-level completion values.
     script = ('ObjC.import("AppKit"); function run() { '
-              'var items = $.NSPasteboard.generalPasteboard.pasteboardItems; '
+              'var pasteboard = $.NSPasteboard.generalPasteboard; '
+              'var items = pasteboard.pasteboardItems; '
               'var urls = []; if (items) { for (var i = 0; i < items.count; i++) { '
-              'var value = ObjC.unwrap(items.objectAtIndex(i).stringForType($.NSPasteboardTypeFileURL)); '
+              'var value = ObjC.unwrap(items.objectAtIndex(i).stringForType($("public.file-url"))); '
               'if (typeof value === "string" && value.indexOf("file:") === 0) urls.push(value); '
-              '} } return urls.join("\\n"); }')
+              '} } if (!urls.length) { '
+              'var value = ObjC.unwrap(pasteboard.stringForType($("public.file-url"))); '
+              'if (typeof value === "string" && value.indexOf("file:") === 0) urls.push(value); '
+              '} return urls.join("\\n"); }')
     return read_command(['osascript', '-l', 'JavaScript', '-e', script], MAX_TEXT,
                         cancellation=cancellation).decode('utf-8').rstrip('\r\n')
 
