@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.0 — 2026-10-07
+
+- Orientação durante execução entra após a etapa atual, com fila persistente por chat; ações restantes do lote antigo são reavaliadas e subagentes continuam trabalhando.
+- Delegação em segundo plano, comunicação/progresso pelo harness e recursão com seis executores simultâneos na árvore do principal; relatórios retornam ao pai e à sessão de origem.
+- Perguntas e permissões serializadas; encerramento, falhas de armazenamento/thread e proteção de históricos ativos não deixam vagas presas.
+- Anexos pelo compositor, colagem/arrasto e Ctrl+S; comandos auxiliares attach/screenshot retirados.
+- Computer use com quadro atual, foco único e até quatro passos no mesmo alvo; lote validado antes de input e falha parcial sem replay.
+- OpenRouter valida todo o lote, rejeita respostas truncadas, preserva blocos necessários à continuidade e responde ao cancelamento local sem executar resposta tardia.
+- Codex/Claude rejeitam finais vazios/incompletos, validam schemas aninhados e limpam processos em falhas locais; effort conhecido é respeitado.
+- Fluxo de código concentra testes novos nos pontos vitais ainda sem proteção suficiente, reutiliza a suíte e evita baterias por método/task/camada.
+
+
 ## 0.9.4 — 2026-10-07
 
 - Corrige a regressão da 0.9.3 que encerrava respostas Codex/Claude após cinco minutos sem saída parcial. Silêncio não interrompe por padrão; `CENTAUR_NATIVE_IDLE_TIMEOUT=0` desativa esse limite, e 30–3600s o ativam explicitamente.

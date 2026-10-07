@@ -2,13 +2,17 @@
 
 import json
 import os
+import queue
+import threading
+import time
 from decimal import Decimal, InvalidOperation
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .credits import CreditBalance, amount
 from .speed import validate_speed
-from .interaction import RequestTimeout
+from .interaction import RequestTimeout, TurnCancelled
+from .tool_protocol import validate_arguments, omit_optional_nulls
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -32,6 +36,7 @@ class OpenRouter:
     backend = 'openrouter'
     allows_model_routing = True
     supports_request_timeout = True
+    supports_cancellation = True
 
     def __init__(self, api_key, credits_key=None):
         try:
@@ -45,6 +50,93 @@ class OpenRouter:
         self.model_efforts = {}
         self.context_windows = {}
         self.speed_support = {}
+        self.pending_requests = threading.BoundedSemaphore(8)
+
+    def request_json(self, request, timeout, cancel_event=None):
+        # urllib can block inside connect/read. Keep the agent cancellable without
+        # retrying the POST or allowing an abandoned reply to execute tools.
+        if cancel_event is None:
+            with urlopen(request, timeout=timeout) as response:
+                raw = response.read(8_000_001)
+                if len(raw) > 8_000_000:
+                    raise ValueError('Resposta OpenRouter excedeu 8 MB.')
+                return json.loads(raw)
+        if cancel_event.is_set():
+            raise TurnCancelled('Turno interrompido pelo usuário.')
+        if not self.pending_requests.acquire(blocking=False):
+            raise RuntimeError('Há requisições OpenRouter ainda encerrando; aguarde antes de retomar.')
+        result = queue.Queue(maxsize=1)
+        def request_once():
+            try:
+                with urlopen(request, timeout=timeout) as response:
+                    raw = response.read(8_000_001)
+                    if len(raw) > 8_000_000:
+                        raise ValueError('Resposta OpenRouter excedeu 8 MB.')
+                    result.put((True, json.loads(raw)))
+            except Exception as error:
+                result.put((False, error))
+            finally:
+                self.pending_requests.release()
+        try:
+            thread = threading.Thread(target=request_once, daemon=True)
+            thread.start()
+        except BaseException:
+            self.pending_requests.release()
+            raise
+        deadline = time.monotonic() + timeout
+        while True:
+            if cancel_event.is_set():
+                raise TurnCancelled('Turno interrompido; a requisição remota pode continuar, mas sua resposta não executará ferramentas.')
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RequestTimeout('Tempo limite da requisição OpenRouter; tente novamente.')
+            try:
+                success, value = result.get(timeout=min(.1, remaining))
+            except queue.Empty:
+                continue
+            if cancel_event.is_set():
+                raise TurnCancelled('Turno interrompido pelo usuário.')
+            if success:
+                return value
+            raise value
+
+    def reply(self, message, tools):
+        if not isinstance(message, dict) or message.get('role') != 'assistant':
+            raise ValueError('Envelope de resposta inválido.')
+        content = message.get('content')
+        if content is not None and not isinstance(content, str):
+            raise ValueError('Conteúdo de resposta inválido.')
+        calls = message.get('tool_calls', [])
+        if calls is None:
+            calls = []
+        if not isinstance(calls, list):
+            raise ValueError('Lote de ferramentas inválido.')
+        allowed = {entry['function']['name']: entry['function']['parameters'] for entry in tools}
+        identifiers, normalized = set(), []
+        for call in calls:
+            if not isinstance(call, dict) or call.get('type') != 'function':
+                raise ValueError('Chamada de ferramenta inválida.')
+            identifier, function = call.get('id'), call.get('function')
+            if not isinstance(identifier, str) or not identifier or identifier in identifiers:
+                raise ValueError('Identificador de ferramenta ausente ou duplicado.')
+            if not isinstance(function, dict) or not isinstance(function.get('name'), str) or function['name'] not in allowed:
+                raise ValueError('Ferramenta indisponível.')
+            if not isinstance(function.get('arguments'), str):
+                raise ValueError('Argumentos devem ser JSON textual.')
+            parameters = allowed[function['name']]
+            arguments = omit_optional_nulls(json.loads(function['arguments']), parameters)
+            validate_arguments(arguments, parameters)
+            identifiers.add(identifier)
+            normalized.append({'id': identifier, 'type': 'function', 'function': {
+                'name': function['name'], 'arguments': json.dumps(arguments, ensure_ascii=False)}})
+        if not normalized and not (isinstance(content, str) and content.strip()):
+            raise ValueError('Resposta vazia.')
+        reply = {'role': 'assistant', 'content': content}
+        if normalized:
+            reply['tool_calls'] = normalized
+        if message.get('reasoning_details'):
+            reply['reasoning_details'] = message['reasoning_details']
+        return reply
 
     def supports_fast(self, model):
         if not model or model.startswith('openrouter/') or ':' in model:
@@ -144,7 +236,9 @@ class OpenRouter:
         except (HTTPError, URLError, TimeoutError, OSError, ValueError, KeyError, TypeError):
             raise RuntimeError('Catálogo indisponível; use Modelo personalizado ou tente novamente.') from None
 
-    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', speed='standard', request_timeout=None):
+    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', speed='standard', request_timeout=None, cancel_event=None):
+        if cancel_event is not None and cancel_event.is_set():
+            raise TurnCancelled('Turno interrompido pelo usuário.')
         if request_timeout is not None and (isinstance(request_timeout, bool)
                 or not isinstance(request_timeout, (int, float)) or not 0 < request_timeout <= 3600):
             raise ValueError('Tempo limite de requisição inválido.')
@@ -182,13 +276,17 @@ class OpenRouter:
                                    'Content-Type': 'application/json',
                                    'X-OpenRouter-Title': 'Centaur CLI'})
         try:
-            with urlopen(request, timeout=timeout) as response:
-                result = json.load(response)
+            result = self.request_json(request, timeout, cancel_event)
+            if not isinstance(result, dict):
+                raise ValueError('Envelope de resposta inválido.')
             if 'error' in result:
                 raise RuntimeError('OpenRouter recusou a requisição. Confira chave, saldo e modelo.')
-            message = result['choices'][0]['message']
-            if not message.get('content') and not message.get('tool_calls'):
-                raise RuntimeError('OpenRouter retornou uma resposta vazia.')
+            choice = result['choices'][0]
+            if not isinstance(choice, dict):
+                raise ValueError('Envelope de resposta inválido.')
+            if choice.get('finish_reason') in ('length', 'content_filter', 'error'):
+                raise RuntimeError('OpenRouter não concluiu a resposta; nenhuma ferramenta dessa resposta foi executada.')
+            message = self.reply(choice['message'], tools)
             return ModelReply(json.loads(self.redact(json.dumps(message))),
                               self.redact(str(result['model'])) if result.get('model') else None,
                               result.get('usage') if isinstance(result.get('usage'), dict) else None,
@@ -202,4 +300,4 @@ class OpenRouter:
                 raise RequestTimeout('Tempo limite da requisição OpenRouter; tente novamente.') from error
             raise RuntimeError('Falha de conexão com OpenRouter; tente novamente.') from error
         except (ValueError, KeyError, IndexError, TypeError) as error:
-            raise RuntimeError('Resposta inválida do OpenRouter.') from error
+            raise RuntimeError('Resposta inválida do OpenRouter; nenhuma ferramenta dessa resposta foi executada.') from error

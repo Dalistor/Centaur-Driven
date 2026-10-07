@@ -730,8 +730,8 @@ class TerminalView:
                   '↑↓ escolher · Tab/Enter inserir · Esc fechar') if completing else
                  'y permitir · n recusar · PgUp/PgDn revisar' if terminal.approval else
                  '↑↓ selecionar · Enter retomar · R renomear · Del excluir · Esc voltar' if terminal.browser else
-                 '↑↓ prompts · PgUp/PgDn rolar · Ctrl+C parar' if terminal.busy else
-                 'Ctrl+V imagem · ↑↓ prompts · Enter enviar · Shift+Enter linha · Shift+← chats')
+                 'Enter orientar · Shift+Enter linha · PgUp/PgDn rolar · Ctrl+C parar' if terminal.busy else
+                 'Ctrl+V cola · Ctrl+S captura · Enter envia · Shift+Enter linha · Shift+← chats')
         if terminal.active_agents and not terminal.agent_panel_area and not modal:
             hints = f'{len(terminal.active_agents)} subagentes · Shift+←/Tab · ' + hints
         if terminal.computer and terminal.computer.resume_requested and not modal:

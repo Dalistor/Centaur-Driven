@@ -2,7 +2,7 @@
 name: run
 description: Coordena uma spec por execução pelo terminal, com posse explícita, execução adaptativa, evidências e integração conforme autorização.
 metadata:
-  version: 5.3.0
+  version: 5.4.0
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -53,7 +53,7 @@ Replanejar detalhes técnicos dentro dos limites delegados, registrando motivo e
 
 Agrupar as tasks da spec escolhida por dependências e interferência em arquivos/contratos compartilhados. Registrar posse e conferir tasks ativas de outras sessões antes de editar. Um bloqueio suspende apenas as tasks dependentes; continuar as independentes autorizadas dentro da mesma spec. Usar branches/worktrees se necessário. Selecionar skill por modo TDD/direto e executor por posse/capacidade. No backend OpenRouter, selecionar modelo por risco, incerteza e orçamento disponível; Codex/Claude permitem escolher modelos do mesmo backend conforme o catálogo de delegate_task. Não exigir ferramenta `Agent`, nome comercial ou paralelismo. Sem subagentes, executar sequencialmente pela skill adequada e separar execução/consolidação.
 
-Cada executor recebe: spec/task, contrato/versão/regras, objetivo observável, fontes atuais, limites/autonomia, posse de arquivos, dependências integradas, modo, critérios de aceite e destino do registro. Carregar clean-code/graphify na própria sessão quando aplicáveis. Preservar o sentido das instruções; registrar adaptações técnicas autorizadas. Nunca relaxar o contrato para acomodar resultado.
+Cada executor recebe: spec/task, contrato/versão/regras, objetivo observável, fontes atuais, limites/autonomia, posse de arquivos, dependências integradas, modo, critérios de aceite, decisão de verificação e destino do registro. Aplique a [política de testes nos pontos vitais](../graphify/references/testing.md): indique o risco vital e testes existentes a reutilizar, ou verificação proporcional sem teste novo. O coordenador resolve sobreposição de proteção entre tasks; subagentes não criam baterias próprias por rotina. Carregar clean-code/graphify na própria sessão quando aplicáveis. Preservar o sentido das instruções; registrar adaptações técnicas autorizadas. Nunca relaxar o contrato para acomodar resultado.
 
 ### Subagentes e escolha de modelos no CLI Centaur
 
@@ -61,7 +61,7 @@ No CLI Centaur, **delegue cada task elegível com `delegate_task`**. O coordenad
 dependências, confere resultados e consolida a spec; não executa todas as tasks sozinho.
 A ferramenta cria uma sessão independente, com histórico próprio, sem herdar o chat inteiro.
 Informe `title` com o ID qualificado e `task` com o pacote completo do executor descrito acima.
-Inclua expressamente os arquivos que ele pode editar, o modo TDD/direto e o aceite.
+Inclua expressamente os arquivos que ele pode editar, o modo TDD/direto, o aceite e a estratégia mínima de verificação. Novos testes exigem falha concreta em ponto vital ainda sem proteção suficiente; não delegue uma bateria genérica.
 
 **Confira primeiro o backend conectado e os campos de `delegate_task`.** Com Codex ou Claude, mantenha o backend e escolha `model` dentre os valores listados pela ferramenta, conforme complexidade, risco e as descrições do catálogo: modelo rápido para tarefas simples, modelo de maior capacidade para incerteza ou risco alto. Se não houver catálogo, omita `model` para manter o principal. Não use `cost_tier` nesses backends. O Codex lê seu catálogo local; Claude oferece aliases `haiku`, `sonnet` e `opus`. O acesso depende da conta: falha de modelo deve ser relatada, sem trocar de provedor ou repetir alterações cegamente. Preserve coordenação, posse e verificação no fluxo Centaur; não crie agentes nativos fora da ferramenta de delegação.
 
@@ -76,12 +76,17 @@ quando a complexidade justificar e o limite configurado permitir. Essa é uma fa
 roteamento, não um teto de gasto em dinheiro. O padrão do CLI permite até `high`;
 `--max-subagent-tier` ajusta o máximo. Não aumente a faixa só porque existem créditos.
 
-As tasks executam sequencialmente nesta versão, respeitando dependências e posse. Cada
+No chat Centaur, iniciar tasks independentes em segundo plano, respeitando dependências e posse.
+`delegate_task` com `status=started` confirma início, não conclusão. Consultar `agent_status`
+para fase e progresso público; enviar orientação via `send_agent_message`; usar `wait_agents`
+para aguardar sem inferências repetitivas. Reavaliar novas mensagens do usuário após a etapa atual. Cada
 subagente OpenRouter recebe uma `session_id` própria; nesse backend, o roteador pode manter ou trocar o modelo durante
 a task. O campo `models_used` registra modelos efetivamente informados nas respostas; Codex/Claude preservam o modelo solicitado e não inventam o ID efetivo quando o CLI não o fornece. Persistem em
 `.centaur/agents/<chat-coordenador>/<id>.json`, separados dos chats principais.
-Gravações e comandos continuam pedindo confirmação humana, identificando o subagente.
-Executores não delegam novas tasks; o limite é 12 subagentes por turno e 20 etapas por sessão.
+Gravações e comandos seguem o modo de permissões selecionado, identificando o subagente.
+Executores podem delegar partes independentes sem ampliar posse ou permissões. Há até seis
+subagentes simultâneos em toda a árvore do principal, incluindo descendentes; não existe
+um teto fixo de etapas. Aguardar os relatórios de descendentes antes de consolidar.
 
 O resultado `reported` significa relatório entregue, **não aceite nem integração**.
 Confira diff, critérios e evidências antes de marcar a task. Em `failed`, leia o histórico
@@ -93,7 +98,7 @@ Executores não alteram contrato aprovado, spec, índices, estado consolidado ou
 
 ## Passo 4 — Consolidar cada entrega/onda
 
-1. Conferir diff, fontes e resultados reais; relatório de executor isolado não é prova. Falha sem relatório exige inspecionar trabalho preservado antes de qualquer tentativa nova.
+1. Conferir diff, fontes e resultados reais; relatório de executor isolado não é prova. No diff de testes, confirmar qual falha vital cada adição protege e eliminar duplicações entre executores sem perder proteção existente. Falha sem relatório exige inspecionar trabalho preservado antes de qualquer tentativa nova.
 2. Registrar decisões técnicas e comparar impacto previsto/real. Desvio de limite bloqueia a parte afetada; manter trabalho independente.
 3. Consolidar memória conforme backend (`files`: README/índice; ai-memory: publicar fila serialmente e verificar). Memória pendente é separada do estado do código.
 4. Atualizar `.centaur/state/<id>.json`, vincular evidências individuais correntes e preservar histórico. Regra só recebe implementada se fontes atuais sustentarem; verificação é derivada por hashes e resultados. Não inferir entrega de um teste verde.

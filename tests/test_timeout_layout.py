@@ -59,7 +59,7 @@ class TimeoutLayoutTests(unittest.TestCase):
         self.assertIn('Objetivo',state['summary'])
 
     def test_openrouter_default_override_and_summary_budget(self):
-        payload = json.dumps({'choices':[{'message':{'content':'Pronto'}}]}).encode()
+        payload = json.dumps({'choices':[{'message':{'role':'assistant','content':'Pronto'}}]}).encode()
         for configured, expected in ((None,1800),('2400',2400),('60',60)):
             values={} if configured is None else {'CENTAUR_OPENROUTER_TIMEOUT':configured}
             with patch.dict(os.environ,values,clear=True): client=OpenRouter('fake')

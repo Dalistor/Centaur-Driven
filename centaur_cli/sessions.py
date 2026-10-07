@@ -57,6 +57,9 @@ def activity_label(root, chat_id, now=None):
         return 'Aguardando input'
     labels = {'model': 'Aguardando modelo', 'compact': 'Compactando contexto',
               'tool:delegate_task': 'Aguardando subagente',
+              'tool:wait_agents': 'Aguardando subagentes',
+              'tool:agent_status': 'Consultando agentes',
+              'tool:send_agent_message': 'Enviando orientação',
               'tool:run_command': 'Executando comando', 'tool:read_file': 'Lendo arquivo',
               'tool:read_skill': 'Consultando skill', 'tool:write_file': 'Gravando arquivo',
               'tool:list_files': 'Consultando arquivos', 'tool:report_progress': 'Atualizando progresso',

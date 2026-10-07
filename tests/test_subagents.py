@@ -68,7 +68,7 @@ class SubagentTests(unittest.TestCase):
         self.assertEqual(requests[0][3]['cost_tier'], 'high')
         self.assertEqual(requests[0][3]['session_id'], result['id'])
         self.assertEqual([message['role'] for message in requests[0][1]], ['system', 'user'])
-        self.assertNotIn('delegate_task', [tool['function']['name'] for tool in requests[0][2]])
+        self.assertIn('delegate_task', [tool['function']['name'] for tool in requests[0][2]])
         history = json.loads(Path(result['history']).read_text())
         self.assertEqual(history['parent_id'], self.parent_id)
         self.assertEqual(history['status'], 'reported')

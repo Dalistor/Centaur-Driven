@@ -56,6 +56,24 @@ class AttachmentComposerTests(unittest.TestCase):
         self.assertIsNone(pasted_paths(self.root, 'file://remotehost/a.png'))
         self.assertIsNone(pasted_paths(self.root, 'explique '+str(second)))
 
+    def test_typed_file_path_while_busy_prepares_then_queues_attachment(self):
+        terminal = self.terminal
+        source = self.root / 'busy file.txt'
+        source.write_text('Attachment while working')
+        terminal.busy = True
+        terminal.draft = source.as_uri()
+        terminal.submit()
+        self.wait_prepared()
+        self.assertIn('[Arquivo #', terminal.draft)
+        self.assertEqual(terminal.chat['messages'], [])
+        self.assertFalse(terminal.inbox().snapshot())
+        terminal.submit()
+        pending = terminal.inbox().snapshot()
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]['message']['attachments'][0]['name'], source.name)
+        self.assertEqual(terminal.chat['messages'], [])
+        self.assertFalse(terminal.pending_attachments)
+
     def test_normal_paste_remains_literal_and_never_sends(self):
         self.terminal.handle(PastedText('um texto\ncom duas linhas'))
         self.assertEqual(self.terminal.draft, 'um texto\ncom duas linhas')
@@ -281,8 +299,10 @@ class AttachmentComposerTests(unittest.TestCase):
         path.write_bytes(item['data'])
         import json
         uri = path.as_uri()
-        script = 'ObjC.import("AppKit"); const p=$.NSPasteboard.generalPasteboard; p.clearContents; p.setStringForType($('+json.dumps(uri)+'),$.NSPasteboardTypeFileURL);'
-        read_command(['osascript','-l','JavaScript','-e',script],1024)
+        script = 'ObjC.import("AppKit"); function run() { var p=$.NSPasteboard.generalPasteboard; p.clearContents; return p.setStringForType($('+json.dumps(uri)+'),$("public.file-url")); }'
+        self.assertEqual(read_command(['osascript','-l','JavaScript','-e',script],1024).strip(),b'true')
+        from centaur_cli.clipboard import mac_file_urls
+        self.assertEqual(mac_file_urls(),uri)
         self.assertEqual(clipboard_content(),('text',uri))
         self.terminal.handle('\x16'); self.wait_prepared()
         self.assertIn('[Arquivo #',self.terminal.draft)

@@ -19,33 +19,8 @@ from .interaction import TurnCancelled, RequestTimeout
 from .speed import local_speed_support, fast_supported, validate_speed
 from .native_usage import NativeBalance, BalanceUnavailable, claude_windows, read_codex_balance
 from .sessions import NATIVE_PHASES
+from .tool_protocol import validate_arguments, omit_optional_nulls
 
-
-def validate_arguments(value, spec):
-    """Validate the entire typed batch before returning any executable call."""
-    kind = spec.get('type')
-    valid = {'string': lambda: isinstance(value, str), 'integer': lambda: type(value) is int,
-             'number': lambda: type(value) in (int, float), 'boolean': lambda: type(value) is bool,
-             'array': lambda: isinstance(value, list), 'object': lambda: isinstance(value, dict)}
-    if kind in valid and not valid[kind]():
-        raise ValueError('Argumentos devem respeitar os tipos da ferramenta.')
-    if 'enum' in spec and value not in spec['enum']:
-        raise ValueError('Opção de ferramenta fora do catálogo permitido.')
-    if kind == 'string' and len(value) > spec.get('maxLength', float('inf')):
-        raise ValueError('Texto excede o limite da ferramenta.')
-    if kind in ('integer', 'number') and not spec.get('minimum', -float('inf')) <= value <= spec.get('maximum', float('inf')):
-        raise ValueError('Número fora do limite da ferramenta.')
-    if kind == 'array':
-        if not spec.get('minItems', 0) <= len(value) <= spec.get('maxItems', float('inf')):
-            raise ValueError('Quantidade de itens fora do contrato.')
-        for item in value:
-            validate_arguments(item, spec['items'])
-    if kind == 'object':
-        properties = spec['properties']
-        if set(value) - set(properties) or not set(spec.get('required', [])) <= set(value):
-            raise ValueError('Argumentos fora do contrato da ferramenta; tente novamente com /retry.')
-        for name, item in value.items():
-            validate_arguments(item, properties[name])
 
 REPLY_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
@@ -72,19 +47,29 @@ OpenRouter nesta sessão. Subagentes mantêm o backend e podem escolher modelos 
 '''
 
 
+def strict_parameters(spec):
+    """Strict structured output requires all object keys, including nested steps."""
+    spec = copy.deepcopy(spec)
+    spec.pop('default', None)
+    if spec.get('type') == 'object':
+        required = spec.get('required', [])
+        for key, value in spec['properties'].items():
+            value = strict_parameters(value)
+            spec['properties'][key] = value if key in required else {'anyOf': [value, {'type': 'null'}]}
+        spec['required'] = list(spec['properties'])
+        spec['additionalProperties'] = False
+    elif spec.get('type') == 'array':
+        spec['items'] = strict_parameters(spec['items'])
+    return spec
+
+
 def reply_schema(tools):
     """Typed arguments avoid double-escaping code, quotes and multiline content."""
     schema = copy.deepcopy(REPLY_SCHEMA)
     variants = []
     for entry in tools:
         function = entry['function']
-        arguments = copy.deepcopy(function['parameters'])
-        for key in arguments['properties']:
-            arguments['properties'][key].pop('default', None)
-            if key not in arguments.get('required', []):
-                arguments['properties'][key] = {'anyOf': [arguments['properties'][key], {'type': 'null'}]}
-        arguments['required'] = list(arguments['properties'])
-        arguments['additionalProperties'] = False
+        arguments = strict_parameters(function['parameters'])
         variants.append({'type': 'object', 'additionalProperties': False,
                          'properties': {'name': {'type': 'string', 'enum': [function['name']]},
                                         'arguments': arguments}, 'required': ['name', 'arguments']})
@@ -107,7 +92,7 @@ def decode_reply(text):
 
 def codex_output(directory, output):
     # Only completed public agent messages, not reasoning or partial event fragments.
-    candidate, completed = None, False
+    candidate, completed, started = None, False, False
     for line in output.splitlines():
         try:
             event = json.loads(line)
@@ -115,6 +100,9 @@ def codex_output(directory, output):
             continue
         if not isinstance(event, dict):
             continue
+        if event.get('type') == 'turn.started':
+            started = True
+            completed, candidate = False, None
         if event.get('type') == 'turn.failed':
             raise ValueError('O Codex interrompeu o turno; confira conexão, limite e acesso ao modelo.')
         if event.get('type') == 'item.completed':
@@ -125,6 +113,8 @@ def codex_output(directory, output):
             completed = True
     # A recoverable error followed by a completed turn is valid. A final file
     # must never override a terminal failure found in the event stream.
+    if started and not completed:
+        raise ValueError('O Codex não concluiu o turno; a resposta parcial não será executada.')
     path = directory / 'reply.json'
     if path.is_file() and path.stat().st_size:
         if path.stat().st_size > 8_000_000:
@@ -445,6 +435,10 @@ class NativeClient:
             raise ValueError('cost_tier é exclusivo de OpenRouter.')
         if model != self.fixed_model and model not in self.model_catalog():
             raise ValueError(f'Modelo não listado no catálogo {self.backend}.')
+        if model in self.model_efforts and effort not in self.model_efforts[model]:
+            raise ValueError('Este modelo não aceita o effort selecionado; use $config e escolha um nível disponível.')
+        if cancel_event is not None and cancel_event.is_set():
+            raise TurnCancelled('Turno interrompido pelo usuário.')
         self.check_speed(model, speed)
         conversation, images = split_images(messages, max_images=32)
         prompt = BRIDGE_INSTRUCTIONS + '\n' + self.redact(json.dumps({'conversation': conversation, 'tools': tools}, ensure_ascii=False))
@@ -475,14 +469,12 @@ class NativeClient:
                     notify()
                     while True:
                         if cancel_event is not None and cancel_event.is_set():
-                            self.stop_process(process)
                             raise TurnCancelled('Turno interrompido pelo usuário.')
                         now = time.monotonic()
                         remaining = deadline - now
                         if remaining <= 0:
                             raise subprocess.TimeoutExpired(arguments, timeout)
                         if self.idle_timeout > 0 and now - last_output >= self.idle_timeout:
-                            self.stop_process(process)
                             error = RequestTimeout if request_timeout is not None else RuntimeError
                             raise error(f'{self.backend}: sem nova saída do CLI por {self.idle_timeout:g} segundos; '
                                         'execução encerrada e checkpoints preservados. Confira conexão/modelo, '
@@ -501,14 +493,12 @@ class NativeClient:
                             # must never masquerade as activity from the native process.
                             sizes = (len(partial.output or b''), len(partial.stderr or b''))
                             if sizes[0] > 8_000_000 or sizes[1] > 1_000_000:
-                                self.stop_process(process)
                                 raise RuntimeError(f'{self.backend}: saída local excedeu o limite; '
                                                    'nenhuma ferramenta dessa resposta foi executada.')
                             if sizes != received:
                                 received, last_output = sizes, time.monotonic()
                                 trace.feed(partial.output)
                                 if trace.failed:
-                                    self.stop_process(process)
                                     hint = trace.hint or 'O CLI informou uma falha definitiva do turno; confira modelo, conexão e autenticação.'
                                     raise RuntimeError(f'{self.backend}: {hint} '
                                                        'Checkpoints preservados; nenhuma ferramenta dessa resposta foi executada.')
@@ -524,6 +514,11 @@ class NativeClient:
                     raise RuntimeError(f'{self.backend}: tempo limite de {timeout:g} segundos; '
                                        'ajuste CENTAUR_NATIVE_TIMEOUT ou use $compact e /retry. '
                                        'Nenhuma chamada pendente foi aplicada. ' + diagnostic) from None
+                except BaseException:
+                    self.stop_process(process)
+                    raise
+                if len(output.encode('utf-8')) > 8_000_000 or len(errors.encode('utf-8')) > 1_000_000:
+                    raise RuntimeError(f'{self.backend}: saída local excedeu o limite; nenhuma ferramenta dessa resposta foi executada.')
                 if process.returncode:
                     raise RuntimeError(process_failure(self.backend, process.returncode, errors, output))
                 if self.backend == 'codex':
@@ -584,14 +579,15 @@ class NativeClient:
             if not isinstance(arguments, dict):
                 raise ValueError('Argumentos inválidos.')
             parameters = allowed[call['name']]
-            arguments = {key: val for key, val in arguments.items()
-                         if val is not None or key in parameters.get('required', [])}
+            arguments = omit_optional_nulls(arguments, parameters)
             if (set(arguments) - set(parameters['properties'])
                     or not set(parameters.get('required', [])) <= set(arguments)):
                 raise ValueError('Argumentos fora do contrato da ferramenta; tente novamente com /retry.')
             validate_arguments(arguments, parameters)
             calls.append({'id': uuid4().hex, 'type': 'function', 'function': {
                 'name': call['name'], 'arguments': self.redact(json.dumps(arguments, ensure_ascii=False))}})
+        if not calls and not (isinstance(value['content'], str) and value['content'].strip()):
+            raise ValueError('O CLI retornou uma resposta vazia; nenhuma conclusão foi produzida.')
         reply = {'role': 'assistant', 'content': self.redact(value['content']) if value['content'] else None}
         if calls:
             reply['tool_calls'] = calls

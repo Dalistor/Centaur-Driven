@@ -170,8 +170,7 @@ class AttachmentTests(unittest.TestCase):
         source.write_text('examine isto')
         terminal = self.terminal
         with patch.object(terminal, 'start_work') as start:
-            terminal.draft = '$attach "com espaço.txt"'
-            terminal.submit()
+            terminal.paste_text(source.as_uri())
             self.wait_prepared()
             self.assertFalse(start.called)
             self.assertFalse(terminal.chat['messages'])
@@ -215,8 +214,7 @@ class AttachmentTests(unittest.TestCase):
     def test_screenshot_is_single_capture_queued_with_no_computer_session(self):
         image = self.image()
         with patch('centaur_cli.terminal.capture_screen', return_value=image) as capture, patch.object(self.terminal, 'start_work') as start:
-            self.terminal.draft = '$screenshot'
-            self.terminal.submit()
+            self.terminal.capture_attachment(delay=0)
             self.wait_prepared()
         capture.assert_called_once()
         self.assertFalse(start.called)
@@ -226,8 +224,7 @@ class AttachmentTests(unittest.TestCase):
 
     def test_screenshot_delay_cancel_and_stale_result_never_add_attachment(self):
         with patch('centaur_cli.terminal.capture_screen') as capture:
-            self.terminal.draft = '$screenshot 10'
-            self.terminal.submit()
+            self.terminal.handle('\x13')
             token = self.terminal.preparing_attachment
             self.terminal.handle('\x03')
             self.terminal.events.put(('attachment_ready', (token, self.terminal.chat['id'], self.text(), None)))

@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão atual é `0.9.6`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.9.6`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.9.6).
+A versão desta entrega é `0.10.0`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.10.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.0).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.9.6/centaur_cli-0.9.6-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.0/centaur_cli-0.10.0-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -222,8 +222,8 @@ o cursor no rascunho multilinha; PgUp/PgDn e o mouse continuam rolando a convers
 | `@` | Autocomplete de skills adicionais em `.centaur/skills/`. |
 | ↑ / ↓, Tab ou Enter na lista de skills | Escolher e inserir a skill; Esc fecha a lista. Enter após inserir envia a mensagem. |
 | `$config` | Selecionar backend, modelo, effort, permissões e velocidade. ↑/↓ escolhem, Enter confirma, Esc volta/cancela. Modelo, effort e velocidade preservam o chat no mesmo backend; trocar backend cria outro. |
-| `$attach "caminho"` | Preparar um arquivo local para a próxima mensagem, com validação do formato e do modelo. |
-| `$screenshot [0–10]` | Capturar uma vez o monitor principal após a espera opcional. Enter posterior envia a captura com sua mensagem. |
+| Ctrl+V / arrastar arquivo | Preparar imagem, texto ou arquivo pelo compositor, com validação do modelo. |
+| Ctrl+S | Capturar uma vez o monitor principal após três segundos; Enter envia com a mensagem. |
 | `$attachments` / `$detach <número\|all>` | Listar os anexos pendentes / remover um ou todos. |
 | `$compact` ou `/compact` | Iniciar a compactação com um único Enter, mantendo mensagens recentes e histórico completo. O progresso informa fragmento atual/total. |
 | Enter / Shift+Enter ou Ctrl+J | Enviar a mensagem / inserir uma nova linha. No autocomplete, Enter executa comandos locais isolados; para skills, insere a opção. Tab apenas completa. |
@@ -553,9 +553,9 @@ O autocomplete `@` lista somente skills adicionais da pasta `.centaur/skills/` d
 Limites desta versão: respostas completas, sem streaming; uma execução ativa por conversa;
 sem limite fixo de etapas no agente principal ou nos executores; Ctrl+C interrompe o turno.
 Timeout padrão de 30 minutos por inferência e por operação de compactação (configurável);
-comandos locais continuam com limite de 60 segundos; compactação manual com `$compact`, sem compactação
-automática do contexto, MCP ou importação de chats de outros clientes. Subagentes executam
-sequencialmente, até 12 por turno, sem delegação recursiva. Use uma única instância
+comandos locais continuam com limite de 60 segundos; compactação manual com `$compact` e automática
+do contexto, sem MCP ou importação de chats de outros clientes. Subagentes executam
+em segundo plano e podem delegar, com até seis simultâneos em toda a árvore do principal. Use uma única instância
 por conversa para evitar sobrescrever histórico. Ferramentas de leitura retornam até 24 mil
 caracteres; chamadas interrompidas são marcadas na retomada, sem repetir ações automaticamente.
 O CLI inclui as skills no pacote em `centaur_cli/skills/` e as consulta com `read_skill`,
@@ -576,7 +576,7 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.6'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.0'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```
@@ -598,22 +598,12 @@ Pillow e texto usa `pbpaste`. Em SSH, o clipboard é da máquina que executa o C
 cole caminhos acessíveis nessa máquina. Colagem lê o clipboard apenas por ação explícita,
 sem monitoramento. O modelo precisa aceitar o formato; falhas preservam o texto existente.
 
-Os comandos de anexo continuam disponíveis; execute cada um com Enter:
-
-```text
-$attach "logs/erro com espaço.txt"
-$attach "/caminho/captura.png"
-$screenshot 3
-$attachments
-$detach 2
-```
-
-`$screenshot 3` espera três segundos para você trocar de janela e captura **uma vez o
-monitor principal**. Ctrl+C cancela a preparação. Depois, escreva seu pedido e pressione
-Enter para enviar o texto e os anexos; Enter com o campo vazio também envia os anexos.
-A preparação não chama o modelo. Nomes e quantidade aparecem junto ao campo e no final
-da conversa; `$detach all` remove todos os pendentes. Os comandos também aceitam `/`.
-Uma captura isolada não inicia computer use nem concede acesso para controlar o PC.
+Anexar e capturar são funções do compositor, sem `$attach` ou `$screenshot`. **Ctrl+S**
+espera três segundos para você trocar de janela e captura uma vez o monitor principal.
+Ctrl+C cancela a preparação; depois, Enter envia a captura junto com sua mensagem.
+`$attachments` lista os pendentes e `$detach <número|all>` remove. Preparação não chama
+o modelo nem inicia computer use. Colagem, arrasto e captura também funcionam durante
+execução; Enter envia uma orientação para a próxima etapa, preservando os subagentes.
 
 | Arquivo | Suporte |
 | --- | --- |
@@ -631,7 +621,7 @@ No Claude, os aliases padrão e modelos versionados Haiku/Sonnet/Opus aceitam im
 Trocar modelo revalida os anexos no envio; uma incompatibilidade preserva texto e fila.
 
 Captura automática: Linux X11 e macOS com permissão de gravação de tela. Em Wayland,
-use a captura do sistema e `$attach` no arquivo salvo. Imagens também podem ser anexadas
+use a captura do sistema e cole/arraste o arquivo salvo. Imagens também podem ser anexadas
 em sessões sem desktop. O extra `computer` já inclui as dependências visuais.
 
 Anexos **enviados** são copiados com permissão 0600 para `.centaur/attachments/<chat>/`;
@@ -645,7 +635,7 @@ as cópias da mensagem anterior e preserva o rascunho para voltar com ↓.
 Compactação inclui texto e nomes dos anexos, preservando observações já registradas
 sobre imagens/PDFs. Originais visuais do prefixo compactado ficam arquivados e deixam de
 ser reenviados; o resumo não inventa seu conteúdo visual. Para analisar novamente um
-original arquivado, recupere o prompt com ↑ ou use `$attach` no original/cópia pelo hash em
+original arquivado, recupere o prompt com ↑ ou cole/arraste o original/cópia pelo hash em
 `.centaur/attachments/<chat>/`. A barra de contexto considera texto pendente; consumo
 visual é aproximado até o provedor informar uso. Anexos enviados seguem a política de
 retenção e os custos do backend escolhido.
@@ -776,7 +766,7 @@ ferramentas reais. Não se faz deploy automaticamente ao concluir.
 
 ## Autocomplete e skills adicionais
 
-Digite `$` no início da mensagem ou de um novo termo para abrir a lista das skills Centaur. Continue digitando para filtrar por nome. `@` abre a lista de skills adicionais instaladas no projeto. Use ↑/↓ para selecionar, Tab para completar e Esc para fechar. Enter insere skills; comandos locais isolados (`$attach`, `$attachments`, `$detach`, `$screenshot`, `$compact`, `$config`, `$credits`, `$status`) executam com um único Enter. Menções a esses comandos no meio de uma frase apenas completam o texto. A lista acompanha o redimensionamento do terminal.
+Digite `$` no início da mensagem ou de um novo termo para abrir a lista das skills Centaur. Continue digitando para filtrar por nome. `@` abre a lista de skills adicionais instaladas no projeto. Use ↑/↓ para selecionar, Tab para completar e Esc para fechar. Enter insere skills; comandos locais isolados (`$agents`, `$attachments`, `$detach`, `$compact`, `$config`, `$credits`, `$status`) executam com um único Enter. Menções a esses comandos no meio de uma frase apenas completam o texto. A lista acompanha o redimensionamento do terminal.
 
 Skills adicionais e todos os seus arquivos de apoio ficam em `.centaur/skills/<nome>/`, com um `SKILL.md` na raiz da skill:
 
@@ -884,7 +874,7 @@ Instale `clean-code` completo no mesmo diretório de skills, caso ausente; não 
 | `spec` | Definir contratos e planejar entregas verificáveis. |
 | `run` | Executar entregas, consolidar evidências e integrar conforme autorização. |
 | `implement` | Mudanças diretas de estrutura, configuração e UI, com validação proporcional. |
-| `tdd` | Regras de negócio e correções relevantes guiadas por testes. |
+| `tdd` | Falhas concretas em pontos vitais ainda sem proteção suficiente, ou pedido explícito de TDD. |
 | `check` | Responder com base nas fontes atuais, sem alterar arquivos. |
 | `security` | Auditar segurança e relatar evidências, sem corrigir automaticamente. |
 | `mcp` | Consultar APIs externas e encaminhar o trabalho à skill apropriada. |
@@ -1058,7 +1048,7 @@ O menu de agentes agrupa cada principal com seus filhos, em árvore com `├─�
 `└─↳`, inclusive históricos com vários níveis. Os cartões mostram nome/ID do principal
 antes da task. O preview informa o principal e o pai imediato; Enter retorna ao
 principal deste processo. A árvore tolera pais ausentes/ciclos e preserva seleção por
-ID. Isso não habilita novas delegações recursivas: executores continuam restritos à task.
+ID. A release 0.9.6 não habilitava delegação recursiva; a versão 0.10.0 abaixo acrescenta essa capacidade.
 
 O transcript distingue `Subagente falhou`, `Subagente interrompido` e `Relatório recebido`.
 Receber o relatório ainda exige conferência pelo coordenador; falha não recebe marca de sucesso.
@@ -1088,3 +1078,51 @@ espera do coordenador por tasks.
 Demonstrações com dados sintéticos do renderer real:
 [cartões e árvore](docs/images/cli-agent-tree-0.9.6.svg) ·
 [menu de agentes](docs/images/cli-agent-menu-0.9.6.svg).
+
+### Política de testes no fluxo de código
+
+O Centaur concentra testes novos nos pontos vitais: segurança/permissões, integridade
+de dados, invariantes essenciais, integrações críticas e fluxos principais. Antes de
+adicionar um caso, o agente identifica a falha concreta e verifica se a proteção
+existente já basta. Planejamento e subagentes recebem a mesma política.
+
+Mudanças de baixo impacto usam implementação direta e verificação proporcional;
+ser testável ou corrigir um bug simples não obriga TDD. Gates e requisitos explícitos
+continuam obrigatórios. Não há meta de contagem/cobertura total nem exclusão automática
+de testes existentes. Veja a [política completa](centaur_cli/skills/graphify/references/testing.md).
+
+### Coordenação e computer use (0.10.0)
+
+Esta entrega reúne orientação durante execução, coordenação recursiva, anexos no
+compositor e refinamentos de computer use. Consulte a execução de publicação para
+confirmar a disponibilidade dos pacotes no GitHub e PyPI.
+
+Enter durante uma execução envia uma orientação em fila privada por chat. O agente a
+lê ao concluir a chamada ao modelo, ferramenta ou compactação atual. Chamadas ainda não
+iniciadas do lote anterior são registradas como não executadas, para reavaliar com a nova
+mensagem. A conversa só é gravada pelo worker; mensagens aceitas sobrevivem ao fechamento
+e são entregues na próxima execução, sem duplicação. Não há interrupção instantânea de
+uma chamada ao provedor. Subagentes existentes continuam trabalhando.
+
+`delegate_task` inicia em segundo plano; `started` não significa sucesso. `agent_status`
+consulta a árvore, fase, tempo sem saída e comentários/ações públicos. `send_agent_message`
+envia orientação ao principal ou executor em execução, entregue entre etapas. `wait_agents`
+aguarda atualizações por até 30s sem inferência. Relatórios voltam ao pai imediato e ao
+principal; a sessão principal retoma para conferi-los, mesmo com outro chat aberto.
+Executores podem delegar, mas compartilham seis vagas simultâneas por principal, incluindo
+filhos e netos. Uma conclusão libera vaga; cancelar o principal cancela toda a árvore.
+Permissões continuam as do chat, com perguntas/aprovações serializadas. Compartilham arquivos:
+a posse continua sendo definida na task; não há isolamento automático por worktree.
+
+Computer use recebe somente o quadro atual por decisão, mantendo captura local a 2fps,
+zoom e mapa de coordenadas. `computer_batch` permite até quatro passos previsíveis no
+mesmo campo: selecionar, digitar e Enter/Tab no fim, com foco único e captura final.
+Navegação entre alvos exige nova observação. Validação de todo lote precede input; falha
+parcial bloqueia replay. PNG usa compressão mais rápida e texto ASCII reduz o intervalo
+entre caracteres, mantendo cancelamento por blocos. A latência do modelo/rede permanece.
+Subagentes não herdam autorização de desktop.
+
+Pesquisa, decisões e verificação: [coordenação e computer use](docs/validation-cli-coordination.md).
+
+A revisão dos fluxos por backend e as correções estão em
+[Validação de agentes por backend](docs/validation-backend-flows.md).

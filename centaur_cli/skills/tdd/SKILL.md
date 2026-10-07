@@ -1,8 +1,8 @@
 ---
 name: tdd
-description: Implementa uma mudança guiada por testes (red-green-refactor), com ciclos mínimos, reaproveitamento e manutenção dos testes existentes e registro no backend de memória configurado. Use quando a mudança tem regra de negócio testável.
+description: Implementa uma mudança guiada por testes (red-green-refactor), com ciclos mínimos, reaproveitamento e manutenção dos testes existentes e registro no backend de memória configurado. Use para falhas concretas em pontos vitais ainda sem proteção suficiente, ou por pedido explícito.
 metadata:
-  version: 5.1.0
+  version: 5.2.0
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -37,17 +37,17 @@ As instruções do usuário e do projeto prevalecem. Use `AGENTS.md` e `.centaur
 
 ## Princípio
 
-Comece pela menor lacuna de comportamento e mantenha a suíte coerente com o contrato atual. Preserve o ciclo RED → GREEN → REFACTOR. Quantidade de testes e percentual de cobertura não são critérios de sucesso por si só.
+Leia a [política de testes nos pontos vitais](../graphify/references/testing.md). Sem falha concreta em ponto vital ainda sem proteção suficiente, use `implement`, salvo requisito explícito de TDD. Comece pela menor lacuna vital e mantenha a suíte coerente com o contrato atual. Preserve o ciclo RED → GREEN → REFACTOR. Quantidade de testes e percentual de cobertura não são critérios de sucesso por si só.
 
 A referência de processo é o [TDD do Superpowers](https://github.com/obra/superpowers/blob/main/skills/test-driven-development/SKILL.md). O Centaur adapta o dimensionamento à solicitação: reaproveita proteção existente e revisa testes afetados quando o contrato muda, em vez de acumular casos a cada entrega. Superpowers é referência, não uma dependência a instalar ou carregar.
 
-**Escopo:** mudanças pontuais com regra de negócio, validação com consequência, cálculo ou correção de bug. Demandas grandes seguem `spec` + `run`. Mudanças estruturais, UI/estilo, configuração e fiação trivial seguem `implement`. Não crie infraestrutura de testes sem que o pedido a autorize.
+**Escopo:** mudanças pontuais em invariantes essenciais, validações com consequência relevante, cálculos críticos ou regressões de alto impacto ainda sem proteção suficiente. Demandas grandes seguem `spec` + `run`. Mudanças estruturais, UI/estilo, configuração e fiação trivial seguem `implement`. Não crie infraestrutura de testes sem que o pedido a autorize.
 
 ## Regras do ciclo
 
-- Comportamento novo ou alterado precisa de uma evidência RED antes da mudança de produção. Um teste existente que reproduz o problema pode cumprir esse papel; não precisa de uma cópia nova.
+- O comportamento vital escolhido para este fluxo precisa de uma evidência RED antes da mudança de produção; isso não exige testes para todos os comportamentos da entrega. Um teste existente que reproduz o problema pode cumprir esse papel; não precisa de uma cópia nova.
 - Uma refatoração que preserva comportamento usa os testes existentes antes e depois. Não quebre código só para fabricar RED, nem apague trabalho existente porque não nasceu por TDD.
-- Cada novo caso deve proteger uma falha concreta que ainda não esteja adequadamente coberta. Explique qual falha ele detecta; não crie teste por método, arquivo, camada ou item de checklist.
+- Cada novo caso deve proteger uma falha concreta em ponto vital que ainda não esteja adequadamente coberta. Explique qual falha ele detecta; não crie teste por método, arquivo, camada ou item de checklist.
 - Teste o contrato observado pelo consumidor. Uma mudança interna que preserva esse contrato não deveria obrigar reescrever a suíte.
 - Falha de teste exige diagnóstico. Mudar a expectativa é correto quando o requisito mudou; afrouxá-la para esconder um defeito não é.
 - Reporte somente execuções e resultados observados. Não declare suíte verde a partir de um teste isolado.
@@ -109,7 +109,7 @@ Pergunte apenas quando a resposta mudar o contrato e não estiver no pedido, nas
 
 ## Passo 6 — Escolher o próximo ciclo
 
-Escolha a menor lacuna ainda aberta, respeitando as dependências reais da mudança. Não gere ciclos por camada nem escreva uma bateria inteira antes de começar. Um ciclo pode atualizar um teste existente. Se tudo já estiver protegido e o comportamento correto, não invente produção nem teste novo: valide e reporte o que encontrou.
+Escolha a menor lacuna ainda aberta, respeitando as dependências reais da mudança. Não gere ciclos por camada nem escreva uma bateria inteira antes de começar. Um ciclo pode atualizar um teste existente. Se a proteção existente já for suficiente, não invente teste novo: reutilize-a, corrija o comportamento quando necessário e valide. O restante da entrega de baixo impacto segue `implement`.
 
 ## Passo 7 — RED observado
 
@@ -137,11 +137,11 @@ Consolide redundâncias e atualize fixtures afetadas. Não remova uma regressão
 
 ## Passo 10 — Avaliar se falta outro ciclo
 
-Compare o resultado aos critérios e riscos identificados. Prossiga somente se houver comportamento exigido ainda sem proteção suficiente. Pare quando a mudança estiver validada pelos testes mantidos, atualizados ou novos. Não complete listas genéricas nem persiga percentual de cobertura.
+Compare o resultado aos critérios e riscos identificados. Prossiga somente se houver risco vital exigido ainda sem proteção suficiente, ou requisito explícito de testes. Pare quando a mudança estiver validada pelos testes mantidos, atualizados ou novos. Não complete listas genéricas nem persiga percentual de cobertura.
 
 ## Passo 11 — Verificar a entrega
 
-1. Execute a suíte do projeto e os gates exigidos antes de concluir. Em monorepo, use o escopo de validação documentado e inclua consumidores afetados por contratos compartilhados. O ciclo rápido usa seleção focada; a entrega exige a verificação mais ampla prevista pelo projeto.
+1. Execute os testes relacionados e os gates exigidos antes de concluir. A suíte completa é necessária quando o projeto/CI exigir ou o impacto transversal justificar; não a repita por rotina. Em monorepo, use o escopo de validação documentado e inclua consumidores afetados por contratos compartilhados. O ciclo rápido usa seleção focada; a entrega exige a verificação mais ampla prevista pelo projeto.
 2. Execute lint/type-check e build quando exigidos ou pertinentes à mudança. Reporte comandos, resultados e limitações reais. Se uma suíte não puder rodar, declare o que ficou sem verificar; falhas preexistentes também aparecem no relatório, separadas das regressões causadas pela mudança.
 3. Revise o diff dos testes: a regra antiga deixou de ser exigida? As remoções perderam algum cenário ainda válido? Fixtures e snapshots representam o contrato atual? Não aprove atualizações em massa sem examinar essas diferenças.
 4. Use cobertura como pista de uma lacuna, quando necessário, ou como gate se o projeto já exigir. Não estabeleça 100% de branches, meta nova ou teste extra só para subir a métrica. Respeite gates existentes sem reduzi-los para obter verde.

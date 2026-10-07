@@ -692,7 +692,7 @@ class NativeContextTests(unittest.TestCase):
 
     def test_openrouter_summary_timeout_does_not_extend_normal_network_timeout(self):
         client = OpenRouter('fake-key')
-        payload = {'choices': [{'message': {'content': 'Memória'}}]}
+        payload = {'choices': [{'message': {'role': 'assistant', 'content': 'Memória'}}]}
         with patch('centaur_cli.openrouter.urlopen', return_value=io.BytesIO(json.dumps(payload).encode())) as request:
             client.complete('main', [], [], request_timeout=12.5)
         self.assertEqual(request.call_args.kwargs['timeout'], 12.5)

@@ -60,14 +60,14 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 ## Anexos e capturas
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.6'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.0'
 ```
 
 Ctrl+V cola imagem/texto/arquivos; arrastar ou colar caminhos insere marcadores atômicos
 na mensagem. Backspace/Delete remove o anexo; ↑/↓ restaura prompts com anexos e volta ao
 rascunho. Linux: xclip (X11) ou wl-clipboard (Wayland); macOS: Pillow/pbpaste.
 
-No chat, `$attach "caminho do arquivo"` prepara um anexo e `$screenshot 3` captura uma
+No chat, cole/arraste um arquivo para preparar um anexo e Ctrl+S captura uma
 vez o monitor principal após três segundos. Revise os nomes junto à mensagem;
 `$attachments` lista a fila e `$detach <número|all>` remove anexos. Escreva o pedido e
 pressione Enter para enviar; a preparação não chama a IA. Ctrl+C cancela a captura.
@@ -230,7 +230,7 @@ O menu de agentes agrupa cada principal com seus filhos, em árvore com `├─�
 `└─↳`, inclusive históricos com vários níveis. Os cartões mostram nome/ID do principal
 antes da task. O preview informa o principal e o pai imediato; Enter retorna ao
 principal deste processo. A árvore tolera pais ausentes/ciclos e preserva seleção por
-ID. Isso não habilita novas delegações recursivas: executores continuam restritos à task.
+ID. A release 0.9.6 não habilitava delegação recursiva; a versão 0.10.0 acrescenta delegação recursiva com seis vagas simultâneas por principal.
 
 O transcript distingue `Subagente falhou`, `Subagente interrompido` e `Relatório recebido`.
 Receber o relatório ainda exige conferência pelo coordenador; falha não recebe marca de sucesso.
@@ -260,3 +260,16 @@ espera do coordenador por tasks.
 Demonstrações com dados sintéticos do renderer real:
 [cartões e árvore](docs/images/cli-agent-tree-0.9.6.svg) ·
 [menu de agentes](docs/images/cli-agent-menu-0.9.6.svg).
+
+### Coordenação e testes por criticidade (0.10.0)
+
+Enter durante execução enfileira orientação entregue entre etapas. Subagentes continuam
+trabalhando, podem delegar e trocam mensagens pelo harness; até seis executores
+simultâneos na árvore inteira do principal. Relatórios retornam à sessão de origem.
+
+Anexos são preparados por colagem/arrasto, Ctrl+V e captura Ctrl+S. Computer use usa
+um quadro atual e lotes curtos no mesmo alvo, mantendo consentimento próprio do chat.
+
+Testes novos protegem falhas concretas em pontos vitais ainda sem proteção suficiente;
+reaproveite testes existentes e use validação proporcional nos ajustes simples.
+Gates e requisitos explícitos do projeto continuam obrigatórios.

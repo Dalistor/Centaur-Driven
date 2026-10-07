@@ -16,7 +16,7 @@ def generate_title(client, model, messages):
     """An independent, tool-free request; never changes the conversation itself."""
     sample = [{'role': entry['role'], 'content': str(entry.get('content') or '')[:1800]}
               for entry in messages if entry['role'] in ('user', 'assistant')
-              and not entry.get('tool_calls')][:2]
+              and not entry.get('tool_calls') and not entry.get('agent_source')][:2]
     if len(sample) < 2:
         return None
     reply = client.complete(model, [
@@ -68,9 +68,13 @@ def tool_activity(call, result=None):
         'list_files': ('Listando', 'Listou', 'path'), 'write_file': ('Gravando', 'Gravou', 'path'),
         'run_command': ('Executando', 'Executou', 'command'),
         'delegate_task': ('Delegando', 'Delegou', 'title'),
+        'agent_status': ('Consultando agentes', 'Consultou agentes', 'agent_id'),
+        'send_agent_message': ('Enviando orientação', 'Orientação enviada', 'agent_id'),
+        'wait_agents': ('Aguardando agentes', 'Consultou agentes', 'wait_seconds'),
         'ask_user': ('Perguntando', 'Perguntou', 'question'),
         'computer_start': ('Iniciando tela', 'Observou tela', 'purpose'),
         'computer_action': ('Controlando desktop', 'Controlou desktop', 'action'),
+        'computer_batch': ('Preenchendo campo', 'Preencheu campo', 'frame_id'),
         'computer_observe': ('Observando tela', 'Observou tela', 'frame_id'),
         'computer_stop': ('Parando captura', 'Parou captura', 'frame_id'),
     }
@@ -89,6 +93,8 @@ def tool_activity(call, result=None):
                 return f'! Subagente interrompido · {detail}'
             if status == 'reported':
                 return f'✓ Relatório recebido · {detail}'
+            if status == 'started':
+                return f'● Subagente iniciado · {detail}'
         except (ValueError, TypeError, AttributeError):
             pass
     if name == 'ask_user':
