@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão atual é `0.9.4`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.9.4`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.9.4).
+A versão atual é `0.9.5`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.9.5`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.9.5).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.9.4/centaur_cli-0.9.4-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.9.5/centaur_cli-0.9.5-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -576,7 +576,7 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.4'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.5'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```
@@ -1016,3 +1016,37 @@ checkpoints existentes. A retomada não reenvia o prompt e não repete ferrament
 respondidas. Chamadas interrompidas exigem conferir o estado antes de tentar novamente.
 Na **0.9.3**, que não aceita zero, `CENTAUR_NATIVE_IDLE_TIMEOUT=1800` evita o corte
 prematuro de cinco minutos enquanto você atualiza.
+
+
+### Diagnóstico de chamadas nativas (0.9.5)
+
+Um erro de `tempo limite de 1800 segundos` significa que **uma chamada ao CLI** não
+terminou em 30 minutos; não é um limite da tarefa inteira nem de todos os subagentes.
+A barra de contexto não informa se a rede está funcionando ou se o modelo está pensando.
+Aumentar o prazo ou usar `/retry` com o mesmo contexto não resolve necessariamente a causa.
+
+Desde a 0.9.5, o timeout informa o último tipo de evento completo, o tamanho da entrada,
+stdout e stderr, e uma categoria de aviso do CLI quando houver evidência: conexão,
+TLS, cota, contexto, schema ou configuração. Esses dados ficam no erro persistido do
+chat; nenhum log bruto, token, texto de raciocínio ou chamada parcial é exibido. Um
+aviso pode ter sido recuperado; ele não confirma sozinho a causa final. Sem evidência,
+o erro informa explicitamente **causa não confirmada**.
+
+`turn.failed` do Codex e resultados de erro do Claude encerram a chamada sem esperar o
+prazo inteiro, mesmo se o processo permanecer aberto. Um aviso `error` recuperável do
+Codex não invalida uma resposta final válida. Arquivo final não sobrepõe `turn.failed`.
+Respostas parciais nunca executam ferramentas; `/retry` continua com os checkpoints.
+
+O adaptador usa uma execução efêmera e saída estruturada por etapa; ele não retoma a
+sessão interna do Codex interativo. Portanto, o CLI interativo funcionar não comprova
+que uma chamada estruturada com todo o contexto ativo concluirá. Para investigar uma
+falha recorrente, confira `centaur --version` e `codex --version`, e o novo diagnóstico
+no chat. Se a conversa estiver grande, `$compact` antes de `/retry` reduz o contexto
+ativo sem apagar o histórico. Não há retry automático de ações.
+
+Referências consultadas: [modo não interativo](https://developers.openai.com/codex/noninteractive/),
+[configuração de rede/retries](https://developers.openai.com/codex/config-reference/) e
+[processador JSONL oficial](https://github.com/openai/codex/blob/main/codex-rs/exec/src/event_processor_with_jsonl_output.rs).
+A configuração documenta idle de stream de 300000ms e até cinco retries; uma sequência
+de interrupções pode ocupar grande parte dos 30 minutos. Isso é uma hipótese de
+investigação, não um diagnóstico confirmado da máquina do usuário.

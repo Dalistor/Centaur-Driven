@@ -354,3 +354,11 @@ cancelled, fecha runtime e propaga TurnCancelled, sem continuar o coordenador.
 
 Verificação: test_native_watchdog.py (processos reais descartáveis), test_graphics.py,
 test_agent_panels_mouse.py e PTY real; preview usa TerminalView com dados demonstrativos.
+
+
+Desde 0.9.5, NativeTrace lê apenas envelopes JSONL completos durante communicate:
+tipos conhecidos e categorias fixas de erro. Timeout persiste fase e quantidades de
+bytes, sem logs brutos ou raciocínio. Aviso anterior não confirma causa atual; ausência
+de evidência é explicitamente desconhecida. turn.failed/resultado Claude de erro
+encerram cedo; error recuperável não invalida conclusão válida. O arquivo final não
+sobrepõe turn.failed. Sem retry automático, mudança de effort ou aumento do deadline.

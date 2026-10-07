@@ -102,11 +102,6 @@ def decode_reply(text):
 
 
 def codex_output(directory, output):
-    path = directory / 'reply.json'
-    if path.is_file() and path.stat().st_size:
-        if path.stat().st_size > 8_000_000:
-            raise ValueError('Resposta excede 8 MB; divida o pedido em partes menores.')
-        return decode_reply(path.read_text(encoding='utf-8'))
     # Only completed public agent messages, not reasoning or partial event fragments.
     candidate, completed = None, False
     for line in output.splitlines():
@@ -116,7 +111,7 @@ def codex_output(directory, output):
             continue
         if not isinstance(event, dict):
             continue
-        if event.get('type') in ('error', 'turn.failed'):
+        if event.get('type') == 'turn.failed':
             raise ValueError('O Codex interrompeu o turno; confira conexão, limite e acesso ao modelo.')
         if event.get('type') == 'item.completed':
             item = event.get('item', {})
@@ -124,6 +119,13 @@ def codex_output(directory, output):
                 candidate = item.get('text')
         if event.get('type') == 'turn.completed':
             completed = True
+    # A recoverable error followed by a completed turn is valid. A final file
+    # must never override a terminal failure found in the event stream.
+    path = directory / 'reply.json'
+    if path.is_file() and path.stat().st_size:
+        if path.stat().st_size > 8_000_000:
+            raise ValueError('Resposta excede 8 MB; divida o pedido em partes menores.')
+        return decode_reply(path.read_text(encoding='utf-8'))
     if completed and isinstance(candidate, str) and len(candidate.encode()) <= 8_000_000:
         return decode_reply(candidate)
     raise ValueError('O Codex não entregou uma resposta final; tente novamente ou confira a instalação.')
@@ -165,6 +167,81 @@ def claude_output(output):
     return result, claude_windows(events)
 
 
+def failure_hint(backend, text):
+    """Return fixed public advice, never the original provider diagnostic."""
+    text = text.lower()
+    if 'schema' in text:
+        return 'O CLI ou modelo recusou o schema de ferramentas; atualize o CLI ou selecione outro modelo.'
+    if any(key in text for key in ('context length', 'context window', 'too many tokens')):
+        return 'O contexto excedeu o limite do modelo; use $compact ou selecione um modelo com mais contexto.'
+    if any(key in text for key in ('rate limit', 'usage limit', 'quota', 'exceeded your')):
+        return 'Limite de uso atingido; aguarde a renovação ou selecione outro modelo/backend.'
+    if 'unexpected argument' in text or 'unrecognized' in text:
+        return 'O CLI não aceita uma opção de integração; atualize o CLI oficial.'
+    if any(key in text for key in ('certificate', 'tls', 'ssl')):
+        return 'Falha de certificado/TLS na execução local; confira proxy, certificados e conexão.'
+    if any(key in text for key in ('stream disconnected', 'error sending request', 'failed to reconnect',
+                                  'connection refused', 'reconnecting', 'connection reset', 'request timed out')):
+        return 'A conexão da execução não interativa falhou; confira rede/proxy e retome com /retry.'
+    if any(key in text for key in ('failed to load configuration', 'unknown variant', 'invalid value', 'unsupported service tier')):
+        return 'O CLI recusou a configuração da execução não interativa; confira versão, modelo, effort e velocidade em $config.'
+    return ''
+
+
+class NativeTrace:
+    """Observe complete public envelopes; never expose item text or partial calls."""
+
+    phases = {'thread.started': 'sessão iniciada', 'turn.started': 'turno iniciado',
+              'turn.completed': 'turno concluído', 'turn.failed': 'turno falhou',
+              'error': 'aviso de erro', 'item.started': 'item iniciado',
+              'item.updated': 'item atualizado', 'item.completed': 'item concluído',
+              'system': 'sessão iniciada', 'assistant': 'resposta em andamento',
+              'result': 'resultado recebido', 'rate_limit_event': 'aviso de cota'}
+
+    def __init__(self, backend):
+        self.backend, self.offset, self.buffer = backend, 0, b''
+        self.phase, self.hint, self.failed = 'nenhum evento completo', '', False
+
+    def feed(self, cumulative):
+        data = cumulative.encode('utf-8') if isinstance(cumulative, str) else cumulative or b''
+        self.buffer += data[self.offset:]
+        self.offset = len(data)
+        lines = self.buffer.split(b'\n')
+        self.buffer = lines.pop()
+        for line in lines:
+            try:
+                event = json.loads(line)
+            except (ValueError, UnicodeError):
+                continue
+            if not isinstance(event, dict):
+                continue
+            kind = event.get('type')
+            if isinstance(kind, str) and kind in self.phases:
+                self.phase = self.phases[kind]
+            # Error events can describe a recoverable reconnect. Only a terminal
+            # turn.failed (or Claude error result) ends the call early.
+            detail = None
+            if kind in ('error', 'turn.failed'):
+                error = event.get('error')
+                detail = event.get('message') or (error.get('message') if isinstance(error, dict) else error)
+                self.failed = self.failed or kind == 'turn.failed'
+            elif self.backend == 'claude' and kind == 'result' and (
+                    event.get('is_error') or event.get('subtype') not in (None, 'success')):
+                detail = event.get('result')
+                self.failed = True
+            if isinstance(detail, str):
+                self.hint = failure_hint(self.backend, detail) or self.hint
+
+    def diagnostic(self, stderr, input_bytes):
+        errors = stderr.decode('utf-8', errors='replace') if isinstance(stderr, bytes) else stderr or ''
+        hint = self.hint or failure_hint(self.backend, errors)
+        evidence = (f'Último evento: {self.phase}; entrada: {input_bytes} bytes; '
+                    f'saída: {self.offset} bytes; stderr: {len(errors.encode("utf-8"))} bytes.')
+        if hint:
+            return evidence + ' Aviso observado no CLI (pode ter sido recuperado): ' + hint
+        return evidence + ' Causa não confirmada pelo CLI; silêncio não prova travamento. '
+
+
 def process_failure(backend, code, stderr, output=''):
     """Classify known diagnostics without echoing prompts, account data or reasoning."""
     text = stderr.lower()
@@ -182,22 +259,8 @@ def process_failure(backend, code, stderr, output=''):
         else:
             continue
         if isinstance(detail, str): text += '\n' + detail.lower()
-    if 'schema' in text:
-        hint = 'O CLI ou modelo recusou o schema de ferramentas; atualize o CLI ou selecione outro modelo.'
-    elif any(key in text for key in ('context length', 'context window', 'too many tokens')):
-        hint = 'O contexto excedeu o limite do modelo; use $compact ou selecione um modelo com mais contexto.'
-    elif any(key in text for key in ('rate limit', 'usage limit', 'quota', 'exceeded your')):
-        hint = 'Limite de uso atingido; aguarde a renovação ou selecione outro modelo/backend.'
-    elif 'unexpected argument' in text or 'unrecognized' in text:
-        hint = 'O CLI não aceita uma opção de integração; atualize o CLI oficial.'
-    elif any(key in text for key in ('certificate', 'tls', 'ssl')):
-        hint = 'Falha de certificado/TLS na execução local; confira proxy, certificados e conexão.'
-    elif any(key in text for key in ('stream disconnected', 'error sending request', 'failed to reconnect', 'connection refused')):
-        hint = 'A conexão da execução não interativa falhou; confira rede/proxy e retome com /retry.'
-    elif any(key in text for key in ('failed to load configuration', 'unknown variant', 'invalid value', 'unsupported service tier')):
-        hint = 'O CLI recusou a configuração da execução não interativa; confira versão, modelo, effort e velocidade em $config.'
-    else:
-        hint = 'Confira conexão, acesso ao modelo e autenticação com ' + ('codex login.' if backend == 'codex' else 'claude auth login.')
+    hint = failure_hint(backend, text) or ('Confira conexão, acesso ao modelo e autenticação com '
+            + ('codex login.' if backend == 'codex' else 'claude auth login.'))
     return f'{backend} encerrou com código {code}. {hint} Nenhuma ferramenta dessa resposta foi executada.'
 
 
@@ -388,6 +451,8 @@ class NativeClient:
                 try:
                     deadline, last_output = time.monotonic() + timeout, time.monotonic()
                     pending_input, received = input_text, (0, 0)
+                    trace, partial_errors = NativeTrace(self.backend), b''
+                    input_bytes = len(input_text.encode('utf-8'))
                     while True:
                         if cancel_event is not None and cancel_event.is_set():
                             self.stop_process(process)
@@ -408,6 +473,7 @@ class NativeClient:
                             break
                         except subprocess.TimeoutExpired as partial:
                             pending_input = None
+                            partial_errors = partial.stderr or b''
                             # communicate exposes cumulative bytes; heartbeats from the UI
                             # must never masquerade as activity from the native process.
                             sizes = (len(partial.output or b''), len(partial.stderr or b''))
@@ -417,14 +483,21 @@ class NativeClient:
                                                    'nenhuma ferramenta dessa resposta foi executada.')
                             if sizes != received:
                                 received, last_output = sizes, time.monotonic()
+                                trace.feed(partial.output)
+                                if trace.failed:
+                                    self.stop_process(process)
+                                    hint = trace.hint or 'O CLI informou uma falha definitiva do turno; confira modelo, conexão e autenticação.'
+                                    raise RuntimeError(f'{self.backend}: {hint} '
+                                                       'Checkpoints preservados; nenhuma ferramenta dessa resposta foi executada.')
                 except subprocess.TimeoutExpired:
                     self.stop_process(process)
+                    diagnostic = trace.diagnostic(partial_errors, input_bytes)
                     if request_timeout is not None:
                         raise RequestTimeout(f'{self.backend}: tempo limite de {timeout:g} segundos na requisição de resumo; '
-                                           'nenhuma ferramenta foi executada.') from None
+                                           'nenhuma ferramenta foi executada. ' + diagnostic) from None
                     raise RuntimeError(f'{self.backend}: tempo limite de {timeout:g} segundos; '
                                        'ajuste CENTAUR_NATIVE_TIMEOUT ou use $compact e /retry. '
-                                       'Nenhuma chamada pendente foi aplicada.') from None
+                                       'Nenhuma chamada pendente foi aplicada. ' + diagnostic) from None
                 if process.returncode:
                     raise RuntimeError(process_failure(self.backend, process.returncode, errors, output))
                 if self.backend == 'codex':
