@@ -111,6 +111,8 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
         if chat.get('speed') == 'fast': options['speed'] = 'fast'
         if getattr(client, 'supports_cancellation', False) and getattr(tools, 'cancel_event', None):
             options['cancel_event'] = tools.cancel_event
+        if getattr(client, 'supports_progress', False) is True and callable(getattr(tools, 'native_progress', None)):
+            options['on_progress'] = tools.native_progress
         payload = [{'role': 'system', 'content': project_prompt(tools.root) + instructions}] + active_messages(chat) + observations
         definitions = getattr(tools, 'definitions', TOOLS)
         if auto_compaction_needed(chat, client, payload, definitions):

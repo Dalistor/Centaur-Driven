@@ -26,6 +26,7 @@ from .appearance import TerminalView, fit_cells, cell_width
 from .graphics import FRAME_SECONDS
 from .subagents import SubagentTools
 from .sessions import SessionRegistry, LABELS
+from .agent_tree import AgentTree
 from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 from .permissions import validate_mode, MODE_LABELS
 from .interaction import QuestionPicker, TurnCancelled
@@ -110,6 +111,9 @@ class Terminal:
         self.browser_mode = 'chats'
         self.agent_preview = None
         self.active_agents = []
+        self.agent_tree = AgentTree([self.chat])
+        self.agent_ancestors = []
+        self.agent_parent_ids = set()
         self.agents_refreshed = 0
         self.agent_panel_scroll = 0
         self.agent_panel_hits = []
@@ -163,6 +167,9 @@ class Terminal:
         self.context_overhead = estimate_tokens(project_prompt(root)) + estimate_tokens(TOOLS)
 
     def context_label(self, width):
+        if self.browser and self.agent_preview:
+            label, style = context_label(self.agent_preview, self.client, width, '', 0)
+            return label.replace('Contexto ', 'Agente ', 1).replace('Ctx[', 'Ag[', 1), style
         draft = {'text': self.draft, 'attachments': summary_attachments(self.pending_attachments)} if self.pending_attachments else self.draft
         return context_label(self.chat, self.client, width, draft, self.context_overhead)
 
@@ -878,6 +885,8 @@ class Terminal:
                                 protected_keys=getattr(self.client, 'secrets', (getattr(self.client, 'api_key', None),)),
                                 approval_mode=self.approval_mode, ask_user=self.ask_user,
                                 cancel_event=self.cancel_event, computer=computer)
+            base.activity = lambda phase: self.registry.activity(chat['id'], phase)
+            base.native_progress = lambda event: self.registry.native_event(chat['id'], event)
             last_request = next((message.get('content') or '' for message in reversed(chat['messages'])
                                  if message['role'] == 'user'), '')
             status_analysis = last_request.strip() in ('/status --ai', '$status --ai')
@@ -887,7 +896,8 @@ class Terminal:
                 tools.cancel_event = self.cancel_event
             else:
                 tools = SubagentTools(base, self.client, chat['id'],
-                                      lambda notice: self.events.put(('progress', notice)), self.max_subagent_tier, registry=self.registry)
+                                      lambda notice: self.events.put(('progress', notice)), self.max_subagent_tier,
+                                      registry=self.registry, effort=chat.get('effort', 'default'), speed=chat.get('speed', 'standard'))
             backend_instructions = (f'\nBackend conectado: {self.backend}. Escolha o modelo por complexidade e risco '
                                     'entre os modelos listados em delegate_task. Não use cost_tier ou outro provedor. '
                                     'Se não houver catálogo, mantenha o modelo principal.\n'
@@ -1147,11 +1157,15 @@ class Terminal:
                     working = True
                 if content:
                     append_text(readable_markdown(content), 'comment', '  ')
-                for call in message['tool_calls']:
+                for call_index, call in enumerate(message['tool_calls']):
                     actions[call['id']] = call
                     if call['function']['name'] == 'report_progress':
                         continue
                     summary = tool_activity(call, results.get(call['id']))
+                    if call['function']['name'] == 'delegate_task':
+                        siblings_after = any(other['function']['name'] == 'delegate_task'
+                                             for other in message['tool_calls'][call_index + 1:])
+                        summary = ('├─↳ ' if siblings_after else '└─↳ ') + summary
                     append_text(summary, 'warning' if summary.startswith(('!', '–')) else 'action', '  ')
             elif message['role'] == 'tool':
                 call = actions.get(message.get('tool_call_id'), {})
@@ -1269,7 +1283,13 @@ class Terminal:
 
     def refresh_agents(self):
         self.active_agents = [agent for agent in self.store.agents(active_only=True) if self.session_state(agent) != 'stopped']
-        self.active_agents.sort(key=lambda agent: (agent.get('created', agent['updated']), agent['id']))
+        parents = {agent['parent_id'] for agent in self.active_agents}
+        if parents != self.agent_parent_ids:
+            self.agent_ancestors = self.store.ancestors(self.active_agents)
+            self.agent_parent_ids = parents
+        self.agent_tree = AgentTree([*self.agent_ancestors, *self.chats, *self.live_chats.values(), self.chat, *self.active_agents])
+        active = {agent['id'] for agent in self.active_agents}
+        self.active_agents = [record for record in self.agent_tree.ordered() if record['id'] in active]
         self.agents_refreshed = time.monotonic()
 
     def handle_mouse(self):
@@ -1295,8 +1315,9 @@ class Terminal:
             return
         for left, top, width, height, agent in self.agent_panel_hits:
             if left <= x < left + width and top <= y < top + height:
-                parent = self.live_chats.get(agent['parent_id'])
-                pending = self.session_states.get(agent['parent_id'], {})
+                principal = self.agent_tree.principal(agent)
+                parent = self.live_chats.get(principal['id'])
+                pending = self.session_states.get(principal['id'], {})
                 if parent and (pending.get('question') or pending.get('approval')):
                     self.switch_chat(parent)
                 else:
@@ -1338,7 +1359,8 @@ class Terminal:
         selected_id = self.chats[self.selected]['id'] if self.chats and self.selected < len(self.chats) else None
         self.chats = self.store.list()
         if self.browser_mode == 'agents':
-            self.chats = sorted([*self.chats, *self.store.agents()], key=lambda chat: chat['updated'], reverse=True)
+            self.agent_tree = AgentTree([*self.chats, *self.store.agents()])
+            self.chats = self.agent_tree.ordered()
         self.selected = next((i for i, chat in enumerate(self.chats) if chat['id'] == selected_id), min(self.selected, max(0,len(self.chats)-1)))
         if self.agent_preview:
             self.agent_preview = next((chat for chat in self.chats if chat['id'] == self.agent_preview['id']), None)
@@ -1373,7 +1395,7 @@ class Terminal:
         elif key in (curses.KEY_PPAGE, curses.KEY_NPAGE) and self.agent_preview:
             self.scroll_chat(5 if key == curses.KEY_PPAGE else -5)
         elif self.agent_preview and key in ('\n', '\r', curses.KEY_ENTER):
-            parent_id = self.agent_preview['parent_id']
+            parent_id = self.agent_tree.principal(self.agent_preview)['id']
             parent = self.live_chats.get(parent_id) or next((chat for chat in self.store.list() if chat['id'] == parent_id), None)
             if parent and parent_id in self.session_contexts:
                 self.switch_chat(parent)

@@ -87,7 +87,7 @@ Comandos locais isolados executam com um único Enter no autocomplete; Tab só c
 Skills e menções no meio de frases conservam inserção antes do envio. O rodapé diferencia
 essas ações. Compactação mostra fragmento atual/total e a revisão em andamento, com o
 tempo de atividade já existente; progresso não representa uma porcentagem de inferência.
-Compactação informa o orçamento total (180s por padrão) e reduz fragmentos após timeout.
+Compactação informa o orçamento total (1800s por padrão) e reduz fragmentos após timeout.
 O progresso é persistido, sem substituir memória ativa; interrupção orienta retomar com
 `$compact`, inclusive após reinício. Rascunhos só são reutilizados para o mesmo prefixo,
 modelo e memória anterior. Nenhuma tentativa prolonga indefinidamente a operação.
@@ -306,3 +306,24 @@ Input é explícito; parada encerra o cartão. Falha persiste diagnóstico no pr
 Cores são adaptadas uma vez na sessão e restauradas ao sair; fonte, mouse, wrapping,
 scroll e checkpoints mantêm os donos canônicos. Verificação e preview do renderer
 real estão em [docs/validation-cli-0.9.3.md](docs/validation-cli-0.9.3.md).
+
+
+## Hierarquia e observação da execução — 0.9.6
+
+Fonte: pedido e capturas do proprietário em 2026-10-07. `agent_tree.AgentTree` é o dono
+compartilhado de ancestralidade, ordem e conectores `├─↳`/`└─↳`. As setas representam
+relações, sem animação adicional. Raízes ficam acima dos filhos; menu preserva o estado
+textual e a seleção por ID. Profundidade muito grande comprime a indentação, sem perder
+acesso às linhas. Pais ausentes mostram identidade disponível sem inventar um principal.
+
+Cartões identificam o principal por ID/nome, seguidos por task, modelo/effort/velocidade,
+fase e último evento do CLI. Mantêm a superfície navy, papéis de cor e geometria do
+renderer canônico. O preview informa principal e pai imediato; Enter retorna à raiz
+local. A barra de contexto passa a mostrar o agente em leitura com rótulo `Agente`,
+sem contabilizar o rascunho do principal. A leitura não autoriza ações.
+
+`SessionRegistry` mantém metadados públicos e tempo sem nova saída separados do heartbeat.
+Ausência de bytes é explicitamente observação, não conclusão de travamento. Novos eventos
+não alteram scroll/foco nem reiniciam o relógio da fase/deadline. Nenhum texto privado do
+provedor entra no estado visual. Narrow, NO_COLOR e movimento reduzido preservam árvore,
+acesso por teclado, modelo e estado. Referências demonstrativas usam o TerminalView real.

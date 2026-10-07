@@ -18,7 +18,7 @@ import unittest
 
 
 CHILD = r'''
-import copy, curses, json, sys
+import copy, curses, json, sys, os
 import centaur_cli.terminal as terminal_module
 from pathlib import Path
 from centaur_cli.history import ChatStore
@@ -37,6 +37,8 @@ class RecordingTerminal(Terminal):
         data={'draft':self.draft,'cursor':self.cursor,'busy':self.busy,
               'chat':self.chat,'requests':self.client.requests,'width':self.input_width,'notice':self.notice,
               'pending_attachments':len(self.pending_attachments),
+              'browser':self.browser, 'preview':(self.agent_preview or {}).get('title'),
+              'tree':[c['title'] for c in self.chats],
               'input_hitbox':{k:v for k,v in (self.input_hitbox or {}).items() if k!='layout'},
               'action_style':self.view.palette.styles['action'],'comment_style':self.view.palette.styles['comment']}
         pending=root/'snapshot.tmp'
@@ -47,11 +49,75 @@ terminal_module.clipboard_content=lambda **kwargs: ('text', (root/'fixture com e
 terminal=RecordingTerminal(root,'fixture',ChatStore(root),client)
 terminal.chat['messages']=[{'role':'user' if i%2==0 else 'assistant','content':f'log {i}: '+'details '*150} for i in range(14)]
 terminal.chat['title_attempted']=True
+if os.environ.get('CENTAUR_TEST_TREE') == '1':
+    terminal.chat['title']='Principal PTY'
+    terminal.store.save(terminal.chat)
+    terminal.worker_context()
+    parent=terminal.chat
+    for title in ('Executor PTY','Neto PTY'):
+        store=ChatStore(root); store.directory=root/'.centaur'/'agents'/parent['id']
+        child=store.new('fixture',backend='codex')
+        child.update(title=title,parent_id=parent['id'])
+        store.save(child); terminal.registry.set(child['id'],'running')
+        terminal.registry.activity(child['id'],'model')
+        terminal.registry.native_event(child['id'], {'event':'turn.started','warning':'','output_bytes':24,'stderr_bytes':0})
+        parent=child
 curses.wrapper(terminal.run)
 '''
 
 
 class TerminalPTYTests(unittest.TestCase):
+    def test_recursive_agent_menu_preview_return_and_resize_in_real_curses(self):
+        for mode in ('color', 'monochrome', 'reduced'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                master, slave = pty.openpty()
+                fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 34, 160, 0, 0))
+                env = {**os.environ, 'TERM': 'xterm-256color', 'CENTAUR_GRAPHICS': '0', 'CENTAUR_TEST_TREE': '1',
+                       'PYTHONPATH': str(Path(__file__).resolve().parents[1])}
+                if mode == 'monochrome': env['NO_COLOR'] = '1'
+                if mode == 'reduced': env['CENTAUR_REDUCED_MOTION'] = '1'
+                process = subprocess.Popen([sys.executable, '-c', CHILD, temporary], stdin=slave, stdout=slave, stderr=slave, env=env)
+                os.close(slave)
+                transcript = bytearray()
+                def wait_for(predicate, timeout=6):
+                    deadline = time.monotonic() + timeout
+                    while time.monotonic() < deadline:
+                        if select.select([master], [], [], .03)[0]:
+                            try: transcript.extend(os.read(master, 65536))
+                            except OSError: pass
+                        try:
+                            snapshot = json.loads((root / 'snapshot.json').read_text())
+                            if predicate(snapshot): return snapshot
+                        except (OSError, ValueError): pass
+                        if process.poll() is not None: break
+                    self.fail('Tree terminal state missing: ' + transcript.decode(errors='replace')[-1000:])
+                try:
+                    wait_for(lambda s: s['width'] > 0)
+                    os.write(master, b'/chats\r')
+                    wait_for(lambda s: s['browser'])
+                    os.write(master, b'\t')
+                    wait_for(lambda s: s['tree'] == ['Principal PTY', 'Executor PTY', 'Neto PTY'])
+                    os.write(master, b'\x1b[B\x1b[B\r')
+                    wait_for(lambda s: s['preview'] == 'Neto PTY')
+                    fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', 12, 40, 0, 0))
+                    process.send_signal(signal.SIGWINCH)
+                    wait_for(lambda s: s['width'] < 40 and s['preview'] == 'Neto PTY')
+                    os.write(master, b'\r')
+                    wait_for(lambda s: not s['browser'] and not s['preview'] and s['chat']['title'] == 'Principal PTY')
+                    self.assertIn('PRINCIPAL'.encode(), transcript)
+                    self.assertIn('└─↳'.encode(), transcript)
+                    os.write(master, b'\x11')
+                    deadline = time.monotonic() + 6
+                    while process.poll() is None and time.monotonic() < deadline:
+                        if select.select([master], [], [], .03)[0]:
+                            try: transcript.extend(os.read(master, 65536))
+                            except OSError: pass
+                    self.assertEqual(process.poll(), 0)
+                finally:
+                    if process.poll() is None: process.kill(); process.wait()
+                    os.close(master)
+
     def test_multiline_protocols_paste_resize_compaction_and_resume_in_real_curses(self):
         for mode in ('color', 'monochrome', 'reduced', 'legacy'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:

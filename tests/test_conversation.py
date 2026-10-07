@@ -49,6 +49,16 @@ class ConversationTests(unittest.TestCase):
         self.assertTrue(tool_activity(action, 'Execução recusada pelo usuário.').startswith('– Recusado'))
         self.assertTrue(tool_activity(action, 'Código de saída: 0\nOK').startswith('✓ Executou'))
 
+    def test_delegation_status_distinguishes_failure_from_received_report(self):
+        action = call('delegate_task', title='Validar ZIP')
+        for status, label in (('failed', '! Subagente falhou'),
+                              ('cancelled', '! Subagente interrompido'),
+                              ('reported', '✓ Relatório recebido')):
+            with self.subTest(status=status):
+                result = json.dumps({'status': status, 'report': 'PRIVATE DETAILS'})
+                self.assertEqual(tool_activity(action, result), label + ' · Validar ZIP')
+        self.assertTrue(tool_activity(action).startswith('○ Delegando'))
+
     def test_wrapped_actions_comments_and_literal_markers_keep_their_own_styles(self):
         terminal = self.terminal
         read = call(path='frontend/src/services/' + 'long-path/' * 8 + 'index.js')

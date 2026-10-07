@@ -10,6 +10,13 @@ from uuid import uuid4
 from .attachments import attachment_directory
 
 LABELS = {'running': '● Trabalhando', 'waiting_input': '? Aguardando input', 'stopped': '○ Parado'}
+NATIVE_PHASES = {'thread.started': 'sessão iniciada', 'turn.started': 'turno iniciado',
+                 'turn.completed': 'turno concluído', 'turn.failed': 'turno falhou',
+                 'error': 'aviso de erro', 'item.started': 'item iniciado',
+                 'item.updated': 'item atualizado', 'item.completed': 'item concluído',
+                 'system': 'sessão iniciada', 'assistant': 'resposta em andamento',
+                 'result': 'resultado recebido', 'rate_limit_event': 'aviso de cota'}
+NATIVE_WARNINGS = ('rede', 'TLS', 'cota', 'contexto', 'schema', 'configuração')
 
 
 def read_record(root, chat_id, now=None):
@@ -49,6 +56,7 @@ def activity_label(root, chat_id, now=None):
     if record['state'] == 'waiting_input':
         return 'Aguardando input'
     labels = {'model': 'Aguardando modelo', 'compact': 'Compactando contexto',
+              'tool:delegate_task': 'Aguardando subagente',
               'tool:run_command': 'Executando comando', 'tool:read_file': 'Lendo arquivo',
               'tool:read_skill': 'Consultando skill', 'tool:write_file': 'Gravando arquivo',
               'tool:list_files': 'Consultando arquivos', 'tool:report_progress': 'Atualizando progresso',
@@ -61,6 +69,25 @@ def activity_label(root, chat_id, now=None):
         elapsed = int(current - started)
         label += f' · {elapsed // 60}m {elapsed % 60:02}s'
     return label
+
+
+def native_activity_label(root, chat_id, now=None):
+    record = read_record(root, chat_id, now)
+    if not record or record['state'] != 'running' or record.get('phase') != 'model':
+        return ''
+    started = record.get('native_last_output')
+    if type(started) not in (int, float):
+        return ''
+    current = time.time() if now is None else now
+    elapsed = max(0, int(current - started))
+    duration = f'{elapsed // 60}m {elapsed % 60:02}s'
+    warning = record.get('native_warning')
+    if warning in NATIVE_WARNINGS:
+        return f'Aviso: {warning} · sem saída há {duration}'
+    if elapsed >= 30:
+        return f'Sem nova saída do CLI há {duration}'
+    kind = record.get('native_event')
+    return 'CLI · ' + (NATIVE_PHASES.get(kind, 'aguardando eventos') if isinstance(kind, str) else 'aguardando eventos')
 
 
 class SessionRegistry:
@@ -91,6 +118,28 @@ class SessionRegistry:
             if record is None or record['state'] == 'stopped':
                 return
             record.update(phase=phase, phase_started=time.time(), heartbeat=time.time())
+            for key in list(record):
+                if key.startswith('native_'):
+                    record.pop(key)
+            self._write(record)
+
+    def native_event(self, chat_id, event):
+        """Copy fixed metadata only; activity/heartbeat never renew inference time."""
+        with self.lock:
+            record = self.records.get(chat_id)
+            if not record or record['state'] != 'running' or record.get('phase') != 'model' or not isinstance(event, dict):
+                return
+            now = time.time()
+            sizes = tuple(event.get(key) for key in ('output_bytes', 'stderr_bytes'))
+            if not all(type(size) is int and 0 <= size <= 8_000_000 for size in sizes):
+                return
+            previous = (record.get('native_output_bytes'), record.get('native_stderr_bytes'))
+            if sizes != previous:
+                record['native_last_output'] = now
+            record.update(native_output_bytes=sizes[0], native_stderr_bytes=sizes[1])
+            kind, warning = event.get('event'), event.get('warning')
+            record['native_event'] = kind if isinstance(kind, str) and kind in NATIVE_PHASES else ''
+            record['native_warning'] = warning if isinstance(warning, str) and warning in NATIVE_WARNINGS else ''
             self._write(record)
 
     def _write(self, record):

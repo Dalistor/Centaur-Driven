@@ -18,7 +18,7 @@ rename e melhorias visuais; as regras de desenvolvimento vêm de
 | Comandos locais | `completion.LOCAL_COMMANDS`, `SkillCompletion.local_command`, `Terminal.handle` | Enter executa comando local isolado com autocomplete; Tab só completa; skills/menções em frases apenas inserem; compactação informa progresso por fragmento | `tests/test_completion.py`, `tests/test_terminal_pty.py` |
 | Velocidade | `speed`, `ConfigPicker`, `NativeClient`, `OpenRouter` | Standard padrão; Fast só anunciado; custo explicado; não altera modelo/effort; tier solicitado não é tier confirmado | `tests/test_native_usage_speed.py` |
 | Cotas nativas | `native_usage`, `Terminal.request_credits` | RPC Codex somente leitura; eventos Claude públicos em cache; sem saldo inventado, credenciais ou prompts na consulta | `tests/test_native_usage_speed.py` |
-| Contexto e compactação | `context.active_messages`, `compact_chat`, `save_compaction`, `save_compaction_progress`, `agent.run_turn` | Barra estimada sem limite inventado; autocompact a 80%, alvo 60%; prefixo seguro pode concluir antes; orçamento total 180s e chamadas até 90s; timeout reduz fragmento; progresso em disco; pausa retomável sem erro de modelo; histórico/lotes intactos | `tests/test_context.py` |
+| Contexto e compactação | `context.active_messages`, `compact_chat`, `save_compaction`, `save_compaction_progress`, `agent.run_turn` | Barra estimada sem limite inventado; autocompact a 80%, alvo 60%; prefixo seguro pode concluir antes; orçamento total 1800s e chamadas com orçamento restante; timeout reduz fragmento; progresso em disco; pausa retomável sem erro de modelo; histórico/lotes intactos | `tests/test_context.py` |
 | Prompts anteriores | `Terminal.recall_prompt`, `keyboard.read_key` | ↑/↓ percorrem prompts e restauram rascunho/cursor vazio ou preenchido; CSI/SS3 não viram texto; editar cópia não altera mensagem salva | `tests/test_composer.py`, `tests/test_terminal_pty.py` |
 | Trabalho e permissões | `Terminal.approval`, `ProjectTools` | Troca/rename do chat ativo aguardam turno; aprovações continuam prioritárias | `tests/test_cli.py` |
 | Ciclo de vida | `lifecycle.load_project`, `spec_completion_issues` | Gate somente leitura; prova corrente e integração separadas; conclusão não deriva do status | `tests/test_lifecycle.py` |
@@ -362,3 +362,29 @@ bytes, sem logs brutos ou raciocínio. Aviso anterior não confirma causa atual;
 de evidência é explicitamente desconhecida. turn.failed/resultado Claude de erro
 encerram cedo; error recuperável não invalida conclusão válida. O arquivo final não
 sobrepõe turn.failed. Sem retry automático, mudança de effort ou aumento do deadline.
+
+
+## Hierarquia e diagnóstico durante execução — 0.9.6
+
+Fonte: pedido explícito do proprietário e capturas de 2026-10-07. Owner da árvore:
+`agent_tree.AgentTree`; navegação/caches em `Terminal`; desenho em `TerminalView`.
+Menu ordena raízes/descendentes e mantém ID selecionado. Lateral identifica a raiz;
+preview identifica raiz/pai e Enter ou clique com input retorna ao principal local.
+Pais ausentes/ciclos não causam recursão infinita. Somente ancestrais necessários são
+lidos para cartões ativos, sem desserializar arquivos parados não relacionados.
+Executor continua sem delegate_task; renderizar uma árvore não concede delegação nova.
+
+A barra no preview usa o contexto/modelo do executor e exclui rascunhos do principal.
+Effort e velocidade são herdados quando compatíveis com o catálogo do modelo. Fallback
+é default/standard e fica visível; não altera modelo, backend ou permissões.
+
+NativeClient.on_progress entrega apenas event enum, warning enum e contagens de bytes.
+SessionRegistry filtra campos e preserva phase_started e native_last_output no heartbeat.
+Mudança de fase limpa a telemetria anterior. UI informa silêncio sem concluir travamento.
+Observador indisponível não aborta inferência. Prazo absoluto/Ctrl+C não são renovados por
+telemetria. Falha/resultado final mantém validação integral; chamadas parciais não executam.
+
+ProjectTools.stop_command limita wait a 2s e trata ProcessLookupError na corrida de saída.
+Timeout sem confirmação relata estado incerto; cancelamento propaga TurnCancelled.
+Não há replay automático. Verificação: test_agent_hierarchy.py, test_agent_stalls.py,
+PTY real com árvore/preview/retorno/resize, NO_COLOR e movimento reduzido.

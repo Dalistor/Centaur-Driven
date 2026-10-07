@@ -18,6 +18,7 @@ from .vision import split_images, native_input
 from .interaction import TurnCancelled, RequestTimeout
 from .speed import local_speed_support, fast_supported, validate_speed
 from .native_usage import NativeBalance, BalanceUnavailable, claude_windows, read_codex_balance
+from .sessions import NATIVE_PHASES
 
 
 def validate_arguments(value, spec):
@@ -63,6 +64,9 @@ Responda no schema fornecido: content contém a resposta ao usuário; calls cont
 às ferramentas Centaur, usando name e arguments como objeto JSON tipado. Campos opcionais
 sem valor usam null. Sem chamadas, calls deve ser []. Nunca inclua cercas Markdown fora do JSON. Se precisar
 consultar ou alterar algo, solicite a ferramenta e aguarde o resultado no próximo pedido.
+Esta execução produz somente a próxima etapa, não a tarefa inteira. Depois de um resultado
+de ferramenta, escolha a próxima chamada necessária ou entregue o relatório final.
+Não simule novas execuções nem repita chamadas já respondidas sem justificar uma nova verificação.
 Não descreva uma chamada como executada antes de receber seu resultado. Não há roteamento
 OpenRouter nesta sessão. Subagentes mantêm o backend e podem escolher modelos do catálogo fornecido.
 '''
@@ -191,16 +195,12 @@ def failure_hint(backend, text):
 class NativeTrace:
     """Observe complete public envelopes; never expose item text or partial calls."""
 
-    phases = {'thread.started': 'sessão iniciada', 'turn.started': 'turno iniciado',
-              'turn.completed': 'turno concluído', 'turn.failed': 'turno falhou',
-              'error': 'aviso de erro', 'item.started': 'item iniciado',
-              'item.updated': 'item atualizado', 'item.completed': 'item concluído',
-              'system': 'sessão iniciada', 'assistant': 'resposta em andamento',
-              'result': 'resultado recebido', 'rate_limit_event': 'aviso de cota'}
+    phases = NATIVE_PHASES
 
     def __init__(self, backend):
         self.backend, self.offset, self.buffer = backend, 0, b''
         self.phase, self.hint, self.failed = 'nenhum evento completo', '', False
+        self.event = ''
 
     def feed(self, cumulative):
         data = cumulative.encode('utf-8') if isinstance(cumulative, str) else cumulative or b''
@@ -218,6 +218,7 @@ class NativeTrace:
             kind = event.get('type')
             if isinstance(kind, str) and kind in self.phases:
                 self.phase = self.phases[kind]
+                self.event = kind
             # Error events can describe a recoverable reconnect. Only a terminal
             # turn.failed (or Claude error result) ends the call early.
             detail = None
@@ -232,11 +233,21 @@ class NativeTrace:
             if isinstance(detail, str):
                 self.hint = failure_hint(self.backend, detail) or self.hint
 
+    def snapshot(self, stderr=b''):
+        errors = stderr.decode('utf-8', errors='replace') if isinstance(stderr, bytes) else stderr or ''
+        hint = self.hint or failure_hint(self.backend, errors)
+        categories = {'rede/proxy': 'rede', 'TLS': 'TLS', 'Limite de uso': 'cota',
+                      'contexto excedeu': 'contexto', 'schema': 'schema', 'configuração': 'configuração'}
+        warning = next((category for text, category in categories.items() if text in hint), '')
+        return {'event': self.event, 'output_bytes': self.offset,
+                'stderr_bytes': len(stderr) if isinstance(stderr, bytes) else len(errors.encode('utf-8')),
+                'warning': warning}
+
     def diagnostic(self, stderr, input_bytes):
         errors = stderr.decode('utf-8', errors='replace') if isinstance(stderr, bytes) else stderr or ''
         hint = self.hint or failure_hint(self.backend, errors)
         evidence = (f'Último evento: {self.phase}; entrada: {input_bytes} bytes; '
-                    f'saída: {self.offset} bytes; stderr: {len(errors.encode("utf-8"))} bytes.')
+                    f'saída: {self.offset} bytes; stderr: {self.snapshot(stderr)["stderr_bytes"]} bytes.')
         if hint:
             return evidence + ' Aviso observado no CLI (pode ter sido recuperado): ' + hint
         return evidence + ' Causa não confirmada pelo CLI; silêncio não prova travamento. '
@@ -268,6 +279,7 @@ class NativeClient:
     allows_model_routing = False
     supports_cancellation = True
     supports_request_timeout = True
+    supports_progress = True
 
     def __init__(self, backend, model=''):
         if backend not in ('codex', 'claude'):
@@ -422,7 +434,7 @@ class NativeClient:
             arguments += ['-']
         return arguments
 
-    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', cancel_event=None, speed='standard', request_timeout=None):
+    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', cancel_event=None, speed='standard', request_timeout=None, on_progress=None):
         if request_timeout is not None and (isinstance(request_timeout, bool)
                 or not isinstance(request_timeout, (int, float)) or not 0 < request_timeout <= 3600):
             raise ValueError('Tempo limite de requisição inválido.')
@@ -453,6 +465,14 @@ class NativeClient:
                     pending_input, received = input_text, (0, 0)
                     trace, partial_errors = NativeTrace(self.backend), b''
                     input_bytes = len(input_text.encode('utf-8'))
+                    last_progress = -float('inf')
+                    def notify():
+                        if on_progress is not None:
+                            try:
+                                on_progress(trace.snapshot(partial_errors))
+                            except Exception:
+                                pass  # Display telemetry cannot interrupt an authorized inference.
+                    notify()
                     while True:
                         if cancel_event is not None and cancel_event.is_set():
                             self.stop_process(process)
@@ -470,6 +490,9 @@ class NativeClient:
                                         'Nenhuma ferramenta dessa resposta foi executada.')
                         try:
                             output, errors = process.communicate(pending_input, timeout=min(0.1, remaining))
+                            trace.feed(output)
+                            partial_errors = errors
+                            notify()
                             break
                         except subprocess.TimeoutExpired as partial:
                             pending_input = None
@@ -489,6 +512,9 @@ class NativeClient:
                                     hint = trace.hint or 'O CLI informou uma falha definitiva do turno; confira modelo, conexão e autenticação.'
                                     raise RuntimeError(f'{self.backend}: {hint} '
                                                        'Checkpoints preservados; nenhuma ferramenta dessa resposta foi executada.')
+                                if time.monotonic() - last_progress >= 1:
+                                    notify()
+                                    last_progress = time.monotonic()
                 except subprocess.TimeoutExpired:
                     self.stop_process(process)
                     diagnostic = trace.diagnostic(partial_errors, input_bytes)

@@ -361,9 +361,14 @@ class TerminalView:
             self.put(screen, top + 1, 3, self.activity(terminal, 'Validando configuração'), 'blue')
 
     def activity(self, terminal, label):
+        from .sessions import read_record, activity_label, native_activity_label
         reduced = os.environ.get('CENTAUR_REDUCED_MOTION') == '1'
         frames = ('◐', '◓', '◑', '◒')
         marker = '•' if reduced else frames[int(time.monotonic() * 8) % len(frames)]
+        record = read_record(terminal.root, terminal.chat['id'])
+        if label == terminal.notice and terminal.busy and record and record.get('phase') == 'model':
+            detail = native_activity_label(terminal.root, terminal.chat['id'])
+            return marker + ' ' + activity_label(terminal.root, terminal.chat['id']) + (' · ' + detail if detail else '')
         elapsed = int(time.monotonic() - (terminal.busy_started or terminal.started_at))
         return f'{marker} {label} · {elapsed}s'
 
@@ -387,19 +392,32 @@ class TerminalView:
             self.put(screen, row, 3, line, style)
 
     def browser(self, screen, terminal, top, available, width):
-        from .sessions import LABELS, activity_label
+        from .sessions import LABELS, activity_label, native_activity_label
         if terminal.agent_preview:
             agent = terminal.agent_preview
-            self.put(screen, top, 3, 'SUBAGENTE · ' + agent['title'], 'green')
+            tree = terminal.agent_tree
+            principal = tree.principal(agent)
+            self.put(screen, top, 3, 'PRINCIPAL · ' + tree.label(principal), 'muted', width - 6)
+            self.put(screen, top + 1, 3, tree.prefix(agent) + 'SUBAGENTE · ' + agent['title'], 'green', width - 6)
             state = terminal.session_state(agent)
             status = agent.get('status')
             outcome = {'failed': '! Falhou', 'cancelled': '○ Cancelado', 'reported': '✓ Concluído'}.get(status if isinstance(status, str) else '', LABELS[state])
             detail = activity_label(terminal.root, agent['id']) or outcome
-            self.put(screen, top + 1, 3, detail + ' · ' + agent['model'], 'warning' if state == 'stopped' and agent.get('status') == 'failed' else 'blue')
+            model = agent['model'] + ' · ' + agent.get('effort', 'default') + (' · Fast solicitado' if agent.get('speed') == 'fast' else '')
+            self.put(screen, top + 2, 3, detail + ' · ' + model, 'warning' if state == 'stopped' and agent.get('status') == 'failed' else 'blue', width - 6)
+            header = 3
+            parent = tree.lineage(agent)[-2] if agent.get('parent_id') else None
+            if parent and parent['id'] != principal['id'] and available >= 7:
+                self.put(screen, top + header, 3, 'Pai · ' + tree.label(parent), 'muted', width - 6)
+                header += 1
+            native = native_activity_label(terminal.root, agent['id'])
+            if native and available >= header + 3:
+                self.put(screen, top + header, 3, native, 'muted', width - 6)
+                header += 1
             lines = terminal.lines(width - 6)
-            room = max(1, available - 3)
+            room = max(1, available - header - 1)
             start = terminal.transcript_start(len(lines), room, width - 6)
-            for row, line in enumerate(lines[start:start + room], top + 3):
+            for row, line in enumerate(lines[start:start + room], top + header + 1):
                 self.put(screen, row, 3, line, getattr(line, 'style', 'text'), width - 6)
             return
         states = [terminal.session_state(chat) for chat in terminal.chats]
@@ -411,7 +429,8 @@ class TerminalView:
         for row, chat in enumerate(terminal.chats[start:start + visible], top + 3):
             selected = start + row - top - 3 == terminal.selected
             state = terminal.session_state(chat)
-            title = f' {">" if selected else " "} {LABELS[state]} · [{chat.get("backend", "openrouter")}] {chat["title"]}'
+            branch = terminal.agent_tree.prefix(chat) if terminal.browser_mode == 'agents' else ''
+            title = f' {">" if selected else " "} {branch}{LABELS[state]} · {chat["title"]} · [{chat.get("backend", "openrouter")}]'
             style = 'selected' if selected else 'warning' if state == 'waiting_input' else 'green' if state == 'running' else 'muted'
             self.put(screen, row, 2, ' ' * (width - 5), style)
             self.put(screen, row, 2, title, style, width - 25 if width >= 78 else width - 5)
@@ -424,7 +443,7 @@ class TerminalView:
     def agent_panels(self, screen, terminal, left, top, width, bottom):
         """Live cards close when their runtime stops; overflow remains scrollable."""
         from datetime import datetime, timezone
-        from .sessions import LABELS, activity_label
+        from .sessions import LABELS, activity_label, native_activity_label
         agents = terminal.active_agents
         if not agents or bottom - top < 8:
             return
@@ -447,9 +466,8 @@ class TerminalView:
                 self.put(screen, y, left + width - 1, '│', style, 1)
             self.put(screen, row + card_height - 1, left, '└' + '─' * (width - 2) + '┘', style, width)
             inner = width - 4
-            self.put(screen, row + 1, left + 2, fit_notice(agent['title'], inner), 'panel_title', inner)
             model = (agent.get('models_used') or [agent['model']])[-1] or 'padrão'
-            self.put(screen, row + 2, left + 2, fit_notice(model, inner), 'panel_muted', inner)
+            model += ' · ' + agent.get('effort', 'default') + (' · Fast?' if agent.get('speed') == 'fast' else '')
             try:
                 created = datetime.fromisoformat(agent['created'].replace('Z', '+00:00'))
                 if created.tzinfo is None:
@@ -459,12 +477,21 @@ class TerminalView:
             except (KeyError, TypeError, ValueError):
                 duration = ''
             detail = activity_label(terminal.root, agent['id']) or LABELS[state] + ' · ' + duration
-            self.put(screen, row + 3, left + 2, fit_notice(detail, inner), 'panel_' + style, inner)
+            tree = terminal.agent_tree
+            principal = tree.principal(agent)
+            headings = [(f'◆ [{principal["id"][:8]}] ' + principal['title'], 'panel_muted'),
+                        (tree.prefix(agent) + agent['title'], 'panel_title'),
+                        (model, 'panel_muted'), (detail, 'panel_' + style)]
+            native = native_activity_label(terminal.root, agent['id'])
+            if native:
+                headings.append((native, 'panel_muted'))
+            for offset, (text, role) in enumerate(headings):
+                self.put(screen, row + 1 + offset, left + 2, fit_notice(text, inner), role, inner)
             lines = terminal.lines(inner, chat=agent) if any(m.get('role') == 'assistant' for m in agent['messages']) else ['Aguardando resposta do modelo…']
             lines = [line for line in lines if str(line).strip()]
-            count = max(1, card_height - 6)
-            for offset, line in enumerate(lines[-count:]):
-                self.put(screen, row + 4 + offset, left + 2, line, 'panel_' + getattr(line, 'style', 'muted'), inner)
+            count = max(0, card_height - 2 - len(headings))
+            for offset, line in enumerate(lines[-count:] if count else []):
+                self.put(screen, row + 1 + len(headings) + offset, left + 2, line, 'panel_' + getattr(line, 'style', 'muted'), inner)
             terminal.agent_panel_hits.append((left, row, width, card_height, agent))
         self.put(screen, bottom - 1, left, fit_notice(f'{start + 1}–{start + len(visible)}/{len(agents)} · roda: rolar · clique: abrir', width), 'muted', width)
 

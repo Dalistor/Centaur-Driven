@@ -79,6 +79,18 @@ def tool_activity(call, result=None):
     if result is None:
         return f'○ {pending} {detail}'
     result = str(result)
+    if name == 'delegate_task':
+        try:
+            delegation = json.loads(result)
+            status = delegation.get('status')
+            if status == 'failed':
+                return f'! Subagente falhou · {detail}'
+            if status == 'cancelled':
+                return f'! Subagente interrompido · {detail}'
+            if status == 'reported':
+                return f'✓ Relatório recebido · {detail}'
+        except (ValueError, TypeError, AttributeError):
+            pass
     if name == 'ask_user':
         try:
             answer = json.loads(result)

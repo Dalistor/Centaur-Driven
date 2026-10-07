@@ -60,7 +60,7 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 ## Anexos e capturas
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.5'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.6'
 ```
 
 Ctrl+V cola imagem/texto/arquivos; arrastar ou colar caminhos insere marcadores atômicos
@@ -222,3 +222,41 @@ Referências consultadas: [modo não interativo](https://developers.openai.com/c
 A configuração documenta idle de stream de 300000ms e até cinco retries; uma sequência
 de interrupções pode ocupar grande parte dos 30 minutos. Isso é uma hipótese de
 investigação, não um diagnóstico confirmado da máquina do usuário.
+
+
+### Hierarquia e espera dos subagentes (0.9.6)
+
+O menu de agentes agrupa cada principal com seus filhos, em árvore com `├─↳` e
+`└─↳`, inclusive históricos com vários níveis. Os cartões mostram nome/ID do principal
+antes da task. O preview informa o principal e o pai imediato; Enter retorna ao
+principal deste processo. A árvore tolera pais ausentes/ciclos e preserva seleção por
+ID. Isso não habilita novas delegações recursivas: executores continuam restritos à task.
+
+O transcript distingue `Subagente falhou`, `Subagente interrompido` e `Relatório recebido`.
+Receber o relatório ainda exige conferência pelo coordenador; falha não recebe marca de sucesso.
+
+A barra do preview agora pertence ao **subagente** e usa o rótulo `Agente`; não conta
+o histórico nem o rascunho do principal. A barra `Contexto` do chat principal permanece
+independente. Uma porcentagem livre no principal não informa a janela do executor.
+
+Durante inferência nativa, cartões/preview mostram eventos públicos do CLI e o tempo
+sem nova saída. Avisos de rede, TLS, cota, contexto, schema e configuração são categorias
+fixas, sem logs brutos ou raciocínio privado. Heartbeat não renova esse tempo nem o
+prazo da inferência. Ausência de saída não confirma travamento: silêncio continua
+permitido até o deadline, com Ctrl+C para cancelar pelo principal. Na 0.9.6, a nova
+telemetria começa na próxima chamada; não é inserida em uma execução já iniciada.
+
+Subagentes herdam effort e velocidade do chat quando compatíveis com o modelo escolhido.
+Se o catálogo não aceitar o effort, usam o default do modelo; Fast só é enviado quando
+anunciado. O preview exibe essas escolhas. O modelo/backend não é trocado automaticamente.
+A instrução do adaptador reforça que cada chamada produz somente a próxima etapa.
+
+A limpeza de `run_command` agora aguarda no máximo dois segundos após o sinal, inclusive
+em timeout/cancelamento e na corrida em que o processo já terminou. Saída não confirmada
+é informada explicitamente; nenhuma ação é repetida automaticamente. O limite de execução
+de comando continua 60s; inferência continua 30min por chamada. Não há limite global da
+espera do coordenador por tasks.
+
+Demonstrações com dados sintéticos do renderer real:
+[cartões e árvore](docs/images/cli-agent-tree-0.9.6.svg) ·
+[menu de agentes](docs/images/cli-agent-menu-0.9.6.svg).

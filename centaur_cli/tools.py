@@ -56,6 +56,18 @@ class ProjectTools:
         if self.cancel_event and self.cancel_event.is_set():
             raise TurnCancelled('Turno interrompido pelo usuário; confira ações já aplicadas antes de retomar.')
 
+    @staticmethod
+    def stop_command(process):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # The process can exit between poll and kill.
+        try:
+            process.wait(timeout=2)
+            return True
+        except subprocess.TimeoutExpired:
+            return False
+
     def observation_messages(self):
         return self.computer.observation_messages() if self.computer else []
 
@@ -125,12 +137,11 @@ class ProjectTools:
                     try:
                         self.check_cancelled()
                     except TurnCancelled:
-                        os.killpg(process.pid, signal.SIGKILL)
-                        process.wait()
+                        self.stop_command(process)
                         raise
                     if time.monotonic() >= deadline:
-                        os.killpg(process.pid, signal.SIGKILL)
-                        process.wait()
+                        if not self.stop_command(process):
+                            return 'Comando encerrado: sinal enviado, mas o processo não confirmou saída; confira o estado antes de retomar.'
                         return 'Comando encerrado: limite de 60 segundos atingido.'
                     try:
                         process.wait(timeout=0.1)

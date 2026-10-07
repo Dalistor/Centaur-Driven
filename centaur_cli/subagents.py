@@ -40,7 +40,7 @@ class RoutedClient:
 
 
 class SubagentTools:
-    def __init__(self, base, client, parent_id, emit, max_tier='high', *, registry=None):
+    def __init__(self, base, client, parent_id, emit, max_tier='high', *, registry=None, effort='default', speed='standard'):
         if max_tier not in COST_TIERS:
             raise ValueError('Faixa máxima de subagentes inválida.')
         if (not isinstance(parent_id, str) or len(parent_id) != 32
@@ -49,6 +49,7 @@ class SubagentTools:
         self.base, self.client, self.parent_id = base, client, parent_id
         self.root, self.emit, self.max_tier = base.root, emit, max_tier
         self.registry = registry
+        self.effort, self.speed = effort, speed
         self.approval_mode = base.approval_mode
         self.cancel_event = base.cancel_event
         self.routing = getattr(client, 'allows_model_routing', True)
@@ -70,6 +71,12 @@ class SubagentTools:
 
     def observation_messages(self):
         return self.base.observation_messages()
+
+    def activity(self, phase):
+        return getattr(self.base, 'activity', lambda _: None)(phase)
+
+    def native_progress(self, event):
+        return getattr(self.base, 'native_progress', lambda _: None)(event)
 
     def execute(self, name, arguments):
         if name != 'delegate_task':
@@ -105,11 +112,14 @@ class SubagentTools:
         chat.update({'title': title, 'parent_id': self.parent_id, 'cost_tier': tier,
                      'approval_mode': self.approval_mode,
                      'status': 'running', 'messages': [{'role': 'user', 'content': self.base.redact(task)}]})
+        levels = getattr(self.client, 'model_efforts', {}).get(model)
+        chat['effort'] = self.effort if not levels or self.effort in levels or self.effort == 'default' else 'default'
+        chat['speed'] = self.speed if self.speed != 'fast' or getattr(self.client, 'supports_fast', lambda _: False)(model) else 'standard'
         store.save(chat)
         if self.registry:
             self.registry.set(chat['id'], 'running')
         try:
-            self.emit(f'Subagente: {title} · {model or getattr(self.client, "backend", "openrouter")} · {"faixa " + tier if tier else "backend conectado"}')
+            self.emit(f'└─↳ Subagente: {title} · {model or getattr(self.client, "backend", "openrouter")} · {"faixa " + tier if tier else "backend conectado"}')
             def interact(callback, *args):
                 if self.registry:
                     self.registry.set(chat['id'], 'waiting_input')
@@ -124,6 +134,7 @@ class SubagentTools:
                                  ask_user=lambda question, options: interact(self.base.ask_user, question, options), cancel_event=self.base.cancel_event)
             if self.registry:
                 tools.activity = lambda phase: self.registry.activity(chat['id'], phase)
+                tools.native_progress = lambda event: self.registry.native_event(chat['id'], event)
             instructions = ('\nVocê é executor de UMA task delegada. Não é o coordenador. '
                             'Leia clean-code e a skill implement/tdd conforme o modo. '
                             'Não crie outros subagentes. Edite somente os arquivos sob sua posse; '
@@ -132,7 +143,7 @@ class SubagentTools:
                             'evidências, pendências e limites. Seu relatório ainda será conferido.\n')
             try:
                 run_turn(chat, RoutedClient(self.client, chat['id'], tier) if self.routing else self.client, tools, store,
-                         lambda: self.emit(f'Subagente: {title} · {chat.get("models_used", [model])[-1]}'),
+                         lambda: self.emit(f'└─↳ Subagente: {title} · {chat.get("models_used", [model])[-1]}'),
                          instructions)
                 chat['status'] = 'reported'
                 report = chat['messages'][-1].get('content') or ''

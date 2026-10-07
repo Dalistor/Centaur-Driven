@@ -115,6 +115,39 @@ class ChatStore:
             output.extend(chat for chat in store.list(active_only=active_only) if chat.get('parent_id') == directory.name)
         return sorted(output, key=lambda chat: chat['updated'], reverse=True)
 
+    def ancestors(self, agents):
+        """Read only the parents needed by live cards, never unrelated archives."""
+        base = self.root / '.centaur' / 'agents'
+        pending = [agent.get('parent_id') for agent in agents]
+        seen, output = set(), []
+        while pending:
+            parent = pending.pop()
+            if not isinstance(parent, str) or parent in seen:
+                continue
+            seen.add(parent)
+            try:
+                self.path(parent)  # Validate before using IDs as file names.
+            except ValueError:
+                continue
+            candidates = [self.root / '.centaur' / 'chats' / (parent + '.json')]
+            if not base.is_symlink():
+                candidates.extend(base.glob('*/' + parent + '.json'))
+            for path in candidates:
+                if path.is_symlink() or path.parent.is_symlink():
+                    continue
+                try:
+                    record = json.loads(path.read_text(encoding='utf-8'))
+                    if not isinstance(record, dict) or record.get('id') != parent or not isinstance(record.get('title'), str):
+                        continue
+                    if path.parent != self.root / '.centaur' / 'chats' and record.get('parent_id') != path.parent.name:
+                        continue
+                    output.append({key: record[key] for key in ('id', 'title', 'parent_id', 'updated', 'created') if key in record})
+                    pending.append(record.get('parent_id'))
+                    break
+                except (OSError, ValueError, TypeError):
+                    continue
+        return output
+
     def prune(self, protected=(), now=None):
         """Delete expired, inactive sessions by immutable creation time."""
         now = datetime.now(timezone.utc) if now is None else now

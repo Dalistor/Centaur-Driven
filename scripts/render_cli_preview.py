@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from centaur_cli.appearance import cell_width
+from centaur_cli import __version__
 from centaur_cli.history import ChatStore
 from centaur_cli.terminal import Terminal
 
@@ -49,7 +50,7 @@ class Screen:
             return '#%02x%02x%02x' % (levels[value // 36], levels[value // 6 % 6], levels[value % 6])
         _, bg = self.pairs[self.background >> 8 & 255]
         result = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{self.columns*cw}" height="{self.rows*ch}" viewBox="0 0 {self.columns*cw} {self.rows*ch}">',
-                  '<title>Centaur CLI 0.9.3 — demonstração do renderer real</title>',
+                  f'<title>Centaur CLI {__version__} — demonstração do renderer real</title>',
                   f'<rect width="100%" height="100%" fill="{color(bg)}"/>',
                   '<g font-family="DejaVu Sans Mono, DejaVu Sans, monospace" font-size="15">']
         runs = []
@@ -72,7 +73,7 @@ class Screen:
         return '\n'.join([*result, '</g></svg>']) + '\n'
 
 
-def render(output, *, rows=32, columns=140, welcome=False):
+def render(output, *, rows=32, columns=140, welcome=False, tree=False, agents=False):
     colors, pairs = {}, {}
     with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {'CENTAUR_REDUCED_MOTION': '1'}):
         root = Path(temporary)
@@ -93,9 +94,25 @@ def render(output, *, rows=32, columns=140, welcome=False):
                 {'role': 'assistant', 'content': 'Os testes de pausa e retomada passaram. Vou conferir a expiração da sessão.'}])
             terminal.registry.set(agent['id'], 'running')
             terminal.registry.activity(agent['id'], 'model')
-            terminal.active_agents = [agent]
+            terminal.registry.native_event(agent['id'], {'event': 'turn.started', 'warning': '', 'output_bytes': 40, 'stderr_bytes': 0})
+            store = ChatStore(root)
+            store.directory = root / '.centaur' / 'agents' / terminal.chat['id']
+            store.save(agent)
+            terminal.store.save(terminal.chat)
+            if tree:
+                nested = store.new('modelo-de-verificação', backend='codex')
+                nested.update(title='Conferir evidências', parent_id=agent['id'], messages=[
+                    {'role': 'assistant', 'content': 'O comando terminou. Aguardando a próxima resposta estruturada.'}])
+                store.directory = root / '.centaur' / 'agents' / agent['id']
+                store.save(nested)
+                terminal.registry.set(nested['id'], 'running')
+                terminal.registry.activity(nested['id'], 'model')
+                terminal.registry.native_event(nested['id'], {'event': 'turn.started', 'warning': 'rede', 'output_bytes': 40, 'stderr_bytes': 50})
+            terminal.refresh_agents()
             terminal.draft = 'Confira também o comportamento ao retomar uma conversa.\nPreserve as verificações já concluídas.'
             terminal.cursor = len(terminal.draft)
+            if agents:
+                terminal.open_chats('agents')
         with patch.dict(os.environ, {}, clear=True), \
                 patch('centaur_cli.appearance.curses.has_colors', return_value=True), \
                 patch('centaur_cli.appearance.curses.can_change_color', return_value=True), \
@@ -121,5 +138,7 @@ if __name__ == '__main__':
     parser.add_argument('--rows', type=int, default=32)
     parser.add_argument('--columns', type=int, default=140)
     parser.add_argument('--welcome', action='store_true')
+    parser.add_argument('--tree', action='store_true', help='Demonstrar árvore recursiva com dados sintéticos')
+    parser.add_argument('--agents', action='store_true', help='Mostrar o menu de agentes')
     options = parser.parse_args()
-    render(options.output, rows=options.rows, columns=options.columns, welcome=options.welcome)
+    render(options.output, rows=options.rows, columns=options.columns, welcome=options.welcome, tree=options.tree, agents=options.agents)
