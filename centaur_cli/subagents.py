@@ -6,6 +6,7 @@ import json
 from .agent import run_turn
 from .history import ChatStore
 from .tools import ProjectTools, TOOLS
+from .interaction import TurnCancelled
 
 COST_TIERS = ('low', 'medium', 'high', 'xhigh', 'max')
 DELEGATE_TASK = {
@@ -75,6 +76,8 @@ class SubagentTools:
             return self.base.execute(name, arguments)
         try:
             return self.base.redact(self.delegate(arguments))
+        except TurnCancelled:
+            raise
         except (RuntimeError, OSError, ValueError, KeyError, TypeError) as error:
             return self.base.redact(f'Falha ao delegar task: {error}')
 
@@ -119,6 +122,8 @@ class SubagentTools:
                                  lambda description: interact(self.base.approve, f'Subagente {title}\n{description}'),
                                  protected_keys=self.base.protected_keys, approval_mode=self.approval_mode,
                                  ask_user=lambda question, options: interact(self.base.ask_user, question, options), cancel_event=self.base.cancel_event)
+            if self.registry:
+                tools.activity = lambda phase: self.registry.activity(chat['id'], phase)
             instructions = ('\nVocê é executor de UMA task delegada. Não é o coordenador. '
                             'Leia clean-code e a skill implement/tdd conforme o modo. '
                             'Não crie outros subagentes. Edite somente os arquivos sob sua posse; '
@@ -131,9 +136,14 @@ class SubagentTools:
                          instructions)
                 chat['status'] = 'reported'
                 report = chat['messages'][-1].get('content') or ''
+            except TurnCancelled:
+                chat['status'] = 'cancelled'
+                store.save(chat)
+                raise
             except Exception as error:
                 chat['status'] = 'failed'
                 report = self.base.redact(str(error))
+                chat['last_error'] = report
         finally:
             if self.registry:
                 self.registry.set(chat['id'], 'stopped')

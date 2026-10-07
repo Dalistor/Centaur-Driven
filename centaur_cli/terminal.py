@@ -30,6 +30,7 @@ from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 from .permissions import validate_mode, MODE_LABELS
 from .interaction import QuestionPicker, TurnCancelled
 from .computer import ComputerSession
+from .computer_access import ComputerControl
 from .composer import layout_input, attachment_span, atomic_cursor, replace_input, without_attachment_markers
 from .clipboard import clipboard_content, pasted_paths
 from .keyboard import KEY_NEWLINE, PastedText, KeyboardReader, keyboard_protocol, read_key
@@ -105,6 +106,7 @@ class Terminal:
         self.session_contexts = {}
         self.live_chats = {}
         self.registry = SessionRegistry(root)
+        self.computer_control = ComputerControl(root, self.chat["id"])
         self.browser_mode = 'chats'
         self.agent_preview = None
         self.active_agents = []
@@ -373,7 +375,34 @@ class Terminal:
             return {'text': value}
         self.begin_attachment_read(prepare, 'Lendo clipboard', snapshot=(self.draft, self.cursor))
 
+    def computer_command(self, command):
+        parts = command.split()
+        action = parts[1] if len(parts) == 2 else 'status' if len(parts) == 1 else ''
+        chat_id = self.chat['id']
+        if action == 'revoke':
+            if self.busy:
+                self.cancel_work()
+            self.computer_control.revoke(chat_id)
+            self.notice = 'Computer use revogado neste chat · próxima utilização exige autorização.'
+        elif action == 'pause':
+            self.computer_control.pause(chat_id)
+            self.notice = 'Computador pausado · $computer resume retoma sem nova autorização.'
+        elif action == 'resume':
+            self.computer_control.resume(chat_id)
+            self.notice = 'Computer use disponível · o agente retoma durante a tarefa.'
+        elif action == 'status':
+            granted = self.computer_control.permissions.granted(chat_id)
+            state = 'em uso' if self.computer and self.computer.active else 'pausado' if chat_id in self.computer_control.paused else 'parado'
+            self.notice = f'Computador {state} · autorização ' + ('deste chat ativa' if granted else 'não concedida') + ' · $computer pause/resume/revoke'
+        else:
+            self.notice = 'Uso: $computer [status|pause|resume|revoke] · Ctrl+G revoga imediatamente.'
+            return
+        self.draft = ''
+
     def submit(self):
+        command = without_attachment_markers(self.draft, self.pending_attachments).strip()
+        if command.split(maxsplit=1)[0:1] in (['$computer'], ['/computer']):
+            return self.computer_command(command)
         if self.busy or self.preparing_attachment or not (self.draft.strip() or self.pending_attachments):
             return
         command = without_attachment_markers(self.draft, self.pending_attachments).strip()
@@ -383,7 +412,7 @@ class Terminal:
                 return
             return 'quit'
         if command == '/new':
-            self.chat = self.new_chat()
+            self.switch_chat(self.new_chat())
             self.draft = ''
             self.scroll = 0
             return
@@ -528,9 +557,10 @@ class Terminal:
         return worker
 
     def switch_chat(self, chat):
-        if chat["id"] != self.chat["id"] and self.computer:
+        if chat["id"] != self.chat["id"] and self.computer and not hasattr(self.computer, 'suspend'):
             self.computer.close()
         self.chat = self.live_chats.get(chat['id'], chat)
+        self.computer_control.focus(self.chat['id'])
         context = self.session_contexts.get(chat['id'])
         if context:
             for name in ('client', 'backend', 'model', 'effort', 'speed', 'approval_mode'):
@@ -690,7 +720,7 @@ class Terminal:
         if approval_mode is not None:
             self.approval_mode = validate_mode(approval_mode)
         if new_conversation:
-            self.chat = self.new_chat()
+            self.switch_chat(self.new_chat())
         else:
             self.chat['approval_mode'] = self.approval_mode
             if model_changed:
@@ -834,9 +864,14 @@ class Terminal:
             self.rename_text = self.rename_text[:self.rename_cursor] + key + self.rename_text[self.rename_cursor:]
             self.rename_cursor += 1
 
+    def computer_progress(self, notice):
+        self.registry.set(self.chat['id'], 'waiting_input' if notice.startswith('Computador pausado') else 'running')
+        self.events.put(('progress', notice))
+
     def work(self, chat):
         completion_notice = 'Turno encerrado.'
-        computer = ComputerSession(self.approve, self.cancel_event)
+        computer = ComputerSession(self.approve, self.cancel_event, control=self.computer_control,
+                                   chat_id=chat['id'], emit=self.computer_progress)
         self.computer = computer
         try:
             base = ProjectTools(self.root, self.approve,
@@ -1180,6 +1215,7 @@ class Terminal:
             return
         if is_current_chat:
             self.chat = self.new_chat()
+            self.computer_control.focus(None if self.browser else self.chat['id'])
             self.draft = ''
             self.scroll = 0
         self.refresh_browser()
@@ -1201,6 +1237,7 @@ class Terminal:
         return self.registry.state(chat['id'])
 
     def housekeeping(self):
+        self.computer_control.focus(None if self.browser or self.settings or self.rename_target or self.question or self.approval else self.chat['id'])
         self.registry.heartbeat()
         now = time.monotonic()
         if now >= self.next_cleanup:
@@ -1221,6 +1258,7 @@ class Terminal:
                 self.session_states.pop(chat_id, None)
             if self.chat['id'] in removed:
                 self.chat = self.new_chat()
+                self.computer_control.focus(None if self.browser else self.chat['id'])
                 self.draft = ''
                 self.notice = 'Chat com mais de 64h removido; nova conversa aberta.'
             self.next_cleanup = now + 60
@@ -1307,6 +1345,7 @@ class Terminal:
         self.browser_refreshed = time.monotonic()
 
     def open_chats(self, mode='chats'):
+        self.computer_control.focus(None)
         self.browser = True
         self.browser_mode = mode
         self.agent_preview = None
@@ -1328,6 +1367,7 @@ class Terminal:
                 self.agent_preview = None
             else:
                 self.browser = False
+                self.computer_control.focus(self.chat['id'])
         elif key in (curses.KEY_UP, curses.KEY_DOWN) and not self.agent_preview:
             self.selected = min(max(0,len(self.chats)-1), max(0,self.selected + (-1 if key == curses.KEY_UP else 1)))
         elif key in (curses.KEY_PPAGE, curses.KEY_NPAGE) and self.agent_preview:
@@ -1360,6 +1400,8 @@ class Terminal:
                 self.switch_chat(selected)
 
     def handle(self, key):
+        if key == '\x07':
+            return self.computer_command('$computer revoke')
         if key in ('\x11', '\x03'):
             if self.preparing_attachment:
                 self.attachment_cancel.set()
@@ -1478,6 +1520,12 @@ class Terminal:
             self.insert_text(key)
 
     def run(self, screen):
+        try:
+            return self._run(screen)
+        finally:
+            self.view.palette.restore()
+
+    def _run(self, screen):
         with keyboard_protocol():
             return self.run_screen(screen)
 

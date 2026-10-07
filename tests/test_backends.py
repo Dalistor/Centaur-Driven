@@ -194,7 +194,8 @@ class BackendTests(unittest.TestCase):
                     raise subprocess.TimeoutExpired('codex', 180)
                 return '', ''
         with patch('centaur_cli.native_client.subprocess.Popen', return_value=Process()) as start, \
-                patch('centaur_cli.native_client.os.killpg') as kill:
+                patch('centaur_cli.native_client.os.killpg') as kill, \
+                patch('centaur_cli.native_client.time.monotonic', side_effect=[0, 0, 0, 1801]):
             with self.assertRaisesRegex(RuntimeError, 'tempo limite'):
                 client.complete('fixed', [], [])
         kill.assert_called_once()

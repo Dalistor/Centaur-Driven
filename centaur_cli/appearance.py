@@ -58,13 +58,23 @@ def input_window(text, cursor, width):
 def setup_heading():
     colored = sys.stdout.isatty() and 'NO_COLOR' not in os.environ
     green = '\033[38;5;120m' if colored else ''
-    muted = '\033[38;5;109m' if colored else ''
+    muted = '\033[38;5;146m' if colored else ''
     reset = '\033[0m' if colored else ''
     print(f'\n  {green}{WORDMARK}{reset}\n  {muted}{TAGLINE}{reset}\n  {muted}' + '─' * 42 + reset)
 
 
 class Palette:
+    # The one runtime token source; DESIGN.md mirrors these roles.
+    TOKENS = {'background': (11, 18, 32), 'surface': (25, 38, 59),
+              'text': (229, 237, 248), 'muted': (150, 169, 197),
+              'line': (48, 65, 93), 'blue': (161, 188, 255),
+              'warning': (255, 191, 128)}
+    ANSI = {'background': 17, 'surface': 235, 'text': 255, 'muted': 146,
+            'line': 60, 'blue': 111, 'warning': 215}
+
     def __init__(self):
+        self.original_colors = {}
+        self.custom_colors = {}
         self.styles = {name: 0 for name in ('text', 'green', 'muted', 'line', 'blue', 'selected', 'warning')}
         for accent in (False, True):
             for shade in range(16):
@@ -72,6 +82,9 @@ class Palette:
                     curses.A_DIM if shade < 5 else curses.A_BOLD if shade > 12 else 0)
         self.styles.update(title=curses.A_BOLD, user=curses.A_BOLD,
                            comment=0, action=curses.A_BOLD)
+        for name in ('text', 'title', 'muted', 'green', 'blue', 'warning', 'action', 'comment', 'user'):
+            self.styles['panel_' + name] = self.styles[name]
+        self.styles.update(input=0, input_green=curses.A_BOLD, input_blue=0, input_muted=0)
 
     @staticmethod
     def graphic_style(shade, accent):
@@ -96,34 +109,89 @@ class Palette:
             return
         curses.start_color()
         extended = curses.COLORS >= 256
-        background = 233 if extended else curses.COLOR_BLACK
-        colors = [252, 120, 109, 239, 111, 120, 215] if extended else [
+        tokens = dict(self.ANSI)
+        if extended and curses.can_change_color():
+            try:
+                # Private session slots, restored even when an editor/turn raises.
+                for index, (name, rgb) in enumerate(self.TOKENS.items(), 240):
+                    self.original_colors[index] = curses.color_content(index)
+                    curses.init_color(index, *(round(channel * 1000 / 255) for channel in rgb))
+                    self.custom_colors[index] = rgb
+                    tokens[name] = index
+            except curses.error:
+                self.restore()
+                tokens = dict(self.ANSI)
+        background = tokens['background'] if extended else curses.COLOR_BLACK
+        colors = [tokens['text'], 120, tokens['muted'], tokens['line'], tokens['blue'], 120, tokens['warning']] if extended else [
             curses.COLOR_WHITE, curses.COLOR_GREEN, curses.COLOR_CYAN,
             curses.COLOR_BLUE, curses.COLOR_CYAN, curses.COLOR_GREEN, curses.COLOR_YELLOW]
         for pair, (name, color) in enumerate(zip(self.styles, colors), 1):
-            curses.init_pair(pair, background if name == 'selected' else color,
-                             color if name == 'selected' else background)
+            if name == 'selected' and extended:
+                curses.init_pair(pair, tokens['text'], tokens['line'])
+            else:
+                curses.init_pair(pair, background if name == 'selected' else color,
+                                 color if name == 'selected' else background)
             self.styles[name] = curses.color_pair(pair)
         self.styles['green'] |= curses.A_BOLD
         self.styles['title'] = self.styles['text'] | curses.A_BOLD
         self.styles['comment'] = self.styles['text']
         self.styles['action'] = self.styles['blue'] | curses.A_BOLD
         self.styles['user'] = self.styles['text'] | curses.A_BOLD
-        if extended and curses.COLOR_PAIRS > 40:
-            curses.init_pair(40, 252, 236)
+        if extended and curses.COLOR_PAIRS > 45:
+            curses.init_pair(40, tokens['text'], tokens['surface'])
             self.styles['user'] = curses.color_pair(40) | curses.A_BOLD
-        # Existing runtime tokens own the light endpoints: text 252 and green 120.
-        for accent, target in ((False, (208, 208, 208)), (True, (135, 255, 135))):
+            for pair, name in enumerate(('text', 'muted', 'green', 'blue', 'warning'), 41):
+                color = 120 if name == 'green' else tokens[name]
+                curses.init_pair(pair, color, tokens['surface'])
+                self.styles['panel_' + name] = curses.color_pair(pair)
+            self.styles['panel_title'] = self.styles['panel_text'] | curses.A_BOLD
+            self.styles['panel_action'] = self.styles['panel_blue'] | curses.A_BOLD
+            self.styles['panel_comment'] = self.styles['panel_text']
+            self.styles['panel_user'] = self.styles['panel_title']
+            self.styles['input'] = self.styles['panel_text']
+            self.styles['input_green'] = self.styles['panel_green'] | curses.A_BOLD
+            self.styles['input_blue'] = self.styles['panel_blue']
+            self.styles['input_muted'] = self.styles['panel_muted']
+        else:
+            for name in ('text', 'title', 'muted', 'green', 'blue', 'warning', 'action', 'comment', 'user'):
+                self.styles['panel_' + name] = self.styles[name]
+            for name, source in (('input', 'user'), ('input_green', 'green'),
+                                 ('input_blue', 'blue'), ('input_muted', 'muted')):
+                self.styles[name] = self.styles[source]
+        for accent, target in ((False, self.TOKENS['text']), (True, (135, 255, 135))):
             for shade in range(16):
                 name = self.graphic_style(shade, accent)
                 pair = 8 + int(accent) * 16 + shade
                 if extended and pair < curses.COLOR_PAIRS:
-                    rgb = tuple(round(18 + (channel - 18) * shade / 15) for channel in target)
-                    curses.init_pair(pair, self.ansi_color(rgb), background)
+                    rgb = tuple(round(base + (channel - base) * shade / 15)
+                                for base, channel in zip(self.TOKENS['background'], target))
+                    curses.init_pair(pair, self.color_for(rgb), background)
                     self.styles[name] = curses.color_pair(pair)
                 else:
                     base = self.styles['green' if accent else 'text']
                     self.styles[name] |= base
+
+    def color_for(self, rgb):
+        if not self.custom_colors:
+            return self.ANSI['background'] if rgb == self.TOKENS['background'] else self.ansi_color(rgb)
+        def color(index):
+            if index in self.custom_colors:
+                return self.custom_colors[index]
+            if index >= 232:
+                return (8 + (index - 232) * 10,) * 3
+            levels = (0, 95, 135, 175, 215, 255)
+            value = index - 16
+            return (levels[value // 36], levels[value // 6 % 6], levels[value % 6])
+        return min(range(16, 256), key=lambda index: sum((a - b) ** 2 for a, b in zip(color(index), rgb)))
+
+    def restore(self):
+        for index, rgb in self.original_colors.items():
+            try:
+                curses.init_color(index, *rgb)
+            except curses.error:
+                pass
+        self.original_colors.clear()
+        self.custom_colors.clear()
 
 
 class TerminalView:
@@ -210,7 +278,7 @@ class TerminalView:
             self.animation.pause()
         commands = [('$spec', 'Planejar entrega'), ('$run master/0001', 'Executar spec'),
                     ('$check', 'Consultar projeto'), ('$skill', 'Instalar skill')]
-        self.put(screen, top, text_column, 'Centaur CLI', 'green')
+        self.put(screen, top, text_column, 'Centaur CLI', 'title')
         self.put(screen, top + 1, text_column, 'Sua intenção. Mais alcance.', 'muted')
         self.put(screen, top + 2, text_column, 'Intenção → contrato → entrega verificada', 'muted')
         for index, (command, description) in enumerate(commands[:max(0, available - 5)], top + 4):
@@ -319,11 +387,15 @@ class TerminalView:
             self.put(screen, row, 3, line, style)
 
     def browser(self, screen, terminal, top, available, width):
-        from .sessions import LABELS
+        from .sessions import LABELS, activity_label
         if terminal.agent_preview:
             agent = terminal.agent_preview
             self.put(screen, top, 3, 'SUBAGENTE · ' + agent['title'], 'green')
-            self.put(screen, top + 1, 3, LABELS[terminal.session_state(agent)] + ' · ' + agent['model'], 'blue')
+            state = terminal.session_state(agent)
+            status = agent.get('status')
+            outcome = {'failed': '! Falhou', 'cancelled': '○ Cancelado', 'reported': '✓ Concluído'}.get(status if isinstance(status, str) else '', LABELS[state])
+            detail = activity_label(terminal.root, agent['id']) or outcome
+            self.put(screen, top + 1, 3, detail + ' · ' + agent['model'], 'warning' if state == 'stopped' and agent.get('status') == 'failed' else 'blue')
             lines = terminal.lines(width - 6)
             room = max(1, available - 3)
             start = terminal.transcript_start(len(lines), room, width - 6)
@@ -352,7 +424,7 @@ class TerminalView:
     def agent_panels(self, screen, terminal, left, top, width, bottom):
         """Live cards close when their runtime stops; overflow remains scrollable."""
         from datetime import datetime, timezone
-        from .sessions import LABELS
+        from .sessions import LABELS, activity_label
         agents = terminal.active_agents
         if not agents or bottom - top < 8:
             return
@@ -370,13 +442,14 @@ class TerminalView:
             style = 'warning' if state == 'waiting_input' else 'blue'
             self.put(screen, row, left, '┌' + '─' * (width - 2) + '┐', style, width)
             for y in range(row + 1, row + card_height - 1):
+                self.put(screen, y, left + 1, ' ' * (width - 2), 'panel_text', width - 2)
                 self.put(screen, y, left, '│', style, 1)
                 self.put(screen, y, left + width - 1, '│', style, 1)
             self.put(screen, row + card_height - 1, left, '└' + '─' * (width - 2) + '┘', style, width)
             inner = width - 4
-            self.put(screen, row + 1, left + 2, fit_notice(agent['title'], inner), 'title', inner)
+            self.put(screen, row + 1, left + 2, fit_notice(agent['title'], inner), 'panel_title', inner)
             model = (agent.get('models_used') or [agent['model']])[-1] or 'padrão'
-            self.put(screen, row + 2, left + 2, fit_notice(model, inner), 'muted', inner)
+            self.put(screen, row + 2, left + 2, fit_notice(model, inner), 'panel_muted', inner)
             try:
                 created = datetime.fromisoformat(agent['created'].replace('Z', '+00:00'))
                 if created.tzinfo is None:
@@ -385,12 +458,13 @@ class TerminalView:
                 duration = f'{elapsed // 60}m {elapsed % 60:02}s'
             except (KeyError, TypeError, ValueError):
                 duration = ''
-            self.put(screen, row + 3, left + 2, fit_notice(LABELS[state] + ' · ' + duration, inner), style, inner)
+            detail = activity_label(terminal.root, agent['id']) or LABELS[state] + ' · ' + duration
+            self.put(screen, row + 3, left + 2, fit_notice(detail, inner), 'panel_' + style, inner)
             lines = terminal.lines(inner, chat=agent) if any(m.get('role') == 'assistant' for m in agent['messages']) else ['Aguardando resposta do modelo…']
             lines = [line for line in lines if str(line).strip()]
             count = max(1, card_height - 6)
             for offset, line in enumerate(lines[-count:]):
-                self.put(screen, row + 4 + offset, left + 2, line, getattr(line, 'style', 'muted'), inner)
+                self.put(screen, row + 4 + offset, left + 2, line, 'panel_' + getattr(line, 'style', 'muted'), inner)
             terminal.agent_panel_hits.append((left, row, width, card_height, agent))
         self.put(screen, bottom - 1, left, fit_notice(f'{start + 1}–{start + len(visible)}/{len(agents)} · roda: rolar · clique: abrir', width), 'muted', width)
 
@@ -440,16 +514,18 @@ class TerminalView:
                            else 'Fast solicitado' if width >= 80 else 'Fast?') + ' · '
         model = MODE_LABELS[terminal.approval_mode] + ' · ' + speed_label + terminal.backend + ' · ' + (terminal.chat['model'] or 'padrão')
         if terminal.computer and terminal.computer.active:
-            model = 'TELA ATIVA · ' + model
+            model = 'COMPUTADOR EM USO · ' + model
+        elif terminal.computer and terminal.computer.resume_requested:
+            model = 'COMPUTADOR PAUSADO · ' + model
         if terminal.chat.get('effort', 'default') != 'default':
             model += ' · ' + terminal.chat['effort']
         model_style = 'warning' if terminal.approval_mode == 'never' else 'blue'
-        self.put(screen, 2, transcript_left, '◆ ' + terminal.chat['title'], 'title', transcript_width)
+        self.put(screen, 2, transcript_left, fit_notice('◆ ' + terminal.chat['title'], transcript_width), 'title', transcript_width)
         if width >= 100:
             self.put(screen, 3, transcript_left, str(terminal.root), 'muted', transcript_width // 2 - 2)
-            self.put(screen, 3, transcript_left + transcript_width // 2, model, model_style, transcript_width // 2)
+            self.put(screen, 3, transcript_left + transcript_width // 2, fit_notice(model, transcript_width // 2), model_style, transcript_width // 2)
         else:
-            self.put(screen, 3, transcript_left, model, model_style, transcript_width)
+            self.put(screen, 3, transcript_left, fit_notice(model, transcript_width), model_style, transcript_width)
         self.put(screen, 4, transcript_left, '─' * transcript_width, 'line')
         top, available = 5, height - 11
         modal = bool(terminal.settings or terminal.rename_target or terminal.browser or terminal.approval or terminal.question)
@@ -476,8 +552,8 @@ class TerminalView:
             top, available = 3, height - 9
             for row in range(height - 5):
                 self.put(screen, row, 0, ' ' * (width - 1))
-            self.put(screen, 0, transcript_left, '◆ ' + terminal.chat['title'], 'title', transcript_width)
-            self.put(screen, 1, transcript_left, model, model_style, transcript_width)
+            self.put(screen, 0, transcript_left, fit_notice('◆ ' + terminal.chat['title'], transcript_width), 'title', transcript_width)
+            self.put(screen, 1, transcript_left, fit_notice(model, transcript_width), model_style, transcript_width)
             self.put(screen, 2, transcript_left, '─' * transcript_width, 'line')
         # Keep at least two conversation rows when space allows. The chat input
         # grows to eight rows; modal editors retain their single-line geometry.
@@ -578,9 +654,9 @@ class TerminalView:
         else:
             visible_lines = layout.lines[input_start:input_start + composer_rows]
         for offset in range(composer_rows):
-            self.put(screen, input_top + offset, composer_left, ' ' * composer_width, 'user')
+            self.put(screen, input_top + offset, composer_left, ' ' * composer_width, 'input')
             if offset < len(visible_lines):
-                self.put(screen, input_top + offset, composer_left + 2, visible_lines[offset], 'user', input_width)
+                self.put(screen, input_top + offset, composer_left + 2, visible_lines[offset], 'input', input_width)
         if not modal:
             from .composer import attachment_span
             for item in terminal.pending_attachments:
@@ -591,7 +667,7 @@ class TerminalView:
                     row, column = layout.positions[index]
                     if input_start <= row < input_start + composer_rows:
                         self.put(screen, input_top + row - input_start, composer_left + 2 + column,
-                                 draft[index], 'blue', 1)
+                                 draft[index], 'input_blue', 1)
         target = ('rename' if terminal.rename_target else 'question' if terminal.question and terminal.question.custom
                   else 'draft' if not modal else None)
         if target:
@@ -600,9 +676,9 @@ class TerminalView:
                 'text': draft, 'target': target, 'top': input_top, 'left': composer_left,
                 'text_left': composer_left + 2, 'width': composer_width, 'rows': composer_rows, 'start_row': 0 if modal else input_start,
                 'start_index': horizontal_start, 'layout': hit_layout}
-        self.put(screen, input_top, composer_left, '↑' if input_start else '›', 'green')
+        self.put(screen, input_top, composer_left, '↑' if input_start else '›', 'input_green')
         if input_start + composer_rows < len(layout.lines) and not modal:
-            self.put(screen, input_top + composer_rows - 1, composer_left, '↓', 'muted')
+            self.put(screen, input_top + composer_rows - 1, composer_left, '↓', 'input_muted')
         footer_width = width - 5
         if terminal.credits_status == 'unsupported' and terminal.backend == 'openrouter':
             credits = 'Créditos: CLI'
@@ -631,6 +707,8 @@ class TerminalView:
                  'Ctrl+V imagem · ↑↓ prompts · Enter enviar · Shift+Enter linha · Shift+← chats')
         if terminal.active_agents and not terminal.agent_panel_area and not modal:
             hints = f'{len(terminal.active_agents)} subagentes · Shift+←/Tab · ' + hints
+        if terminal.computer and terminal.computer.resume_requested and not modal:
+            hints = 'Ctrl+C parar · Ctrl+G revogar · $computer pause/resume'
         self.put(screen, height - 1, 2, hints, 'blue')
         if terminal.rename_target or (not terminal.approval and not terminal.browser):
             if terminal.settings and terminal.settings.page == 'custom':

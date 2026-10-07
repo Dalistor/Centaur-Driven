@@ -85,7 +85,7 @@ class DesktopTests(unittest.TestCase):
         url = messages[0]['content'][-1]['image_url']['url']
         decoded = Image.open(io.BytesIO(base64.b64decode(url.split(',', 1)[1])))
         self.assertEqual(decoded.getpixel((20, 20)), (0xab, 0xcd, 0xef))
-        self.assertEqual(len(permissions), 7)
+        self.assertEqual(len(permissions), 1)
         # Mutating only the destination must block a drag before mouse-down.
         connection.sync()
         while connection.pending_events(): connection.next_event()
@@ -97,7 +97,7 @@ class DesktopTests(unittest.TestCase):
             session.execute('computer_action', {'action': 'drag', 'frame_id': reference,
                 'x': 20, 'y': 20, 'end_x': 100, 'end_y': 100})
         self.assertFalse(root.query_pointer().mask & X.Button1Mask)
-        self.assertEqual(len(permissions), 8)
+        self.assertEqual(len(permissions), 1)
 
     def test_real_capture_click_keyboard_target_change_and_failsafe(self):
         from Xlib import X, XK, display
@@ -136,7 +136,7 @@ class DesktopTests(unittest.TestCase):
             if event.type == X.KeyPress:
                 typed.append(XK.keysym_to_string(connection.keycode_to_keysym(event.detail, 0)))
         self.assertEqual(typed, ['a', 'b', 'c'])
-        self.assertEqual(len(permissions), 3)
+        self.assertEqual(len(permissions), 1)
         session.observation_messages()
         reference = session.reference[0]
         window.change_attributes(background_pixel=0xffee00)

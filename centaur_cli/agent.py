@@ -26,7 +26,8 @@ def project_prompt(root):
               'Resposta skipped não é aprovação: esclareça a pendência, sem inventar uma escolha. '
               'Computer use exige autorização própria, inclusive no modo never. Só use se solicitado '
               'pelo usuário e se as ferramentas estiverem disponíveis. Use computer_start para '
-              'pedir captura contínua, observe os quadros e envie uma computer_action por decisão, '
+              'iniciar captura/controle sob autorização persistente deste chat; não peça autorização por ação. '
+              'Observe os quadros e envie uma computer_action por decisão, '
               'com frame_id e coordenadas do último quadro. Verifique visualmente depois. '
               'computer_observe pode ampliar region=[x,y,largura,altura] com frame_id; '
               'as coordenadas das ações seguintes são pixels da nova imagem ampliada. '
@@ -101,6 +102,7 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
     messages[:] = recovered
     mode = getattr(tools, 'approval_mode', 'ask')
     instructions += '\nModo de permissões: ' + mode + '. ' + MODE_HELP[mode] + '\n'
+    activity = getattr(tools, 'activity', lambda phase: None)
     while True:
         check_cancelled = getattr(tools, 'check_cancelled', lambda: None)
         check_cancelled()
@@ -112,6 +114,7 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
         payload = [{'role': 'system', 'content': project_prompt(tools.root) + instructions}] + active_messages(chat) + observations
         definitions = getattr(tools, 'definitions', TOOLS)
         if auto_compaction_needed(chat, client, payload, definitions):
+            activity('compact')
             if progress: progress('Compactando automaticamente o contexto · histórico preservado…')
             try:
                 limit = context_window(client, (chat.get('context_usage') or {}).get('model') or chat['model'])
@@ -137,6 +140,7 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
             emit()
         payload = provider_messages(tools.root, chat['id'], client, chat['model'], payload)
         record_context(chat, client, payload, definitions)
+        activity('model')
         emit()
         response = client.complete(chat['model'], payload, definitions, **options)
         check_cancelled()
@@ -157,6 +161,7 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
             check_cancelled()
             try:
                 arguments = json.loads(call['function']['arguments'])
+                activity('tool:' + call['function']['name'])
                 result = tools.execute(call['function']['name'], arguments)
             except (ValueError, KeyError, TypeError) as error:
                 result = f'Chamada inválida: {error}'

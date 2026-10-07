@@ -245,7 +245,7 @@ class AgentPanelMouseTests(unittest.TestCase):
         terminal=self.terminal
         for outcome in ('success','failure','cancel'):
             with self.subTest(outcome=outcome):
-                started=threading.Event();release=threading.Event();results=[]
+                started=threading.Event();release=threading.Event();results=[];cancelled=[]
                 cancel=threading.Event()
                 class Client:
                     def complete(inner,*args,**kwargs):
@@ -259,7 +259,12 @@ class AgentPanelMouseTests(unittest.TestCase):
                 self.store.save(parent)
                 base=ProjectTools(self.root,lambda _:True,cancel_event=cancel)
                 tools=SubagentTools(base,Client(),parent['id'],lambda _:None,registry=terminal.registry)
-                worker=threading.Thread(target=lambda:results.append(json.loads(tools.execute('delegate_task',{'title':'Longa','task':'Aguardar execução'}))))
+                def delegate():
+                    try:
+                        results.append(json.loads(tools.execute('delegate_task',{'title':'Longa','task':'Aguardar execução'})))
+                    except TurnCancelled as error:
+                        cancelled.append(error)
+                worker=threading.Thread(target=delegate)
                 worker.start()
                 try:
                     self.assertTrue(started.wait(2))
@@ -279,4 +284,9 @@ class AgentPanelMouseTests(unittest.TestCase):
                 self.draw()
                 self.assertNotIn(child['id'],{a['id'] for a in terminal.active_agents})
                 self.assertEqual(terminal.registry.state(child['id']),'stopped')
-                self.assertEqual(results[0]['status'],'reported' if outcome=='success' else 'failed')
+                if outcome == 'cancel':
+                    self.assertEqual(len(cancelled), 1)
+                    self.assertEqual(results, [])
+                    self.assertEqual(next(a for a in self.store.agents() if a['id'] == child['id'])['status'], 'cancelled')
+                else:
+                    self.assertEqual(results[0]['status'],'reported' if outcome=='success' else 'failed')

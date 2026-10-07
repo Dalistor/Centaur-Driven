@@ -216,6 +216,12 @@ class NativeClient:
                 raise ValueError
         except ValueError:
             raise ValueError('CENTAUR_NATIVE_TIMEOUT deve ser um inteiro de 30 a 3600 segundos.') from None
+        try:
+            self.idle_timeout = int(os.environ.get('CENTAUR_NATIVE_IDLE_TIMEOUT', '300'))
+            if not 30 <= self.idle_timeout <= 3600:
+                raise ValueError
+        except ValueError:
+            raise ValueError('CENTAUR_NATIVE_IDLE_TIMEOUT deve ser um inteiro de 30 a 3600 segundos.') from None
         self.context_windows = {}
         self.model_efforts = {}
         self.speed_support = local_speed_support(backend)
@@ -378,26 +384,39 @@ class NativeClient:
                                            stderr=subprocess.PIPE, text=True, env=env,
                                            start_new_session=True)
                 try:
-                    if cancel_event is None:
-                        output, errors = process.communicate(input_text, timeout=timeout)
-                    else:
-                        deadline, pending_input = time.monotonic() + timeout, input_text
-                        while True:
-                            if cancel_event.is_set():
-                                os.killpg(process.pid, signal.SIGKILL)
-                                process.communicate()
-                                raise TurnCancelled('Turno interrompido pelo usuário.')
-                            remaining = deadline - time.monotonic()
-                            if remaining <= 0:
-                                raise subprocess.TimeoutExpired(arguments, timeout)
-                            try:
-                                output, errors = process.communicate(pending_input, timeout=min(0.1, remaining))
-                                break
-                            except subprocess.TimeoutExpired:
-                                pending_input = None
+                    deadline, last_output = time.monotonic() + timeout, time.monotonic()
+                    pending_input, received = input_text, (0, 0)
+                    while True:
+                        if cancel_event is not None and cancel_event.is_set():
+                            self.stop_process(process)
+                            raise TurnCancelled('Turno interrompido pelo usuário.')
+                        now = time.monotonic()
+                        remaining = deadline - now
+                        if remaining <= 0:
+                            raise subprocess.TimeoutExpired(arguments, timeout)
+                        if now - last_output >= self.idle_timeout:
+                            self.stop_process(process)
+                            error = RequestTimeout if request_timeout is not None else RuntimeError
+                            raise error(f'{self.backend}: sem nova saída do CLI por {self.idle_timeout:g} segundos; '
+                                        'execução encerrada e checkpoints preservados. Confira conexão/modelo, '
+                                        'use /retry para retomar ou ajuste CENTAUR_NATIVE_IDLE_TIMEOUT. '
+                                        'Nenhuma ferramenta dessa resposta foi executada.')
+                        try:
+                            output, errors = process.communicate(pending_input, timeout=min(0.1, remaining))
+                            break
+                        except subprocess.TimeoutExpired as partial:
+                            pending_input = None
+                            # communicate exposes cumulative bytes; heartbeats from the UI
+                            # must never masquerade as activity from the native process.
+                            sizes = (len(partial.output or b''), len(partial.stderr or b''))
+                            if sizes[0] > 8_000_000 or sizes[1] > 1_000_000:
+                                self.stop_process(process)
+                                raise RuntimeError(f'{self.backend}: saída local excedeu o limite; '
+                                                   'nenhuma ferramenta dessa resposta foi executada.')
+                            if sizes != received:
+                                received, last_output = sizes, time.monotonic()
                 except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.communicate()
+                    self.stop_process(process)
                     if request_timeout is not None:
                         raise RequestTimeout(f'{self.backend}: tempo limite de {timeout:g} segundos na requisição de resumo; '
                                            'nenhuma ferramenta foi executada.') from None
@@ -429,6 +448,24 @@ class NativeClient:
             except (OSError, ValueError, KeyError, TypeError) as error:
                 detail = str(error) if isinstance(error, ValueError) else 'Não foi possível ler a resposta local do CLI.'
                 raise RuntimeError(f'{self.backend}: {self.redact(detail)} Nenhuma ferramenta dessa resposta foi executada.') from None
+
+    @staticmethod
+    def stop_process(process):
+        """Bound cleanup even if an escaped descendant holds a pipe open."""
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            process.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            for pipe in (process.stdin, process.stdout, process.stderr):
+                if pipe is not None:
+                    pipe.close()
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
 
     def reply(self, value, tools):
         if not isinstance(value, dict) or set(value) != {'content', 'calls'}:

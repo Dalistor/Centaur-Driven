@@ -69,8 +69,8 @@ def tool_activity(call, result=None):
         'run_command': ('Executando', 'Executou', 'command'),
         'delegate_task': ('Delegando', 'Delegou', 'title'),
         'ask_user': ('Perguntando', 'Perguntou', 'question'),
-        'computer_start': ('Solicitando tela', 'Observou tela', 'purpose'),
-        'computer_action': ('Confirmando ação', 'Controlou desktop', 'action'),
+        'computer_start': ('Iniciando tela', 'Observou tela', 'purpose'),
+        'computer_action': ('Controlando desktop', 'Controlou desktop', 'action'),
         'computer_observe': ('Observando tela', 'Observou tela', 'frame_id'),
         'computer_stop': ('Parando captura', 'Parou captura', 'frame_id'),
     }

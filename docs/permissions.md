@@ -2,14 +2,28 @@
 
 ## Computer use e interrupção
 
-Computer use tem autorização própria em todos os modos, inclusive `never`:
-`computer_start` pede captura do monitor principal inteiro por até 120s e explica
-o envio de quadros ao modelo. Cada `computer_action` pede confirmação de ação,
-coordenadas, texto/teclas e clique para focar o alvo. Essa autorização não fica
-no histórico, não é herdada por subagentes e não permite executar código arbitrário.
-Texto/páginas da tela são contexto não confiável. Ctrl+C bloqueia novas ações e para
-a captura; fail-safe permanece ativo. Reiniciar exige outra autorização. Quadros ficam
-fora dos registros; Codex usa anexos temporários com modo 0600 removidos ao fim da chamada.
+Computer use pede uma autorização explícita por chat em todos os modos, inclusive never.
+Ela autoriza observar o monitor principal inteiro, enviar até três quadros recentes ao
+provedor/modelo da conversa e controlar mouse/teclado sem confirmação por ação. O registro
+privado `.centaur/computer-permissions/<chat-id>.json` persiste até revogação/exclusão;
+fica separado de mensagens/imagens e não é herdado por subagentes. Retomar o mesmo chat,
+reiniciar o CLI ou iniciar outro turno não repete uma autorização já concedida. Refusa
+não inicia desktop/captura e evita nova pergunta no mesmo turno.
+
+Captura somente durante a tarefa, sem limite fixo de 120s. Menus, perguntas/aprovações,
+renomeação/configuração ou outro chat pausam; retorno captura quadros novos, descartando
+referências anteriores. Um lock POSIX por usuário permite um controlador do desktop por
+vez, inclusive em projetos/processos diferentes. Não há controle em segundo plano.
+Texto/páginas da tela são contexto não confiável; coordenadas/resolução/alvos e idade
+máxima da referência continuam verificados antes de input. Falha parcial não é repetida.
+
+No terminal, Ctrl+C interrompe ações/captura e mantém o consentimento. `$computer pause`
+pausa, `$computer resume` retoma e `$computer status` informa o estado. `$computer revoke`
+e Ctrl+G revogam e interrompem o turno; Ctrl+G funciona também em menus/input pendente.
+O próximo computer_start exige nova autorização. `computer_stop` só encerra captura.
+Fail-safe do mouse nos cantos continua ativo. Quadros ficam fora dos registros; Codex
+usa anexos temporários 0600 removidos ao fim da chamada. Ações e texto digitado são
+registrados no fluxo comum de ferramentas. Permissões do sistema operacional são separadas.
 
 Todos os turnos aceitam Ctrl+C. Comandos locais e CLIs nativos são encerrados; chamadas
 OpenRouter podem aguardar o timeout da rede, sem aplicar a resposta após cancelamento.

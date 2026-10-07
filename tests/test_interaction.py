@@ -271,7 +271,7 @@ class ComputerTests(InteractionFixture):
         self.assertEqual(list(session.frames), [])
         self.assertEqual(session.observation_messages(), [])
 
-    def test_each_action_requires_approval_in_every_mode_and_uses_frame_coordinates(self):
+    def test_initial_consent_covers_actions_in_every_mode_and_uses_frame_coordinates(self):
         for mode in ('ask', 'auto', 'never'):
             prompts = []
             session, desktop = self.session(lambda prompt: prompts.append(prompt) or True)
@@ -281,7 +281,7 @@ class ComputerTests(InteractionFixture):
             reference = session.reference[0]
             result = tools.execute('computer_action', {'action': 'click', 'frame_id': reference, 'x': 100, 'y': 50})
             self.assertIn('aplicada', result)
-            self.assertEqual(len(prompts), 2)
+            self.assertEqual(len(prompts), 1)
             self.assertEqual(desktop.actions[0][:3], ('click', 200, 100))
             self.assertIn('Erro', tools.execute('computer_action', {'action': 'click', 'frame_id': reference, 'x': 100, 'y': 50}))
             self.assertEqual(len(desktop.actions), 1)
@@ -293,7 +293,6 @@ class ComputerTests(InteractionFixture):
         session.start('Testar')
         session.observation_messages()
         arguments = {'action': 'click', 'frame_id': session.reference[0], 'x': 5, 'y': 5}
-        self.assertIn('recusada', session.execute('computer_action', arguments))
         with self.assertRaises(ValueError): session.execute('computer_action', dict(arguments, x=-1))
         self.assertEqual(desktop.actions, [])
         session.close()

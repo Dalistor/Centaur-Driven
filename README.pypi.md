@@ -60,7 +60,7 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 ## Anexos e capturas
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.2'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.3'
 ```
 
 Ctrl+V cola imagem/texto/arquivos; arrastar ou colar caminhos insere marcadores atômicos
@@ -119,7 +119,11 @@ pipx install --force 'centaur-cli[computer] @ git+https://github.com/Dalistor/Ce
 ```
 
 Requer modelo com visão e desktop Linux X11 ou macOS com permissões de tela/acessibilidade.
-Captura autorizada por até 120s, cerca de 2 quadros/s; cada ação pede confirmação.
+Uma autorização por chat para captura/controle, persistente até revogar ou excluir.
+A captura dura a tarefa, cerca de 2 quadros/s; ações seguintes não pedem confirmação.
+Menus/outro chat pausam e retorno retoma com quadros novos. Controle exclusivo entre
+chats/processos. `$computer status/pause/resume/revoke` funciona durante a execução;
+Ctrl+G revoga também nos menus. `computer_stop` e fim do turno descartam os quadros.
 Zoom de áreas pequenas, arrasto, cliques adicionais, rolagem horizontal e teclas F1–F12.
 Quadros repetidos são deduplicados. Esperas canceláveis e estabilização visual após input
 ajudam a observar carregamentos; o modelo ainda precisa verificar o resultado da tarefa.
@@ -149,3 +153,33 @@ subagentes vivos também protegem o chat pai da limpeza.
 Chats com mais de **64h desde a criação** são apagados com anexos e subagentes na limpeza
 periódica. Sessões ativas ou com rascunho/anexos aguardam ficar livres para a limpeza.
 Atividade e renomeação não reiniciam o prazo. Não há execução após fechar o terminal.
+
+### Aparência e subagentes na 0.9.3
+
+O fundo agora é azul-marinho; composer, mensagens e cartões usam uma superfície azul
+um pouco mais clara. O título mantém destaque e comentários/ações continuam distintos.
+Cores programáveis são restauradas ao sair; terminais ANSI fixos usam uma aproximação
+e `NO_COLOR` preserva marcadores e negrito.
+
+Preview do renderer real, com dados demonstrativos:
+
+![Centaur CLI com tema navy e subagente](https://raw.githubusercontent.com/Dalistor/Centaur-Driven/cli-v0.9.3/docs/images/cli-0.9.3.svg)
+
+Os cartões e o preview informam **Aguardando modelo**, **Executando comando**,
+**Lendo arquivo** ou **Compactando**, com tempo nessa fase. Heartbeat não é prova
+de progresso. Falhas encerram o cartão, mantêm o diagnóstico no histórico do agente
+e devolvem o controle ao coordenador; Ctrl+C também cancela o subagente.
+
+Codex/Claude encerram uma chamada sem nova saída do CLI por **5 minutos**, mantendo
+checkpoints e sem executar ferramentas de resposta parcial. Processamento legítimo
+pode ser silencioso; para permitir até 30 minutos de silêncio:
+
+```sh
+CENTAUR_NATIVE_IDLE_TIMEOUT=1800 centaur --backend codex .
+```
+
+`CENTAUR_NATIVE_IDLE_TIMEOUT` aceita 30–3600s. Esse limite só conta durante uma chamada
+nativa, não durante perguntas/aprovações ou a espera do coordenador por tasks.
+Atividade renova o prazo de silêncio; o limite total por inferência continua definido
+por `CENTAUR_NATIVE_TIMEOUT` (1800s por padrão). Após erro, `/retry` retoma o coordenador
+com os checkpoints existentes; confira efeitos já aplicados antes de repetir uma task.

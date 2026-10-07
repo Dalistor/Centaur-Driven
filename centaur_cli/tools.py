@@ -67,6 +67,9 @@ class ProjectTools:
     def path(self, relative):
         path = (self.root / relative).resolve()
         path.relative_to(self.root)
+        permission_directory = self.root / '.centaur' / 'computer-permissions'
+        if path == permission_directory.resolve() or permission_directory.resolve() in path.parents:
+            raise ValueError('Autorizações de computer use são gerenciadas pelo usuário, fora das ferramentas do modelo.')
         if path == credentials_path().resolve():
             raise ValueError('Credenciais do CLI não podem ser acessadas pelas ferramentas.')
         return path

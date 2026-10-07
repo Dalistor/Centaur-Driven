@@ -154,6 +154,12 @@ class StartupWizard:
         screen.refresh()
 
     def run(self, screen):
+        try:
+            return self._run(screen)
+        finally:
+            self.view.palette.restore()
+
+    def _run(self, screen):
         curses.raw()
         self.view.palette.initialize()
         screen.keypad(True)

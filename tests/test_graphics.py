@@ -98,6 +98,70 @@ class GraphicsTests(unittest.TestCase):
             terminal.handle(curses.KEY_F5)
             self.assertEqual(view.animation.elapsed, elapsed)
 
+    def test_navy_palette_restores_terminal_slots_after_normal_and_failed_runs(self):
+        original = (123, 234, 345)
+        palette = Palette()
+        with patch.dict(os.environ, {}, clear=True), \
+                patch('centaur_cli.appearance.curses.has_colors', return_value=True), \
+                patch('centaur_cli.appearance.curses.can_change_color', return_value=True), \
+                patch('centaur_cli.appearance.curses.start_color'), \
+                patch('centaur_cli.appearance.curses.COLORS', 256, create=True), \
+                patch('centaur_cli.appearance.curses.COLOR_PAIRS', 256, create=True), \
+                patch('centaur_cli.appearance.curses.color_content', return_value=original), \
+                patch('centaur_cli.appearance.curses.init_color') as colors, \
+                patch('centaur_cli.appearance.curses.init_pair') as pairs, \
+                patch('centaur_cli.appearance.curses.color_pair', side_effect=lambda pair: pair << 8):
+            palette.initialize()
+            background = next(index for index, rgb in palette.custom_colors.items() if rgb == Palette.TOKENS['background'])
+            self.assertEqual(palette.color_for(Palette.TOKENS['background']), background)
+            self.assertEqual(pairs.call_args_list[0].args[2], background)
+            self.assertNotEqual(palette.styles['text'], palette.styles['input'])
+            self.assertNotEqual(palette.styles['panel_comment'], palette.styles['panel_action'])
+            slots = dict(palette.original_colors)
+            palette.restore()
+            self.assertEqual([call.args for call in colors.call_args_list[-len(slots):]],
+                             [(index, *original) for index in slots])
+            colors.reset_mock()
+            palette.restore()
+            colors.assert_not_called()
+        with tempfile.TemporaryDirectory() as directory:
+            terminal = Terminal(Path(directory), 'test', ChatStore(directory), None)
+            with patch.object(terminal, '_run', side_effect=curses.error('fixture')), \
+                    patch.object(terminal.view.palette, 'restore') as restore:
+                with self.assertRaises(curses.error): terminal.run(None)
+            restore.assert_called_once()
+
+    def test_fixed_palette_uses_navy_without_attempting_terminal_mutation(self):
+        with patch.dict(os.environ, {}, clear=True), \
+                patch('centaur_cli.appearance.curses.has_colors', return_value=True), \
+                patch('centaur_cli.appearance.curses.can_change_color', return_value=False), \
+                patch('centaur_cli.appearance.curses.start_color'), \
+                patch('centaur_cli.appearance.curses.COLORS', 256, create=True), \
+                patch('centaur_cli.appearance.curses.COLOR_PAIRS', 256, create=True), \
+                patch('centaur_cli.appearance.curses.init_color') as colors, \
+                patch('centaur_cli.appearance.curses.init_pair') as pairs, \
+                patch('centaur_cli.appearance.curses.color_pair', side_effect=lambda pair: pair << 8):
+            palette = Palette(); palette.initialize()
+            self.assertEqual(pairs.call_args_list[0].args[2], 17)
+            colors.assert_not_called()
+            self.assertEqual(palette.original_colors, {})
+
+    def test_partial_color_configuration_failure_restores_and_falls_back(self):
+        with patch.dict(os.environ, {}, clear=True), \
+                patch('centaur_cli.appearance.curses.has_colors', return_value=True), \
+                patch('centaur_cli.appearance.curses.can_change_color', return_value=True), \
+                patch('centaur_cli.appearance.curses.start_color'), \
+                patch('centaur_cli.appearance.curses.COLORS', 256, create=True), \
+                patch('centaur_cli.appearance.curses.COLOR_PAIRS', 256, create=True), \
+                patch('centaur_cli.appearance.curses.color_content', side_effect=[(100, 100, 100), curses.error('unsupported')]), \
+                patch('centaur_cli.appearance.curses.init_color') as colors, \
+                patch('centaur_cli.appearance.curses.init_pair') as pairs, \
+                patch('centaur_cli.appearance.curses.color_pair', side_effect=lambda pair: pair << 8):
+            palette = Palette(); palette.initialize()
+            self.assertEqual(colors.call_args_list[-1].args, (240, 100, 100, 100))
+            self.assertEqual(pairs.call_args_list[0].args[2], 17)
+            self.assertEqual(palette.original_colors, {})
+
     def test_ascii_encoding_retains_readable_static_fallback(self):
         with patch('centaur_cli.appearance.sys.stdout') as output:
             output.encoding = 'ascii'

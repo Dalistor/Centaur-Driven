@@ -33,7 +33,8 @@ class TimeoutLayoutTests(unittest.TestCase):
         process.communicate.return_value = ('', 'fixture failure')
         with patch('centaur_cli.native_client.subprocess.Popen', return_value=process):
             with self.assertRaises(RuntimeError): client.complete('main', [], [])
-        self.assertEqual(process.communicate.call_args.kwargs['timeout'], 1800)
+        self.assertEqual(client.timeout, 1800)
+        self.assertLessEqual(process.communicate.call_args.kwargs['timeout'], .1)
 
     def test_compaction_default_allows_a_slow_summary_and_keeps_history(self):
         chat = self.store.new('main')

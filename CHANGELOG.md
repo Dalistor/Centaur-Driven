@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.3 — 2026-10-07
+
+- Fundo navy, texto mais claro e superfícies consistentes no composer, mensagens e cartões. Tema programável restaura cores ao sair; fallback ANSI/NO_COLOR preservado.
+- Subagentes mostram fase e tempo de espera; falhas permanecem no preview. Silêncio do CLI nativo por 300s encerra a chamada com diagnóstico e checkpoints, configurável por `CENTAUR_NATIVE_IDLE_TIMEOUT`; deadline total por chamada continua 30min. Cancelamento propaga ao coordenador e limpeza de pipes tem prazo.
+
+- Computer use pede consentimento uma vez por chat para captura/controle, persistente entre turnos e reinício até revogação/exclusão; ações seguintes não abrem confirmações.
+- Captura dura a tarefa sem expiração de 120s; menus/input/outro chat pausam e retorno retoma com quadros novos. Lock POSIX por usuário mantém controle exclusivo entre chats/processos/projetos.
+- `$computer status/pause/resume/revoke` funciona durante execução; Ctrl+G revoga também em menus/input e cancela o turno. Ctrl+C e computer_stop encerram captura mantendo consentimento.
+- Move/scroll atualizam captura sem espera de estabilização; cliques/texto/teclas/arrasto usam dois intervalos e orçamento de 1s. Verificação de alvo/resolução/idade e prevenção de replay permanecem.
+- Autorização privada separada do transcript/imagens; exclusão/TTL a remove e ferramentas de arquivo do modelo não editam o registro. Ciclo de vida validado com worker real, pausa/retomada, revogação e lock entre processos.
+
 ## 0.9.2 — 2026-10-07
 
 - Quadros laterais vivos para todos os subagentes ativos da pasta: tarefa, modelo, estado, tempo e últimos comentários públicos/ações. Fecham ao terminar; rolagem mantém acesso a todos e clique abre leitura/input.

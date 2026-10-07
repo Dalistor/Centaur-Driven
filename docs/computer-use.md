@@ -13,9 +13,19 @@ obrigatória nem foi copiado para o pacote.
 
 ## Contrato das ferramentas
 
-`computer_start(purpose)` pede autorização para observar o monitor principal inteiro
-por até 120 segundos. `computer_stop()` revoga a sessão e apaga as imagens em memória.
-Nenhum modo de permissões elimina a confirmação de captura ou das ações de input.
+`computer_start(purpose)` pede uma autorização por chat para ver o monitor principal,
+enviar quadros ao provedor/modelo e controlar mouse/teclado sem confirmação por ação.
+O consentimento fica em registro privado por ID, separado do transcript/imagens; sobrevive
+a turnos e reinício, até `$computer revoke`, Ctrl+G ou exclusão/limpeza do chat. Recusa
+não carrega o backend e não repete a pergunta no mesmo turno. Todos os modos exigem o
+consentimento inicial. Permissões de tela/acessibilidade do sistema continuam necessárias.
+
+A captura dura a tarefa, sem expiração fixa de 120s. `computer_stop()` encerra a captura
+e apaga imagens da memória, mantendo o consentimento. Menus/input/configuração e outro
+chat pausam; retorno retoma com novos quadros e referências. Desktop tem lock POSIX por
+usuário, compartilhado entre projetos/processos; subagentes não recebem computer use.
+`$computer status/pause/resume/revoke` são comandos locais; Ctrl+G revoga em qualquer menu
+ou input. Revogar interrompe o turno; Ctrl+C interrompe mantendo a autorização.
 
 `computer_observe()` retorna ao monitor inteiro. Para ampliar:
 
@@ -30,7 +40,7 @@ permanece nas capturas seguintes até outra observação sem região ou fim da s
 Seu conteúdo pode mudar se outra janela aparecer no mesmo lugar.
 
 `wait_seconds` aceita inteiros de 0 a 10. A espera não gera input e verifica interrupção
-a cada 100ms. Não renova a autorização. Um quadro precisa ser enviado ao modelo depois
+a cada 100ms. Não altera o consentimento do chat. Um quadro precisa ser enviado ao modelo depois
 do zoom antes de qualquer ação; referências anteriores ficam inválidas.
 
 `computer_action` sempre exige `action`, `frame_id`, `x` e `y` da última imagem recebida.
@@ -38,23 +48,26 @@ do zoom antes de qualquer ação; referências anteriores ficam inválidas.
 | Ação | Argumentos adicionais |
 | --- | --- |
 | `click`, `right_click`, `middle_click`, `double_click`, `triple_click`, `move` | Nenhum |
-| `drag` | `end_x`, `end_y`, dentro da mesma imagem; origem e destino são verificados após confirmação. |
+| `drag` | `end_x`, `end_y`, dentro da mesma imagem; origem e destino são verificados antes de input. |
 | `scroll` | `amount` de -10 a 10, exceto zero; `direction`: `vertical` (padrão) ou `horizontal`. Positivo é cima/direita, negativo é baixo/esquerda. |
 | `type_text` | `text`, 1–4000 caracteres; inclui clique para focar o destino. |
 | `keypress` | `keys`, 1–4 teclas únicas; inclui clique para focar. Letras/dígitos, modificadores, navegação, F1–F12; aliases `cmd`, `control`, `option`, `escape`, `return`, `super`. |
 
 Uma referência visual dura no máximo 60s e é consumida antes da operação. Input
-parcial nunca é repetido automaticamente. Depois da ação, o harness procura três
+parcial nunca é repetido automaticamente. Depois da ação, o harness procura dois
 intervalos consecutivos sem mudança em PNGs capturados a cerca de 150ms, dentro de
-aproximadamente 1,5s. Não é detecção de rede ou reconhecimento de sucesso. Animações
+aproximadamente 1s. Movimento/rolagem atualizam a captura sem essa espera. Não é detecção de rede ou reconhecimento de sucesso. Animações
 podem atingir o timeout; o modelo deve observar/esperar novamente e conferir a tarefa.
 
 Quadros são codificados uma vez durante a captura. Imagens idênticas no buffer são
 deduplicadas por decisão mantendo a mais recente; alterações distintas permanecem
 em ordem temporal, até três imagens. Metadados mostram área física, tamanho da imagem,
-idade, referência e tempo restante. Imagens seguem efêmeras fora do ChatStore.
+idade, referência e consentimento do chat. Imagens seguem efêmeras fora do ChatStore.
 
 ## Validação e limites
+
+Fluxo atual 0.9.3: [registro de validação](validation-cli-0.9.3.md). O registro abaixo
+descreve a validação histórica 0.6.0; a política de consentimento é a documentada acima.
 
 Resultado local em 2026-10-06: suíte de 275 testes, 273 aprovados e dois testes de desktop
 ignorados na execução base. Os dois foram executados separadamente e aprovados em Xvfb
@@ -82,4 +95,5 @@ versão. O teste real executado aqui é X11; o backend macOS não foi exercitado
 O modelo recebe imagens por decisão, não vídeo contínuo em tempo real. Recortes e
 comparações locais não identificam de forma confiável a aplicação nem bloqueiam
 instruções maliciosas presentes na tela por si só; a instrução do agente trata tela
-como dados não confiáveis e cada ação continua sujeita à aprovação.
+como dados não confiáveis. O consentimento inicial autoriza as ações seguintes; controle
+de desktop não constitui sandbox nem identifica aplicações com garantia.

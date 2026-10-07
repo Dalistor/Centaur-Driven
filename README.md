@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão atual é `0.9.2`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.9.2`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.9.2).
+A versão atual é `0.9.3`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.9.3`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.9.3).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.9.2/centaur_cli-0.9.2-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.9.3/centaur_cli-0.9.3-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -239,6 +239,7 @@ o cursor no rascunho multilinha; PgUp/PgDn e o mouse continuam rolando a convers
 | Clique no campo de mensagem | Mover o cursor por células, incluindo quebras, Unicode e anexos atômicos; não envia a mensagem. |
 | Clique / roda sobre os painéis laterais | Abrir o histórico ou input do subagente / rolar a lista de subagentes ativos. |
 | Ctrl+E | Voltar ao fim da conversa. |
+| `$computer [status|pause|resume|revoke]` ou Ctrl+G | Consultar/pausar/retomar controle; revoke e Ctrl+G revogam a autorização do chat. |
 | Ctrl+C durante execução | Interromper o turno, encerrar comandos locais e parar computer use. No OpenRouter, a chamada atual pode aguardar o timeout de rede; nenhuma ação nova será aplicada. |
 | ↑ / ↓ ou Tab, Enter, Esc em perguntas | Escolher uma opção, escrever outra resposta ou pular. Pular não autoriza o agente a inventar uma escolha. |
 | `y` / `n` | Permitir ou recusar a gravação/comando exibido. |
@@ -521,7 +522,7 @@ ou renomeação não reinicia o prazo. Chats legados usam a data `updated` dispo
 origem, preservada na migração. Sessões trabalhando/aguardando input e conversas com
 rascunho/anexos pendentes são protegidas; após ficarem livres, a próxima limpeza remove
 as expiradas. Estados abandonados expiram após 120s sem heartbeat ou com processo morto.
-Trocar de chat interrompe a captura de computer use, exigindo nova autorização ao retomá-la.
+Trocar de chat ou abrir o menu pausa a captura de computer use; voltar retoma com quadros novos, mantendo a autorização do chat.
 
 O agente pode listar e ler arquivos UTF-8 dentro da pasta aberta. No modo Pedir aprovação, gravações mostram o caminho
 e o conteúdo para aprovação; comandos mostram o shell que será executado. Use PgDown para
@@ -575,7 +576,7 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.2'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.3'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```
@@ -665,13 +666,15 @@ centaur .
 
 Peça no chat, por exemplo: **“Use computer use para testar o formulário no navegador;
 observe a tela, preencha somente dados fictícios e confira o resultado.”** A IA solicita
-autorização antes de capturar o **monitor principal inteiro**, por até 120 segundos,
-a aproximadamente 2 quadros/s. Um indicador **TELA ATIVA** aparece no cabeçalho.
+**uma autorização por chat** para ver o monitor principal inteiro e controlar mouse/teclado
+sem confirmações por ação. Ela permanece ao retomar a conversa, até revogar ou apagar
+o chat. A captura acontece durante a tarefa, sem expiração fixa de 120 segundos, a
+aproximadamente 2 quadros/s. O cabeçalho mostra **COMPUTADOR EM USO**.
 Até três quadros recentes são enviados a cada decisão do modelo; após clicar, digitar
 ou rolar, uma nova observação permite verificar o resultado. A captura acompanha mudanças
 durante a espera pelo modelo, com memória limitada aos três quadros recentes.
 Quadros idênticos são enviados uma única vez por decisão. Cada imagem informa sua idade,
-área física e o tempo restante da autorização.
+área física e o estado da autorização do chat.
 
 O Centaur pode ampliar uma região para ler controles pequenos e voltar ao monitor inteiro.
 O zoom usa os pixels originais do recorte e traduz as coordenadas da nova imagem para o
@@ -680,10 +683,10 @@ rolagem vertical/horizontal, digitação e atalhos (incluindo F1–F12).
 Peça, por exemplo: **“Amplie a área do formulário, arraste o item e confira o resultado;
 espere o carregamento se necessário.”**
 
-Após input, o Centaur observa a tela por até aproximadamente 1,5s, buscando três intervalos
-sem mudança entre capturas. A IA também pode pedir uma espera cancelável de até 10s antes
-de observar. **Estabilidade visual não confirma o sucesso da tarefa**: o modelo precisa
-conferir o resultado. Essas esperas não renovam a autorização de 120s.
+Após clique/digitação/atalho/arrasto, o Centaur observa a tela por até aproximadamente 1s,
+buscando dois intervalos sem mudança. Movimento e rolagem atualizam o quadro sem esperar
+estabilização. A IA pode pedir uma espera cancelável de até 10s para carregamentos.
+**Estabilidade visual não confirma o sucesso da tarefa**: o modelo confere o resultado.
 
 **Isto é captura contínua local com inferência por quadros, não transmissão de vídeo em
 tempo real para o modelo.** A latência das decisões depende do provedor e da conexão.
@@ -691,21 +694,36 @@ OpenRouter recebe imagens multimodais; Codex recebe anexos `--image`; Claude rec
 blocos de imagem via `stream-json`. Escolha um modelo com visão e ferramentas. Não há
 troca automática de modelo ou nova autenticação para usar a tela.
 
-Cada ação de mouse/teclado exige confirmação, inclusive em `auto` e `never`. Confirmações
-mostram ação, coordenadas e texto/teclas. Para digitar ou usar teclas, o Centaur clica
-nas coordenadas aprovadas para focar o aplicativo após a confirmação no terminal.
+A autorização inicial é necessária em `ask`, `auto` e `never`, e explica o envio de
+quadros ao provedor e o controle sem novas confirmações. Ações seguintes aparecem no
+fluxo da conversa e executam sob essa autorização. Para texto/teclas, o Centaur clica
+no alvo indicado para focar o aplicativo. Apenas um chat/processo controla o desktop
+por vez; outro processo deve aguardar sua liberação.
 O alvo deve estar visível; mudanças no alvo ou na resolução exigem outra observação.
 A checagem visual local é uma proteção contra quadros antigos, não uma garantia de
 identificação do aplicativo ou de sucesso. Só o coordenador controla a tela; subagentes
 mantêm perguntas e ferramentas do projeto.
 
-Ctrl+C para a captura e bloqueia novas ações, mesmo durante uma chamada ao modelo.
+No terminal, Ctrl+C para a captura e bloqueia novas ações, mesmo durante uma chamada ao modelo.
 Mover o ponteiro para um canto do monitor principal aciona o fail-safe; o controle não
 desativa essa proteção para iniciar ações. Após uma interrupção, apenas a liberação de
 teclas/botões já pressionados ignora temporariamente o fail-safe, evitando input preso.
 Digitação longa verifica cancelamento entre blocos de até 50 caracteres.
-A captura também para quando o turno acaba, falha, é interrompido
-ou expira; continuar requer nova autorização. O histórico nunca restaura autorização.
+A captura também para quando o turno termina/falha ou `computer_stop` é chamado.
+Menus e troca de chat pausam o controle; ao voltar, quadros e coordenadas anteriores
+são descartados antes de continuar. A autorização permanece em registro privado separado
+das mensagens/imagens, inclusive após reiniciar o CLI. A limpeza/exclusão do chat remove
+essa autorização. Ela não é herdada por subagentes.
+
+| Comando/atalho | Efeito |
+| --- | --- |
+| `$computer` ou `$computer status` | Mostrar captura/controle e autorização do chat. |
+| `$computer pause` | Pausar captura e controle; a tarefa aguarda. |
+| `$computer resume` | Liberar retomada sem nova confirmação. |
+| `$computer revoke` ou **Ctrl+G** | Revogar a autorização e interromper o turno atual; próximo uso exige consentimento. |
+
+Os comandos são locais e funcionam durante a execução; Ctrl+G também funciona nos
+menus/perguntas/aprovações. `computer_stop` do modelo encerra captura sem revogar consentimento.
 
 Os quadros não são gravados no chat nem em uma gravação de vídeo. Para o Codex, arquivos
 temporários PNG, acessíveis apenas ao usuário, são apagados ao terminar a requisição.
@@ -963,3 +981,33 @@ python3 -m unittest discover -s tests -v
 ```
 
 VPS real depende do ambiente de uso. O conjunto não alega deploy remoto apenas por passar nos testes locais.
+
+### Aparência e subagentes na 0.9.3
+
+O fundo agora é azul-marinho; composer, mensagens e cartões usam uma superfície azul
+um pouco mais clara. O título mantém destaque e comentários/ações continuam distintos.
+Cores programáveis são restauradas ao sair; terminais ANSI fixos usam uma aproximação
+e `NO_COLOR` preserva marcadores e negrito.
+
+Preview do renderer real, com dados demonstrativos:
+
+![Centaur CLI com tema navy e subagente](https://raw.githubusercontent.com/Dalistor/Centaur-Driven/cli-v0.9.3/docs/images/cli-0.9.3.svg)
+
+Os cartões e o preview informam **Aguardando modelo**, **Executando comando**,
+**Lendo arquivo** ou **Compactando**, com tempo nessa fase. Heartbeat não é prova
+de progresso. Falhas encerram o cartão, mantêm o diagnóstico no histórico do agente
+e devolvem o controle ao coordenador; Ctrl+C também cancela o subagente.
+
+Codex/Claude encerram uma chamada sem nova saída do CLI por **5 minutos**, mantendo
+checkpoints e sem executar ferramentas de resposta parcial. Processamento legítimo
+pode ser silencioso; para permitir até 30 minutos de silêncio:
+
+```sh
+CENTAUR_NATIVE_IDLE_TIMEOUT=1800 centaur --backend codex .
+```
+
+`CENTAUR_NATIVE_IDLE_TIMEOUT` aceita 30–3600s. Esse limite só conta durante uma chamada
+nativa, não durante perguntas/aprovações ou a espera do coordenador por tasks.
+Atividade renova o prazo de silêncio; o limite total por inferência continua definido
+por `CENTAUR_NATIVE_TIMEOUT` (1800s por padrão). Após erro, `/retry` retoma o coordenador
+com os checkpoints existentes; confira efeitos já aplicados antes de repetir uma task.

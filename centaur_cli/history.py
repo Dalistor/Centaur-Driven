@@ -9,6 +9,7 @@ from pathlib import Path
 from uuid import uuid4
 from .attachments import attachment_directory
 from .sessions import read_state
+from .computer_access import ComputerPermissions
 
 
 class ChatStore:
@@ -92,6 +93,7 @@ class ChatStore:
         if directory.exists():
             shutil.rmtree(directory)
         (runtime / (chat_id + '.json')).unlink(missing_ok=True)
+        ComputerPermissions(self.root).revoke(chat_id)
         path.unlink(missing_ok=True)
 
     def agents(self, parent_id=None, *, active_only=False):

@@ -1,13 +1,14 @@
 ---
 version: alpha
 colors:
-  background: "#121212"
-  text: "#d0d0d0"
+  background: "#0b1220"
+  surface: "#19263b"
+  text: "#e5edf8"
   primary: "#87ff87"
-  secondary: "#87afaf"
-  border: "#4e4e4e"
-  info: "#87afff"
-  warning: "#ffaf5f"
+  secondary: "#96a9c5"
+  border: "#30415d"
+  info: "#a1bcff"
+  warning: "#ffbf80"
 typography:
   display:
     fontFamily: "monospace"
@@ -30,7 +31,9 @@ assim que o usuário começa a trabalhar.
 
 ## Linguagem visual
 
-- Fundo escuro contínuo, sem painéis sobrepostos ou bordas decorativas em cada mensagem.
+- Fundo azul-marinho contínuo inspirado na referência do proprietário de 2026-10-07.
+  Superfícies um pouco mais claras distinguem mensagem, composer e execução lateral,
+  sem bordas decorativas em cada mensagem.
 - Palavra CENTAUR espaçada, emblema abstrato de Convergência em relevo Braille Unicode
   (2 × 4 pontos por célula). Faixa superior prateada e inferior verde; ambas são arcos finos
   com espaço negativo amplo, ponta compartilhada e flecha verde horizontal ao centro. Curvas Bézier cúbicas com largura total
@@ -43,12 +46,15 @@ assim que o usuário começa a trabalhar.
 
 ## Paleta do terminal
 
-Os pares curses usam a paleta ANSI de 256 cores quando disponível:
-fundo 233 (`#121212`), texto 252 (`#d0d0d0`), verde 120 (`#87ff87`),
-secundário 109 (`#87afaf`), linhas 239 (`#4e4e4e`), azul 111 (`#87afff`),
-âmbar 215 (`#ffaf5f`). Em terminais de 8 cores, usa as cores ANSI correspondentes.
-`NO_COLOR` desativa cores e mantém a seleção por inversão de vídeo.
-O CLI não altera a paleta global do terminal.
+`appearance.Palette.TOKENS` é a fonte canônica de execução: fundo `#0b1220`,
+superfície `#19263b`, texto `#e5edf8`, secundário `#96a9c5`, linhas `#30415d`,
+informação `#a1bcff` e âmbar `#ffbf80`; verde ANSI 120 (`#87ff87`) preserva a marca.
+Em terminais com cores programáveis, reserva os slots 240–246 durante a sessão curses,
+guarda seus valores anteriores e os restaura no finally de Terminal/StartupWizard,
+inclusive em falhas. A restauração também cobre configuração parcial recusada.
+Sem essa capacidade, usa ANSI 17/235/255/146/60/111/215; o navy fica mais saturado
+nessa aproximação. Em oito cores, mantém preto/ANSI legível. `NO_COLOR` desativa cores
+e conserva seleção por inversão, autores/ações em negrito e marcadores textuais.
 
 ## Composição e estados
 
@@ -57,12 +63,12 @@ Em janelas amplas, símbolo e wordmark aparecem à esquerda, com apresentação 
 `$status` e `/new`, aparecem separados em azul. Em 80 × 24 o símbolo fica compacto. Em janelas estreitas, prioriza os comandos;
 abaixo de 40 × 12 mostra orientação de tamanho e preserva o campo de entrada.
 
-O título em negrito fica no topo da coluna de leitura (até 100 células), acima da pasta e do modelo. A conversa e a entrada compartilham o mesmo alinhamento. Mensagens do usuário usam fundo ANSI 236 (`#303030`), texto 252 e negrito; respostas usam o texto normal, com autor em verde. Comentários públicos da IA e `report_progress` usam texto 252 em peso normal. Ações pendentes/concluídas usam azul 111 em negrito; falha, interrupção e recusa usam âmbar. Cabeçalho de trabalho e espera mantêm tom secundário. Ações mostram estado por texto e símbolo; Ctrl+O alterna as saídas completas. O cabeçalho identifica a pasta e o modelo. O rodapé mantém estado, mensagem digitada e
+O título em negrito fica no topo da coluna de leitura (até 100 células), acima da pasta e do modelo. A conversa e a entrada compartilham o mesmo alinhamento. Mensagens do usuário usam superfície azul-marinho mais clara, texto principal e negrito; respostas usam o texto normal, com autor em verde. Comentários públicos da IA e `report_progress` usam texto principal em peso normal. Ações pendentes/concluídas usam informação azul em negrito; falha, interrupção e recusa usam âmbar. Cabeçalho de trabalho e espera mantêm tom secundário. Ações mostram estado por texto e símbolo; Ctrl+O alterna as saídas completas. O cabeçalho identifica a pasta e o modelo. O rodapé mantém estado, mensagem digitada e
 atalhos. A lista de chats destaca toda a linha selecionada, com data quando houver espaço. A seta esquerda edita o texto; Shift+← abre os chats.
 Confirmações usam âmbar e instruções explícitas para permitir, recusar e revisar a ação.
 O cursor fica visível durante a digitação e oculto na lista ou confirmação.
 
-O campo cinza começa com três linhas e cresce até oito conforme o espaço. `composer.layout_input`
+O campo azul começa com três linhas e cresce até oito conforme o espaço. `composer.layout_input`
 é o dono da quebra por células e da posição do cursor; `keyboard.KeyboardReader` decodifica
 Shift+Enter e colagem protegida. Enter envia, Shift+Enter/Ctrl+J insere linha; ↑/↓ editam
 linhas no rascunho multilinha; em campo vazio/de uma linha, percorrem prompts até o rascunho
@@ -132,12 +138,15 @@ não representa porcentagem de execução.
 
 ## Mapeamento dos tokens
 
-A paleta existente em `appearance.Palette.initialize` é a fonte de execução; este documento
-espelha seus valores ANSI. Fundo 233 mapeia `background`; estilos text/green/muted/line/blue/warning
-mapeiam text/primary/secondary/border/info/warning. `comment` deriva de text, `action` de blue com negrito; em `NO_COLOR`, ações ficam em negrito e comentários em peso normal. `conversation.TranscriptLine` transporta o estilo de origem por todas as linhas quebradas, sem inferir papéis por indentação ou texto fornecido pela IA. O estilo title deriva de text com negrito; user usa o par 40, texto 252 e superfície ANSI 236. Em modo monocromático usa negrito, preservando os marcadores do autor. `TerminalView.put` é o único caminho de desenho
+`appearance.Palette.TOKENS` é a fonte de execução; este documento espelha seus RGB.
+`Palette.initialize` adapta RGB para slots curses programáveis ou ANSI de fallback.
+Os estilos text/green/muted/line/blue/warning mapeiam text/primary/secondary/border/info/warning. `comment` deriva de text, `action` de blue com negrito; em `NO_COLOR`, ações ficam em negrito e comentários em peso normal. `conversation.TranscriptLine` transporta o estilo de origem por todas as linhas quebradas, sem inferir papéis por indentação ou texto fornecido pela IA. O estilo title deriva de text com negrito; user usa o par 40 com texto e superfície.
+Input e cartões usam pares 41–45 com a mesma superfície e atributos por papel.
+Selecionado combina texto claro e fundo border, com marcador >; o composer usa peso normal. Em modo monocromático usa negrito, preservando os marcadores do autor. `TerminalView.put` é o único caminho de desenho
 para cabeçalho, conversa, seletor, rename, autocomplete, gráfico e rodapé. `Palette` gera
-16 níveis por material entre fundo 233 e texto 252 / verde 120, quantizando para ANSI 256.
-Os 32 pares gráficos são reservados uma vez (8–39); não se redefine a paleta do terminal.
+16 níveis por material entre fundo navy e texto / verde 120, quantizando para ANSI 256
+e considerando os slots personalizados na busca da cor mais próxima.
+Os 32 pares gráficos são reservados uma vez (8–39); slots temporários são restaurados ao sair.
 Com menos cores/pares, usam-se os estilos existentes com dim/normal/bold. Terminais de 8 cores usam os
 fallbacks ANSI já existentes; `NO_COLOR` usa atributos de texto. A tipografia permanece sob
 controle do terminal do usuário, com autores/ações em negrito e conteúdo em peso normal.
@@ -261,3 +270,39 @@ Heartbeat de todos os executores mantém o runtime; subagentes vivos/aguardando 
 protegem o coordenador da limpeza, inclusive com criação anterior a 64h. Ctrl+C propaga
 cancelamento e fecha o painel ao encerrar o executor. O rodapé indica a retomada do
 coordenador após receber o relatório.
+
+## Computer use fluido — 0.9.3
+
+Consentimento inicial único por ID do chat para captura do monitor principal, envio de
+quadros ao provedor/modelo da conversa e controle de mouse/teclado sem novas confirmações.
+Persiste privado fora do transcript; retomar/reiniciar mantém, revogar/excluir remove.
+Recusa impede captura e repetição da pergunta no mesmo turno. Novo chat pede consentimento.
+Permissões do sistema continuam separadas. Subagentes não herdam acesso ao desktop.
+
+Captura dura a tarefa, buffer máximo de três quadros a 2fps, sem expiração fixa de 120s.
+Menus/input/configuração/outro chat pausam e liberam lock; retorno retoma com novos quadros,
+sem reutilizar coordenadas antigas. Lock POSIX por usuário impede dois processos/projetos
+controlando simultaneamente. Turno encerrado/falha/cancelamento/stop descarta captura;
+consentimento permanece. No terminal, Ctrl+C interrompe; Ctrl+G ou $computer revoke revoga
+mesmo com input/menu aberto e cancela o turno. Comandos status/pause/resume/revoke funcionam
+sem chamada ao modelo, inclusive ocupado. Pausa explícita espera $computer resume.
+
+Cabeçalho identifica COMPUTADOR EM USO; ações públicas usam azul e o rodapé dá os atalhos
+de pausa/revogação. Cliques/texto/teclas/arrasto buscam dois intervalos de estabilidade
+(150ms, orçamento de 1s); move/scroll apenas atualizam a captura. Espera explícita até 10s
+continua cancelável. Estabilidade não afirma sucesso. Idade/resolução/alvo/consentimento
+continuam verificados; referências são consumidas antes de input e falha parcial não repete.
+
+## Navy e atividade verificável — 0.9.3
+
+Fonte: referência visual e relato do proprietário em 2026-10-07. O navy mantém foco na
+conversa e evita o cinza chapado da versão anterior. Composer e cartões compartilham
+a superfície, com comentários claros e ações azuis. Não há efeitos novos durante
+trabalho; Convergência e movimento reduzido mantêm seus controles.
+
+Subagentes mostram a fase real — Aguardando modelo, Executando comando, Lendo arquivo
+ou Compactando — e tempo nessa fase. Heartbeat confirma processo vivo, não progresso.
+Input é explícito; parada encerra o cartão. Falha persiste diagnóstico no preview.
+Cores são adaptadas uma vez na sessão e restauradas ao sair; fonte, mouse, wrapping,
+scroll e checkpoints mantêm os donos canônicos. Verificação e preview do renderer
+real estão em [docs/validation-cli-0.9.3.md](docs/validation-cli-0.9.3.md).

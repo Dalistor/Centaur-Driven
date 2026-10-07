@@ -55,7 +55,7 @@ class SessionTests(unittest.TestCase):
         images = [item for item in messages[0]['content'] if item['type'] == 'image_url']
         self.assertEqual(len(images), 1)
         self.assertIn(f'frame_id={self.session.reference.identifier}', messages[0]['content'][-2]['text'])
-        self.assertIn('Autorização restante', messages[0]['content'][0]['text'])
+        self.assertIn('Autorização deste chat', messages[0]['content'][0]['text'])
 
     def test_changed_frames_preserved_in_order_without_reencoding(self):
         with patch.object(self.backend, 'capture', side_effect=[Image(content=b'A'), Image(content=b'B'), Image(content=b'C')]):
@@ -94,13 +94,13 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(len(self.prompts), 1)
         self.assertEqual(self.backend.actions, [])
 
-    def test_new_actions_are_individually_approved(self):
+    def test_new_actions_share_the_initial_chat_authorization(self):
         for action, args in [('right_click', {}), ('middle_click', {}), ('triple_click', {}),
                              ('scroll', {'amount': -3, 'direction': 'horizontal'}),
                              ('keypress', {'keys': ['Control', 'F5']})]:
             self.session.observation_messages()
             self.action(action, **args)
-        self.assertEqual(len(self.prompts), 6)
+        self.assertEqual(len(self.prompts), 1)
         self.assertEqual(self.backend.actions[-1][3]['keys'], ['ctrl', 'f5'])
         self.assertEqual(self.backend.actions[-2][3]['direction'], 'horizontal')
 
@@ -129,13 +129,11 @@ class SessionTests(unittest.TestCase):
         self.assertTrue(self.session.active)
         self.assertIs(self.session.backend, self.backend)
 
-    def test_reference_replaced_during_approval_cannot_act(self):
-        def approve(prompt):
-            if 'Confirmar ação' in prompt:
-                self.session.observe({})
-                self.session.observation_messages()
-            return True
-        self.session.approve = approve
+    def test_reference_replaced_before_input_cannot_act(self):
+        def progress(notice):
+            self.session.observe({})
+            self.session.observation_messages()
+        self.session.emit = progress
         with self.assertRaisesRegex(ValueError, 'Referência mudou'): self.action()
         self.assertEqual(self.backend.actions, [])
 
@@ -143,7 +141,7 @@ class SessionTests(unittest.TestCase):
         self.session.failure = 'Captura interrompida'
         self.session.close()
         with self.assertRaisesRegex(RuntimeError, 'Captura interrompida'): self.session.check()
-        self.assertIn('autorização foi encerrada', self.session.observation_messages()[0]['content'])
+        self.assertIn('autorização do chat foi preservada', self.session.observation_messages()[0]['content'])
 
     def test_old_operation_cannot_close_a_replacement_session(self):
         token = self.session.stop_event

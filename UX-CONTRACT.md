@@ -148,12 +148,13 @@ livre, pular, rolagem durante execução, mouse, interrupção, resize e janela 
 
 ## Computer use
 
-`ComputerSession` é o dono da captura, referência visual e autorização efêmera.
+`ComputerSession` é o dono da captura/referência visual; `ComputerControl` gerencia foco,
+pausa e lock exclusivo; `ComputerPermissions` persiste o consentimento privado por chat.
 O extra `computer` é opcional: imports de desktop não afetam a instalação base.
-`computer_start` sempre exige autorização para observar o monitor principal inteiro,
-inclusive no modo never. A autorização expira em 120s; não é gravada em configuração
-ou histórico. Cada `computer_action` exige confirmação própria; subagentes não têm
-acesso ao desktop. O sistema não oferece execução arbitrária de código de computer use.
+`computer_start` exige consentimento inicial para captura/controle do monitor principal,
+inclusive em never. Vale para o chat até revogação/exclusão e persiste fora das mensagens.
+Ações seguintes não pedem aprovação; captura dura a tarefa e subagentes não têm acesso.
+O sistema não oferece execução arbitrária de código de computer use.
 
 Captura local em aproximadamente 2 quadros/s, buffer de três quadros; imagens reais são
 anexadas a cada chamada de decisão via OpenRouter, `--image` no Codex ou entrada
@@ -180,7 +181,8 @@ Cada arrasto confirma origem/destino no mesmo quadro, verifica visualmente ambos
 libera o botão em `finally`. Atalhos liberam todas as teclas tentadas após falha.
 Fail-safe só é suspenso para liberação de input já pressionado e restaurado em seguida.
 Texto ASCII é aplicado em blocos de até 50 caracteres, com verificação de cancelamento.
-Depois de input, espera limitada de aproximadamente 1,5s procura estabilidade visual;
+Depois de clique/texto/teclas/arrasto, espera limitada de aproximadamente 1s procura estabilidade visual;
+movimento e rolagem atualizam o quadro sem essa espera;
 estabilidade ou timeout jamais são evidência de sucesso da tarefa. Falha pós-input
 informa que a ação já foi entregue e nunca permite replay automático.
 
@@ -189,9 +191,9 @@ as últimas cópias de imagens idênticas, em ordem temporal. A última sempre �
 Instalar uma sessão nova é atômico; workers/operações de sessões antigas não podem
 limpar seu backend ou registrar falhas nela. Encerramento descarta também o recorte.
 
-Captura termina com Ctrl+C, expiração, conclusão/falha do turno, `computer_stop` ou
-fail-safe do PyAutoGUI (ponteiro em um canto). Erros não alegam sucesso. Reiniciar exige
-nova autorização. Linux X11/macOS com display e permissões; Wayland, desktop bloqueado,
+Captura termina com Ctrl+C, conclusão/falha do turno, `computer_stop` ou fail-safe do
+PyAutoGUI (ponteiro em um canto). Menus/outro chat pausam; retornar captura novos quadros.
+Erros não alegam sucesso. Consentimento persiste até revogar/excluir, sem expiração de 120s. Linux X11/macOS com display e permissões; Wayland, desktop bloqueado,
 Windows nativo, múltiplos monitores e uso em segundo plano não têm suporte anunciado.
 
 Verificação: `tests/test_interaction.py`, dependências opcionais em virtualenv e
@@ -300,3 +302,53 @@ Heartbeat de todos os executores mantém o runtime; subagentes vivos/aguardando 
 protegem o coordenador da limpeza, inclusive com criação anterior a 64h. Ctrl+C propaga
 cancelamento e fecha o painel ao encerrar o executor. O rodapé indica a retomada do
 coordenador após receber o relatório.
+
+## Computer use fluido — 0.9.3
+
+Consentimento inicial único por ID do chat para captura do monitor principal, envio de
+quadros ao provedor/modelo da conversa e controle de mouse/teclado sem novas confirmações.
+Persiste privado fora do transcript; retomar/reiniciar mantém, revogar/excluir remove.
+Recusa impede captura e repetição da pergunta no mesmo turno. Novo chat pede consentimento.
+Permissões do sistema continuam separadas. Subagentes não herdam acesso ao desktop.
+
+Captura dura a tarefa, buffer máximo de três quadros a 2fps, sem expiração fixa de 120s.
+Menus/input/configuração/outro chat pausam e liberam lock; retorno retoma com novos quadros,
+sem reutilizar coordenadas antigas. Lock POSIX por usuário impede dois processos/projetos
+controlando simultaneamente. Turno encerrado/falha/cancelamento/stop descarta captura;
+consentimento permanece. No terminal, Ctrl+C interrompe; Ctrl+G ou $computer revoke revoga
+mesmo com input/menu aberto e cancela o turno. Comandos status/pause/resume/revoke funcionam
+sem chamada ao modelo, inclusive ocupado. Pausa explícita espera $computer resume.
+
+Cabeçalho identifica COMPUTADOR EM USO; ações públicas usam azul e o rodapé dá os atalhos
+de pausa/revogação. Cliques/texto/teclas/arrasto buscam dois intervalos de estabilidade
+(150ms, orçamento de 1s); move/scroll apenas atualizam a captura. Espera explícita até 10s
+continua cancelável. Estabilidade não afirma sucesso. Idade/resolução/alvo/consentimento
+continuam verificados; referências são consumidas antes de input e falha parcial não repete.
+
+## Espera verificável e tema navy — 0.9.3
+
+Fonte: referência visual e relato de subagente sem progresso do proprietário, 2026-10-07.
+Palette adapta tokens compartilhados para conversa, input, seleção e cartões; slots
+de cor programáveis são restaurados ao sair normalmente ou por erro. Fallback ANSI
+e NO_COLOR mantêm teclado, inversão, marcadores e semântica. Não há troca de fonte.
+
+SessionRegistry registra fase/tempo separado do heartbeat. agent.run_turn informa
+modelo, ferramenta e compactação; input continua prioritário. Preview e lateral
+mostram a fase e duração, sem imprimir análise privada. Heartbeat não afirma progresso.
+
+NativeClient monitora saída cumulativa do CLI a cada 100ms. Ausência de novos bytes
+por 300s encerra somente a chamada nativa (CENTAUR_NATIVE_IDLE_TIMEOUT, 30–3600s).
+Atividade renova a espera silenciosa, mas nunca o deadline total por inferência de
+1800s. Não é prova de que o modelo travou: processamento legítimo pode ser silencioso;
+para esse caso o usuário pode ampliar o limite. Perguntas/aprovações e tarefas delegadas
+não consomem esse timer, pois acontecem fora da chamada nativa.
+
+Kill de grupo e drenagem são limitados; um descendente que escape do grupo e mantenha
+pipes abertos não prende o worker indefinidamente. Nenhuma resposta parcial executa
+ferramentas e não há replay automático. Falha persiste last_error no chat do subagente,
+fecha runtime/cartão e devolve relatório ao coordenador. Cancelamento persiste status
+cancelled, fecha runtime e propaga TurnCancelled, sem continuar o coordenador.
+/retry do coordenador preserva checkpoints e marca chamadas incompletas interrompidas.
+
+Verificação: test_native_watchdog.py (processos reais descartáveis), test_graphics.py,
+test_agent_panels_mouse.py e PTY real; preview usa TerminalView com dados demonstrativos.

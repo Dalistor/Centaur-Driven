@@ -589,7 +589,7 @@ class ContextTests(unittest.TestCase):
         terminal.chat = self.chat
         terminal.draft = '$compact'
         terminal.completion.update('$comp')
-        self.assertEqual(terminal.completion.options, ['compact'])
+        self.assertEqual(terminal.completion.options, ['compact', 'computer'])
         before = copy.deepcopy(self.chat)
         with patch('centaur_cli.terminal.threading.Thread') as thread:
             terminal.submit()
@@ -653,9 +653,10 @@ class NativeContextTests(unittest.TestCase):
         process = Mock(pid=999)
         process.communicate.side_effect = [subprocess.TimeoutExpired('codex', 900), ('', '')]
         with patch('centaur_cli.native_client.subprocess.Popen', return_value=process), \
-                patch('centaur_cli.native_client.os.killpg') as kill:
+                patch('centaur_cli.native_client.os.killpg') as kill, \
+                patch('centaur_cli.native_client.time.monotonic', side_effect=[0, 0, 0, 901]):
             with self.assertRaisesRegex(RuntimeError, '900 segundos'): client.complete('main', [], [])
-        self.assertEqual(process.communicate.call_args_list[0].kwargs['timeout'], 900)
+        self.assertLessEqual(process.communicate.call_args_list[0].kwargs['timeout'], .1)
         kill.assert_called_once()
 
     def test_codex_cache_limits_and_public_usage_exclude_private_events(self):
