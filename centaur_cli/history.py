@@ -46,12 +46,14 @@ class ChatStore:
         finally:
             Path(temporary).unlink(missing_ok=True)
 
-    def list(self):
+    def list(self, *, active_only=False):
         chats = []
         for path in self.directory.glob('*.json'):
             try:
                 if path.is_symlink():
                     continue
+                if active_only and read_state(self.root, path.stem) == 'stopped':
+                    continue  # Do not repeatedly deserialize archived transcripts.
                 chat = json.loads(path.read_text(encoding='utf-8'))
                 if (chat['id'] == path.stem and len(chat['id']) == 32
                         and all(c in '0123456789abcdef' for c in chat['id'])
@@ -92,7 +94,7 @@ class ChatStore:
         (runtime / (chat_id + '.json')).unlink(missing_ok=True)
         path.unlink(missing_ok=True)
 
-    def agents(self, parent_id=None):
+    def agents(self, parent_id=None, *, active_only=False):
         base = self.root / '.centaur' / 'agents'
         if base.is_symlink():
             return []
@@ -108,7 +110,7 @@ class ChatStore:
                 continue
             store = ChatStore(self.root)
             store.directory = directory
-            output.extend(chat for chat in store.list() if chat.get('parent_id') == directory.name)
+            output.extend(chat for chat in store.list(active_only=active_only) if chat.get('parent_id') == directory.name)
         return sorted(output, key=lambda chat: chat['updated'], reverse=True)
 
     def prune(self, protected=(), now=None):

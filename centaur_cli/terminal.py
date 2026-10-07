@@ -107,6 +107,12 @@ class Terminal:
         self.registry = SessionRegistry(root)
         self.browser_mode = 'chats'
         self.agent_preview = None
+        self.active_agents = []
+        self.agents_refreshed = 0
+        self.agent_panel_scroll = 0
+        self.agent_panel_hits = []
+        self.agent_panel_area = None
+        self.input_hitbox = None
         self.browser_refreshed = 0
         self.next_cleanup = 0
         self.events = queue.Queue()
@@ -1078,17 +1084,17 @@ class Terminal:
         if apply_titles:
             self.apply_titles()
 
-    def lines(self, width):
-        if self.approval and not self.agent_preview:
+    def lines(self, width, *, chat=None):
+        if chat is None and self.approval and not self.agent_preview:
             return display_lines('CONFIRMAÇÃO — y: permitir / n: recusar\n\n' + self.approval[0], width)
-        if self.browser and not self.agent_preview:
+        if chat is None and self.browser and not self.agent_preview:
             return [f'{">" if index == self.selected else " "} {chat["updated"][:16]}  {chat["title"]}'
                     for index, chat in enumerate(self.chats)] or ['Nenhum chat salvo nesta pasta.']
         lines, actions, working = [], {}, False
         def append_text(text, style='text', indent=''):
             lines.extend(TranscriptLine(indent + line, style)
                          for line in display_lines(text, max(1, width - len(indent))))
-        current_chat = self.agent_preview if self.browser and self.agent_preview else self.chat
+        current_chat = chat if chat is not None else self.agent_preview if self.browser and self.agent_preview else self.chat
         messages = list(current_chat['messages'])
         results = {m.get('tool_call_id'): m.get('content', '') for m in messages if m['role'] == 'tool'}
         for message in messages:
@@ -1127,7 +1133,7 @@ class Terminal:
                 lines.append(TranscriptLine('◆ Centaur', 'green'))
                 append_text(readable_markdown(content))
                 lines.append(TranscriptLine(''))
-        if self.busy and not self.approval and not self.agent_preview:
+        if chat is None and self.busy and not self.approval and not self.agent_preview:
             append_text('◦ ' + self.view.activity(self, self.notice), 'muted')
         if current_chat.get('last_error'):
             error = current_chat['last_error']
@@ -1147,7 +1153,7 @@ class Terminal:
         if current_chat.get('turn_paused'):
             lines.append(TranscriptLine('◦ Pausa anterior do turno' if self.busy else '◦ Turno pausado', 'muted'))
             append_text(current_chat['turn_paused'], 'muted')
-        if self.pending_attachments and not self.agent_preview:
+        if chat is None and self.pending_attachments and not self.agent_preview:
             lines.append(TranscriptLine('▧ Anexos pendentes · Enter envia · $detach <número|all> remove', 'blue'))
             for index, item in enumerate(self.pending_attachments, 1):
                 if width < 45:
@@ -1218,8 +1224,77 @@ class Terminal:
                 self.draft = ''
                 self.notice = 'Chat com mais de 64h removido; nova conversa aberta.'
             self.next_cleanup = now + 60
+        if now - self.agents_refreshed >= .5:
+            self.refresh_agents()
         if self.browser and now - self.browser_refreshed >= .5:
             self.refresh_browser()
+
+    def refresh_agents(self):
+        self.active_agents = [agent for agent in self.store.agents(active_only=True) if self.session_state(agent) != 'stopped']
+        self.active_agents.sort(key=lambda agent: (agent.get('created', agent['updated']), agent['id']))
+        self.agents_refreshed = time.monotonic()
+
+    def handle_mouse(self):
+        try:
+            _, x, y, _, state = curses.getmouse()
+        except curses.error:
+            return
+        area = self.agent_panel_area
+        in_panel = area and area[0] <= x < area[0] + area[2] and area[1] <= y < area[1] + area[3]
+        wheel_up, wheel_down = getattr(curses, 'BUTTON4_PRESSED', 0), getattr(curses, 'BUTTON5_PRESSED', 0)
+        if state & (wheel_up | wheel_down):
+            delta = 1 if state & wheel_down else -1
+            if in_panel:
+                self.agent_panel_scroll = max(0, self.agent_panel_scroll + delta)
+            elif self.browser and not self.agent_preview:
+                self.selected = min(max(0, len(self.chats) - 1), max(0, self.selected + delta))
+            else:
+                self.scroll_chat(-3 * delta)
+            return
+        clicked = (getattr(curses, 'BUTTON1_PRESSED', 0) | getattr(curses, 'BUTTON1_CLICKED', 0)
+                   | getattr(curses, 'BUTTON1_DOUBLE_CLICKED', 0))
+        if not state & clicked:
+            return
+        for left, top, width, height, agent in self.agent_panel_hits:
+            if left <= x < left + width and top <= y < top + height:
+                parent = self.live_chats.get(agent['parent_id'])
+                pending = self.session_states.get(agent['parent_id'], {})
+                if parent and (pending.get('question') or pending.get('approval')):
+                    self.switch_chat(parent)
+                else:
+                    self.open_chats('agents')
+                    self.agent_preview = agent
+                    self.scroll = 0
+                return
+        box = self.input_hitbox
+        if (not box or box['chat_id'] != self.chat['id']
+                or not box['left'] <= x < box['left'] + box['width']
+                or not box['top'] <= y < box['top'] + box['rows']):
+            return
+        target = box['target']
+        text = None
+        if target == 'rename' and self.rename_target:
+            text = self.rename_text
+        elif target == 'question' and self.question and self.question.custom:
+            text = self.question.text
+        elif target == 'draft' and not (self.browser or self.settings or self.question or self.rename_target or self.approval):
+            text = self.draft
+        if text is None or text != box['text']:
+            return  # A late click must never edit another draft or a replaced picker.
+        cursor = box['start_index'] + box['layout'].at(y - box['top'] + box['start_row'], x - box['text_left'])
+        if target == 'draft':
+            for item in self.pending_attachments:
+                span = attachment_span(item, self.draft)
+                if span and span[0] < cursor < span[1]:
+                    cursor = span[0] if cursor - span[0] <= span[1] - cursor else span[1]
+            self.cursor = cursor
+            self.prompt_history = self.prompt_index = None
+            self.preferred_input_column = None
+            self.completion.update('')
+        elif target == 'rename':
+            self.rename_cursor = cursor
+        else:
+            self.question.cursor = cursor
 
     def refresh_browser(self):
         selected_id = self.chats[self.selected]['id'] if self.chats and self.selected < len(self.chats) else None
@@ -1298,6 +1373,8 @@ class Terminal:
                 self.notice = 'Aguarde o turno ou configuração terminar para sair; recuse ações pendentes com n.'
                 return
             return 'quit'
+        if key == curses.KEY_MOUSE:
+            return self.handle_mouse()
         if key == curses.KEY_SLEFT and not self.settings and not self.rename_target:
             self.open_chats()
             return
@@ -1332,16 +1409,6 @@ class Terminal:
         if key == '\x0f':
             self.show_details = not self.show_details
             self.notice = 'Detalhes das ferramentas abertos.' if self.show_details else 'Resumo do trabalho.'
-            return
-        if key == curses.KEY_MOUSE:
-            try:
-                _, _, _, _, state = curses.getmouse()
-            except curses.error:
-                return
-            if state & getattr(curses, 'BUTTON4_PRESSED', 0):
-                self.scroll_chat(3)
-            elif state & getattr(curses, 'BUTTON5_PRESSED', 0):
-                self.scroll_chat(-3)
             return
         if key == '\x16':
             return self.paste_clipboard()
@@ -1421,7 +1488,10 @@ class Terminal:
         self.view.palette.initialize()
         screen.keypad(True)
         try:
-            curses.mousemask(getattr(curses, 'BUTTON4_PRESSED', 0) | getattr(curses, 'BUTTON5_PRESSED', 0))
+            curses.mousemask(getattr(curses, 'BUTTON4_PRESSED', 0) | getattr(curses, 'BUTTON5_PRESSED', 0)
+                             | getattr(curses, 'BUTTON1_PRESSED', 0) | getattr(curses, 'BUTTON1_CLICKED', 0)
+                             | getattr(curses, 'BUTTON1_DOUBLE_CLICKED', 0))
+            curses.mouseinterval(0)
         except curses.error:
             pass
         screen.timeout(100)

@@ -36,6 +36,7 @@ class RecordingTerminal(Terminal):
         data={'draft':self.draft,'cursor':self.cursor,'busy':self.busy,
               'chat':self.chat,'requests':self.client.requests,'width':self.input_width,'notice':self.notice,
               'pending_attachments':len(self.pending_attachments),
+              'input_hitbox':{k:v for k,v in (self.input_hitbox or {}).items() if k!='layout'},
               'action_style':self.view.palette.styles['action'],'comment_style':self.view.palette.styles['comment']}
         pending=root/'snapshot.tmp'
         pending.write_text(json.dumps(data))
@@ -88,6 +89,15 @@ class TerminalPTYTests(unittest.TestCase):
                     expected += '\ncolada\ncom quebra'
                     snapshot = wait_for(lambda s: s['draft'] == expected)
                     self.assertFalse(snapshot['requests'])
+                    box = snapshot['input_hitbox']
+                    x, y = box['text_left'] + 3, box['top']
+                    send(f'\x1b[<0;{x+1};{y+1}M\x1b[<0;{x+1};{y+1}m'.encode())
+                    snapshot = wait_for(lambda s: s['cursor'] == 3)
+                    self.assertEqual(snapshot['draft'], expected)
+                    self.assertFalse(snapshot['requests'])
+                    send(b'!')
+                    expected = expected[:3] + '!' + expected[3:]
+                    snapshot = wait_for(lambda s: s['draft'] == expected and s['cursor'] == 4)
                     cursor = snapshot['cursor']
                     fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', 12, 40, 0, 0))
                     process.send_signal(signal.SIGWINCH)

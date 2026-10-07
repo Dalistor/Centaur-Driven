@@ -139,7 +139,8 @@ class SubagentTools:
                 self.registry.set(chat['id'], 'stopped')
         store.save(chat)
         models = list(dict.fromkeys(chat.get('models_used', [])))
-        self.emit(f'Subagente: {title} · {chat["status"]} · {", ".join(models) or "modelo não informado"}')
+        result_label = 'concluído' if chat['status'] == 'reported' else 'interrompido/falhou'
+        self.emit(f'Retomando coordenador · subagente {title}: {result_label} · {", ".join(models) or "modelo não informado"}')
         return json.dumps({'id': chat['id'], 'title': title, 'status': chat['status'],
                            'requested_model': model, 'models_used': models, 'cost_tier': tier,
                            'history': str(store.directory / (chat['id'] + '.json')),

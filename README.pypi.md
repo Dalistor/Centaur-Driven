@@ -60,7 +60,7 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 ## Anexos e capturas
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.1'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.2'
 ```
 
 Ctrl+V cola imagem/texto/arquivos; arrastar ou colar caminhos insere marcadores atômicos
@@ -137,6 +137,14 @@ Estados: Trabalhando, Aguardando input e Parado. Conversas deste processo contin
 executando ao trocar de chat, com perguntas/aprovações e Ctrl+C separados. Enter em um
 subagente permite ler; outro Enter abre seu coordenador para responder. Agentes usam a
 mesma pasta: distribua arquivos/tarefas entre eles. Captura de computer use para ao trocar.
+
+Subagentes ativos aparecem em quadros laterais quando há espaço (112×18 ou mais), com
+tarefa, modelo, estado, tempo e últimas ações/comentários públicos. Fecham ao terminar;
+a roda na lateral percorre todos e clique abre leitura ou input no coordenador deste
+processo. Em telas menores use Shift+←, Tab. Cliques no campo de mensagem movem o cursor
+em texto multilinha/Unicode, preservando os marcadores de anexos e sem enviar mensagens.
+O timeout de 30 minutos é por inferência: a espera de subagentes não expira o coordenador;
+subagentes vivos também protegem o chat pai da limpeza.
 
 Chats com mais de **64h desde a criação** são apagados com anexos e subagentes na limpeza
 periódica. Sessões ativas ou com rascunho/anexos aguardam ficar livres para a limpeza.

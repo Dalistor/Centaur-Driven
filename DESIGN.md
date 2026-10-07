@@ -232,3 +232,32 @@ remove o erro antigo somente após salvar a nova memória. Cancelamento não vir
 
 Verificação: test_timeout_layout.py, test_context.py e PTY real; tela 40×12, 80×24 e
 140×30. Testes simulam relógio para 30 minutos sem esperar uma chamada real desse tempo.
+
+## Execução lateral e cursor por clique — 0.9.2
+
+Quadros finos azuis à direita mostram todos os subagentes ativos da pasta, inclusive de
+outros chats/processos, com tarefa, modelo efetivo quando fornecido, estado, duração e
+últimos comentários públicos/ações nas cores do transcript. Âmbar identifica input.
+Só estados runtime vivos entram na lateral: sucesso, falha e cancelamento fecham o quadro
+sem apagar o histórico. Atualização a cada 500ms; históricos parados são filtrados antes
+de carregar mensagens. A roda percorre a lateral sem alterar o scroll da conversa.
+Clique abre preview de leitura ou o coordenador deste processo com input pendente;
+sessões de outro processo permanecem em leitura. Nenhum clique autoriza ações.
+
+A lateral exige 112 colunas, 18 linhas e espaço para um quadro de seis linhas mais título
+/rodapé. Conversa/composer/autocomplete/perguntas ocupam somente a coluna principal.
+Com menos espaço, o rodapé indica subagentes e Shift+←/Tab abre o menu. Layout respeita
+wide, resize e múltiplos quadros sem perder acesso aos demais.
+
+Clique primário no campo de mensagem, título em edição ou resposta livre move o cursor
+pelo índice de inserção mais próximo nas células visíveis. Considera Unicode largo,
+acentos combinados, quebra visual/real, janela vertical/horizontal e margens do campo.
+Marcadores de anexos continuam indivisíveis. Click atrasado de outro chat/texto é ignorado;
+release/movimento não editam, e clique não envia respostas nem confirma permissões.
+O teclado permanece completo; rastreamento de mouse é ativado somente na sessão curses.
+
+Prazos de inferência continuam por chamada, sem deadline global para a espera de tasks.
+Heartbeat de todos os executores mantém o runtime; subagentes vivos/aguardando input
+protegem o coordenador da limpeza, inclusive com criação anterior a 64h. Ctrl+C propaga
+cancelamento e fecha o painel ao encerrar o executor. O rodapé indica a retomada do
+coordenador após receber o relatório.

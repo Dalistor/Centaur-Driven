@@ -39,7 +39,7 @@ def fit_notice(text, width):
     return fit_cells(text, max(0, width - 1)) + ('…' if width > 0 else '')
 
 
-def input_window(text, cursor, width):
+def input_window_details(text, cursor, width):
     start, used = cursor, 0
     while start > 0:
         cells = cell_width(text[start - 1])
@@ -47,7 +47,12 @@ def input_window(text, cursor, width):
             break
         start -= 1
         used += cells
-    return fit_cells(text[start:], width), used
+    return fit_cells(text[start:], width), used, start
+
+
+def input_window(text, cursor, width):
+    visible, column, _ = input_window_details(text, cursor, width)
+    return visible, column
 
 
 def setup_heading():
@@ -344,6 +349,51 @@ class TerminalView:
         if not terminal.chats:
             self.put(screen, top + 4, 3, 'Nenhum subagente registrado. Tab mostra chats.' if terminal.browser_mode == 'agents' else 'Nenhum chat salvo. Esc volta para começar.', 'muted')
 
+    def agent_panels(self, screen, terminal, left, top, width, bottom):
+        """Live cards close when their runtime stops; overflow remains scrollable."""
+        from datetime import datetime, timezone
+        from .sessions import LABELS
+        agents = terminal.active_agents
+        if not agents or bottom - top < 8:
+            return
+        self.put(screen, top, left, f'SUBAGENTES · {len(agents)} ativos', 'blue', width)
+        room = bottom - top - 2
+        capacity = max(1, room // 8)
+        terminal.agent_panel_scroll = min(max(0, terminal.agent_panel_scroll), max(0, len(agents) - capacity))
+        start = terminal.agent_panel_scroll
+        visible = agents[start:start + capacity]
+        card_height = min(12, room // len(visible))
+        terminal.agent_panel_area = (left, top, width, bottom - top)
+        for index, agent in enumerate(visible):
+            row = top + 1 + index * card_height
+            state = terminal.session_state(agent)
+            style = 'warning' if state == 'waiting_input' else 'blue'
+            self.put(screen, row, left, '┌' + '─' * (width - 2) + '┐', style, width)
+            for y in range(row + 1, row + card_height - 1):
+                self.put(screen, y, left, '│', style, 1)
+                self.put(screen, y, left + width - 1, '│', style, 1)
+            self.put(screen, row + card_height - 1, left, '└' + '─' * (width - 2) + '┘', style, width)
+            inner = width - 4
+            self.put(screen, row + 1, left + 2, fit_notice(agent['title'], inner), 'title', inner)
+            model = (agent.get('models_used') or [agent['model']])[-1] or 'padrão'
+            self.put(screen, row + 2, left + 2, fit_notice(model, inner), 'muted', inner)
+            try:
+                created = datetime.fromisoformat(agent['created'].replace('Z', '+00:00'))
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+                elapsed = max(0, int((datetime.now(timezone.utc) - created).total_seconds()))
+                duration = f'{elapsed // 60}m {elapsed % 60:02}s'
+            except (KeyError, TypeError, ValueError):
+                duration = ''
+            self.put(screen, row + 3, left + 2, fit_notice(LABELS[state] + ' · ' + duration, inner), style, inner)
+            lines = terminal.lines(inner, chat=agent) if any(m.get('role') == 'assistant' for m in agent['messages']) else ['Aguardando resposta do modelo…']
+            lines = [line for line in lines if str(line).strip()]
+            count = max(1, card_height - 6)
+            for offset, line in enumerate(lines[-count:]):
+                self.put(screen, row + 4 + offset, left + 2, line, getattr(line, 'style', 'muted'), inner)
+            terminal.agent_panel_hits.append((left, row, width, card_height, agent))
+        self.put(screen, bottom - 1, left, fit_notice(f'{start + 1}–{start + len(visible)}/{len(agents)} · roda: rolar · clique: abrir', width), 'muted', width)
+
     def draw(self, screen, terminal):
         # Only the welcome surface owns animation time; hidden editors never advance it.
         if (terminal.settings or terminal.rename_target or terminal.browser
@@ -354,6 +404,9 @@ class TerminalView:
         screen.bkgd(' ', self.palette.styles['text'])
         screen.erase()
         height, width = screen.getmaxyx()
+        terminal.input_hitbox = None
+        terminal.agent_panel_hits = []
+        terminal.agent_panel_area = None
         credits, credit_style = (native_label(terminal.credits, terminal.credits_status, max(16, (width - 5) // 2), terminal.backend)
                                  if terminal.backend != 'openrouter' else credit_label(terminal.credits, terminal.credits_status, width))
         if height < 12 or width < 40:
@@ -370,6 +423,15 @@ class TerminalView:
             self.put(screen, 1, width - len(TAGLINE) - 3, TAGLINE, 'muted')
         transcript_width = width - 6 if terminal.wide_chat else min(100, width - 6)
         transcript_left = max(3, (width - transcript_width) // 2)
+        sidebar = None
+        if terminal.active_agents and width >= 112 and height >= 18 and not (terminal.settings or terminal.rename_target or terminal.browser):
+            right_space = width - transcript_left - transcript_width - 6
+            panel_width = min(44, right_space)
+            if panel_width < 32:
+                panel_width = min(44, max(32, width // 4))
+                transcript_width = min(transcript_width, width - panel_width - 9)
+                transcript_left = 3
+            sidebar = (transcript_left + transcript_width + 3, panel_width)
         from .permissions import MODE_LABELS
         speed_label = ''
         if terminal.chat.get('speed') == 'fast':
@@ -394,7 +456,10 @@ class TerminalView:
         draft = terminal.rename_text if terminal.rename_target else '' if terminal.browser else terminal.question.text if terminal.question and terminal.question.custom else '' if terminal.question else terminal.draft
         cursor = terminal.rename_cursor if terminal.rename_target else 0 if terminal.browser else terminal.question.cursor if terminal.question and terminal.question.custom else 0 if terminal.question else terminal.cursor
         composer_left = 2 if modal else transcript_left - 1
-        composer_width = width - 5 if composer_left == 2 else transcript_width + 2
+        if modal:
+            composer_width = transcript_left + transcript_width - composer_left + 1 if sidebar else width - 5
+        else:
+            composer_width = transcript_width + 2 if sidebar or composer_left != 2 else width - 5
         input_width = max(1, composer_width - 2)
         terminal.input_width = input_width
         from .composer import layout_input
@@ -433,9 +498,12 @@ class TerminalView:
         elif terminal.browser:
             self.browser(screen, terminal, top, available, width)
         elif terminal.question:
-            self.question(screen, terminal, top, available, width)
+            self.question(screen, terminal, top, available, transcript_left + transcript_width + 2 if sidebar else width)
         elif not terminal.chat['messages'] and not terminal.approval and not terminal.pending_attachments:
-            self.welcome(screen, top, available, width, terminal)
+            if sidebar:
+                self.put(screen, top, transcript_left, 'Digite sua intenção. $ skills · Shift+← chats.', 'muted', transcript_width)
+            else:
+                self.welcome(screen, top, available, width, terminal)
         else:
             lines = terminal.lines(transcript_width)
             if terminal.approval:
@@ -467,14 +535,15 @@ class TerminalView:
             popup_top = composer_separator - len(choices) - 1
             prefix = terminal.completion.context[1]
             heading = 'Skills Centaur ($)' if prefix == '$' else 'Skills do projeto (@) · .centaur/skills'
-            self.put(screen, popup_top, 2, ' ' * (width - 5))
-            self.put(screen, popup_top, 3, f'{heading} · {len(terminal.completion.options)}', 'green')
+            popup_width = transcript_left + transcript_width - 1 if sidebar else width - 5
+            self.put(screen, popup_top, 2, ' ' * popup_width)
+            self.put(screen, popup_top, 3, f'{heading} · {len(terminal.completion.options)}', 'green', popup_width - 1)
             for index, name in enumerate(choices):
                 selected = start + index == terminal.completion.selected
                 style = 'selected' if selected else 'text'
                 row = popup_top + index + 1
-                self.put(screen, row, 2, ' ' * (width - 5), style)
-                self.put(screen, row, 3, f'{">" if selected else " "} {prefix}{name}', style)
+                self.put(screen, row, 2, ' ' * popup_width, style)
+                self.put(screen, row, 3, f'{">" if selected else " "} {prefix}{name}', style, popup_width - 1)
         # The composer follows the same reading column as the conversation.
         self.put(screen, composer_separator, composer_left, '─' * composer_width, 'line')
         notice = terminal.notice
@@ -500,8 +569,11 @@ class TerminalView:
             names = ', '.join(item['name'] for item in terminal.pending_attachments)
             self.put(screen, composer_separator + 2, composer_left,
                      f'▧ {len(terminal.pending_attachments)} anexo(s): {names} · $detach remove', 'blue', composer_width)
+        if sidebar:
+            self.agent_panels(screen, terminal, sidebar[0], top, sidebar[1], composer_separator)
+        horizontal_start = 0
         if modal:
-            visible_draft, cursor_column = input_window(draft, cursor, input_width)
+            visible_draft, cursor_column, horizontal_start = input_window_details(draft, cursor, input_width)
             visible_lines, cursor_row, input_start = [visible_draft], 0, 0
         else:
             visible_lines = layout.lines[input_start:input_start + composer_rows]
@@ -520,6 +592,14 @@ class TerminalView:
                     if input_start <= row < input_start + composer_rows:
                         self.put(screen, input_top + row - input_start, composer_left + 2 + column,
                                  draft[index], 'blue', 1)
+        target = ('rename' if terminal.rename_target else 'question' if terminal.question and terminal.question.custom
+                  else 'draft' if not modal else None)
+        if target:
+            hit_layout = layout_input(visible_lines[0], input_width) if modal else layout
+            terminal.input_hitbox = {'chat_id': terminal.chat['id'], 'size': (height, width),
+                'text': draft, 'target': target, 'top': input_top, 'left': composer_left,
+                'text_left': composer_left + 2, 'width': composer_width, 'rows': composer_rows, 'start_row': 0 if modal else input_start,
+                'start_index': horizontal_start, 'layout': hit_layout}
         self.put(screen, input_top, composer_left, '↑' if input_start else '›', 'green')
         if input_start + composer_rows < len(layout.lines) and not modal:
             self.put(screen, input_top + composer_rows - 1, composer_left, '↓', 'muted')
@@ -549,6 +629,8 @@ class TerminalView:
                  '↑↓ selecionar · Enter retomar · R renomear · Del excluir · Esc voltar' if terminal.browser else
                  '↑↓ prompts · PgUp/PgDn rolar · Ctrl+C parar' if terminal.busy else
                  'Ctrl+V imagem · ↑↓ prompts · Enter enviar · Shift+Enter linha · Shift+← chats')
+        if terminal.active_agents and not terminal.agent_panel_area and not modal:
+            hints = f'{len(terminal.active_agents)} subagentes · Shift+←/Tab · ' + hints
         self.put(screen, height - 1, 2, hints, 'blue')
         if terminal.rename_target or (not terminal.approval and not terminal.browser):
             if terminal.settings and terminal.settings.page == 'custom':

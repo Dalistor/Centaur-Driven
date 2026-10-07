@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.2 — 2026-10-07
+
+- Quadros laterais vivos para todos os subagentes ativos da pasta: tarefa, modelo, estado, tempo e últimos comentários públicos/ações. Fecham ao terminar; rolagem mantém acesso a todos e clique abre leitura/input.
+- Layout responsivo em 112×18 ou mais; menu e indicador no rodapé quando não há espaço. Campo, conversa, perguntas e autocomplete respeitam a lateral.
+- Clique move cursor em mensagem, renomeação e resposta livre, considerando Unicode, quebra de linha, scroll e anexos atômicos. Nenhum clique envia mensagens ou aprova ações.
+- Histórico parado é filtrado antes de carregar mensagens; proteção de coordenador com subagentes vivos e timeout por inferência validados, incluindo espera superior a 30 minutos simulada.
+- Testes de quadros/scroll/ciclo de vida e mouse em PTY curses real nos três modos de aparência.
+
 ## 0.9.1 — 2026-10-06
 
 - Inferência Codex/Claude/OpenRouter e orçamento da compactação passam a 30 minutos por padrão, configuráveis de 30 a 3600 segundos.

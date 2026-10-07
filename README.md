@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão atual é `0.9.1`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.9.1`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.9.1).
+A versão atual é `0.9.2`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.9.2`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.9.2).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.9.1/centaur_cli-0.9.1-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.9.2/centaur_cli-0.9.2-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -236,6 +236,8 @@ o cursor no rascunho multilinha; PgUp/PgDn e o mouse continuam rolando a convers
 | `$credits` ou `/credits` | Atualizar o indicador de créditos sem enviar mensagem ao modelo. |
 | ↑ / ↓ | Recuperar prompts anteriores / avançar até o rascunho atual, inclusive vazio. Fora dessa navegação, rascunhos multilinha usam as setas para editar linhas. Listas têm prioridade. |
 | PgUp / PgDn ou roda do mouse | Rolar a conversa mantendo a posição quando chegam mensagens. PgUp/PgDn também revisam confirmações. |
+| Clique no campo de mensagem | Mover o cursor por células, incluindo quebras, Unicode e anexos atômicos; não envia a mensagem. |
+| Clique / roda sobre os painéis laterais | Abrir o histórico ou input do subagente / rolar a lista de subagentes ativos. |
 | Ctrl+E | Voltar ao fim da conversa. |
 | Ctrl+C durante execução | Interromper o turno, encerrar comandos locais e parar computer use. No OpenRouter, a chamada atual pode aguardar o timeout de rede; nenhuma ação nova será aplicada. |
 | ↑ / ↓ ou Tab, Enter, Esc em perguntas | Escolher uma opção, escrever outra resposta ou pular. Pular não autoriza o agente a inventar uma escolha. |
@@ -498,6 +500,21 @@ em um subagente abre seu histórico para leitura; outro Enter abre o chat coorde
 processo para responder. Pedidos de input permanecem pendentes ao abrir o menu ou mudar
 de conversa. Sessões de outro processo são observadas, sem assumir suas aprovações.
 
+Em terminais com **112 ou mais colunas e 18 ou mais linhas**, subagentes ativos da pasta
+aparecem em **quadros à direita**: título da tarefa, modelo efetivo quando informado,
+estado, tempo decorrido e últimos comentários públicos/ações. Os quadros são atualizados
+sem interromper o chat e fecham ao concluir, falhar ou cancelar; o histórico continua no
+menu. A roda sobre a lateral percorre todos os subagentes quando não cabem na tela.
+Clique abre a leitura; se há input pendente no coordenador deste processo, abre essa
+conversa para responder. Em telas estreitas ou com pouco espaço vertical, o rodapé indica
+os subagentes e **Shift+←, Tab** permite acompanhá-los no menu.
+
+O timeout de **30 minutos é por chamada ao modelo**, não pelo tempo total do turno.
+Enquanto o coordenador espera uma task delegada, não há chamada dele consumindo esse
+prazo; o subagente tem seus próprios prazos de inferência/compactação. Heartbeats mantêm
+os estados vivos, e subagentes trabalhando ou aguardando input também protegem o chat
+pai da limpeza de 64h. Perguntas e permissões esperam a resposta ou Ctrl+C.
+
 A cada minuto e ao abrir o menu, chats com **mais de 64 horas desde a criação** são
 apagados junto com suas cópias de anexos, registros de execução e subagentes. Atividade
 ou renomeação não reinicia o prazo. Chats legados usam a data `updated` disponível como
@@ -558,7 +575,7 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.1'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.2'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```

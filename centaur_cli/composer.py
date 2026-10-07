@@ -10,6 +10,17 @@ class InputLayout:
     lines: list
     positions: list
 
+    def at(self, row, column):
+        """Nearest insertion point in terminal cells, including wide glyphs."""
+        row = min(max(0, row), len(self.lines) - 1)
+        candidates = [(index, col) for index, (line, col) in enumerate(self.positions) if line == row]
+        if not candidates:
+            return len(self.positions) - 1
+        last, last_column = candidates[-1]
+        if column >= cell_width(self.lines[row]) and last_column < cell_width(self.lines[row]):
+            return last + 1  # A wrapped boundary belongs to the next visual row.
+        return min(candidates, key=lambda item: (abs(item[1] - max(0, column)), item[1], -item[0]))[0]
+
     def vertical(self, cursor, direction, column=None):
         row, current_column = self.positions[cursor]
         column = current_column if column is None else column
