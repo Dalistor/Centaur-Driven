@@ -336,12 +336,14 @@ SessionRegistry registra fase/tempo separado do heartbeat. agent.run_turn inform
 modelo, ferramenta e compactação; input continua prioritário. Preview e lateral
 mostram a fase e duração, sem imprimir análise privada. Heartbeat não afirma progresso.
 
-NativeClient monitora saída cumulativa do CLI a cada 100ms. Ausência de novos bytes
-por 300s encerra somente a chamada nativa (CENTAUR_NATIVE_IDLE_TIMEOUT, 30–3600s).
-Atividade renova a espera silenciosa, mas nunca o deadline total por inferência de
-1800s. Não é prova de que o modelo travou: processamento legítimo pode ser silencioso;
-para esse caso o usuário pode ampliar o limite. Perguntas/aprovações e tarefas delegadas
-não consomem esse timer, pois acontecem fora da chamada nativa.
+NativeClient monitora saída cumulativa do CLI a cada 100ms. Desde 0.9.4, ausência de
+bytes não encerra a chamada por padrão: saída estruturada pode aparecer somente no
+fim. CENTAUR_NATIVE_IDLE_TIMEOUT=0 (padrão) desativa o corte por silêncio; um inteiro
+30–3600s o ativa explicitamente. O deadline absoluto por inferência continua em 1800s,
+inclusive sem saída, e Ctrl+C continua cancelando. Atividade não renova esse deadline.
+O mesmo vale para subagentes e resumos, respeitando também o orçamento de compactação.
+Perguntas/aprovações e tasks não consomem o timer da chamada nativa. O padrão de 300s
+da 0.9.3 causava falsos erros e foi substituído por esta regra.
 
 Kill de grupo e drenagem são limitados; um descendente que escape do grupo e mantenha
 pipes abertos não prende o worker indefinidamente. Nenhuma resposta parcial executa

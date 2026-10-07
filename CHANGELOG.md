@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.4 — 2026-10-07
+
+- Corrige a regressão da 0.9.3 que encerrava respostas Codex/Claude após cinco minutos sem saída parcial. Silêncio não interrompe por padrão; `CENTAUR_NATIVE_IDLE_TIMEOUT=0` desativa esse limite, e 30–3600s o ativam explicitamente.
+- Prazo absoluto de 30min, orçamento de compactação, Ctrl+C, limpeza limitada e checkpoints continuam ativos. Testes cobrem resposta final após 301s de silêncio simulado, subagente e resumo sem falso erro, além de processos reais silenciosos.
+
 ## 0.9.3 — 2026-10-07
 
 - Fundo navy, texto mais claro e superfícies consistentes no composer, mensagens e cartões. Tema programável restaura cores ao sair; fallback ANSI/NO_COLOR preservado.

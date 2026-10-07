@@ -217,11 +217,13 @@ class NativeClient:
         except ValueError:
             raise ValueError('CENTAUR_NATIVE_TIMEOUT deve ser um inteiro de 30 a 3600 segundos.') from None
         try:
-            self.idle_timeout = int(os.environ.get('CENTAUR_NATIVE_IDLE_TIMEOUT', '300'))
-            if not 30 <= self.idle_timeout <= 3600:
+            # Structured native replies can remain silent until the final result.
+            # Silence is not evidence of failure; the absolute deadline still applies.
+            self.idle_timeout = int(os.environ.get('CENTAUR_NATIVE_IDLE_TIMEOUT', '0'))
+            if self.idle_timeout != 0 and not 30 <= self.idle_timeout <= 3600:
                 raise ValueError
         except ValueError:
-            raise ValueError('CENTAUR_NATIVE_IDLE_TIMEOUT deve ser um inteiro de 30 a 3600 segundos.') from None
+            raise ValueError('CENTAUR_NATIVE_IDLE_TIMEOUT deve ser 0 (desativado) ou um inteiro de 30 a 3600 segundos.') from None
         self.context_windows = {}
         self.model_efforts = {}
         self.speed_support = local_speed_support(backend)
@@ -394,12 +396,12 @@ class NativeClient:
                         remaining = deadline - now
                         if remaining <= 0:
                             raise subprocess.TimeoutExpired(arguments, timeout)
-                        if now - last_output >= self.idle_timeout:
+                        if self.idle_timeout > 0 and now - last_output >= self.idle_timeout:
                             self.stop_process(process)
                             error = RequestTimeout if request_timeout is not None else RuntimeError
                             raise error(f'{self.backend}: sem nova saída do CLI por {self.idle_timeout:g} segundos; '
                                         'execução encerrada e checkpoints preservados. Confira conexão/modelo, '
-                                        'use /retry para retomar ou ajuste CENTAUR_NATIVE_IDLE_TIMEOUT. '
+                                        'use /retry para retomar. CENTAUR_NATIVE_IDLE_TIMEOUT=0 desativa esse limite opcional. '
                                         'Nenhuma ferramenta dessa resposta foi executada.')
                         try:
                             output, errors = process.communicate(pending_input, timeout=min(0.1, remaining))

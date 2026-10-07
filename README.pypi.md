@@ -60,7 +60,7 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 ## Anexos e capturas
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.3'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.9.4'
 ```
 
 Ctrl+V cola imagem/texto/arquivos; arrastar ou colar caminhos insere marcadores atômicos
@@ -154,7 +154,7 @@ Chats com mais de **64h desde a criação** são apagados com anexos e subagente
 periódica. Sessões ativas ou com rascunho/anexos aguardam ficar livres para a limpeza.
 Atividade e renomeação não reiniciam o prazo. Não há execução após fechar o terminal.
 
-### Aparência e subagentes na 0.9.3
+### Aparência e subagentes
 
 O fundo agora é azul-marinho; composer, mensagens e cartões usam uma superfície azul
 um pouco mais clara. O título mantém destaque e comentários/ações continuam distintos.
@@ -170,16 +170,21 @@ Os cartões e o preview informam **Aguardando modelo**, **Executando comando**,
 de progresso. Falhas encerram o cartão, mantêm o diagnóstico no histórico do agente
 e devolvem o controle ao coordenador; Ctrl+C também cancela o subagente.
 
-Codex/Claude encerram uma chamada sem nova saída do CLI por **5 minutos**, mantendo
-checkpoints e sem executar ferramentas de resposta parcial. Processamento legítimo
-pode ser silencioso; para permitir até 30 minutos de silêncio:
+Desde a **0.9.4**, silêncio de Codex/Claude não encerra a chamada por padrão:
+respostas estruturadas podem aparecer apenas ao final. O prazo total por inferência
+continua em **30 minutos**, controlado por `CENTAUR_NATIVE_TIMEOUT`; Ctrl+C continua
+cancelando. Isso vale também para subagentes e chamadas de compactação.
+
+`CENTAUR_NATIVE_IDLE_TIMEOUT` tem padrão **0 (desativado)**. Aceita 0 ou 30–3600s
+para quem quiser ativar explicitamente um limite de silêncio. Atividade renova esse
+limite opcional, mas nunca prolonga o prazo total. Para desativá-lo explicitamente:
 
 ```sh
-CENTAUR_NATIVE_IDLE_TIMEOUT=1800 centaur --backend codex .
+CENTAUR_NATIVE_IDLE_TIMEOUT=0 centaur --backend codex .
 ```
 
-`CENTAUR_NATIVE_IDLE_TIMEOUT` aceita 30–3600s. Esse limite só conta durante uma chamada
-nativa, não durante perguntas/aprovações ou a espera do coordenador por tasks.
-Atividade renova o prazo de silêncio; o limite total por inferência continua definido
-por `CENTAUR_NATIVE_TIMEOUT` (1800s por padrão). Após erro, `/retry` retoma o coordenador
-com os checkpoints existentes; confira efeitos já aplicados antes de repetir uma task.
+Após um erro, abra a mesma conversa em Shift+← e use `/retry` para continuar com os
+checkpoints existentes. A retomada não reenvia o prompt e não repete ferramentas já
+respondidas. Chamadas interrompidas exigem conferir o estado antes de tentar novamente.
+Na **0.9.3**, que não aceita zero, `CENTAUR_NATIVE_IDLE_TIMEOUT=1800` evita o corte
+prematuro de cinco minutos enquanto você atualiza.

@@ -1,8 +1,9 @@
-"""Real local processes; no account, network, paid model or desktop required."""
+"""Native process/clock regressions; no account, network, paid model or desktop."""
 import json
 import os
 from pathlib import Path
 import signal
+import subprocess
 import sys
 import tempfile
 import threading
@@ -32,6 +33,73 @@ class NativeWatchdogTests(unittest.TestCase):
         with patch.object(self.client, 'arguments', return_value=[sys.executable, '-c', code]):
             return self.client.complete('fixture', [], [], **options)
 
+    def default_client(self, backend='codex'):
+        with patch.dict(os.environ, {}, clear=True), patch('centaur_cli.native_client.shutil.which', return_value=sys.executable):
+            return NativeClient(backend, 'fixture')
+
+    def final_output(self, backend, content='Resposta pública'):
+        reply = {'content': content, 'calls': []}
+        if backend == 'claude':
+            return json.dumps({'type': 'result', 'subtype': 'success', 'structured_output': reply})
+        return '\n'.join(map(json.dumps, [
+            {'type': 'item.completed', 'item': {'type': 'agent_message', 'text': json.dumps(reply)}},
+            {'type': 'turn.completed'}]))
+
+    def silent_process(self, backend, elapsed):
+        output = self.final_output(backend)
+        class Process:
+            pid, returncode, requests = 99999, 0, 0
+            def communicate(inner, input=None, timeout=None):
+                inner.requests += 1
+                if inner.requests == 1:
+                    elapsed[0] += 301  # No output for more than the old five-minute cutoff.
+                    raise subprocess.TimeoutExpired('fixture', timeout)
+                return output, ''
+        return Process()
+
+    def test_default_accepts_final_only_replies_after_five_minutes_in_turns_and_summaries(self):
+        for backend in ('codex', 'claude'):
+            for summary_timeout in (None, 600):
+                with self.subTest(backend=backend, summary_timeout=summary_timeout):
+                    client, elapsed = self.default_client(backend), [0]
+                    process = self.silent_process(backend, elapsed)
+                    with patch('centaur_cli.native_client.time.monotonic', side_effect=lambda: elapsed[0]), \
+                            patch('centaur_cli.native_client.subprocess.Popen', return_value=process), \
+                            patch('centaur_cli.native_client.os.killpg') as kill:
+                        reply = client.complete('fixture', [], [], request_timeout=summary_timeout)
+                    self.assertEqual(reply['content'], 'Resposta pública')
+                    self.assertEqual(process.requests, 2)
+                    kill.assert_not_called()
+
+    def test_default_accepts_a_real_silent_process_until_its_final_reply(self):
+        for backend in ('codex', 'claude'):
+            with self.subTest(backend=backend):
+                client = self.default_client(backend)
+                self.assertEqual(client.idle_timeout, 0)
+                code = ('import sys,time; sys.stdin.read(); time.sleep(1); '
+                        f'print({self.final_output(backend)!r},flush=True)')
+                with patch.object(client, 'arguments', return_value=[sys.executable, '-c', code]):
+                    reply = client.complete('fixture', [], [])
+                self.assertEqual(reply['content'], 'Resposta pública')
+
+    def test_default_subagent_reports_after_long_silence_without_false_failure(self):
+        client, elapsed = self.default_client(), [0]
+        store = ChatStore(self.root)
+        parent = store.new('fixture', backend='codex')
+        registry = SessionRegistry(self.root)
+        tools = SubagentTools(ProjectTools(self.root, lambda _: True), client,
+                              parent['id'], lambda _: None, registry=registry)
+        with patch('centaur_cli.native_client.time.monotonic', side_effect=lambda: elapsed[0]), \
+                patch('centaur_cli.native_client.subprocess.Popen', return_value=self.silent_process('codex', elapsed)), \
+                patch('centaur_cli.native_client.os.killpg') as kill:
+            result = json.loads(tools.delegate({'title': 'Fixture silenciosa', 'task': 'Consultar fontes'}))
+        self.assertEqual(result['status'], 'reported')
+        self.assertEqual(result['report'], 'Resposta pública')
+        self.assertEqual(registry.state(result['id']), 'stopped')
+        child = next(a for a in store.agents() if a['id'] == result['id'])
+        self.assertNotIn('last_error', child)
+        kill.assert_not_called()
+
     def test_silent_native_process_is_stopped_before_overall_deadline(self):
         started = time.monotonic()
         with self.assertRaisesRegex(RuntimeError, 'sem nova saída') as error:
@@ -58,6 +126,19 @@ print(json.dumps({'type':'turn.completed'}),flush=True)
         self.client.timeout = .45
         with self.assertRaisesRegex(RuntimeError, 'tempo limite de 0.45'):
             self.invoke(code)
+
+    def test_disabling_idle_keeps_the_absolute_deadline_and_cancellation(self):
+        self.client.idle_timeout = 0
+        self.client.timeout = .35
+        with self.assertRaisesRegex(RuntimeError, 'tempo limite de 0.35'):
+            self.invoke('import time; time.sleep(30)')
+        self.client.timeout = 5
+        cancel = threading.Event()
+        timer = threading.Timer(.15, cancel.set)
+        timer.start()
+        self.addCleanup(timer.cancel)
+        with self.assertRaises(TurnCancelled):
+            self.invoke('import time; time.sleep(30)', cancel_event=cancel)
 
     def test_summary_idle_expiry_remains_a_request_timeout(self):
         with self.assertRaisesRegex(RequestTimeout, 'sem nova saída'):
@@ -125,9 +206,10 @@ print(json.dumps({'type':'turn.completed'}),flush=True)
             self.assertEqual(activity_label(self.root, chat_id), '')
 
     def test_idle_environment_validation_and_override(self):
-        for value in ('0', '29', '3601', 'nan'):
+        for value in ('-1', '29', '3601', 'nan'):
             with patch.dict(os.environ, {'CENTAUR_NATIVE_IDLE_TIMEOUT': value}), patch('centaur_cli.native_client.shutil.which', return_value=sys.executable):
                 with self.assertRaisesRegex(ValueError, 'CENTAUR_NATIVE_IDLE_TIMEOUT'):
                     NativeClient('codex')
-        with patch.dict(os.environ, {'CENTAUR_NATIVE_IDLE_TIMEOUT': '1800'}), patch('centaur_cli.native_client.shutil.which', return_value=sys.executable):
-            self.assertEqual(NativeClient('codex').idle_timeout, 1800)
+        for value in ('0', '1800'):
+            with patch.dict(os.environ, {'CENTAUR_NATIVE_IDLE_TIMEOUT': value}), patch('centaur_cli.native_client.shutil.which', return_value=sys.executable):
+                self.assertEqual(NativeClient('codex').idle_timeout, int(value))
