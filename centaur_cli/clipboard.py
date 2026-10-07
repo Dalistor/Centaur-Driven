@@ -78,12 +78,14 @@ def read_command(arguments, limit, *, cancellation=None):
 
 def mac_file_urls(cancellation=None):
     # Read AppKit's file URL items directly; pbpaste loses Finder file identity.
-    script = ('ObjC.import("AppKit"); '
-              'const items = $.NSPasteboard.generalPasteboard.pasteboardItems; '
-              'let urls = []; if (items) { for (let i = 0; i < items.count; i++) { '
-              'const value = ObjC.unwrap(items.objectAtIndex(i).stringForType($.NSPasteboardTypeFileURL)); '
-              'if (typeof value === "string" && value.startsWith("file:")) urls.push(value); '
-              '} } urls.join("\\n");')
+    # Keep an explicit return and legacy-compatible bindings in JXA's
+    # automation context instead of relying on top-level completion values.
+    script = ('ObjC.import("AppKit"); function run() { '
+              'var items = $.NSPasteboard.generalPasteboard.pasteboardItems; '
+              'var urls = []; if (items) { for (var i = 0; i < items.count; i++) { '
+              'var value = ObjC.unwrap(items.objectAtIndex(i).stringForType($.NSPasteboardTypeFileURL)); '
+              'if (typeof value === "string" && value.indexOf("file:") === 0) urls.push(value); '
+              '} } return urls.join("\\n"); }')
     return read_command(['osascript', '-l', 'JavaScript', '-e', script], MAX_TEXT,
                         cancellation=cancellation).decode('utf-8').rstrip('\r\n')
 

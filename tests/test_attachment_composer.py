@@ -301,6 +301,8 @@ class AttachmentComposerTests(unittest.TestCase):
         uri = path.as_uri()
         script = 'ObjC.import("AppKit"); const p=$.NSPasteboard.generalPasteboard; p.clearContents; p.setStringForType($('+json.dumps(uri)+'),$.NSPasteboardTypeFileURL);'
         read_command(['osascript','-l','JavaScript','-e',script],1024)
+        from centaur_cli.clipboard import mac_file_urls
+        self.assertEqual(mac_file_urls(),uri)
         self.assertEqual(clipboard_content(),('text',uri))
         self.terminal.handle('\x16'); self.wait_prepared()
         self.assertIn('[Arquivo #',self.terminal.draft)
