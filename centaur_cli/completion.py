@@ -5,7 +5,7 @@ import re
 from . import skill_catalog
 
 TOKEN = re.compile(r'(?<!\S)([$@])([\w.-]*)$')
-LOCAL_COMMANDS = ('agents', 'attach', 'attachments', 'detach', 'screenshot', 'compact', 'computer', 'config', 'credits', 'status')
+LOCAL_COMMANDS = ('agents', 'attachments', 'detach', 'compact', 'computer', 'config', 'credits', 'status')
 
 
 class SkillCompletion:

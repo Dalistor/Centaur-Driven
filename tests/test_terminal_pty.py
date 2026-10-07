@@ -18,7 +18,7 @@ import unittest
 
 
 CHILD = r'''
-import copy, curses, json, sys, os
+import copy, curses, json, sys, os, time
 import centaur_cli.terminal as terminal_module
 from pathlib import Path
 from centaur_cli.history import ChatStore
@@ -30,6 +30,9 @@ class Client:
     def model_catalog(self): return {'fixture':'Fixture'}
     def complete(self, model, messages, tools, **options):
         self.requests.append({'messages':copy.deepcopy(messages),'tools':bool(tools)})
+        if os.environ.get('CENTAUR_TEST_STEERING') == '1' and len(self.requests) == 1:
+            deadline=time.monotonic()+6
+            while not (root/'release-model').exists() and time.monotonic()<deadline: time.sleep(.01)
         return {'role':'assistant','content': 'Objetivo preservado, alteracoes e validacao pendentes.' if not tools else 'Mensagem recebida.'}
 class RecordingTerminal(Terminal):
     def draw(self, screen):
@@ -37,6 +40,7 @@ class RecordingTerminal(Terminal):
         data={'draft':self.draft,'cursor':self.cursor,'busy':self.busy,
               'chat':self.chat,'requests':self.client.requests,'width':self.input_width,'notice':self.notice,
               'pending_attachments':len(self.pending_attachments),
+              'inbox': len(self.inboxes[self.chat['id']].snapshot()) if self.chat['id'] in self.inboxes else 0,
               'browser':self.browser, 'preview':(self.agent_preview or {}).get('title'),
               'tree':[c['title'] for c in self.chats],
               'input_hitbox':{k:v for k,v in (self.input_hitbox or {}).items() if k!='layout'},
@@ -67,6 +71,58 @@ curses.wrapper(terminal.run)
 
 
 class TerminalPTYTests(unittest.TestCase):
+    def test_steering_during_model_wait_preserves_multiline_and_narrow_terminal(self):
+        for mode in ('color', 'monochrome', 'reduced'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                master, slave = pty.openpty()
+                fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 100, 0, 0))
+                env = {**os.environ, 'TERM': 'xterm-256color', 'CENTAUR_GRAPHICS': '0',
+                       'CENTAUR_TEST_STEERING': '1', 'PYTHONPATH': str(Path(__file__).resolve().parents[1])}
+                if mode == 'monochrome': env['NO_COLOR'] = '1'
+                if mode == 'reduced': env['CENTAUR_REDUCED_MOTION'] = '1'
+                process = subprocess.Popen([sys.executable, '-c', CHILD, temporary], stdin=slave, stdout=slave, stderr=slave, env=env)
+                os.close(slave)
+                transcript = bytearray()
+                def wait_for(predicate, timeout=5):
+                    deadline = time.monotonic() + timeout
+                    while time.monotonic() < deadline:
+                        if select.select([master], [], [], .02)[0]:
+                            try: transcript.extend(os.read(master, 65536))
+                            except OSError: pass
+                        try:
+                            snapshot = json.loads((root / 'snapshot.json').read_text())
+                            if predicate(snapshot): return snapshot
+                        except (OSError, ValueError): pass
+                        if process.poll() is not None: break
+                    self.fail('Steering PTY state missing: ' + transcript.decode(errors='replace')[-1000:])
+                try:
+                    wait_for(lambda s: s['width'] > 0)
+                    os.write(master, b'Original request\r')
+                    wait_for(lambda s: s['busy'] and len(s['requests']) == 1)
+                    os.write(master, b'New direction\nKeep the child working\r')
+                    snapshot = wait_for(lambda s: s['inbox'] == 1 and s['draft'] == '')
+                    self.assertEqual(len(snapshot['requests']), 1)
+                    fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', 12, 40, 0, 0))
+                    process.send_signal(signal.SIGWINCH)
+                    wait_for(lambda s: s['width'] < 40 and s['inbox'] == 1)
+                    (root/'release-model').touch()
+                    snapshot = wait_for(lambda s: not s['busy'] and len(s['requests']) == 2 and s['inbox'] == 0)
+                    users = [m['content'] for m in snapshot['chat']['messages'] if m['role'] == 'user']
+                    self.assertEqual(users[-2:], ['Original request', 'New direction\nKeep the child working'])
+                    self.assertEqual(snapshot['requests'][-1]['messages'][-1]['content'], users[-1])
+                    os.write(master, b'\x11')
+                    deadline = time.monotonic() + 3
+                    while process.poll() is None and time.monotonic() < deadline:
+                        if select.select([master], [], [], .03)[0]:
+                            try: transcript.extend(os.read(master, 65536))
+                            except OSError: pass
+                    self.assertEqual(process.poll(), 0)
+                finally:
+                    if process.poll() is None:
+                        process.kill(); process.wait(timeout=3)
+                    os.close(master)
+
     def test_recursive_agent_menu_preview_return_and_resize_in_real_curses(self):
         for mode in ('color', 'monochrome', 'reduced'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:

@@ -2,7 +2,7 @@
 
 import copy
 import curses
-import shlex
+import json
 import queue
 import re
 import textwrap
@@ -25,6 +25,8 @@ from .tools import ProjectTools
 from .appearance import TerminalView, fit_cells, cell_width
 from .graphics import FRAME_SECONDS
 from .subagents import SubagentTools
+from .agent_runtime import AgentGroup
+from .inbox import Inbox
 from .sessions import SessionRegistry, LABELS
 from .agent_tree import AgentTree
 from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
@@ -70,7 +72,7 @@ class SessionEvents:
 class Terminal:
     SESSION_DEFAULTS = {'busy': False, 'approval': None, 'question': None,
                         'computer': None, 'busy_started': None, 'saved_scroll': 0,
-                        'notice': ''}
+                        'notice': '', 'agent_group': None}
 
     def session_value(name):
         def get(self):
@@ -90,6 +92,7 @@ class Terminal:
     saved_scroll = session_value('saved_scroll')
     notice = session_value('notice')
     cancel_event = session_value('cancel_event')
+    agent_group = session_value('agent_group')
     del session_value
 
     def __init__(self, root, model, store, client, max_subagent_tier='high', *, effort='default', approval_mode='ask', speed='standard'):
@@ -105,6 +108,8 @@ class Terminal:
         self.chat['speed'] = self.speed
         self.session_states = {}
         self.session_contexts = {}
+        self.inboxes = {}
+        self.interaction_locks = {}
         self.live_chats = {}
         self.registry = SessionRegistry(root)
         self.computer_control = ComputerControl(root, self.chat["id"])
@@ -122,6 +127,7 @@ class Terminal:
         self.browser_refreshed = 0
         self.next_cleanup = 0
         self.events = queue.Queue()
+        self.ui_events = self.events
         self.busy = False
         self.approval = None
         self.question = None
@@ -207,13 +213,19 @@ class Terminal:
             self.events.put(('backend_credits', (client, event)))
 
     def approve(self, description):
+        with self.interaction_locks.setdefault(self.chat['id'], threading.Lock()):
+            return self.request_approval(description)
+
+    def request_approval(self, description):
+        if self.cancel_event.is_set():
+            raise TurnCancelled('Turno interrompido pelo usuário.')
         answer = queue.Queue()
         self.registry.set(self.chat['id'], 'waiting_input')
         self.events.put(('approval', (description, answer)))
         try:
             return self.wait_answer(answer)
         finally:
-            self.registry.set(self.chat['id'], 'running')
+            self.registry.set(self.chat['id'], 'running' if self.busy else 'stopped')
 
     def wait_answer(self, answer):
         while True:
@@ -225,13 +237,19 @@ class Terminal:
                 pass
 
     def ask_user(self, question, options):
+        with self.interaction_locks.setdefault(self.chat['id'], threading.Lock()):
+            return self.request_question(question, options)
+
+    def request_question(self, question, options):
+        if self.cancel_event.is_set():
+            raise TurnCancelled('Turno interrompido pelo usuário.')
         answer = queue.Queue()
         self.registry.set(self.chat['id'], 'waiting_input')
         self.events.put(('question', QuestionPicker(question, options, answer)))
         try:
             return self.wait_answer(answer)
         finally:
-            self.registry.set(self.chat['id'], 'running')
+            self.registry.set(self.chat['id'], 'running' if self.busy else 'stopped')
 
     def cancel_work(self):
         self.cancel_event.set()
@@ -319,41 +337,12 @@ class Terminal:
         client = self.client
         threading.Thread(target=work, daemon=True).start()
 
-    def prepare_attachment(self, command):
-        client, model = self.client, self.chat['model']
-        try:
-            parts = shlex.split(command)
-            name = parts[0].lstrip('$/')
-            if name == 'attach':
-                if len(parts) != 2:
-                    raise ValueError('Uso: $attach "caminho"; você também pode colar/arrastar o arquivo no campo.')
-                prepare = lambda cancellation: {'items': [prepare_file(self.root, parts[1], client, model)]}
-                label = 'Preparando anexo'
-            else:
-                if len(parts) > 2 or len(parts) == 2 and not parts[1].isdigit():
-                    raise ValueError('Uso: $screenshot [segundos de espera, 0–10]. Captura única do monitor principal.')
-                delay = int(parts[1]) if len(parts) == 2 else 0
-                if not 0 <= delay <= 10:
-                    raise ValueError('Espera deve ser de 0 a 10 segundos.')
-                def prepare(cancellation):
-                    if cancellation.wait(delay):
-                        return None
-                    return {'items': [capture_screen(client, model)]}
-                label = f'Capturando em {delay}s'
-        except ValueError as error:
-            self.notice = 'Erro: ' + str(error)
-            return
-        self.draft = ''
-        self.begin_attachment_read(prepare, label, command=command)
-        if not self.preparing_attachment:
-            self.draft = command
-
     def paste_text(self, text):
         text = self.clean_pasted_text(text)
         paths = pasted_paths(self.root, text)
         start = self.cursor
         self.insert_text(text)
-        if paths and not self.busy:
+        if paths:
             self.prepare_paths(paths, replace_range=(start, self.cursor), snapshot=(self.draft, self.cursor))
 
     def prepare_paths(self, paths, *, replace_range=None, snapshot=None):
@@ -365,9 +354,6 @@ class Terminal:
                                    'Preparando arquivos colados', replace_range=replace_range, snapshot=snapshot)
 
     def paste_clipboard(self):
-        if self.busy:
-            self.notice = 'Aguarde o turno terminar para colar anexos.'
-            return
         client, model = self.client, self.chat['model']
         root = self.root
         def prepare(cancellation):
@@ -381,6 +367,14 @@ class Terminal:
                 return {'items': [prepare_file(root, path, client, model) for path in paths]}
             return {'text': value}
         self.begin_attachment_read(prepare, 'Lendo clipboard', snapshot=(self.draft, self.cursor))
+
+    def capture_attachment(self, delay=3):
+        client, model = self.client, self.chat['model']
+        def prepare(cancellation):
+            if cancellation.wait(delay):
+                return None
+            return capture_screen(client, model)
+        self.begin_attachment_read(prepare, 'Captura em 3s · troque de janela', snapshot=(self.draft, self.cursor))
 
     def computer_command(self, command):
         parts = command.split()
@@ -410,11 +404,14 @@ class Terminal:
         command = without_attachment_markers(self.draft, self.pending_attachments).strip()
         if command.split(maxsplit=1)[0:1] in (['$computer'], ['/computer']):
             return self.computer_command(command)
-        if self.busy or self.preparing_attachment or not (self.draft.strip() or self.pending_attachments):
+        if self.preparing_attachment or not (self.draft.strip() or self.pending_attachments):
             return
+        if self.busy:
+            return self.submit_steering(command)
         command = without_attachment_markers(self.draft, self.pending_attachments).strip()
         if command == '/quit':
-            if any(state.get('busy') for state in self.session_states.values()):
+            if any(state.get('busy') or state.get('agent_group') and state['agent_group'].active
+                   for state in self.session_states.values()):
                 self.notice = 'Aguarde as sessões terminarem ou interrompa cada uma com Ctrl+C para sair.'
                 return
             return 'quit'
@@ -436,8 +433,9 @@ class Terminal:
             return
         command = without_attachment_markers(self.draft, self.pending_attachments).strip()
         local_name = command.split(maxsplit=1)[0] if command else ''
-        if local_name in ('$attach', '/attach', '$screenshot', '/screenshot'):
-            return self.prepare_attachment(command)
+        if local_name in ('$attach', '/attach', '$screenshot', '/screenshot', '$screnshoot'):
+            self.notice = 'Cole/arraste arquivos, use Ctrl+V para imagens ou Ctrl+S para uma captura.'
+            return
         if local_name in ('$attachments', '/attachments'):
             self.draft = ''
             self.scroll = 0
@@ -541,13 +539,64 @@ class Terminal:
         self.draft = ''
         self.start_work()
 
+    def inbox(self):
+        chat_id = self.chat['id']
+        if chat_id not in self.inboxes:
+            self.inboxes[chat_id] = Inbox(self.root, chat_id)
+        return self.inboxes[chat_id]
+
+    def submit_steering(self, command):
+        # Local controls never enter the model's conversation as user steering.
+        local = command.split(maxsplit=1)[0] if command else ''
+        if local in ('$attach', '/attach', '$screenshot', '/screenshot', '$screnshoot'):
+            self.notice = 'Cole/arraste arquivos, use Ctrl+V para imagens ou Ctrl+S para uma captura.'
+            return
+        if local in ('$agents', '/agents', '/chats'):
+            self.draft = ''
+            self.open_chats('agents' if local != '/chats' else 'chats')
+            return
+        if local in ('$config', '/new', '/quit', '/retry', '/rename', '$compact', '/compact',
+                     '$credits', '/credits', '$attachments', '/attachments', '$detach', '/detach', '$status', '/status', '/wide'):
+            self.notice = 'Aguarde a etapa atual para usar este comando; Enter envia uma mensagem ao agente.'
+            return
+        secrets = getattr(self.client, 'secrets', (getattr(self.client, 'api_key', None),))
+        if any(key and key in self.draft for key in secrets):
+            self.notice = 'Chave detectada: mensagem não enviada.'
+            return
+        if command.startswith(("'", '"', '/', './', '../', '~/', 'file:')):
+            paths = pasted_paths(self.root, command)
+            if paths:
+                self.prepare_paths(paths, replace_range=(0, len(self.draft)), snapshot=(self.draft, self.cursor))
+                return
+        try:
+            check_support(self.client, self.chat['model'], self.pending_attachments)
+            attachments = persist(self.root, self.chat['id'], self.pending_attachments) if self.pending_attachments else []
+            message = {'role': 'user', 'content': self.draft or 'Analise os anexos desta mensagem.'}
+            if attachments:
+                message['attachments'] = attachments
+            self.inbox().put(message)
+        except (ValueError, RuntimeError, OSError) as error:
+            self.notice = 'Erro: ' + getattr(self.client, 'redact', str)(str(error))
+            return
+        self.pending_attachments.clear()
+        self.draft = ''
+        self.notice = 'Mensagem enviada · será tratada após a etapa atual; subagentes continuam.'
+
     def start_work(self):
         self.chat.pop('turn_paused', None)
         self.chat['approval_mode'] = self.approval_mode
         self.store.save(self.chat)
         self.scroll = 0
         self.viewport_key = None
-        self.cancel_event = threading.Event()
+        if self.agent_group and self.agent_group.cancel_event.is_set() and self.agent_group.active:
+            self.notice = 'Aguarde os executores interrompidos terminarem antes de retomar.'
+            return
+        if not self.agent_group or self.agent_group.cancel_event.is_set():
+            self.cancel_event = threading.Event()
+            self.agent_group = AgentGroup(self.root, self.chat['id'], self.cancel_event,
+                                          inbox=self.inbox(), registry=self.registry,
+                                          notify=lambda chat_id=self.chat['id'], events=self.ui_events:
+                                              events.put(('session', (chat_id, 'agent_update', None))))
         self.busy = True
         self.registry.set(self.chat['id'], 'running')
         self.busy_started = time.monotonic()
@@ -558,7 +607,7 @@ class Terminal:
     def worker_context(self):
         # The worker keeps its chat, client and permissions even when the UI changes.
         worker = copy.copy(self)
-        worker.events = SessionEvents(self.events, self.chat['id'])
+        worker.events = SessionEvents(self.ui_events, self.chat['id'])
         self.live_chats[self.chat['id']] = self.chat
         self.session_contexts[self.chat['id']] = worker
         return worker
@@ -647,7 +696,7 @@ class Terminal:
         if self.prompt_history is None:
             if direction > 0: return False
             self.prompt_history = [m for m in self.chat['messages']
-                                   if m.get('role') == 'user' and isinstance(m.get('content'), str)]
+                                   if m.get('role') == 'user' and isinstance(m.get('content'), str) and not m.get('agent_source')]
             if not self.prompt_history:
                 self.prompt_history = None
                 return False
@@ -689,6 +738,9 @@ class Terminal:
         return chat
 
     def configure(self, command):
+        if self.agent_group and self.agent_group.active:
+            self.notice = 'Aguarde os subagentes terminarem ou interrompa este chat antes de trocar a configuração.'
+            return
         parts = command.split()
         if len(parts) == 1:
             self.settings = ConfigPicker(self.backend, self.chat['model'], self.chat.get('effort', self.effort),
@@ -877,6 +929,10 @@ class Terminal:
 
     def work(self, chat):
         completion_notice = 'Turno encerrado.'
+        if not self.agent_group:
+            self.agent_group = AgentGroup(self.root, chat['id'], self.cancel_event,
+                                          inbox=self.inbox(), registry=self.registry,
+                                          notify=lambda: self.events.put(('agent_update', None)))
         computer = ComputerSession(self.approve, self.cancel_event, control=self.computer_control,
                                    chat_id=chat['id'], emit=self.computer_progress)
         self.computer = computer
@@ -888,16 +944,20 @@ class Terminal:
             base.activity = lambda phase: self.registry.activity(chat['id'], phase)
             base.native_progress = lambda event: self.registry.native_event(chat['id'], event)
             last_request = next((message.get('content') or '' for message in reversed(chat['messages'])
-                                 if message['role'] == 'user'), '')
+                                 if message['role'] == 'user' and not message.get('agent_source')), '')
             status_analysis = last_request.strip() in ('/status --ai', '$status --ai')
             if status_analysis:
                 tools = StatusTools(self.root, lambda _: False,
                                     protected_keys=getattr(self.client, 'secrets', ()))
                 tools.cancel_event = self.cancel_event
+                tools.receive_messages = lambda: self.agent_group.receive(chat['id'])
+                tools.acknowledge_messages = lambda ids: self.agent_group.acknowledge(chat['id'], ids)
+                tools.has_messages = lambda: bool(tools.receive_messages())
             else:
                 tools = SubagentTools(base, self.client, chat['id'],
                                       lambda notice: self.events.put(('progress', notice)), self.max_subagent_tier,
-                                      registry=self.registry, effort=chat.get('effort', 'default'), speed=chat.get('speed', 'standard'))
+                                      registry=self.registry, effort=chat.get('effort', 'default'), speed=chat.get('speed', 'standard'),
+                                      group=self.agent_group, background=True)
             backend_instructions = (f'\nBackend conectado: {self.backend}. Escolha o modelo por complexidade e risco '
                                     'entre os modelos listados em delegate_task. Não use cost_tier ou outro provedor. '
                                     'Se não houver catálogo, mantenha o modelo principal.\n'
@@ -1081,12 +1141,21 @@ class Terminal:
                 self.rename_target = None
                 self.saved_scroll = self.scroll
             elif kind == 'done':
-                self.registry.set(self.chat['id'], 'stopped')
+                waiting = self.interaction_locks.get(self.chat['id'])
+                waiting = waiting and waiting.locked() and not self.cancel_event.is_set()
+                self.registry.set(self.chat['id'], 'waiting_input' if waiting else 'stopped')
                 self.busy = False
-                self.approval = None
-                self.question = None
+                if not waiting:
+                    self.approval = None
+                    self.question = None
                 self.notice = value
                 self.credits_dirty = True
+                if not self.cancel_event.is_set() and (self.inbox().snapshot() or
+                        self.agent_group and self.agent_group.receive(self.chat['id'])):
+                    self.start_work()
+            elif kind == 'agent_update':
+                if not self.busy and not self.cancel_event.is_set() and self.agent_group and self.agent_group.receive(self.chat['id']):
+                    self.start_work()
             elif kind == 'compaction_failed':
                 chat, message = value
                 chat['compaction_error'] = message
@@ -1144,7 +1213,20 @@ class Terminal:
         results = {m.get('tool_call_id'): m.get('content', '') for m in messages if m['role'] == 'tool'}
         for message in messages:
             content = message.get('content') or ''
-            if message['role'] == 'user':
+            if message.get('agent_source'):
+                append_text('↳ Agente ' + str(message['agent_source'])[:8], 'action')
+                if message.get('agent_kind') == 'report':
+                    try:
+                        report = json.loads(content.split('\n', 1)[1])
+                        status = report.get('status')
+                        label = 'Relatório recebido' if status == 'reported' else 'Subagente interrompido' if status == 'cancelled' else 'Subagente falhou'
+                        append_text(label + ' · ' + report.get('title', ''), 'action' if status == 'reported' else 'warning')
+                        content = str(report.get('report', ''))
+                    except (ValueError, TypeError, IndexError, AttributeError):
+                        pass
+                append_text(readable_markdown(content if self.show_details else content[:800] + ('… · Ctrl+O lê o relatório completo' if len(content) > 800 else '')), 'comment', '  ')
+                lines.append(TranscriptLine(''))
+            elif message['role'] == 'user':
                 working = False
                 lines.append(TranscriptLine(''))
                 append_text(content, 'user', '› ')
@@ -1162,11 +1244,12 @@ class Terminal:
                     if call['function']['name'] == 'report_progress':
                         continue
                     summary = tool_activity(call, results.get(call['id']))
+                    warning = summary.startswith(('!', '–'))
                     if call['function']['name'] == 'delegate_task':
                         siblings_after = any(other['function']['name'] == 'delegate_task'
                                              for other in message['tool_calls'][call_index + 1:])
                         summary = ('├─↳ ' if siblings_after else '└─↳ ') + summary
-                    append_text(summary, 'warning' if summary.startswith(('!', '–')) else 'action', '  ')
+                    append_text(summary, 'warning' if warning else 'action', '  ')
             elif message['role'] == 'tool':
                 call = actions.get(message.get('tool_call_id'), {})
                 if call.get('function', {}).get('name') == 'report_progress':
@@ -1202,6 +1285,11 @@ class Terminal:
         if current_chat.get('turn_paused'):
             lines.append(TranscriptLine('◦ Pausa anterior do turno' if self.busy else '◦ Turno pausado', 'muted'))
             append_text(current_chat['turn_paused'], 'muted')
+        if chat is None and not self.agent_preview:
+            inbox = self.inboxes.get(current_chat['id'])
+            for item in inbox.snapshot() if inbox else ():
+                append_text('› ' + item['message']['content'], 'user')
+                append_text('  Aguardando entrega após a etapa atual', 'muted')
         if chat is None and self.pending_attachments and not self.agent_preview:
             lines.append(TranscriptLine('▧ Anexos pendentes · Enter envia · $detach <número|all> remove', 'blue'))
             for index, item in enumerate(self.pending_attachments, 1):
@@ -1246,7 +1334,7 @@ class Terminal:
 
     def session_state(self, chat):
         state = self.session_states.get(chat['id'], {})
-        if state.get('busy'):
+        if state.get('busy') or state.get('agent_group') and state['agent_group'].active:
             return 'waiting_input' if state.get('approval') or state.get('question') else self.registry.state(chat['id']) if self.registry.state(chat['id']) != 'stopped' else 'running'
         return self.registry.state(chat['id'])
 
@@ -1256,7 +1344,9 @@ class Terminal:
         now = time.monotonic()
         if now >= self.next_cleanup:
             protected = set(self.title_tasks)
-            protected.update(chat_id for chat_id, state in self.session_states.items() if state.get('busy'))
+            protected.update(chat_id for chat_id, state in self.session_states.items()
+                             if state.get('busy') or state.get('agent_group') and state['agent_group'].active)
+            protected.update(chat_id for chat_id, inbox in self.inboxes.items() if inbox.snapshot())
             protected.update(chat_id for chat_id, draft in self.drafts_by_chat.items() if draft[0])
             protected.update(chat_id for chat_id, pending in self.pending_by_chat.items() if pending)
             if self.preparing_attachment:
@@ -1430,10 +1520,11 @@ class Terminal:
                 self.preparing_attachment = None
                 self.notice = 'Preparação cancelada; nenhum novo anexo adicionado.'
                 return
-            if key == '\x03' and self.busy:
+            if key == '\x03' and (self.busy or self.agent_group and self.agent_group.active):
                 self.cancel_work()
                 return
-            if any(state.get('busy') for state in self.session_states.values()) or (self.settings and self.settings.pending):
+            if any(state.get('busy') or state.get('agent_group') and state['agent_group'].active
+                   for state in self.session_states.values()) or (self.settings and self.settings.pending):
                 self.notice = 'Aguarde o turno ou configuração terminar para sair; recuse ações pendentes com n.'
                 return
             return 'quit'
@@ -1476,6 +1567,8 @@ class Terminal:
             return
         if key == '\x16':
             return self.paste_clipboard()
+        if key == '\x13':
+            return self.capture_attachment()
         if isinstance(key, PastedText):
             self.paste_text(key.text)
             return

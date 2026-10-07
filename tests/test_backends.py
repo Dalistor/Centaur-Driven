@@ -110,13 +110,13 @@ class BackendTests(unittest.TestCase):
             client = self.client(backend)
             with patch.object(client, 'model_catalog', return_value={'fixed': 'Main', 'fast': 'Simple tasks'}):
                 tools = SubagentTools(ProjectTools(self.root, lambda _: False), client, 'a' * 32, lambda _: None)
-                properties = tools.definitions[-1]['function']['parameters']['properties']
+                properties = next(tool['function']['parameters']['properties'] for tool in tools.definitions if tool['function']['name'] == 'delegate_task')
                 self.assertEqual(set(properties), {'title', 'task', 'model'})
                 self.assertEqual(properties['model']['enum'], ['fixed', 'fast'])
                 for field, value in (('model', 'provider/other'), ('cost_tier', 'low')):
                     output = tools.execute('delegate_task', {'title': 'Task', 'task': 'Contrato', field: value})
                     self.assertIn('Falha ao delegar', output)
-                self.assertEqual(tools.count, 0)
+                self.assertEqual(tools.group.active, 0)
                 with patch('centaur_cli.subagents.run_turn') as execute:
                     def report(chat, used_client, *args):
                         self.assertIs(used_client, client)

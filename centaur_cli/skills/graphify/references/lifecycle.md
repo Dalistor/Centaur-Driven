@@ -71,6 +71,15 @@ Ao aprovar, incluir `"approval": {"by": "autor da decisão", "at": "data ISO-860
 6. Implementar e verificar. Em falha, corrigir dentro do escopo ou registrar bloqueio; dependências independentes podem continuar. Subagentes reportam evidências e deltas de estado; somente o coordenador consolida fontes compartilhadas.
 7. Demonstrar antes/depois, decisões tomadas, desvios e limites da prova. Rodar o gate das regras da entrega antes de integrar. Só registrar publicação após observar resultado no destino autorizado.
 
+## Política de testes — obrigatória
+
+Leia a [política de testes nos pontos vitais](testing.md) antes de planejar validações,
+criar testes ou delegar código. O padrão é reutilizar a proteção existente. Teste novo
+só cobre falha concreta em ponto vital ainda sem proteção suficiente. Critério de
+aceite exige evidência adequada, não um teste novo por regra. Mudanças de baixo impacto
+seguem modo direto e verificação proporcional; critérios explícitos e gates existentes
+continuam obrigatórios. Esta política vale para coordenador e todos os descendentes.
+
 ## Estado observado e evidências
 
 `.centaur/state/agendamento.json`:

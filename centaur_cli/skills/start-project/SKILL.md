@@ -2,7 +2,7 @@
 name: start-project
 description: Inicializa o contexto de um projeto existente com AGENTS.md curto, registros e especificação Centaur; usa busca direta e Graphify opcional sob demanda.
 metadata:
-  version: 5.1.0
+  version: 5.2.0
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -48,6 +48,7 @@ Pergunte apenas o que não estiver nas fontes ou nas instruções já fornecidas
 - Propósito, restrições, limites arquiteturais ou decisões de produto que as fontes não esclarecem. Distinga arquitetura observada de uma proposta; documentar não exige adotar camadas novas.
 - Idioma e vocabulário quando houver ambiguidade real. Preserve termos já estabelecidos; não invente um glossário completo.
 - Testes ausentes: registre a ausência. Pergunte sobre adoção de TDD ou framework somente se essa decisão fizer parte do pedido; não bloqueie a documentação por falta de testes ou de meta de cobertura.
+- Defina a estratégia pela [política de testes nos pontos vitais](../graphify/references/testing.md). Não inicialize suítes ou metas de cobertura por padrão; descreva os riscos reais nas instruções curtas de Testes do projeto.
 - Colaboração: obtenha explicitamente **individual ou equipe**, reutilizando resposta da sessão ou configuração explícita existente. Não deduza pelo número de módulos. No modo equipe, esclareça apenas responsáveis e integração ainda indefinidos; no individual, o desenvolvedor assume essas funções.
 
 Aguarde respostas necessárias antes de registrar uma decisão como confirmada. Lacunas não essenciais podem ficar identificadas no documento pertinente. Se não houver dúvidas materiais, prossiga sem entrevista.
@@ -81,7 +82,7 @@ Contratos em `.centaur/contracts/<id>/vNNN.json` definem o comportamento desejad
 [Limites obrigatórios e direção das dependências. Tabela curta de camada/módulo, pasta, responsabilidade e proibições somente se útil. Preserve a arquitetura real, mesmo sem camadas convencionais. Referência para detalhes.]
 
 ## Testes
-[Framework, comandos essenciais e local/convenção dos testes; ou ausência explícita. Gates e metas somente quando definidos. Referência para estratégias específicas de teste.]
+[Framework, comandos essenciais e local/convenção dos testes; ou ausência explícita. Gates e metas somente quando definidos. Identifique os fluxos/invariantes vitais reais do projeto, sem lista genérica. Reutilize testes existentes; teste novo só para falha concreta em ponto vital ainda sem proteção suficiente. Para baixo impacto, use verificação proporcional. Não busque contagem ou cobertura total.]
 
 ## Vocabulário e Idioma do Código
 [Idiomas e regras de nomenclatura. Termos críticos curtos ou referência ao glossário existente: consulte os conceitos relevantes antes de nomear código.]

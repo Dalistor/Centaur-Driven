@@ -21,7 +21,7 @@ class Image:
         self.size = tuple(round(value * ratio) for value in self.size)
     def crop(self, box):
         return Image((box[2] - box[0], box[3] - box[1]), self.content)
-    def save(self, output, format):
+    def save(self, output, format, **options):
         output.write(b'\x89PNG\r\n\x1a\n' + self.content + str(self.size).encode())
 
 
@@ -57,15 +57,90 @@ class SessionTests(unittest.TestCase):
         self.assertIn(f'frame_id={self.session.reference.identifier}', messages[0]['content'][-2]['text'])
         self.assertIn('Autorização deste chat', messages[0]['content'][0]['text'])
 
-    def test_changed_frames_preserved_in_order_without_reencoding(self):
+    def test_changed_frames_send_only_the_newest_state(self):
         with patch.object(self.backend, 'capture', side_effect=[Image(content=b'A'), Image(content=b'B'), Image(content=b'C')]):
             self.session.capture()
             self.session.capture()
             messages = self.session.observation_messages()
         metadata = [item['text'] for item in messages[0]['content'][1:] if item['type'] == 'text']
-        self.assertEqual(len(metadata), 3)
+        self.assertEqual(len(metadata), 1)
         self.assertEqual([int(text.split(',')[0].split('=')[1]) for text in metadata],
-                         sorted(frame.identifier for frame in self.session.frames))
+                         [self.session.reference.identifier])
+
+    def test_short_input_batch_validates_all_steps_and_consumes_reference_once(self):
+        reference = self.session.reference.identifier
+        steps = [{'action': 'keypress', 'keys': ['Control', 'a']},
+                 {'action': 'type_text', 'text': 'Centaur'},
+                 {'action': 'keypress', 'keys': ['enter']}]
+        result = self.session.execute('computer_batch', dict(frame_id=reference, x=20, y=30, steps=steps))
+        self.assertIn('Ação aplicada', result)
+        self.assertEqual(len(self.backend.actions), 1)
+        action, x, y, args = self.backend.actions[0]
+        self.assertEqual((action, x, y), ('input_batch', 40, 60))
+        self.assertEqual(args['steps'][0]['keys'], ['ctrl', 'a'])
+        self.assertEqual(len(self.prompts), 1)
+        with self.assertRaises(ValueError):
+            self.session.execute('computer_batch', dict(frame_id=reference, x=20, y=30, steps=steps))
+        self.assertEqual(len(self.backend.actions), 1)
+
+    def test_invalid_batches_never_apply_first_step_or_consume_reference(self):
+        reference = self.session.reference.identifier
+        for steps in ([], [{'action': 'type_text', 'text': 'ok'}] * 5,
+                      [{'action': 'keypress', 'keys': ['enter']}, {'action': 'type_text', 'text': 'after navigation'}],
+                      [{'action': 'type_text', 'text': 'ok'}, {'action': 'keypress', 'keys': ['ctrl', 'w']}],
+                      [{'action': 'type_text', 'text': 'submit\nnow'}],
+                      [{'action': 'click', 'x': 1, 'y': 1}]):
+            with self.subTest(steps=steps), self.assertRaises(ValueError):
+                self.session.execute('computer_batch', dict(frame_id=reference, x=20, y=30, steps=steps))
+        self.assertEqual(self.backend.actions, [])
+        self.assertEqual(self.session.reference.identifier, reference)
+
+    def test_partial_batch_failure_cannot_replay_input(self):
+        reference = self.session.reference.identifier
+        with patch.object(self.backend, 'perform', side_effect=RuntimeError('partial input')):
+            with self.assertRaisesRegex(RuntimeError, 'parcialmente'):
+                self.session.execute('computer_batch', dict(frame_id=reference, x=20, y=30,
+                    steps=[{'action': 'type_text', 'text': 'maybe applied'}]))
+        self.assertFalse(self.session.active)
+        self.assertIsNone(self.session.reference)
+
+    def test_desktop_batch_focuses_once_and_preserves_selection_for_typing(self):
+        from unittest.mock import Mock
+        desktop = object.__new__(Desktop)
+        desktop.gui = Mock()
+        desktop.check_cancelled = lambda: None
+        desktop.perform('input_batch', 20, 30, {'steps': [
+            {'action': 'keypress', 'keys': ['ctrl', 'a']},
+            {'action': 'type_text', 'text': 'Centaur'},
+            {'action': 'keypress', 'keys': ['enter']}]})
+        desktop.gui.moveTo.assert_called_once()
+        desktop.gui.click.assert_called_once()
+        desktop.gui.write.assert_called_once_with('Centaur', interval=.001)
+        self.assertEqual([call.args[0] for call in desktop.gui.keyDown.call_args_list], ['ctrl', 'a', 'enter'])
+        self.assertEqual([call.args[0] for call in desktop.gui.keyUp.call_args_list], ['a', 'ctrl', 'enter'])
+
+    def test_native_batch_schema_and_nullable_nested_fields_round_trip(self):
+        from centaur_cli.computer import COMPUTER_TOOLS
+        from centaur_cli.native_client import NativeClient, reply_schema
+        from unittest.mock import patch
+        tool = next(tool for tool in COMPUTER_TOOLS if tool['function']['name'] == 'computer_batch')
+        schema = reply_schema([tool])
+        step = schema['properties']['calls']['items']['anyOf'][0]['properties']['arguments']['properties']['steps']['items']
+        self.assertEqual(set(step['required']), {'action', 'text', 'keys'})
+        self.assertFalse(step['additionalProperties'])
+        with patch('centaur_cli.native_client.shutil.which', return_value='/bin/fixture'):
+            client = NativeClient('codex')
+        value = {'content': None, 'calls': [{'name': 'computer_batch', 'arguments': {
+            'frame_id': 1, 'x': 2, 'y': 3, 'steps': [
+                {'action': 'type_text', 'text': 'ok', 'keys': None},
+                {'action': 'keypress', 'text': None, 'keys': ['enter']}]}}]}
+        import json
+        result = client.reply(value, [tool])
+        args = json.loads(result['tool_calls'][0]['function']['arguments'])
+        self.assertNotIn('keys', args['steps'][0])
+        self.assertNotIn('text', args['steps'][1])
+        value['calls'][0]['arguments']['steps'][0]['unknown'] = None
+        with self.assertRaises(ValueError): client.reply(value, [tool])
 
     def test_zoom_maps_click_and_drag_back_to_desktop_then_restores(self):
         self.session.execute('computer_observe', {'region': [100, 50, 400, 300],

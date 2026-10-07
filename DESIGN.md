@@ -327,3 +327,17 @@ Ausência de bytes é explicitamente observação, não conclusão de travamento
 não alteram scroll/foco nem reiniciam o relógio da fase/deadline. Nenhum texto privado do
 provedor entra no estado visual. Narrow, NO_COLOR e movimento reduzido preservam árvore,
 acesso por teclado, modelo e estado. Referências demonstrativas usam o TerminalView real.
+
+## Coordenação durante execução — desenvolvimento local
+
+Fonte: pedido do proprietário em 2026-10-07. O compositor canônico permanece editável
+durante execução; Enter aceita mensagem em fila e mantém o foco. `Terminal.lines`
+exibe o texto recebido com rótulo Aguardando entrega após a etapa atual, sem afirmar
+resposta concluída. Falhas preservam texto/anexos. Captura única passa para Ctrl+S;
+colagem/arrasto continuam no mesmo compositor, sem novos comandos auxiliares.
+
+`AgentGroup` coordena seis vagas por principal e mailboxes entre etapas; a árvore
+existente representa também delegações recursivas reais. Relatórios recebidos em
+segundo plano retomam a sessão de origem e preservam o chat/rascunho visíveis.
+Perguntas e permissões concorrentes usam o seletor canônico, uma de cada vez.
+Paleta navy, geometria, cores por papel, scroll e movimento reduzido permanecem.

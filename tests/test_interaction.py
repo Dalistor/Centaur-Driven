@@ -28,7 +28,7 @@ class Image:
     def size(self): return self.width, self.height
     def convert(self, mode): return self
     def thumbnail(self, size): self.width, self.height = size
-    def save(self, output, format): output.write(b'\x89PNG\r\n\x1a\nfixture')
+    def save(self, output, format, **options): output.write(b'\x89PNG\r\n\x1a\nfixture')
 
 
 class Desktop:

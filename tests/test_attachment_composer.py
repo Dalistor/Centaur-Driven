@@ -56,6 +56,24 @@ class AttachmentComposerTests(unittest.TestCase):
         self.assertIsNone(pasted_paths(self.root, 'file://remotehost/a.png'))
         self.assertIsNone(pasted_paths(self.root, 'explique '+str(second)))
 
+    def test_typed_file_path_while_busy_prepares_then_queues_attachment(self):
+        terminal = self.terminal
+        source = self.root / 'busy file.txt'
+        source.write_text('Attachment while working')
+        terminal.busy = True
+        terminal.draft = source.as_uri()
+        terminal.submit()
+        self.wait_prepared()
+        self.assertIn('[Arquivo #', terminal.draft)
+        self.assertEqual(terminal.chat['messages'], [])
+        self.assertFalse(terminal.inbox().snapshot())
+        terminal.submit()
+        pending = terminal.inbox().snapshot()
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]['message']['attachments'][0]['name'], source.name)
+        self.assertEqual(terminal.chat['messages'], [])
+        self.assertFalse(terminal.pending_attachments)
+
     def test_normal_paste_remains_literal_and_never_sends(self):
         self.terminal.handle(PastedText('um texto\ncom duas linhas'))
         self.assertEqual(self.terminal.draft, 'um texto\ncom duas linhas')

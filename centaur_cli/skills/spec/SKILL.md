@@ -2,7 +2,7 @@
 name: spec
 description: Define ou evolui contratos de comportamento, limites e autonomia; planeja entregas verticais pequenas com critérios de aceite, rastreabilidade e próximos passos.
 metadata:
-  version: 5.1.0
+  version: 5.2.0
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -61,7 +61,7 @@ Leia estado e evidências da versão vigente e confira código relevante. Identi
 
 Escolha a menor capacidade demonstrável de ponta a ponta. Uma entrega pode atravessar domínio, persistência, API e interface, respeitando seus limites. Não decomponha obrigatoriamente por camada nem use número de arquivos como limiar de tamanho. Divida por risco, dependências e possibilidade de validação/integracão independente.
 
-Dentro da entrega, tasks têm responsável, posse de arquivos, dependências e modo. `TDD` para regra de negócio relevante com infraestrutura disponível; `direto` para estrutura, UI, configuração ou ausência de infraestrutura. Cada task carrega critérios observáveis, limites e testes existentes; teste novo deve cobrir lacuna concreta. Tasks técnicas internas não viram marcos humanos de conclusão.
+Dentro da entrega, tasks têm responsável, posse de arquivos, dependências e modo. Aplique a [política de testes nos pontos vitais](../graphify/references/testing.md): `TDD` só para falha concreta em ponto vital ainda sem proteção suficiente e infraestrutura disponível, ou requisito explícito; `direto` nos demais casos. Cada task carrega critérios observáveis, risco vital quando houver, proteção existente a reutilizar e verificação proporcional. Não planeje teste novo por requisito, arquivo, método ou camada. Tasks técnicas internas não viram marcos humanos de conclusão.
 
 Preserve instruções essenciais, mas permita ao executor escolher detalhes dentro da autonomia. Registre mudanças de plano e impactos reais. Mudança de contrato exige nova versão/decisão, nunca alteração silenciosa do objetivo. Paralelismo é opcional e depende de interfaces, arquivos e isolamento, não só de tasks sem dependência nominal.
 
@@ -103,6 +103,7 @@ Crie uma spec por entrega verificável; várias specs independentes podem ficar 
 **Responsável:** [executor ou a atribuir]
 **Arquivos:** [posse prevista e limites arquiteturais]
 **Depende de:** [tasks/regras ou —]
+**Verificação:** [Risco vital e proteção existente/lacuna; ou inspeção, build/demonstração adequados ao aceite]
 **Instrução para o executor:**
 > Spec escopo/YYYY — Task 01: [Objetivo, contrato fixado, aceite, fontes, limites, autonomia e validação. Permitir decisões técnicas internas, sem mudar o comportamento. Reportar fontes, evidências e deltas; não escrever estado compartilhado, índices ou grafo.]
 

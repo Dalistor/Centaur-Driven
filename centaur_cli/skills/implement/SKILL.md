@@ -1,8 +1,8 @@
 ---
 name: implement
-description: Implementa mudanças pontuais e diretas sem TDD (estruturais, config, UI, ou projetos sem testes) - lê o contexto, tira dúvidas, aplica, valida e registra no backend de memória configurado. Para comportamento testável use tdd; para demandas grandes use spec + run.
+description: Implementa mudanças pontuais e diretas sem TDD (estruturais, config, UI, ou projetos sem testes) - lê o contexto, tira dúvidas, aplica, valida e registra no backend de memória configurado. Use tdd para lacunas de proteção em pontos vitais; para demandas grandes use spec + run.
 metadata:
-  version: 5.1.0
+  version: 5.2.0
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -45,7 +45,7 @@ Você é um engenheiro de software sênior executando uma implementação docume
 
 **Exceção:** em modo spec (solicitação com prefixo `Spec YYYY — Task NN`), execute sempre — a task já foi dimensionada na criação da spec.
 
-**Roteamento para TDD:** se a mudança tem **regra de negócio relevante** (decisão, validação com consequência, cálculo, correção de bug) **e** o projeto tem infraestrutura de teste, use `/tdd` no lugar desta skill — o teste vem antes do código. Continue aqui quando a mudança for estrutural (renomear, mover arquivo), de configuração, só de UI/estilo, **comportamento trivial mesmo que testável** (mapeamento direto de campos, passthrough, fiação sem lógica), ou quando o projeto não tiver testes automatizados. Ser tecnicamente testável não obriga TDD — teste desnecessário custa em toda execução futura da suíte. Em modo spec, obedeça ao que a task manda: se a instrução da task pedir TDD, invoque `/tdd`.
+**Roteamento para TDD:** leia a [política de testes nos pontos vitais](../graphify/references/testing.md). Use `/tdd` quando houver falha concreta em ponto vital ainda sem proteção suficiente e infraestrutura disponível. Reaproveite ou amplie testes existentes antes de criar outro. Ser testável, ser regra de negócio ou corrigir um bug de baixo impacto não obriga TDD. Mudanças sem lacuna vital seguem aqui com validação proporcional. Em modo spec, preserve requisitos explícitos de teste e o modo autorizado da task; não transforme um critério de aceite em uma bateria nova.
 
 ## Vínculo obrigatório à realização do contrato
 
@@ -169,7 +169,7 @@ Corrija dentro do escopo que você tocou; não faça faxina no resto do arquivo.
 
 Após implementar, tente validar nesta ordem:
 
-1. **Testes**: verifique se existe script de test no package.json, pytest.ini, Makefile ou similar. Se existir, execute. Se não existir, registre "projeto sem testes automatizados" e siga. Se a mudança acabou introduzindo comportamento testável sem teste, aplique proporcionalidade: **regra de negócio relevante** ganha o teste agora (e registre no README que ele veio depois do código, não por TDD); **comportamento trivial** (mapeamento direto, passthrough, formatação simples) não precisa — registre "sem teste — comportamento trivial" no README e siga. Não escreva teste por ritual.
+1. **Verificação proporcional**: consulte os testes existentes dos comportamentos afetados e execute a seleção pertinente. Adicione ou amplie proteção apenas para falha concreta em ponto vital ainda sem teste suficiente, conforme a política normativa. Se o teste vier depois do código, registre isso sem alegar TDD. Fora dos pontos vitais, use inspeção, build/lint ou demonstração conforme o aceite; não crie teste por ritual. Sem infraestrutura, não a instale como efeito colateral. Rode suíte completa quando exigida pelos gates ou pelo impacto transversal, sem repeti-la a cada ajuste.
 2. **Lint / type-check**: verifique se existe script de lint ou type-check. Se existir, execute. Se não existir, registre e siga.
 3. **Revisão manual**: leia o código implementado uma última vez e confirme que não há bugs óbvios, casos não tratados ou regressões.
 4. **Revisão de arquitetura**: conferir as fronteiras e dependências efetivamente adotadas pelo projeto. Em arquitetura em camadas, verificar suas separações; em organização por capacidades ou outro modelo, aplicar os limites correspondentes. Não inventar camadas nem refatorar arquitetura fora do contrato.

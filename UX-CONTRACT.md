@@ -207,7 +207,7 @@ imagem, captura única, cópias privadas e hidratação para o provedor. `Termin
 as filas por chat, preparação em worker cancelável e revisão/envio; `TerminalView`
 possui apenas sua apresentação. Imports de mss/Pillow são opcionais e tardios.
 
-`$attach` e `$screenshot [0–10]` nunca enviam diretamente ao modelo. A captura única é
+Colagem/arrasto e Ctrl+S preparam anexos sem comandos `$attach`/`$screenshot`. A captura única é
 solicitada explicitamente pelo usuário; não cria uma sessão ComputerSession. `$detach`
 remove itens e Enter envia com a mensagem (inclusive vazia). Falha de capacidade ou
 persistência mantém o rascunho/fila e não acrescenta mensagem. A cópia usa 0600/pasta
@@ -388,3 +388,35 @@ ProjectTools.stop_command limita wait a 2s e trata ProcessLookupError na corrida
 Timeout sem confirmação relata estado incerto; cancelamento propaga TurnCancelled.
 Não há replay automático. Verificação: test_agent_hierarchy.py, test_agent_stalls.py,
 PTY real com árvore/preview/retorno/resize, NO_COLOR e movimento reduzido.
+
+## Coordenação concorrente — desenvolvimento local
+
+Fonte: pedido do proprietário em 2026-10-07, com push/deploy suspensos até autorização.
+`inbox.Inbox` é a fila privada persistida por chat; `agent.run_turn` entrega mensagens
+somente após a etapa atual, salva antes de confirmar entrega e deduplica IDs recuperados.
+Compositor aceita Enter durante execução; ferramentas não iniciadas de um lote anterior
+recebem resultado explícito de não execução, sem replay. Subagentes existentes continuam.
+
+`agent_runtime.AgentGroup` mantém seis vagas simultâneas por raiz, compartilhadas por
+filhos/netos, e canais de progresso/mensagem. `SubagentTools` expõe consulta, orientação
+e espera; o chat usa delegação em segundo plano. O modo síncrono da API Python permanece
+compatível. Relatórios são conferidos pelo coordenador e não ampliam permissões.
+Cancelamento da raiz afeta toda a árvore; concluir resposta do principal não cancela filhos.
+Descendentes ativos protegem todos os ancestrais da limpeza; exclusão verifica toda a árvore.
+
+`Terminal.ui_events` é o destino dos workers, mesmo quando outro chat está aberto;
+retomada por relatório não altera o chat focado. Perguntas/aprovações são serializadas
+por sessão, preservadas se a resposta principal terminar enquanto um executor espera.
+`Ctrl+S` prepara captura única em 3s; Ctrl+C cancela. Anexos colados/arrastados durante
+execução podem acompanhar orientação. Atalhos/Enter mantêm semântica em 40×12, NO_COLOR
+e movimento reduzido.
+
+`ComputerSession` envia um quadro atual por chamada e aceita `computer_batch` de até
+quatro passos de edição no mesmo alvo. Todo lote é validado antes de input. Foco acontece
+uma vez, Enter/Tab somente no último passo; navegar a outro alvo requer nova referência.
+Idade, resolução e alvo continuam verificados; referência é consumida antes de input e
+falha parcial não permite replay. Consentimento, pausa, revogação e desktop exclusivo
+continuam nos mesmos owners; subagentes não recebem acesso ao desktop.
+
+Verificação: `tests/test_agent_coordination.py`, `tests/test_computer_session.py`,
+`tests/test_terminal_pty.py` e [evidências locais](docs/validation-cli-coordination.md).

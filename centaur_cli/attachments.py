@@ -192,6 +192,8 @@ def provider_messages(root, chat_id, client, model, messages):
     output, total = [], 0
     for message in messages:
         public = {k: v for k, v in message.items() if k in ('role', 'content', 'tool_calls', 'tool_call_id', 'name')}
+        if getattr(client, 'backend', 'openrouter') == 'openrouter' and message.get('reasoning_details'):
+            public['reasoning_details'] = message['reasoning_details']
         attachments = message.get('attachments', [])
         if not attachments:
             output.append(public)

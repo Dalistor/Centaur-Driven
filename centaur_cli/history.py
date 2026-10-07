@@ -80,8 +80,19 @@ class ChatStore:
         runtime = self.root / '.centaur' / 'runtime'
         if descendants.is_symlink() or descendants.parent.is_symlink() or runtime.is_symlink():
             raise ValueError('Histórico de agentes/runtime não pode ser redirecionado.')
-        if self.directory == self.root / '.centaur' / 'chats' and descendants.exists():
-            children = self.agents(parent_id=chat_id)
+        children = []
+        if descendants.exists():
+            all_agents = self.agents()
+            pending = {chat_id}
+            seen = set()
+            while pending:
+                parent = pending.pop()
+                if parent in seen:
+                    continue
+                seen.add(parent)
+                direct = [child for child in all_agents if child['parent_id'] == parent and child['id'] != chat_id]
+                children.extend(direct)
+                pending.update(child['id'] for child in direct)
             if any(read_state(self.root, child['id']) != 'stopped' for child in children):
                 raise ValueError('Aguarde os subagentes terminarem antes de excluir o chat.')
             for child in children:
@@ -89,11 +100,21 @@ class ChatStore:
                 child_attachments = attachment_directory(self.root, child['id'])
                 if child_attachments.exists():
                     shutil.rmtree(child_attachments)
-            shutil.rmtree(descendants)
+                child_directory = descendants.parent / child['id']
+                if child_directory.is_symlink():
+                    raise ValueError('Histórico de agentes não pode ser redirecionado.')
+                if child_directory.exists():
+                    shutil.rmtree(child_directory)
+            if descendants.exists():
+                shutil.rmtree(descendants)
         if directory.exists():
             shutil.rmtree(directory)
         (runtime / (chat_id + '.json')).unlink(missing_ok=True)
         ComputerPermissions(self.root).revoke(chat_id)
+        inbox_directory = self.root / '.centaur' / 'inbox'
+        inbox_path = inbox_directory / (chat_id + '.json')
+        if not inbox_directory.is_symlink() and not inbox_path.is_symlink():
+            inbox_path.unlink(missing_ok=True)
         path.unlink(missing_ok=True)
 
     def agents(self, parent_id=None, *, active_only=False):
@@ -153,7 +174,16 @@ class ChatStore:
         now = datetime.now(timezone.utc) if now is None else now
         protected = set(protected)
         agents = self.agents() if self.directory == self.root / '.centaur' / 'chats' else []
-        protected.update(chat['parent_id'] for chat in agents if read_state(self.root, chat['id']) != 'stopped')
+        active = [chat for chat in agents if read_state(self.root, chat['id']) != 'stopped']
+        protected.update(chat['parent_id'] for chat in active)
+        protected.update(parent['id'] for parent in self.ancestors(active))
+        for chat in self.list():
+            try:
+                inbox = self.root / '.centaur' / 'inbox' / (chat['id'] + '.json')
+                if inbox.is_file() and not inbox.is_symlink() and not inbox.parent.is_symlink() and json.loads(inbox.read_text()):
+                    protected.add(chat['id'])
+            except (OSError, ValueError):
+                pass
         removed = []
         for chat in self.list():
             try:
