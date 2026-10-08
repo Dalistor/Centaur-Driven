@@ -53,7 +53,9 @@ class RecordingTerminal(Terminal):
               'browser':self.browser, 'preview':(self.agent_preview or {}).get('title'),
               'tree':[c['title'] for c in self.chats],
               'input_hitbox':{k:v for k,v in (self.input_hitbox or {}).items() if k!='layout'},
-              'action_style':self.view.palette.styles['action'],'comment_style':self.view.palette.styles['comment']}
+              'action_style':self.view.palette.styles['action'],'comment_style':self.view.palette.styles['comment'],
+              'backgrounds':sorted({curses.pair_content(curses.pair_number(style))[1]
+                  for style in self.view.palette.styles.values() if curses.pair_number(style)})}
         pending=root/'snapshot.tmp'
         pending.write_text(json.dumps(data))
         pending.replace(root/'snapshot.json')
@@ -89,6 +91,7 @@ class TerminalPTYTests(unittest.TestCase):
                 env = {**os.environ, 'TERM': terminal_type, 'CENTAUR_GRAPHICS': '0',
                        'CENTAUR_TEST_STEERING': '1', 'CENTAUR_TEST_FOCUS': '1',
                        'PYTHONPATH': str(Path(__file__).resolve().parents[1])}
+                env.pop('NO_COLOR', None)
                 process = subprocess.Popen([sys.executable, '-c', CHILD, temporary],
                                            stdin=slave, stdout=slave, stderr=slave, env=env)
                 os.close(slave)
@@ -139,6 +142,11 @@ class TerminalPTYTests(unittest.TestCase):
                     os.write(master, b'\x11')
                     wait_for(lambda s: process.poll() is not None)
                     self.assertEqual(process.returncode, 0)
+                    self.assertNotIn(b'\x1b]4;', transcript, 'The terminal palette must not be redefined')
+                    for sgr in re.findall(rb'\x1b\[([0-9;]*)m', transcript):
+                        codes = {int(value) for value in sgr.split(b';') if value}
+                        self.assertFalse(codes & (set(range(40, 48)) | set(range(100, 108)) | {48}),
+                                         'Explicit terminal background in SGR: ' + repr(sgr))
                     self.assertIn(b'\x1b[?1004l', transcript)
                 finally:
                     if process.poll() is None: process.kill(); process.wait()
@@ -152,6 +160,7 @@ class TerminalPTYTests(unittest.TestCase):
                 fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 100, 0, 0))
                 env = {**os.environ, 'TERM': 'xterm-256color', 'CENTAUR_GRAPHICS': '0',
                        'CENTAUR_TEST_STEERING': '1', 'PYTHONPATH': str(Path(__file__).resolve().parents[1])}
+                env.pop('NO_COLOR', None)
                 if mode == 'monochrome': env['NO_COLOR'] = '1'
                 if mode == 'reduced': env['CENTAUR_REDUCED_MOTION'] = '1'
                 process = subprocess.Popen([sys.executable, '-c', CHILD, temporary], stdin=slave, stdout=slave, stderr=slave, env=env)
@@ -204,6 +213,7 @@ class TerminalPTYTests(unittest.TestCase):
                 fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 34, 160, 0, 0))
                 env = {**os.environ, 'TERM': 'xterm-256color', 'CENTAUR_GRAPHICS': '0', 'CENTAUR_TEST_TREE': '1',
                        'PYTHONPATH': str(Path(__file__).resolve().parents[1])}
+                env.pop('NO_COLOR', None)
                 if mode == 'monochrome': env['NO_COLOR'] = '1'
                 if mode == 'reduced': env['CENTAUR_REDUCED_MOTION'] = '1'
                 process = subprocess.Popen([sys.executable, '-c', CHILD, temporary], stdin=slave, stdout=slave, stderr=slave, env=env)
@@ -254,6 +264,7 @@ class TerminalPTYTests(unittest.TestCase):
                 master, slave = pty.openpty()
                 fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 80, 0, 0))
                 env = {**os.environ, 'TERM': 'xterm-color' if mode == 'legacy' else 'xterm-256color', 'CENTAUR_GRAPHICS': '0'}
+                env.pop('NO_COLOR', None)
                 if mode == 'monochrome': env['NO_COLOR'] = '1'
                 if mode == 'reduced': env['CENTAUR_REDUCED_MOTION'] = '1'
                 env['PYTHONPATH'] = str(Path(__file__).resolve().parents[1])
@@ -277,6 +288,7 @@ class TerminalPTYTests(unittest.TestCase):
                 try:
                     snapshot = wait_for(lambda s: s['width'] == 73)
                     self.assertNotEqual(snapshot['action_style'], snapshot['comment_style'])
+                    self.assertEqual(snapshot['backgrounds'], [] if mode == 'monochrome' else [-1])
                     text = 'abc ' * 30
                     send(text.encode() + b'\x1b[13;2u' + b'segunda\nterceira\x1b[27;2;13~quarta')
                     expected = text + '\nsegunda\nterceira\nquarta'
@@ -363,6 +375,11 @@ class TerminalPTYTests(unittest.TestCase):
                             except OSError: pass
                     self.assertIsNotNone(process.poll(), 'Terminal did not exit after Ctrl+Q')
                     self.assertEqual(process.returncode, 0)
+                    self.assertNotIn(b'\x1b]4;', transcript, 'The terminal palette must not be redefined')
+                    for sgr in re.findall(rb'\x1b\[([0-9;]*)m', transcript):
+                        codes = {int(value) for value in sgr.split(b';') if value}
+                        self.assertFalse(codes & (set(range(40, 48)) | set(range(100, 108)) | {48}),
+                                         'Explicit terminal background in SGR: ' + repr(sgr))
                 finally:
                     if process.poll() is None: process.kill(); process.wait()
                     os.close(master)

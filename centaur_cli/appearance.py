@@ -57,141 +57,79 @@ def input_window(text, cursor, width):
 
 def setup_heading():
     colored = sys.stdout.isatty() and 'NO_COLOR' not in os.environ
-    green = '\033[38;5;120m' if colored else ''
-    muted = '\033[38;5;146m' if colored else ''
+    green = '\033[32m' if colored else ''
+    muted = '\033[2m' if colored else ''
     reset = '\033[0m' if colored else ''
     print(f'\n  {green}{WORDMARK}{reset}\n  {muted}{TAGLINE}{reset}\n  {muted}' + '─' * 42 + reset)
 
 
 class Palette:
-    # The one runtime token source; DESIGN.md mirrors these roles.
-    TOKENS = {'background': (11, 18, 32), 'surface': (25, 38, 59),
-              'text': (229, 237, 248), 'muted': (150, 169, 197),
-              'line': (48, 65, 93), 'blue': (161, 188, 255),
-              'warning': (255, 191, 128)}
-    ANSI = {'background': 17, 'surface': 235, 'text': 255, 'muted': 146,
-            'line': 60, 'blue': 111, 'warning': 215}
+    # Native ANSI slots follow the user's terminal theme; -1 inherits its defaults.
+    # This is the one runtime token source, mirrored in DESIGN.md.
+    TOKENS = {'text': -1, 'green': curses.COLOR_GREEN,
+              'blue': curses.COLOR_BLUE, 'warning': curses.COLOR_YELLOW}
 
     def __init__(self):
-        self.original_colors = {}
-        self.custom_colors = {}
-        self.styles = {name: 0 for name in ('text', 'green', 'muted', 'line', 'blue', 'selected', 'warning')}
-        for accent in (False, True):
-            for shade in range(16):
-                self.styles[self.graphic_style(shade, accent)] = (
-                    curses.A_DIM if shade < 5 else curses.A_BOLD if shade > 12 else 0)
-        self.styles.update(title=curses.A_BOLD, user=curses.A_BOLD,
-                           comment=0, action=curses.A_BOLD)
-        for name in ('text', 'title', 'muted', 'green', 'blue', 'warning', 'action', 'comment', 'user'):
-            self.styles['panel_' + name] = self.styles[name]
-        self.styles.update(input=0, input_green=curses.A_BOLD, input_blue=0, input_muted=0)
+        self.configure_styles({})
 
     @staticmethod
     def graphic_style(shade, accent):
         return f'graphic_{"green" if accent else "silver"}_{shade}'
 
-    @staticmethod
-    def ansi_color(rgb):
-        levels = (0, 95, 135, 175, 215, 255)
-        cube = tuple(min(range(6), key=lambda i: abs(levels[i] - channel)) for channel in rgb)
-        index = 16 + cube[0] * 36 + cube[1] * 6 + cube[2]
-        gray = min(range(24), key=lambda i: sum((8 + i * 10 - channel) ** 2 for channel in rgb))
-        if sum((8 + gray * 10 - channel) ** 2 for channel in rgb) < sum(
-                (levels[i] - channel) ** 2 for i, channel in zip(cube, rgb)):
-            return 232 + gray
-        return index
+    def configure_styles(self, colors):
+        text = colors.get('text', 0)
+        green = colors.get('green', 0)
+        blue = colors.get('blue', 0)
+        self.styles = {'text': text, 'muted': text | curses.A_DIM,
+                       'line': text | curses.A_DIM, 'blue': blue,
+                       'green': green | curses.A_BOLD,
+                       'selected': green | curses.A_BOLD,
+                       'warning': colors.get('warning', 0) | curses.A_BOLD,
+                       'title': text | curses.A_BOLD, 'user': text | curses.A_BOLD,
+                       'comment': text, 'action': blue | curses.A_BOLD}
+        # Composer and agent cards inherit the same background as the transcript.
+        for name in ('text', 'title', 'muted', 'green', 'blue', 'warning', 'action', 'comment', 'user'):
+            self.styles['panel_' + name] = self.styles[name]
+        for name, source in (('input', 'text'), ('input_green', 'green'),
+                             ('input_blue', 'blue'), ('input_muted', 'muted')):
+            self.styles[name] = self.styles[source]
+        # Lighting uses native text attributes, so the mark works on light and
+        # transparent backgrounds without assuming an RGB background to blend into.
+        for accent in (False, True):
+            for shade in range(16):
+                weight = curses.A_DIM if shade < 5 else curses.A_BOLD if shade > 12 else 0
+                self.styles[self.graphic_style(shade, accent)] = (green if accent else text) | weight
 
     def initialize(self):
-        if 'NO_COLOR' in os.environ or not curses.has_colors():
-            self.styles['selected'] = curses.A_REVERSE
-            self.styles['green'] = curses.A_BOLD
-            self.styles['warning'] = curses.A_BOLD
+        self.configure_styles({})
+        try:
+            if not curses.has_colors():
+                return
+            curses.start_color()
+            curses.use_default_colors()
+        except curses.error:
+            # A terminal that cannot inherit colors still keeps its own background.
+            # Monochrome attributes and the > selection marker remain usable.
             return
-        curses.start_color()
-        extended = curses.COLORS >= 256
-        tokens = dict(self.ANSI)
-        if extended and curses.can_change_color():
+        # curses.wrapper starts color support itself. Even NO_COLOR must inherit
+        # pair zero's defaults to prevent ncurses from painting its black fallback.
+        if 'NO_COLOR' in os.environ:
+            return
+        colors = {}
+        for pair, (name, foreground) in enumerate(self.TOKENS.items(), 1):
+            if pair >= curses.COLOR_PAIRS:
+                break
             try:
-                # Private session slots, restored even when an editor/turn raises.
-                for index, (name, rgb) in enumerate(self.TOKENS.items(), 240):
-                    self.original_colors[index] = curses.color_content(index)
-                    curses.init_color(index, *(round(channel * 1000 / 255) for channel in rgb))
-                    self.custom_colors[index] = rgb
-                    tokens[name] = index
+                curses.init_pair(pair, foreground, -1)
+                colors[name] = curses.color_pair(pair)
             except curses.error:
-                self.restore()
-                tokens = dict(self.ANSI)
-        background = tokens['background'] if extended else curses.COLOR_BLACK
-        colors = [tokens['text'], 120, tokens['muted'], tokens['line'], tokens['blue'], 120, tokens['warning']] if extended else [
-            curses.COLOR_WHITE, curses.COLOR_GREEN, curses.COLOR_CYAN,
-            curses.COLOR_BLUE, curses.COLOR_CYAN, curses.COLOR_GREEN, curses.COLOR_YELLOW]
-        for pair, (name, color) in enumerate(zip(self.styles, colors), 1):
-            if name == 'selected' and extended:
-                curses.init_pair(pair, tokens['text'], tokens['line'])
-            else:
-                curses.init_pair(pair, background if name == 'selected' else color,
-                                 color if name == 'selected' else background)
-            self.styles[name] = curses.color_pair(pair)
-        self.styles['green'] |= curses.A_BOLD
-        self.styles['title'] = self.styles['text'] | curses.A_BOLD
-        self.styles['comment'] = self.styles['text']
-        self.styles['action'] = self.styles['blue'] | curses.A_BOLD
-        self.styles['user'] = self.styles['text'] | curses.A_BOLD
-        if extended and curses.COLOR_PAIRS > 45:
-            curses.init_pair(40, tokens['text'], tokens['surface'])
-            self.styles['user'] = curses.color_pair(40) | curses.A_BOLD
-            for pair, name in enumerate(('text', 'muted', 'green', 'blue', 'warning'), 41):
-                color = 120 if name == 'green' else tokens[name]
-                curses.init_pair(pair, color, tokens['surface'])
-                self.styles['panel_' + name] = curses.color_pair(pair)
-            self.styles['panel_title'] = self.styles['panel_text'] | curses.A_BOLD
-            self.styles['panel_action'] = self.styles['panel_blue'] | curses.A_BOLD
-            self.styles['panel_comment'] = self.styles['panel_text']
-            self.styles['panel_user'] = self.styles['panel_title']
-            self.styles['input'] = self.styles['panel_text']
-            self.styles['input_green'] = self.styles['panel_green'] | curses.A_BOLD
-            self.styles['input_blue'] = self.styles['panel_blue']
-            self.styles['input_muted'] = self.styles['panel_muted']
-        else:
-            for name in ('text', 'title', 'muted', 'green', 'blue', 'warning', 'action', 'comment', 'user'):
-                self.styles['panel_' + name] = self.styles[name]
-            for name, source in (('input', 'user'), ('input_green', 'green'),
-                                 ('input_blue', 'blue'), ('input_muted', 'muted')):
-                self.styles[name] = self.styles[source]
-        for accent, target in ((False, self.TOKENS['text']), (True, (135, 255, 135))):
-            for shade in range(16):
-                name = self.graphic_style(shade, accent)
-                pair = 8 + int(accent) * 16 + shade
-                if extended and pair < curses.COLOR_PAIRS:
-                    rgb = tuple(round(base + (channel - base) * shade / 15)
-                                for base, channel in zip(self.TOKENS['background'], target))
-                    curses.init_pair(pair, self.color_for(rgb), background)
-                    self.styles[name] = curses.color_pair(pair)
-                else:
-                    base = self.styles['green' if accent else 'text']
-                    self.styles[name] |= base
-
-    def color_for(self, rgb):
-        if not self.custom_colors:
-            return self.ANSI['background'] if rgb == self.TOKENS['background'] else self.ansi_color(rgb)
-        def color(index):
-            if index in self.custom_colors:
-                return self.custom_colors[index]
-            if index >= 232:
-                return (8 + (index - 232) * 10,) * 3
-            levels = (0, 95, 135, 175, 215, 255)
-            value = index - 16
-            return (levels[value // 36], levels[value // 6 % 6], levels[value % 6])
-        return min(range(16, 256), key=lambda index: sum((a - b) ** 2 for a, b in zip(color(index), rgb)))
+                continue
+        self.configure_styles(colors)
 
     def restore(self):
-        for index, rgb in self.original_colors.items():
-            try:
-                curses.init_color(index, *rgb)
-            except curses.error:
-                pass
-        self.original_colors.clear()
-        self.custom_colors.clear()
+        # Kept for the Terminal/StartupWizard cleanup contract. No terminal palette
+        # slots are changed; curses.wrapper restores screen and text attributes.
+        pass
 
 
 class TerminalView:
@@ -736,7 +674,7 @@ class TerminalView:
             hints = f'{len(terminal.active_agents)} subagentes · Shift+←/Tab · ' + hints
         if terminal.computer and terminal.computer.resume_requested and not modal:
             hints = 'Ctrl+C parar · Ctrl+G revogar · $computer pause/resume'
-        self.put(screen, height - 1, 2, hints, 'blue')
+        self.put(screen, height - 1, 2, hints, 'muted')
         if terminal.rename_target or (not terminal.approval and not terminal.browser):
             if terminal.settings and terminal.settings.page == 'custom':
                 _, custom_cursor = input_window(terminal.settings.query, len(terminal.settings.query),

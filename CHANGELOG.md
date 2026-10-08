@@ -2,6 +2,10 @@
 
 ## Não publicado
 
+- Usar fundo e texto padrão do emulador em conversa, composer, startup, seleção e
+  subagentes. Remover preenchimentos navy e alterações da paleta do terminal;
+  destaques ANSI, atalhos discretos e seleção por seta/negrito, inclusive em NO_COLOR.
+
 - Conservar a seleção de cada chat ao navegar, inclusive sessões sem primeiro
   turno; atualizar o contexto após `$config` sem reescrever workers anteriores.
 - Retomar modelo, effort e velocidade do histórico compatível; permissões continuam
