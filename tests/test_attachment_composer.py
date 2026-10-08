@@ -55,6 +55,11 @@ class AttachmentComposerTests(unittest.TestCase):
         self.assertEqual(pasted_paths(self.root, str(first)), [str(first)])
         self.assertIsNone(pasted_paths(self.root, 'file://remotehost/a.png'))
         self.assertIsNone(pasted_paths(self.root, 'explique '+str(second)))
+        self.assertIsNone(pasted_paths(self.root, first.as_uri()+'\nfile:///'+'x'*300))
+        relative = [self.root / (letter * 140 + '.txt') for letter in ('a', 'b')]
+        for path in relative: path.write_text('arquivo')
+        self.assertEqual(pasted_paths(self.root, ' '.join('"'+p.name+'"' for p in relative)),
+                         [str(p) for p in relative])
 
     def test_typed_file_path_while_busy_prepares_then_queues_attachment(self):
         terminal = self.terminal
@@ -75,11 +80,26 @@ class AttachmentComposerTests(unittest.TestCase):
         self.assertFalse(terminal.pending_attachments)
 
     def test_normal_paste_remains_literal_and_never_sends(self):
-        self.terminal.handle(PastedText('um texto\ncom duas linhas'))
-        self.assertEqual(self.terminal.draft, 'um texto\ncom duas linhas')
-        self.assertIsNone(self.terminal.preparing_attachment)
-        self.assertFalse(self.terminal.chat['messages'])
-        self.assertFalse(self.terminal.pending_attachments)
+        values = ('um texto\ncom duas linhas', 'texto comum ' * 35, 'á' * 180,
+                  'palavra' * 80, '~centaur_missing_user_999999/texto',
+                  'file://[endereco-invalido/texto', 'file:///' + 'x' * 300,
+                  '"texto com aspas incompletas')
+        for value in values:
+            for clipboard in (False, True):
+                with self.subTest(text=value[:24], clipboard=clipboard):
+                    self.terminal.draft = 'antes depois'
+                    self.terminal.cursor = 6
+                    if clipboard:
+                        with patch('centaur_cli.terminal.clipboard_content', return_value=('text', value)):
+                            self.terminal.handle('\x16')
+                            self.wait_prepared()
+                    else:
+                        self.terminal.handle(PastedText(value))
+                    self.assertEqual(self.terminal.draft, 'antes ' + value + 'depois')
+                    self.assertEqual(self.terminal.cursor, 6 + len(value))
+                    self.assertIsNone(self.terminal.preparing_attachment)
+                    self.assertFalse(self.terminal.chat['messages'])
+                    self.assertFalse(self.terminal.pending_attachments)
 
     def test_backspace_deletes_entire_marker_and_shifts_other_elements(self):
         terminal = self.terminal

@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão desta entrega é `0.10.2`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.10.2`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.2).
+A versão desta entrega é `0.10.3`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.10.3`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.3).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.2/centaur_cli-0.10.2-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.3/centaur_cli-0.10.3-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -583,7 +583,7 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.2'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.3'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```
@@ -592,7 +592,9 @@ No campo de mensagem, **Ctrl+V cola uma imagem do clipboard**, texto ou arquivos
 copiados pelo gerenciador. Você também pode **arrastar um arquivo** ou colar seu caminho
 (com aspas para vários caminhos contendo espaços, ou URI `file://`). Uma colagem que
 contém apenas arquivos existentes insere `[Imagem #1]` / `[Arquivo #1]` na posição do
-cursor. Continue escrevendo e pressione Enter para enviar. Se o terminal enviar o caminho
+cursor. Continue escrevendo e pressione Enter para enviar. Texto longo, multilinha ou Unicode
+permanece texto quando não corresponde a uma lista completa de arquivos existentes;
+falhas ao consultar caminhos não encerram o CLI nem descartam a colagem. Se o terminal enviar o caminho
 como teclas comuns, o primeiro Enter prepara e o próximo envia. Texto colado não é executado.
 
 Marcadores são elementos inteiros: ←/→ os atravessam e Backspace/Delete remove o anexo.

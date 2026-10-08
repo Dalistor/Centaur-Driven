@@ -325,6 +325,14 @@ class TerminalPTYTests(unittest.TestCase):
                     wait_for(lambda s: s['draft'] == 'continue')
                     send(b'\x1bOB')
                     wait_for(lambda s: s['draft'] == '')
+                    long_text = 'Texto comum com espaços e acentos. ' * 12 + '\nSegunda linha.'
+                    requests_before = len(snapshot['requests'])
+                    send(b'\x1b[200~' + long_text.encode() + b'\x1b[201~')
+                    snapshot = wait_for(lambda s: s['draft'] == long_text)
+                    self.assertEqual(snapshot['pending_attachments'], 0)
+                    self.assertEqual(len(snapshot['requests']), requests_before)
+                    send(b'\x15')
+                    wait_for(lambda s: s['draft'] == '')
                     attachment = root / 'fixture com espaço.txt'
                     attachment.write_text('fact-from-attachment', encoding='utf-8')
                     requests_before = len(snapshot['requests'])

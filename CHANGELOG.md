@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.3 — 2026-10-08
+
+- Colar texto longo não encerra o CLI com `File name too long`; falhas ao reconhecer caminhos preservam o texto e o cursor, sem preparar anexos parciais.
+- A mesma identificação segura atende colagem protegida, Ctrl+V e caminhos digitados; arquivos existentes com espaços e listas de URLs locais continuam anexando normalmente.
+
 ## 0.10.2 — 2026-10-08
 
 - Desfocar o terminal pausa somente desenho e animações; eventos, respostas, agentes e heartbeat continuam em segundo plano, sem acumular saída em terminais ocultos.
