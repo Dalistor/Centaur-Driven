@@ -191,6 +191,7 @@ class NativeTrace:
         self.backend, self.offset, self.buffer = backend, 0, b''
         self.phase, self.hint, self.failed = 'nenhum evento completo', '', False
         self.event = ''
+        self.completed = False
 
     def feed(self, cumulative):
         data = cumulative.encode('utf-8') if isinstance(cumulative, str) else cumulative or b''
@@ -206,6 +207,12 @@ class NativeTrace:
             if not isinstance(event, dict):
                 continue
             kind = event.get('type')
+            if kind == 'turn.started':
+                self.completed = False
+            elif self.backend == 'codex' and kind == 'turn.completed':
+                self.completed = True
+            elif self.backend == 'claude' and kind == 'result':
+                self.completed = not event.get('is_error') and event.get('subtype') in (None, 'success')
             if isinstance(kind, str) and kind in self.phases:
                 self.phase = self.phases[kind]
                 self.event = kind
@@ -457,9 +464,10 @@ class NativeClient:
                 try:
                     deadline, last_output = time.monotonic() + timeout, time.monotonic()
                     pending_input, received = input_text, (0, 0)
-                    trace, partial_errors = NativeTrace(self.backend), b''
+                    trace, partial_output, partial_errors = NativeTrace(self.backend), b'', b''
                     input_bytes = len(input_text.encode('utf-8'))
                     last_progress = -float('inf')
+                    completed_at, finalized = None, False
                     def notify():
                         if on_progress is not None:
                             try:
@@ -474,6 +482,32 @@ class NativeClient:
                         remaining = deadline - now
                         if remaining <= 0:
                             raise subprocess.TimeoutExpired(arguments, timeout)
+                        if trace.completed and not trace.failed:
+                            if completed_at is None:
+                                completed_at = now
+                            if now - completed_at >= 2:
+                                # A complete, validated bridge reply is sufficient;
+                                # native tools are disabled. Background shutdown
+                                # must not hold an already completed step hostage.
+                                candidate = partial_output
+                                if isinstance(candidate, bytes):
+                                    candidate = candidate.decode('utf-8')
+                                try:
+                                    value = (codex_output(directory, candidate) if self.backend == 'codex'
+                                             else claude_output(candidate)[0]['structured_output'])
+                                    self.reply(value, tools)
+                                except (ValueError, KeyError, TypeError, OSError) as error:
+                                    raise ValueError('O CLI sinalizou conclusão, mas a resposta final não pôde ser validada: '
+                                                     + str(error)) from None
+                                else:
+                                    poll = getattr(process, 'poll', None)
+                                    code = poll() if callable(poll) else None
+                                    output, errors = candidate, partial_errors
+                                    self.stop_process(process)
+                                    finalized = code is None
+                                    break
+                        else:
+                            completed_at = None
                         if self.idle_timeout > 0 and now - last_output >= self.idle_timeout:
                             error = RequestTimeout if request_timeout is not None else RuntimeError
                             raise error(f'{self.backend}: sem nova saída do CLI por {self.idle_timeout:g} segundos; '
@@ -488,6 +522,7 @@ class NativeClient:
                             break
                         except subprocess.TimeoutExpired as partial:
                             pending_input = None
+                            partial_output = partial.output or b''
                             partial_errors = partial.stderr or b''
                             # communicate exposes cumulative bytes; heartbeats from the UI
                             # must never masquerade as activity from the native process.
@@ -505,6 +540,18 @@ class NativeClient:
                                 if time.monotonic() - last_progress >= 1:
                                     notify()
                                     last_progress = time.monotonic()
+                            # EOF belongs to every process inheriting these pipes,
+                            # not just the CLI. An exited CLI cannot produce any
+                            # more of its reply; do not wait 30 minutes for a child
+                            # or background service to release an inherited fd.
+                            poll = getattr(process, 'poll', None)
+                            if callable(poll) and poll() is not None:
+                                drained = self.stop_process(process)
+                                output, errors = drained if drained is not None else (partial.output or b'', partial_errors)
+                                trace.feed(output)
+                                partial_errors = errors
+                                notify()
+                                break
                 except subprocess.TimeoutExpired:
                     self.stop_process(process)
                     diagnostic = trace.diagnostic(partial_errors, input_bytes)
@@ -517,9 +564,13 @@ class NativeClient:
                 except BaseException:
                     self.stop_process(process)
                     raise
+                if isinstance(output, bytes):
+                    output = output.decode('utf-8')
+                if isinstance(errors, bytes):
+                    errors = errors.decode('utf-8', errors='replace')
                 if len(output.encode('utf-8')) > 8_000_000 or len(errors.encode('utf-8')) > 1_000_000:
                     raise RuntimeError(f'{self.backend}: saída local excedeu o limite; nenhuma ferramenta dessa resposta foi executada.')
-                if process.returncode:
+                if process.returncode and not finalized:
                     raise RuntimeError(process_failure(self.backend, process.returncode, errors, output))
                 if self.backend == 'codex':
                     value = codex_output(directory, output)
@@ -553,8 +604,8 @@ class NativeClient:
         except ProcessLookupError:
             pass
         try:
-            process.communicate(timeout=2)
-        except subprocess.TimeoutExpired:
+            return process.communicate(timeout=2)
+        except subprocess.TimeoutExpired as partial:
             for pipe in (process.stdin, process.stdout, process.stderr):
                 if pipe is not None:
                     pipe.close()
@@ -562,6 +613,7 @@ class NativeClient:
                 process.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 pass
+            return partial.output or b'', partial.stderr or b''
 
     def reply(self, value, tools):
         if not isinstance(value, dict) or set(value) != {'content', 'calls'}:

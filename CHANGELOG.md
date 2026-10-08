@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1 — 2026-10-08
+
+- Codex/Claude não aguardam EOF de processos descendentes após o CLI encerrar; respostas completas continuam validadas e respostas incompletas são rejeitadas.
+- Evento terminal de sucesso com resposta válida libera a etapa após dois segundos de tolerância para encerramento do CLI, com limpeza limitada ao grupo daquela chamada e sem repetir ferramentas.
+- Durante esperas longas, a atividade mantém o último evento público do CLI visível, inclusive quando nenhum evento completo foi recebido.
+
 ## 0.10.0 — 2026-10-07
 
 - Orientação durante execução entra após a etapa atual, com fila persistente por chat; ações restantes do lote antigo são reavaliadas e subagentes continuam trabalhando.

@@ -651,6 +651,7 @@ class NativeContextTests(unittest.TestCase):
             with patch.dict(os.environ, {'CENTAUR_NATIVE_TIMEOUT': value}):
                 with self.assertRaisesRegex(ValueError, '30 a 3600'): self.client()
         process = Mock(pid=999)
+        process.poll.return_value = None  # The timed-out CLI is still running.
         process.communicate.side_effect = [subprocess.TimeoutExpired('codex', 900), ('', '')]
         with patch('centaur_cli.native_client.subprocess.Popen', return_value=process), \
                 patch('centaur_cli.native_client.os.killpg') as kill, \

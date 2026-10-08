@@ -60,7 +60,7 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 ## Anexos e capturas
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.0'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.1'
 ```
 
 Ctrl+V cola imagem/texto/arquivos; arrastar ou colar caminhos insere marcadores atômicos
@@ -273,3 +273,15 @@ um quadro atual e lotes curtos no mesmo alvo, mantendo consentimento próprio do
 Testes novos protegem falhas concretas em pontos vitais ainda sem proteção suficiente;
 reaproveite testes existentes e use validação proporcional nos ajustes simples.
 Gates e requisitos explícitos do projeto continuam obrigatórios.
+
+
+### Encerramento das chamadas nativas (0.10.1)
+
+Codex/Claude deixam de aguardar EOF de processos descendentes após o CLI encerrar.
+Uma resposta integral validada, acompanhada de evento terminal de sucesso, também
+libera a etapa após dois segundos de tolerância para o encerramento do CLI. A limpeza
+afeta somente o grupo daquela chamada, sem repetir comandos ou cancelar outros agentes.
+Respostas parciais, lotes inválidos e falhas continuam rejeitados. Em esperas longas,
+a interface mantém visível o último evento público do CLI, ou informa que nenhum
+evento completo foi recebido. O limite de inferência continua 30 minutos; silêncio
+sozinho não comprova travamento. Veja [validação e limites](docs/validation-native-shutdown.md).
