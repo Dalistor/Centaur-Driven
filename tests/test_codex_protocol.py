@@ -80,6 +80,7 @@ class CodexProtocolTests(unittest.TestCase):
             self.assertEqual(reply['tool_calls'][0]['function']['name'], 'read_file')
             self.assertEqual(json.loads(reply['tool_calls'][0]['function']['arguments']), {'path': 'README.md'})
             self.assertEqual(reply.usage, {'prompt_tokens': 10, 'completion_tokens': 10})
+            self.assertEqual(reply.context_usage, {})  # Exec reports spend, not context occupancy.
 
 
 if __name__ == '__main__':

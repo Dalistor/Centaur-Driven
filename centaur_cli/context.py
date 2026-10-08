@@ -85,17 +85,32 @@ def record_context(chat, client, payload, definitions, response=None):
     if response is not None:
         estimate += estimate_tokens(response)
     model = getattr(response, 'model', None) or chat['model']
-    usage = getattr(response, 'usage', {}) or {}
+    # Native CLI result totals can cover multiple internal requests. Only their
+    # explicitly separate per-request metadata can anchor a context measurement.
+    native = getattr(client, 'backend', None) in ('codex', 'claude')
+    usage = getattr(response, 'context_usage' if native else 'usage', {}) or {}
     prompt, completion = usage.get('prompt_tokens'), usage.get('completion_tokens')
-    counted = type(prompt) is int and prompt >= 0 and type(completion) is int and completion >= 0
-    used = prompt + completion if counted else estimate
+    valid_prompt = type(prompt) is int and prompt >= 0
+    valid_completion = type(completion) is int and completion >= 0
+    counted = valid_prompt and (valid_completion or (native and response is not None))
+    used = prompt + (completion if valid_completion else estimate_tokens(response)) if counted else estimate
     chat['context_usage'] = {'model': model, 'used': used,
                              'history_estimate': history_estimate,
-                             'provider_count': counted}
+                             'payload_estimate': estimate,
+                             'provider_count': counted,
+                             'usage_scope': 'request' if counted else 'estimate'}
+
+
+def current_context_usage(chat, client):
+    usage = chat.get('context_usage') or {}
+    if (getattr(client, 'backend', None) in ('codex', 'claude')
+            and usage.get('provider_count') and usage.get('usage_scope') != 'request'):
+        return {}  # Old saved native totals must not trigger premature compaction.
+    return usage
 
 
 def context_label(chat, client, width, draft='', overhead=0):
-    usage = chat.get('context_usage') or {}
+    usage = current_context_usage(chat, client)
     history = estimate_tokens(active_messages(chat))
     used = max(0, usage.get('used', overhead + history)
                + history - usage.get('history_estimate', history))
@@ -308,7 +323,7 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
 def auto_compaction_needed(chat, client, payload, definitions):
     if os.environ.get('CENTAUR_AUTOCOMPACT', '1').lower() in ('0', 'false', 'off'):
         return False
-    usage = chat.get('context_usage') or {}
+    usage = current_context_usage(chat, client)
     limit = context_window(client, usage.get('model') or chat['model'])
     if not limit:
         return False
@@ -318,8 +333,16 @@ def auto_compaction_needed(chat, client, payload, definitions):
     if len(chat['messages']) - 6 <= start:
         return False
     estimate = estimate_tokens(payload) + estimate_tokens(definitions)
-    anchored = usage.get('used', 0) + estimate_tokens(active_messages(chat)) - usage.get('history_estimate', 0)
-    return max(estimate, anchored) >= limit * .8
+    if usage.get('provider_count'):
+        previous = usage.get('payload_estimate')
+        delta = (estimate - previous if type(previous) is int else
+                 estimate_tokens(active_messages(chat)) - usage.get('history_estimate', 0))
+        # A real request count refines the conservative character estimate. Do
+        # not override that measurement with the larger uncalibrated estimate.
+        used = max(0, usage.get('used', 0) + delta)
+    else:
+        used = estimate
+    return used >= limit * .8
 
 
 def save_compaction(chat, store, state, cancel_event=None):
