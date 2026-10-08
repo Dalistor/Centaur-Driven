@@ -2,6 +2,7 @@
 import curses
 from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
 import queue
 import tempfile
@@ -25,8 +26,59 @@ class AgentPanelMouseTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.store = ChatStore(self.root)
         self.terminal = Terminal(self.root, 'main', self.store, None)
+        self.terminal.mouse_enabled = True  # Existing click tests exercise the opt-in mode.
         self.terminal.chat['messages'] = [{'role':'user', 'content':'Coordenar tarefas'}]
         self.store.save(self.terminal.chat)
+
+    def test_native_selection_is_default_and_late_mouse_events_do_not_edit(self):
+        with patch.dict(os.environ, {}, clear=True):
+            terminal = Terminal(self.root, 'main', self.store, None)
+        self.assertFalse(terminal.mouse_enabled)
+        terminal.draft, terminal.cursor = 'Texto preservado', 8
+        terminal.question = QuestionPicker('Qual?', ['A','B'], queue.Queue())
+        with patch('centaur_cli.terminal.curses.getmouse') as read:
+            terminal.handle(curses.KEY_MOUSE)
+        read.assert_not_called()
+        self.assertEqual((terminal.draft, terminal.cursor), ('Texto preservado', 8))
+        self.assertTrue(terminal.question.answer.empty())
+
+    def test_mouse_toggle_preserves_draft_scroll_and_pending_input(self):
+        terminal = self.terminal
+        terminal.mouse_enabled = False
+        terminal.draft, terminal.cursor, terminal.scroll = '漢字 é', 3, 5
+        terminal.question = QuestionPicker('Qual?', ['A','B'], queue.Queue())
+        terminal.busy = True
+        with patch('centaur_cli.terminal.curses.mousemask', side_effect=lambda mask: (mask, 0)) as mask, \
+                patch('centaur_cli.terminal.curses.mouseinterval'):
+            terminal.handle(curses.KEY_F6)
+            self.assertTrue(terminal.mouse_enabled)
+            self.assertIn('Shift+arraste', terminal.notice)
+            terminal.handle(curses.KEY_F6)
+            self.assertFalse(terminal.mouse_enabled)
+            self.assertEqual(mask.call_args.args, (0,))
+        self.assertEqual((terminal.draft, terminal.cursor, terminal.scroll), ('漢字 é', 3, 5))
+        self.assertTrue(terminal.question.answer.empty())
+        self.assertTrue(terminal.busy)
+        self.assertFalse(terminal.cancel_event.is_set())
+
+    def test_mouse_opt_in_and_unavailable_terminal_fall_back_to_selection(self):
+        with patch.dict(os.environ, {'CENTAUR_MOUSE':'1'}):
+            terminal = Terminal(self.root, 'main', self.store, None)
+        self.assertTrue(terminal.mouse_enabled)
+        for result in ((0, 0), curses.error('unsupported')):
+            with patch('centaur_cli.terminal.curses.mousemask', side_effect=result if isinstance(result, Exception) else None,
+                       return_value=result):
+                terminal.configure_mouse(True)
+                self.assertFalse(terminal.mouse_enabled)
+                terminal.handle(curses.KEY_F6)
+                self.assertIn('indisponíveis', terminal.notice)
+
+    def test_copy_notice_uses_the_emulator_shortcut_for_the_platform(self):
+        from centaur_cli.appearance import selection_notice
+        for platform, shortcut in (('linux', 'Ctrl+Shift+C'), ('darwin', 'Cmd+C')):
+            with self.subTest(platform=platform), patch('centaur_cli.appearance.sys.platform', platform):
+                self.assertIn(shortcut, selection_notice(False))
+                self.assertIn('Shift+arraste', selection_notice(True))
 
     def child(self, title='Task leitura', state='running', parent=None):
         store = ChatStore(self.root)

@@ -90,7 +90,6 @@ def render(output, *, rows=32, columns=140, welcome=False, tree=False, agents=Fa
         client = SimpleNamespace(backend='codex', context_windows={'modelo-principal': 200000})
         terminal = Terminal(root, 'modelo-principal', ChatStore(root), client, effort='medium', approval_mode='auto')
         terminal.chat['title'] = 'Nova conversa' if welcome else 'Refinar o fluxo de desenvolvimento'
-        terminal.notice = 'Digite sua intenção · $config · Shift+← chats'
         if not (welcome or startup):
             terminal.chat['messages'] = [
                 {'role': 'user', 'content': 'Revise os fluxos e melhore a experiência do CLI.'},

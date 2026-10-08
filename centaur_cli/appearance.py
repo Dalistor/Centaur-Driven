@@ -14,6 +14,15 @@ WORDMARK = 'C E N T A U R'
 TAGLINE = 'HUMAN INTENT. AMPLIFIED.'
 
 
+def copy_shortcut():
+    return 'Cmd+C' if sys.platform == 'darwin' else 'Ctrl+Shift+C'
+
+
+def selection_notice(mouse_enabled):
+    return ('Cliques ativos · Shift+arraste seleciona texto · F6 libera seleção.' if mouse_enabled else
+            f'Arraste para selecionar texto · {copy_shortcut()} copia · F6 ativa cliques.')
+
+
 def cell_width(text):
     return sum(0 if unicodedata.combining(char) else
                2 if unicodedata.east_asian_width(char) in ('W', 'F') else 1 for char in text)
@@ -431,7 +440,8 @@ class TerminalView:
             for offset, line in enumerate(lines[-count:] if count else []):
                 self.put(screen, row + 1 + len(headings) + offset, left + 2, line, 'panel_' + getattr(line, 'style', 'muted'), inner)
             terminal.agent_panel_hits.append((left, row, width, card_height, agent))
-        self.put(screen, bottom - 1, left, fit_notice(f'{start + 1}–{start + len(visible)}/{len(agents)} · roda: rolar · clique: abrir', width), 'muted', width)
+        navigation = 'roda: rolar · clique: abrir' if terminal.mouse_enabled else 'Shift+← · F6 cliques'
+        self.put(screen, bottom - 1, left, fit_notice(f'{start + 1}–{start + len(visible)}/{len(agents)} · {navigation}', width), 'muted', width)
 
     def draw(self, screen, terminal):
         # Only the welcome surface owns animation time; hidden editors never advance it.
@@ -674,6 +684,14 @@ class TerminalView:
             hints = f'{len(terminal.active_agents)} subagentes · Shift+←/Tab · ' + hints
         if terminal.computer and terminal.computer.resume_requested and not modal:
             hints = 'Ctrl+C parar · Ctrl+G revogar · $computer pause/resume'
+        # Keep text selection discoverable even after a worker replaces the notice.
+        mouse_hint = 'F6 seleção' if terminal.mouse_enabled else 'F6 cliques'
+        gesture = 'Shift+arraste' if terminal.mouse_enabled else 'Arraste'
+        copy_hint = f'{gesture} · {copy_shortcut()} copia'
+        if width >= 112 and len(hints) + len(copy_hint) + 3 <= width - 5:
+            hints += ' · ' + copy_hint
+        if len(hints) + len(mouse_hint) + 3 <= width - 5:
+            hints += ' · ' + mouse_hint
         self.put(screen, height - 1, 2, hints, 'muted')
         if terminal.rename_target or (not terminal.approval and not terminal.browser):
             if terminal.settings and terminal.settings.page == 'custom':

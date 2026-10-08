@@ -2,6 +2,10 @@
 
 ## Não publicado
 
+- Liberar o mouse por padrão para seleção/cópia nativa de texto do chat.
+  F6 alterna cliques/roda e CENTAUR_MOUSE=1 mantém o opt-in na abertura;
+  Shift+arraste seleciona com cliques ativos. Rascunhos, scroll e workers são preservados.
+
 - Usar fundo e texto padrão do emulador em conversa, composer, startup, seleção e
   subagentes. Remover preenchimentos navy e alterações da paleta do terminal;
   destaques ANSI, atalhos discretos e seleção por seta/negrito, inclusive em NO_COLOR.

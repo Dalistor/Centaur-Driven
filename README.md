@@ -15,6 +15,21 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 *Preview do renderer real com dados demonstrativos e exemplo de tema do emulador.*
 
+### Selecionar e copiar a conversa
+
+Arraste o mouse sobre o texto do chat e copie pelo atalho do seu terminal:
+**Ctrl+Shift+C no Linux** ou **Cmd+C no macOS**. O Centaur deixa o mouse livre por
+padrão. PgUp/PgDn percorrem o histórico; Shift+←/Tab dão acesso aos subagentes.
+
+**F6** ativa ou desativa os controles por clique e roda. Com eles ativos, use
+**Shift+arraste** para selecionar texto pelo emulador. Para iniciar nesse modo:
+
+```bash
+CENTAUR_MOUSE=1 centaur .
+```
+
+A seleção/cópia usa os recursos do emulador. Ctrl+C continua interrompendo o turno.
+
 ### Instalação da versão publicada
 
 A versão desta entrega é `0.10.5`. O workflow publica wheel, código-fonte e checksums na

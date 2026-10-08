@@ -208,6 +208,7 @@ class InteractionTests(InteractionFixture):
         self.assertEqual(terminal.transcript_start(110, 10, 60), 0)
         terminal.handle('\x05')
         self.assertEqual(terminal.scroll, 0)
+        terminal.mouse_enabled = True
         with patch('centaur_cli.terminal.curses.getmouse', return_value=(0, 4, 6, 0, curses.BUTTON4_PRESSED)):
             terminal.handle(curses.KEY_MOUSE)
         self.assertEqual(terminal.scroll, 3)
