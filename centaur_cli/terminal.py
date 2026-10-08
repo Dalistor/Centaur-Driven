@@ -27,7 +27,7 @@ from .graphics import FRAME_SECONDS
 from .subagents import SubagentTools
 from .agent_runtime import AgentGroup
 from .inbox import Inbox
-from .sessions import SessionRegistry, LABELS
+from .sessions import SessionRegistry, LABELS, read_record
 from .agent_tree import AgentTree
 from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 from .permissions import validate_mode, MODE_LABELS
@@ -626,7 +626,12 @@ class Terminal:
         self.session_contexts[self.chat['id']] = worker
         return worker
 
-    def switch_chat(self, chat):
+    def switch_chat(self, chat, *, remember=True):
+        previous_client = self.client
+        if remember and chat['id'] != self.chat['id']:
+            # Retain idle sessions too. A worker snapshot must never be rewritten
+            # when the user changes the selection after that turn finishes.
+            self.worker_context()
         if chat["id"] != self.chat["id"] and self.computer and not hasattr(self.computer, 'suspend'):
             self.computer.close()
         self.chat = self.live_chats.get(chat['id'], chat)
@@ -636,7 +641,13 @@ class Terminal:
             for name in ('client', 'backend', 'model', 'effort', 'speed', 'approval_mode'):
                 setattr(self, name, getattr(context, name))
         if not context:
+            self.model = self.chat['model']
+            self.effort = self.chat.get('effort', 'default')
+            self.speed = self.chat.get('speed', 'standard')
+            # Disk history is not authority to grant broader permissions.
             self.chat['approval_mode'] = self.approval_mode
+        if self.client is not previous_client:
+            self.reset_credits()
         self.draft = ''  # The setter saves/restores each chat's unsent input.
         self.scroll = 0
         self.viewport_key = None
@@ -787,13 +798,14 @@ class Terminal:
         new_conversation = backend != self.backend
         model_changed = (model, effort) != (self.model, self.effort)
         speed_changed = speed is not None and speed != self.speed
+        self.worker_context()
         if speed is not None: self.speed = validate_speed(speed)
         self.backend, self.model, self.effort, self.client = backend, model, effort, client
         self.request_context_catalog()
         if approval_mode is not None:
             self.approval_mode = validate_mode(approval_mode)
         if new_conversation:
-            self.switch_chat(self.new_chat())
+            self.switch_chat(self.new_chat(), remember=False)
         else:
             self.chat['approval_mode'] = self.approval_mode
             if model_changed:
@@ -807,17 +819,22 @@ class Terminal:
                     self.store.save(self.chat)
                 except OSError:
                     history_warning = ' Não foi possível registrar o modo no histórico.'
+        self.worker_context()
         self.draft = ''
         self.scroll = 0
         self.settings = None
         if not same_client:
-            self.credits = None
-            self.credits_inflight = False
-            self.credits_next_refresh = 0
-            self.credits_status = 'loading'
+            self.reset_credits()
         self.credits_dirty = True
         self.notice = (f'Configuração salva: {MODE_LABELS[self.approval_mode]}. '
                        + ('Novo chat.' if new_conversation else 'Conversa preservada.') + history_warning)
+
+    def reset_credits(self):
+        self.credits = None
+        self.credits_inflight = False
+        self.credits_next_refresh = 0
+        self.credits_status = 'loading'
+        self.credits_dirty = True
 
     def load_catalog(self, picker):
         backend = picker.backend
@@ -1519,12 +1536,13 @@ class Terminal:
         elif key in ('\n','\r',curses.KEY_ENTER) and self.chats:
             selected = self.chats[self.selected]
             owned = selected['id'] in self.session_contexts
-            if not owned and selected.get('backend','openrouter') != self.backend:
+            runtime = read_record(self.root, selected['id'])
+            if runtime and runtime['state'] != 'stopped' and runtime.get('owner') != self.registry.owner:
+                self.notice = 'Esta sessão está ativa em outro processo; acompanhe seu estado pelo menu.'
+            elif not owned and selected.get('backend','openrouter') != self.backend:
                 self.notice = 'Este chat usa outro backend; abra o Centaur com --backend ' + selected.get('backend','openrouter')
             elif not owned and self.backend != 'openrouter' and selected['model'] != self.model:
                 self.notice = 'Este chat usa outro modelo; abra com o mesmo --model ou crie um chat novo.'
-            elif not owned and self.session_state(selected) != 'stopped':
-                self.notice = 'Esta sessão está ativa em outro processo; acompanhe seu estado pelo menu.'
             else:
                 self.switch_chat(selected)
 

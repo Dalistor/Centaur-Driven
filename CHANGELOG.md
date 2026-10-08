@@ -1,5 +1,16 @@
 # Changelog
 
+## Não publicado
+
+- Conservar a seleção de cada chat ao navegar, inclusive sessões sem primeiro
+  turno; atualizar o contexto após `$config` sem reescrever workers anteriores.
+- Retomar modelo, effort e velocidade do histórico compatível; permissões continuam
+  sob a escolha da abertura. Novos chats seguem a seleção da sessão focada.
+- Limpar cotas/créditos ao retornar a outro cliente e rejeitar atualizações atrasadas.
+- Verificar o owner do runtime no menu, mesmo quando há contexto local lembrado.
+- Validar principal/filho/neto, herança compatível e conversas simultâneas nos três
+  adaptadores. Ver [evidências e limites](docs/validation-backend-routing-2026-10-08.md).
+
 ## 0.10.5 — 2026-10-08
 
 - Substituir as instruções base de executor do Codex pelas instruções do harness,
