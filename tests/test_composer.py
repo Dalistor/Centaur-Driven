@@ -9,7 +9,7 @@ from unittest.mock import patch
 from centaur_cli.appearance import TerminalView, cell_width
 from centaur_cli.composer import layout_input
 from centaur_cli.history import ChatStore
-from centaur_cli.keyboard import KEY_NEWLINE, KEY_IGNORE, PastedText, KeyboardReader, keyboard_protocol, read_key
+from centaur_cli.keyboard import KEY_NEWLINE, KEY_IGNORE, KEY_FOCUS_IN, KEY_FOCUS_OUT, PastedText, KeyboardReader, keyboard_protocol, read_key
 from centaur_cli.terminal import Terminal
 from test_terminal_settings import Screen
 
@@ -29,13 +29,17 @@ class KeyboardTests(unittest.TestCase):
                                      ('C', curses.KEY_RIGHT), ('D', curses.KEY_LEFT),
                                      ('H', curses.KEY_HOME), ('F', curses.KEY_END)):
                 self.assertEqual(read_key(InputScreen(prefix + suffix)), expected)
+        for name, expected in ((b'kxIN', KEY_FOCUS_IN), (b'kxOUT', KEY_FOCUS_OUT)):
+            with patch('centaur_cli.keyboard.curses.keyname', return_value=name):
+                self.assertEqual(read_key(InputScreen([591])), expected)
 
     def test_shift_enter_encodings_ctrl_shortcuts_and_release(self):
         for sequence in ('\x1b[13;2u', '\x1b[13;2:1u', '\x1b[13;2:2u', '\x1b[13;66u', '\x1b[27;2;13~'):
             self.assertEqual(read_key(InputScreen(sequence)), KEY_NEWLINE, sequence)
         for sequence, expected in [('\x1b[13u', '\r'), ('\x1b[13;1u', '\r'),
                                   ('\x1b[99;5u', '\x03'), ('\x1b[27;5;106~', '\n'),
-                                  ('\x1b[13;2:3u', KEY_IGNORE), ('\x1b[1;2D', curses.KEY_SLEFT)]:
+                                  ('\x1b[13;2:3u', KEY_IGNORE), ('\x1b[1;2D', curses.KEY_SLEFT),
+                                  ('\x1b[I', KEY_FOCUS_IN), ('\x1b[O', KEY_FOCUS_OUT)]:
             self.assertEqual(read_key(InputScreen(sequence)), expected, sequence)
 
     def test_incomplete_escape_preserves_keys_and_restores_timeout(self):
@@ -68,7 +72,7 @@ class KeyboardTests(unittest.TestCase):
         stream = TTY()
         with self.assertRaises(RuntimeError):
             with keyboard_protocol(stream): raise RuntimeError('fixture')
-        self.assertEqual(stream.getvalue(), '\x1b[>1u\x1b[>4;2m\x1b[?2004h\x1b[?2004l\x1b[>4m\x1b[<1u')
+        self.assertEqual(stream.getvalue(), '\x1b[>1u\x1b[>4;2m\x1b[?2004h\x1b[?1004h\x1b[?1004l\x1b[?2004l\x1b[>4m\x1b[<1u')
         stream = StringIO()
         with keyboard_protocol(stream): pass
         self.assertEqual(stream.getvalue(), '')

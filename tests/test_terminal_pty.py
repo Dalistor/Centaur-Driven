@@ -36,8 +36,17 @@ class Client:
         return {'role':'assistant','content': 'Objetivo preservado, alteracoes e validacao pendentes.' if not tools else 'Mensagem recebida.'}
 class RecordingTerminal(Terminal):
     def draw(self, screen):
+        if os.environ.get('CENTAUR_TEST_FOCUS') == '1': screen.clearok(True)
         super().draw(screen)
+        self.frames = getattr(self, 'frames', 0) + 1
+        self.record()
+    def housekeeping(self):
+        super().housekeeping()
+        self.ticks = getattr(self, 'ticks', 0) + 1
+        if os.environ.get('CENTAUR_TEST_FOCUS') == '1': self.record()
+    def record(self):
         data={'draft':self.draft,'cursor':self.cursor,'busy':self.busy,
+              'frames':getattr(self,'frames',0),'ticks':getattr(self,'ticks',0),
               'chat':self.chat,'requests':self.client.requests,'width':self.input_width,'notice':self.notice,
               'pending_attachments':len(self.pending_attachments),
               'inbox': len(self.inboxes[self.chat['id']].snapshot()) if self.chat['id'] in self.inboxes else 0,
@@ -71,6 +80,70 @@ curses.wrapper(terminal.run)
 
 
 class TerminalPTYTests(unittest.TestCase):
+    def test_background_focus_keeps_worker_and_heartbeat_live_without_terminal_output(self):
+        for terminal_type in ('xterm-256color', 'xterm-color'):
+            with self.subTest(terminal=terminal_type), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                master, slave = pty.openpty()
+                fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 100, 0, 0))
+                env = {**os.environ, 'TERM': terminal_type, 'CENTAUR_GRAPHICS': '0',
+                       'CENTAUR_TEST_STEERING': '1', 'CENTAUR_TEST_FOCUS': '1',
+                       'PYTHONPATH': str(Path(__file__).resolve().parents[1])}
+                process = subprocess.Popen([sys.executable, '-c', CHILD, temporary],
+                                           stdin=slave, stdout=slave, stderr=slave, env=env)
+                os.close(slave)
+                transcript = bytearray()
+                def wait_for(predicate, *, consume=True):
+                    deadline = time.monotonic() + 8
+                    snapshot = {}
+                    while time.monotonic() < deadline:
+                        if consume and select.select([master], [], [], .02)[0]:
+                            try: transcript.extend(os.read(master, 65536))
+                            except OSError: pass
+                        elif not consume: time.sleep(.02)
+                        try:
+                            snapshot = json.loads((root/'snapshot.json').read_text())
+                            if predicate(snapshot): return snapshot
+                        except (OSError, ValueError): pass
+                        if process.poll() is not None: break
+                    self.fail('Focus PTY state missing: ' + repr({k:snapshot.get(k) for k in ('draft','frames','ticks','busy')})
+                              + transcript.decode(errors='replace')[-1000:])
+                try:
+                    wait_for(lambda s: s['width'] > 0)
+                    os.write(master, b'Background request\r')
+                    wait_for(lambda s: s['busy'] and len(s['requests']) == 1)
+                    os.write(master, b'preserve draft\x1b[O')
+                    snapshot = wait_for(lambda s: s['draft'] == 'preserve draft')
+                    # Let focus-out settle, then emulate a hidden terminal which stops
+                    # draining its PTY. Forced full redraws make backpressure deterministic.
+                    snapshot = wait_for(lambda s: s['ticks'] >= snapshot['ticks'] + 3)
+                    frames, ticks = snapshot['frames'], snapshot['ticks']
+                    fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', 12, 40, 0, 0))
+                    process.send_signal(signal.SIGWINCH)
+                    (root/'release-model').touch()
+                    snapshot = wait_for(lambda s: not s['busy'] and s['ticks'] >= ticks + 40, consume=False)
+                    self.assertEqual(snapshot['frames'], frames)
+                    self.assertFalse(select.select([master], [], [], 0)[0], 'Hidden terminal received output')
+                    self.assertEqual(snapshot['draft'], 'preserve draft')
+                    self.assertEqual(snapshot['chat']['messages'][-1]['content'], 'Mensagem recebida.')
+                    self.assertIn(b'\x1b[?1004h', transcript)
+                    os.write(master, b'\x1b[I')
+                    snapshot = wait_for(lambda s: s['frames'] > frames and s['width'] < 40)
+                    self.assertEqual(snapshot['draft'], 'preserve draft')
+                    # A real key also restores drawing if focus-in was lost.
+                    os.write(master, b'\x1b[O')
+                    ticks = snapshot['ticks']
+                    snapshot = wait_for(lambda s: s['ticks'] >= ticks + 3)
+                    os.write(master, b'!')
+                    wait_for(lambda s: s['draft'] == 'preserve draft!')
+                    os.write(master, b'\x11')
+                    wait_for(lambda s: process.poll() is not None)
+                    self.assertEqual(process.returncode, 0)
+                    self.assertIn(b'\x1b[?1004l', transcript)
+                finally:
+                    if process.poll() is None: process.kill(); process.wait()
+                    os.close(master)
+
     def test_steering_during_model_wait_preserves_multiline_and_narrow_terminal(self):
         for mode in ('color', 'monochrome', 'reduced'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:

@@ -14,6 +14,7 @@ rename e melhorias visuais; as regras de desenvolvimento vêm de
 | Chats | `history.ChatStore`, `Terminal` | IDs imutáveis, gravação atômica, retomada por seleção; rename lê conteúdo atual do disco | `tests/test_cli.py`, `tests/test_terminal_settings.py` |
 | Gráfico da abertura | `graphics.Renderer`, `WelcomeAnimation`, `Palette`, `TerminalView.logo` | Relógio visível; giro finito; digitação encerra; F5 repete; resize mantém fase; reduced motion e fallback estáticos | `tests/test_graphics.py` |
 | Histórico e foco | `Terminal.cursor`, `Terminal.scroll`, `TerminalView` | Shift+← ou /chats abre lista; rascunho preservado ao voltar/cancelar; PgUp/PgDn rolam | `tests/test_terminal_settings.py` |
+| Foco da janela | `keyboard.KeyboardReader`, `Terminal.run_screen`, `WelcomeAnimation` | Perda de foco pausa desenho; agentes/eventos/heartbeat continuam; retorno ou tecla redesenha o estado atual sem alterar rascunho ou autorizar ações | `tests/test_composer.py`, `tests/test_terminal_pty.py` |
 | Entrada multilinha | `composer.layout_input`, `keyboard.KeyboardReader`, `Terminal.handle` | Quebra visual sem alterar texto; Enter envia, Shift+Enter/Ctrl+J insere linha; colagem não envia ou aprova | `tests/test_composer.py` |
 | Comandos locais | `completion.LOCAL_COMMANDS`, `SkillCompletion.local_command`, `Terminal.handle` | Enter executa comando local isolado com autocomplete; Tab só completa; skills/menções em frases apenas inserem; compactação informa progresso por fragmento | `tests/test_completion.py`, `tests/test_terminal_pty.py` |
 | Velocidade | `speed`, `ConfigPicker`, `NativeClient`, `OpenRouter` | Standard padrão; Fast só anunciado; custo explicado; não altera modelo/effort; tier solicitado não é tier confirmado | `tests/test_native_usage_speed.py` |
@@ -420,3 +421,20 @@ continuam nos mesmos owners; subagentes não recebem acesso ao desktop.
 
 Verificação: `tests/test_agent_coordination.py`, `tests/test_computer_session.py`,
 `tests/test_terminal_pty.py` e [evidências locais](docs/validation-cli-coordination.md).
+
+## Execução sem foco — 0.10.2
+
+Fonte: relato do proprietário em 2026-10-08 sobre congelamento ao desfocar o terminal.
+Eventos de foco da janela usam o protocolo compartilhado de teclado, com restauração
+ao sair. A perda de foco suspende apenas desenho, cursor visual e animação. O ciclo
+mantém eventos, filas de mensagens, respostas e heartbeat de todas as sessões.
+Resize em segundo plano não emite saída; retornar redesenha o estado atual. Digitar
+também restaura o desenho caso a notificação de retorno seja perdida.
+
+O foco da janela não muda chat, rascunho, cursor, scroll ou permissões. A seleção de
+conversa continua sendo o critério de `ComputerControl`; desfocar para trabalhar no
+desktop não pausa a tarefa autorizada. Perguntas e aprovações aguardam input explícito.
+Terminais sem eventos de foco mantêm o comportamento normal.
+
+Verificação: [reprodução e evidência](docs/validation-terminal-focus.md), com PTY real,
+saída não consumida, resposta concluída, resize, rascunho e retorno por foco/tecla.
