@@ -21,26 +21,30 @@ def pasted_paths(root, text):
     uri_list = bool(lines) and all(line.startswith('file:') for line in lines)
     try:
         tokens = lines if uri_list else shlex.split(text)
-    except ValueError:
-        return None
-    # An unquoted clipboard path can contain spaces.
-    whole = Path(text.strip()).expanduser()
-    whole = whole if whole.is_absolute() else Path(root) / whole
-    if not uri_list and whole.is_file():
-        tokens = [text.strip()]
-    paths = []
-    for token in tokens:
-        if token.startswith('file:'):
-            uri = urlparse(token)
-            if uri.netloc not in ('', 'localhost') or uri.query or uri.fragment:
+        # An unquoted clipboard path can contain spaces. This is only a probe:
+        # normal prose can exceed filesystem limits or contain invalid path syntax.
+        if not uri_list:
+            whole = Path(text.strip()).expanduser()
+            whole = whole if whole.is_absolute() else Path(root) / whole
+            if whole.is_file():
+                tokens = [text.strip()]
+        paths = []
+        for token in tokens:
+            if token.startswith('file:'):
+                uri = urlparse(token)
+                if uri.netloc not in ('', 'localhost') or uri.query or uri.fragment:
+                    return None
+                token = unquote(uri.path)
+            path = Path(token).expanduser()
+            path = path if path.is_absolute() else Path(root) / path
+            if not path.is_file():
                 return None
-            token = unquote(uri.path)
-        path = Path(token).expanduser()
-        path = path if path.is_absolute() else Path(root) / path
-        if not path.is_file():
-            return None
-        paths.append(str(path))
-    return paths or None
+            paths.append(str(path))
+        return paths or None
+    except (OSError, ValueError, RuntimeError):
+        # Failed stat/URL parsing/home expansion means this paste is literal text,
+        # not a confirmed file list. Never discard the paste or abort the terminal.
+        return None
 
 
 def read_command(arguments, limit, *, cancellation=None):
