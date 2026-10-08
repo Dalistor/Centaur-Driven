@@ -38,16 +38,54 @@ class KeyboardTests(unittest.TestCase):
             self.assertEqual(read_key(InputScreen(sequence)), KEY_NEWLINE, sequence)
         for sequence, expected in [('\x1b[13u', '\r'), ('\x1b[13;1u', '\r'),
                                   ('\x1b[99;5u', '\x03'), ('\x1b[27;5;106~', '\n'),
+                                  ('\x1b[13;1:2u', KEY_IGNORE), ('\x1b[13;65:2u', KEY_IGNORE),
                                   ('\x1b[13;2:3u', KEY_IGNORE), ('\x1b[1;2D', curses.KEY_SLEFT),
                                   ('\x1b[I', KEY_FOCUS_IN), ('\x1b[O', KEY_FOCUS_OUT)]:
             self.assertEqual(read_key(InputScreen(sequence)), expected, sequence)
 
-    def test_incomplete_escape_preserves_keys_and_restores_timeout(self):
+    def test_incomplete_protocol_is_not_replayed_as_draft_text(self):
         screen = InputScreen('\x1b[13;')
         with patch('centaur_cli.keyboard.curses.unget_wch') as restore:
-            self.assertEqual(read_key(screen, 80), '\x1b')
-        self.assertEqual([call.args[0] for call in restore.call_args_list], [';', '3', '1', '['])
+            self.assertEqual(read_key(screen, 80), KEY_IGNORE)
+        restore.assert_not_called()
         self.assertEqual(screen.timeouts[-1], 80)
+
+    def test_modified_enter_survives_gaps_at_every_boundary(self):
+        for sequence in ('\x1b\r', '\x1b[13;2u', '\x1b[27;2;13~'):
+            for split in range(1, len(sequence)):
+                with self.subTest(sequence=sequence, split=split):
+                    reader = KeyboardReader()
+                    screen = InputScreen(sequence[:split])
+                    with patch('centaur_cli.keyboard.time.monotonic', return_value=10):
+                        self.assertEqual(reader.read(screen, 40), KEY_IGNORE)
+                    screen.keys.extend(sequence[split:])
+                    with patch('centaur_cli.keyboard.time.monotonic', return_value=10.1):
+                        self.assertEqual(reader.read(screen, 40), KEY_NEWLINE)
+                    self.assertIsNone(reader.escape)
+                    self.assertEqual(screen.timeouts[-1], 40)
+
+    def test_standalone_escape_and_expired_protocol_have_bounded_wait(self):
+        for prefix, expected in (('\x1b', '\x1b'), ('\x1b[13;', KEY_IGNORE)):
+            reader = KeyboardReader()
+            screen = InputScreen(prefix)
+            with patch('centaur_cli.keyboard.time.monotonic', return_value=10):
+                self.assertEqual(reader.read(screen), KEY_IGNORE)
+            with patch('centaur_cli.keyboard.time.monotonic', return_value=10.3):
+                self.assertEqual(reader.read(screen), expected)
+            screen.keys.append('x')
+            self.assertEqual(reader.read(screen), 'x')
+
+    def test_resize_cancel_and_damaged_frame_do_not_submit(self):
+        reader = KeyboardReader()
+        screen = InputScreen(list('\x1b[13;') + [curses.KEY_RESIZE])
+        self.assertEqual(reader.read(screen), curses.KEY_RESIZE)
+        screen.keys.extend('2u')
+        self.assertEqual(reader.read(screen), KEY_NEWLINE)
+        screen.keys.extend('\x1b[13;\r')
+        self.assertEqual(reader.read(screen), KEY_IGNORE)
+        screen.keys.extend('\x1b[13;\x03')
+        self.assertEqual(reader.read(screen), '\x03')
+        self.assertIsNone(reader.escape)
 
     def test_multiline_paste_is_atomic_and_continues_across_reads(self):
         reader = KeyboardReader()

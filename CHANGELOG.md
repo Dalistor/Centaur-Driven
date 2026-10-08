@@ -2,6 +2,10 @@
 
 ## Não publicado
 
+- Preservar sequências de teclado fragmentadas entre leituras, corrigindo quebras
+  de linha perdidas com Shift+Enter/Alt+Enter. Descartar frames incompletos sem
+  inseri-los no rascunho; repetição explícita de Enter não envia a mensagem.
+
 - Liberar o mouse por padrão para seleção/cópia nativa de texto do chat.
   F6 alterna cliques/roda e CENTAUR_MOUSE=1 mantém o opt-in na abertura;
   Shift+arraste seleciona com cliques ativos. Rascunhos, scroll e workers são preservados.

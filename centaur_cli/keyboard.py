@@ -5,6 +5,7 @@ import curses
 from dataclasses import dataclass
 import re
 import sys
+import time
 
 KEY_NEWLINE, KEY_IGNORE, KEY_PASTE_START = 0x110000, 0x110001, 0x110002
 KEY_FOCUS_IN, KEY_FOCUS_OUT = 0x110003, 0x110004
@@ -64,6 +65,8 @@ def decode_sequence(sequence):
         return None
     bits = (modifiers - 1) & 63  # Caps/num lock do not change shortcuts.
     if code == 13 and bits in (0, 1, 4, 5):
+        if kitty and event == '2' and not bits & 1:
+            return KEY_IGNORE  # An explicit repeat must never submit a draft.
         return KEY_NEWLINE if bits & 1 else '\r'
     if bits & 4 and not bits & ~5 and 64 <= code <= 127:
         return chr(code & 31)
@@ -75,56 +78,75 @@ def decode_sequence(sequence):
 
 
 def read_key(screen, timeout=100):
-    key = screen.get_wch()
-    if isinstance(key, int):
-        # Recent terminfo databases decode focus as dynamically numbered extended
-        # keys. Their numbers vary by terminal; older databases return raw CSI.
-        try:
-            name = curses.keyname(key)
-        except curses.error:
-            name = None
-        if name in (b'kxIN', b'kxOUT'):
-            return KEY_FOCUS_IN if name == b'kxIN' else KEY_FOCUS_OUT
-    if key != '\x1b':
-        return key
-    consumed = []
-    screen.timeout(25)
-    try:
-        for _ in range(64):
-            try:
-                character = screen.get_wch()
-            except curses.error:
-                break
-            consumed.append(character)
-            if not isinstance(character, str):
-                break
-            if len(consumed) == 1:
-                if character not in ('[', 'O'):
-                    break
-            elif '@' <= character <= '~':
-                break
-        sequence = ''.join(character for character in consumed if isinstance(character, str))
-        decoded = decode_sequence(sequence)
-        if decoded is not None:
-            return decoded
-    finally:
-        screen.timeout(timeout)
-    # Unknown escapes retain their keystrokes; standalone Escape remains Escape.
-    for character in reversed(consumed):
-        if isinstance(character, str):
-            curses.unget_wch(character)
-        else:
-            curses.ungetch(character)
-    return key
+    """One-shot compatibility helper; streaming input must retain KeyboardReader."""
+    return KeyboardReader()._read_key(screen, timeout, one_shot=True)
 
 
 class KeyboardReader:
     def __init__(self):
         self.paste = None
+        self.escape = None
+        self.escape_deadline = 0
+
+    def _finish_escape(self):
+        sequence, self.escape = self.escape, None
+        if not sequence:
+            return '\x1b'
+        decoded = decode_sequence(sequence)
+        # Never replay an incomplete/unsupported protocol frame into the composer.
+        return KEY_IGNORE if decoded is None else decoded
+
+    def _read_key(self, screen, timeout, one_shot=False):
+        if self.escape is None:
+            key = screen.get_wch()
+            if isinstance(key, int):
+                # Extended focus key numbers depend on the terminal's terminfo.
+                try:
+                    name = curses.keyname(key)
+                except curses.error:
+                    name = None
+                if name in (b'kxIN', b'kxOUT'):
+                    return KEY_FOCUS_IN if name == b'kxIN' else KEY_FOCUS_OUT
+            if key != '\x1b':
+                return key
+            self.escape = ''
+            self.escape_deadline = time.monotonic() + .25
+        screen.timeout(25)
+        try:
+            for _ in range(64):
+                try:
+                    character = screen.get_wch()
+                except curses.error:
+                    if one_shot or time.monotonic() >= self.escape_deadline:
+                        return self._finish_escape()
+                    return KEY_IGNORE  # Continue the same frame on the next read.
+                if character == '\x03':
+                    self.escape = None
+                    return character
+                if isinstance(character, int):
+                    return character  # Resize stays responsive without losing fragments.
+                if not self.escape and character not in ('[', 'O'):
+                    self.escape = None
+                    if character in ('\r', '\n'):
+                        return KEY_NEWLINE
+                    curses.unget_wch(character)
+                    return '\x1b'
+                if not character.isprintable():
+                    self.escape = None
+                    return KEY_IGNORE  # A damaged frame cannot turn CR into submit.
+                self.escape += character
+                if len(self.escape) > 1 and '@' <= character <= '~':
+                    return self._finish_escape()
+                if len(self.escape) >= 64:
+                    self.escape = None
+                    return KEY_IGNORE
+            return KEY_IGNORE
+        finally:
+            screen.timeout(timeout)
 
     def read(self, screen, timeout=100):
         if self.paste is None:
-            key = read_key(screen, timeout)
+            key = self._read_key(screen, timeout)
             if key != KEY_PASTE_START:
                 return key
             self.paste = []

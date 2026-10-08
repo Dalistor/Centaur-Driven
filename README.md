@@ -213,11 +213,13 @@ Unicode e caminhos longos. O rodapé mostra um aviso curto dentro da largura do 
 outros avisos extensos recebem reticências. Falhas de compactação também são salvas
 para consultar ou retomar com `$compact`, preservando o histórico e a memória anterior.
 
-A caixa cinza de mensagem começa com três linhas e cresce até oito, conforme o espaço.
+A caixa de mensagem começa com três linhas e cresce até oito, conforme o espaço.
 O texto quebra visualmente na borda sem alterar a mensagem enviada. **Shift+Enter** insere
 uma quebra real; **Enter** envia o texto completo. **Ctrl+J** é a alternativa em terminais
 que não distinguem Shift+Enter de Enter. Kitty/CSI-u e xterm modifyOtherKeys são aceitos;
-o suporte também depende do emulador, multiplexador e seus atalhos. Colagem com bracketed
+o suporte também depende do emulador, multiplexador e seus atalhos. Sequências recebidas
+em partes são mantidas entre leituras; repetições explícitas de Enter não enviam o rascunho.
+Colagem com bracketed
 paste mantém as quebras e nunca envia a mensagem automaticamente. ↑ recupera prompts
 anteriores em um campo vazio ou de uma linha; ↓ avança até restaurar o rascunho atual,
 inclusive vazio, e seu cursor. Prompts recuperados podem ter várias linhas. Editar um prompt

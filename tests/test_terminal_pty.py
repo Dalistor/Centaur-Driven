@@ -83,6 +83,56 @@ curses.wrapper(terminal.run)
 
 
 class TerminalPTYTests(unittest.TestCase):
+    def test_fragmented_modified_enter_does_not_submit_in_real_curses(self):
+        for terminal_type in ('xterm-256color', 'xterm-color'):
+            with self.subTest(terminal=terminal_type), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                master, slave = pty.openpty()
+                fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 80, 0, 0))
+                env = {**os.environ, 'TERM': terminal_type, 'CENTAUR_GRAPHICS': '0',
+                       'PYTHONPATH': str(Path(__file__).resolve().parents[1])}
+                process = subprocess.Popen([sys.executable, '-c', CHILD, temporary],
+                                           stdin=slave, stdout=slave, stderr=slave, env=env)
+                os.close(slave)
+                transcript = bytearray()
+                def wait_for(predicate):
+                    deadline = time.monotonic() + 6
+                    while time.monotonic() < deadline:
+                        if select.select([master], [], [], .02)[0]:
+                            try: transcript.extend(os.read(master, 65536))
+                            except OSError: pass
+                        try:
+                            snapshot = json.loads((root/'snapshot.json').read_text())
+                            if predicate(snapshot): return snapshot
+                        except (OSError, ValueError): pass
+                        if process.poll() is not None: break
+                    self.fail('Fragmented key PTY state missing: '+transcript.decode(errors='replace')[-1000:])
+                try:
+                    wait_for(lambda s:s['width'] > 0)
+                    os.write(master, b'first')
+                    expected = 'first'
+                    wait_for(lambda s:s['draft'] == expected)
+                    for prefix, suffix in ((b'\x1b[13;', b'2u'), (b'\x1b[27;2;', b'13~'), (b'\x1b', b'\r')):
+                        os.write(master, prefix)
+                        time.sleep(.08)  # Longer than a single 25 ms decoder read.
+                        os.write(master, suffix + b'next')
+                        expected += '\nnext'
+                        snapshot = wait_for(lambda s:s['draft'] == expected)
+                        self.assertFalse(snapshot['requests'])
+                    os.write(master, b'\x1b[13;1:2u\x1b[13;2:3u!')
+                    expected += '!'
+                    snapshot = wait_for(lambda s:s['draft'] == expected)
+                    self.assertFalse(snapshot['requests'])
+                    os.write(master, b'\r')
+                    snapshot = wait_for(lambda s:not s['busy'] and len(s['requests']) == 1)
+                    self.assertEqual(snapshot['requests'][0]['messages'][-1]['content'], expected)
+                    os.write(master, b'\x11')
+                    process.wait(timeout=3)
+                    self.assertEqual(process.returncode, 0)
+                finally:
+                    if process.poll() is None: process.kill(); process.wait(timeout=3)
+                    os.close(master)
+
     def test_native_text_selection_default_and_mouse_toggle_in_real_curses(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
