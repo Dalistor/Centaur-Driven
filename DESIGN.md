@@ -1,20 +1,13 @@
 ---
 version: alpha
-colors:
-  background: "#0b1220"
-  surface: "#19263b"
-  text: "#e5edf8"
-  primary: "#87ff87"
-  secondary: "#96a9c5"
-  border: "#30415d"
-  info: "#a1bcff"
-  warning: "#ffbf80"
 typography:
   display:
     fontFamily: "monospace"
   body:
     fontFamily: "monospace"
 omitted:
+  - section: colors
+    reason: "Cores herdadas do emulador por slots ANSI e padrões curses; não existem RGB fixos do produto."
   - section: rounded
     reason: "Interface de caracteres; não existem raios em pixels."
   - section: spacing
@@ -31,30 +24,34 @@ assim que o usuário começa a trabalhar.
 
 ## Linguagem visual
 
-- Fundo azul-marinho contínuo inspirado na referência do proprietário de 2026-10-07.
-  Superfícies um pouco mais claras distinguem mensagem, composer e execução lateral,
-  sem bordas decorativas em cada mensagem.
+- Fundo e texto padrão do emulador, conforme pedido do proprietário de 2026-10-08,
+  com contenção visual inspirada nos CLIs Codex e Claude. Conversa, composer, seleção
+  e execução lateral compartilham o mesmo fundo, inclusive em temas claros ou transparentes.
+  Hierarquia por espaçamento, marcadores e peso; sem blocos de cor por mensagem.
 - Palavra CENTAUR espaçada, emblema abstrato de Convergência em relevo Braille Unicode
   (2 × 4 pontos por célula). Faixa superior prateada e inferior verde; ambas são arcos finos
   com espaço negativo amplo, ponta compartilhada e flecha verde horizontal ao centro. Curvas Bézier cúbicas com largura total
   aproximada de 0,13 unidades e afilamento na junção; perspectiva, bisel e luz em CPU.
   O fallback em blocos/ASCII deriva da mesma geometria. Não usa imagens nem fontes externas.
-- Branco para conteúdo; verde para comandos e autores; azul para modelo, ferramentas e
-  atalhos; tom secundário para caminhos e estados; âmbar para confirmações e erros.
+- Cor de texto padrão para conteúdo; verde ANSI para comandos e autores; azul ANSI
+  para modelo e ferramentas; texto atenuado para caminhos, atalhos e separadores;
+  amarelo ANSI para confirmações e erros. Os RGB são definidos pelo emulador.
 - Linhas horizontais discretas separam identidade, trabalho e campo de entrada.
 - A fonte é a monoespaçada do terminal do usuário. O CLI não troca fontes ou configurações.
 
 ## Paleta do terminal
 
-`appearance.Palette.TOKENS` é a fonte canônica de execução: fundo `#0b1220`,
-superfície `#19263b`, texto `#e5edf8`, secundário `#96a9c5`, linhas `#30415d`,
-informação `#a1bcff` e âmbar `#ffbf80`; verde ANSI 120 (`#87ff87`) preserva a marca.
-Em terminais com cores programáveis, reserva os slots 240–246 durante a sessão curses,
-guarda seus valores anteriores e os restaura no finally de Terminal/StartupWizard,
-inclusive em falhas. A restauração também cobre configuração parcial recusada.
-Sem essa capacidade, usa ANSI 17/235/255/146/60/111/215; o navy fica mais saturado
-nessa aproximação. Em oito cores, mantém preto/ANSI legível. `NO_COLOR` desativa cores
-e conserva seleção por inversão, autores/ações em negrito e marcadores textuais.
+`appearance.Palette.TOKENS` é a fonte canônica dos papéis: texto `-1` (padrão),
+verde ANSI 2, azul ANSI 4 e aviso ANSI 3. `Palette.initialize` habilita
+`curses.use_default_colors`; todos os pares têm fundo `-1`, sem `init_color`, paleta
+programável ou preenchimentos navy. Secundário e separadores usam o texto padrão
+com `A_DIM`. O programa herda a aparência clara, escura ou transparente do emulador;
+não tenta detectar o tema nem substituir preferências pessoais.
+
+Terminais de oito ou 256 cores usam os mesmos slots nativos. Se cores padrão ou um
+par não forem suportados, os papéis correspondentes usam atributos monocromáticos,
+preservando o fundo. `NO_COLOR` não inicializa pares e mantém seleção por `>` e
+negrito, autores/ações em negrito e marcadores textuais. Não usa inversão de cores.
 
 ## Composição e estados
 
@@ -63,12 +60,12 @@ Em janelas amplas, símbolo e wordmark aparecem à esquerda, com apresentação 
 `$status` e `/new`, aparecem separados em azul. Em 80 × 24 o símbolo fica compacto. Em janelas estreitas, prioriza os comandos;
 abaixo de 40 × 12 mostra orientação de tamanho e preserva o campo de entrada.
 
-O título em negrito fica no topo da coluna de leitura (até 100 células), acima da pasta e do modelo. A conversa e a entrada compartilham o mesmo alinhamento. Mensagens do usuário usam superfície azul-marinho mais clara, texto principal e negrito; respostas usam o texto normal, com autor em verde. Comentários públicos da IA e `report_progress` usam texto principal em peso normal. Ações pendentes/concluídas usam informação azul em negrito; falha, interrupção e recusa usam âmbar. Cabeçalho de trabalho e espera mantêm tom secundário. Ações mostram estado por texto e símbolo; Ctrl+O alterna as saídas completas. O cabeçalho identifica a pasta e o modelo. O rodapé mantém estado, mensagem digitada e
+O título em negrito fica no topo da coluna de leitura (até 100 células), acima da pasta e do modelo. A conversa e a entrada compartilham o mesmo alinhamento. Mensagens do usuário usam o fundo padrão, texto principal e negrito; respostas usam o texto normal, com autor em verde. Comentários públicos da IA e `report_progress` usam texto principal em peso normal. Ações pendentes/concluídas usam informação azul em negrito; falha, interrupção e recusa usam âmbar. Cabeçalho de trabalho e espera mantêm tom secundário. Ações mostram estado por texto e símbolo; Ctrl+O alterna as saídas completas. O cabeçalho identifica a pasta e o modelo. O rodapé mantém estado, mensagem digitada e
 atalhos. A lista de chats destaca toda a linha selecionada, com data quando houver espaço. A seta esquerda edita o texto; Shift+← abre os chats.
 Confirmações usam âmbar e instruções explícitas para permitir, recusar e revisar a ação.
 O cursor fica visível durante a digitação e oculto na lista ou confirmação.
 
-O campo azul começa com três linhas e cresce até oito conforme o espaço. `composer.layout_input`
+O campo sem preenchimento começa com três linhas e cresce até oito conforme o espaço. `composer.layout_input`
 é o dono da quebra por células e da posição do cursor; `keyboard.KeyboardReader` decodifica
 Shift+Enter e colagem protegida. Enter envia, Shift+Enter/Ctrl+J insere linha; ↑/↓ editam
 linhas no rascunho multilinha; em campo vazio/de uma linha, percorrem prompts até o rascunho
@@ -109,7 +106,7 @@ saldo global de limite da credencial. Durante resize, a barra acompanha o canto 
 
 `TerminalView` e `Palette` são os donos do desenho; `ConfigPicker` é o dono compartilhado
 da seleção de backend/modelo/effort/permissões/velocidade. Lista de chats, autocomplete e configuração destacam
-a linha inteira e mostram a seleção por `>` além da cor. A edição de título fica na mesma
+o texto da linha em negrito e mostram a seleção por `>`, sem trocar o fundo. A edição de título fica na mesma
 superfície e preserva o rascunho da conversa. Telas de edição em menos de 20 linhas usam
 a área de conteúdo inteira; mensagens curtas não movem os controles de salvar/cancelar.
 Textos largos são recortados por células, incluindo a janela de entrada e seu cursor.
@@ -138,18 +135,20 @@ não representa porcentagem de execução.
 
 ## Mapeamento dos tokens
 
-`appearance.Palette.TOKENS` é a fonte de execução; este documento espelha seus RGB.
-`Palette.initialize` adapta RGB para slots curses programáveis ou ANSI de fallback.
-Os estilos text/green/muted/line/blue/warning mapeiam text/primary/secondary/border/info/warning. `comment` deriva de text, `action` de blue com negrito; em `NO_COLOR`, ações ficam em negrito e comentários em peso normal. `conversation.TranscriptLine` transporta o estilo de origem por todas as linhas quebradas, sem inferir papéis por indentação ou texto fornecido pela IA. O estilo title deriva de text com negrito; user usa o par 40 com texto e superfície.
-Input e cartões usam pares 41–45 com a mesma superfície e atributos por papel.
-Selecionado combina texto claro e fundo border, com marcador >; o composer usa peso normal. Em modo monocromático usa negrito, preservando os marcadores do autor. `TerminalView.put` é o único caminho de desenho
-para cabeçalho, conversa, seletor, rename, autocomplete, gráfico e rodapé. `Palette` gera
-16 níveis por material entre fundo navy e texto / verde 120, quantizando para ANSI 256
-e considerando os slots personalizados na busca da cor mais próxima.
-Os 32 pares gráficos são reservados uma vez (8–39); slots temporários são restaurados ao sair.
-Com menos cores/pares, usam-se os estilos existentes com dim/normal/bold. Terminais de 8 cores usam os
-fallbacks ANSI já existentes; `NO_COLOR` usa atributos de texto. A tipografia permanece sob
-controle do terminal do usuário, com autores/ações em negrito e conteúdo em peso normal.
+`appearance.Palette.TOKENS` define slots ANSI, não RGB. Os estilos text/green/blue/warning
+mapeiam texto padrão/verde/azul/amarelo do terminal; muted/line usam o texto padrão
+atenuado. `comment` deriva de text, `action` de blue com negrito. Em `NO_COLOR`, ações
+ficam em negrito e comentários em peso normal. `conversation.TranscriptLine` transporta
+o estilo de origem por todas as linhas quebradas, sem inferir papéis por indentação
+ou texto fornecido pela IA. Title e user usam texto padrão com negrito; input usa
+texto normal. Input e cartões reutilizam os mesmos estilos, sem pares de superfície.
+Selecionado usa verde/negrito e marcador `>`, conservando o fundo padrão.
+
+`TerminalView.put` é o único caminho de desenho para cabeçalho, conversa, seletor,
+rename, autocomplete, gráfico e rodapé. O gráfico mantém 16 níveis de luminosidade
+geométrica, quantizados em atributos dim/normal/bold no texto padrão ou verde ANSI,
+sem misturar RGB com um fundo presumido. A forma, movimento e marca permanecem;
+a fonte e os valores de cor ficam sob controle do terminal do usuário.
 
 | Regra anterior | Evolução autorizada | Execução |
 | --- | --- | --- |
@@ -293,17 +292,17 @@ de pausa/revogação. Cliques/texto/teclas/arrasto buscam dois intervalos de est
 continua cancelável. Estabilidade não afirma sucesso. Idade/resolução/alvo/consentimento
 continuam verificados; referências são consumidas antes de input e falha parcial não repete.
 
-## Navy e atividade verificável — 0.9.3
+## Atividade verificável — 0.9.3
 
-Fonte: referência visual e relato do proprietário em 2026-10-07. O navy mantém foco na
-conversa e evita o cinza chapado da versão anterior. Composer e cartões compartilham
-a superfície, com comentários claros e ações azuis. Não há efeitos novos durante
+Fonte: referência visual e relato do proprietário em 2026-10-07, com revisão do fundo
+em 2026-10-08. Composer e cartões compartilham o fundo padrão do emulador, com
+comentários na cor de texto padrão e ações azuis. Não há efeitos novos durante
 trabalho; Convergência e movimento reduzido mantêm seus controles.
 
 Subagentes mostram a fase real — Aguardando modelo, Executando comando, Lendo arquivo
 ou Compactando — e tempo nessa fase. Heartbeat confirma processo vivo, não progresso.
 Input é explícito; parada encerra o cartão. Falha persiste diagnóstico no preview.
-Cores são adaptadas uma vez na sessão e restauradas ao sair; fonte, mouse, wrapping,
+Cores ANSI e padrões são herdados uma vez na sessão, sem redefinição; fonte, mouse, wrapping,
 scroll e checkpoints mantêm os donos canônicos. Verificação e preview do renderer
 real estão em [docs/validation-cli-0.9.3.md](docs/validation-cli-0.9.3.md).
 
@@ -317,7 +316,7 @@ textual e a seleção por ID. Profundidade muito grande comprime a indentação,
 acesso às linhas. Pais ausentes mostram identidade disponível sem inventar um principal.
 
 Cartões identificam o principal por ID/nome, seguidos por task, modelo/effort/velocidade,
-fase e último evento do CLI. Mantêm a superfície navy, papéis de cor e geometria do
+fase e último evento do CLI. Mantêm o fundo padrão, papéis de cor e geometria do
 renderer canônico. O preview informa principal e pai imediato; Enter retorna à raiz
 local. A barra de contexto passa a mostrar o agente em leitura com rótulo `Agente`,
 sem contabilizar o rascunho do principal. A leitura não autoriza ações.
@@ -340,4 +339,4 @@ colagem/arrasto continuam no mesmo compositor, sem novos comandos auxiliares.
 existente representa também delegações recursivas reais. Relatórios recebidos em
 segundo plano retomam a sessão de origem e preservam o chat/rascunho visíveis.
 Perguntas e permissões concorrentes usam o seletor canônico, uma de cada vez.
-Paleta navy, geometria, cores por papel, scroll e movimento reduzido permanecem.
+Fundo padrão do emulador, geometria, cores por papel, scroll e movimento reduzido permanecem.

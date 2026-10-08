@@ -19,9 +19,19 @@ from centaur_cli.history import ChatStore
 from centaur_cli.terminal import Terminal
 
 
+# Emulator examples only: the application inherits these settings, never writes them.
+THEMES = {
+    'dark': ('#1e1e1e', '#d0d0d0', ('#1e1e1e', '#e06c75', '#98c379', '#e5c07b',
+                                 '#61afef', '#c678dd', '#56b6c2', '#d0d0d0')),
+    'light': ('#fafafa', '#303030', ('#303030', '#b42318', '#2e6f40', '#a66b00',
+                                  '#245ea8', '#7d42a6', '#007e8a', '#fafafa')),
+}
+
+
 class Screen:
-    def __init__(self, rows, columns, colors, pairs):
-        self.rows, self.columns, self.colors, self.pairs = rows, columns, colors, pairs
+    def __init__(self, rows, columns, pairs, theme='dark'):
+        self.rows, self.columns, self.pairs = rows, columns, pairs
+        self.theme = THEMES[theme]
         self.cells = {}
         self.background = 0
 
@@ -40,18 +50,18 @@ class Screen:
 
     def svg(self):
         cw, ch = 10, 21
-        def color(index):
-            if index in self.colors:
-                return '#%02x%02x%02x' % self.colors[index]
-            if index >= 232:
-                return '#%02x%02x%02x' % ((8 + (index - 232) * 10,) * 3)
-            levels = (0, 95, 135, 175, 215, 255)
-            value = index - 16
-            return '#%02x%02x%02x' % (levels[value // 36], levels[value // 6 % 6], levels[value % 6])
+        def color(index, *, background=False, dim=False):
+            bg, fg, ansi = self.theme
+            value = (bg if background else fg) if index == -1 else ansi[index]
+            if dim and not background:
+                channels = [round(int(value[i:i+2], 16) * .65 + int(bg[i:i+2], 16) * .35)
+                            for i in (1, 3, 5)]
+                return '#%02x%02x%02x' % tuple(channels)
+            return value
         _, bg = self.pairs[self.background >> 8 & 255]
         result = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{self.columns*cw}" height="{self.rows*ch}" viewBox="0 0 {self.columns*cw} {self.rows*ch}">',
                   f'<title>Centaur CLI {__version__} — demonstração do renderer real</title>',
-                  f'<rect width="100%" height="100%" fill="{color(bg)}"/>',
+                  f'<rect width="100%" height="100%" fill="{color(bg, background=True)}"/>',
                   '<g font-family="DejaVu Sans Mono, DejaVu Sans, monospace" font-size="15">']
         runs = []
         for (row, column), (char, style) in sorted(self.cells.items()):
@@ -62,26 +72,26 @@ class Screen:
         for row, column, text, style in runs:
             fg, surface = self.pairs.get(style >> 8 & 255, self.pairs[self.background >> 8 & 255])
             x, y = column*cw, row*ch
-            result.append(f'<rect x="{x}" y="{y}" width="{cw*max(1,cell_width(text))}" height="{ch}" fill="{color(surface)}"/>')
+            result.append(f'<rect x="{x}" y="{y}" width="{cw*max(1,cell_width(text))}" height="{ch}" fill="{color(surface, background=True)}"/>')
             if text.strip():
                 weight = 'bold' if style & curses.A_BOLD else 'normal'
                 glyphs = []
                 for char in text:
                     if char.strip(): glyphs.append(f'<tspan x="{x}">{escape(char)}</tspan>')
                     x += cw*cell_width(char)
-                result.append(f'<text y="{y+16}" fill="{color(fg)}" font-weight="{weight}">{"".join(glyphs)}</text>')
+                result.append(f'<text y="{y+16}" fill="{color(fg, dim=bool(style & curses.A_DIM))}" font-weight="{weight}">{"".join(glyphs)}</text>')
         return '\n'.join([*result, '</g></svg>']) + '\n'
 
 
-def render(output, *, rows=32, columns=140, welcome=False, tree=False, agents=False):
-    colors, pairs = {}, {}
+def render(output, *, rows=32, columns=140, welcome=False, tree=False, agents=False, startup=False, theme='dark'):
+    pairs = {}
     with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {'CENTAUR_REDUCED_MOTION': '1'}):
         root = Path(temporary)
         client = SimpleNamespace(backend='codex', context_windows={'modelo-principal': 200000})
         terminal = Terminal(root, 'modelo-principal', ChatStore(root), client, effort='medium', approval_mode='auto')
         terminal.chat['title'] = 'Nova conversa' if welcome else 'Refinar o fluxo de desenvolvimento'
         terminal.notice = 'Digite sua intenção · $config · Shift+← chats'
-        if not welcome:
+        if not (welcome or startup):
             terminal.chat['messages'] = [
                 {'role': 'user', 'content': 'Revise os fluxos e melhore a experiência do CLI.'},
                 {'role': 'assistant', 'content': 'Vou revisar o ciclo de vida e validar as mudanças no terminal.', 'tool_calls': [
@@ -113,21 +123,24 @@ def render(output, *, rows=32, columns=140, welcome=False, tree=False, agents=Fa
             terminal.cursor = len(terminal.draft)
             if agents:
                 terminal.open_chats('agents')
-        with patch.dict(os.environ, {}, clear=True), \
+        with patch.dict(os.environ, {'CENTAUR_REDUCED_MOTION': '1'}, clear=True), \
                 patch('centaur_cli.appearance.curses.has_colors', return_value=True), \
-                patch('centaur_cli.appearance.curses.can_change_color', return_value=True), \
                 patch('centaur_cli.appearance.curses.start_color'), \
+                patch('centaur_cli.appearance.curses.use_default_colors'), \
                 patch('centaur_cli.appearance.curses.COLORS', 256, create=True), \
                 patch('centaur_cli.appearance.curses.COLOR_PAIRS', 256, create=True), \
-                patch('centaur_cli.appearance.curses.color_content', return_value=(0, 0, 0)), \
-                patch('centaur_cli.appearance.curses.init_color', side_effect=lambda i,r,g,b: colors.update({i: tuple(round(c*255/1000) for c in (r,g,b))})), \
                 patch('centaur_cli.appearance.curses.init_pair', side_effect=lambda i,f,b: pairs.update({i:(f,b)})), \
                 patch('centaur_cli.appearance.curses.color_pair', side_effect=lambda i: i << 8):
-            terminal.view.palette.initialize()
-            terminal.view.animation.elapsed = 6
-            screen = Screen(rows, columns, colors, pairs)
+            if startup:
+                from centaur_cli.startup import StartupWizard
+                surface = StartupWizard('codex', 'modelo-principal', 'medium', approval_mode='auto')
+            else:
+                surface = terminal
+            surface.view.palette.initialize()
+            surface.view.animation.elapsed = 6
+            screen = Screen(rows, columns, pairs, theme)
             screen.project_path = str(root)
-            terminal.draw(screen)
+            surface.draw(screen)
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(screen.svg(), encoding='utf-8')
 
@@ -138,7 +151,9 @@ if __name__ == '__main__':
     parser.add_argument('--rows', type=int, default=32)
     parser.add_argument('--columns', type=int, default=140)
     parser.add_argument('--welcome', action='store_true')
+    parser.add_argument('--startup', action='store_true', help='Mostrar a seleção inicial de conexão')
+    parser.add_argument('--theme', choices=THEMES, default='dark', help='Tema do emulador usado na demonstração')
     parser.add_argument('--tree', action='store_true', help='Demonstrar árvore recursiva com dados sintéticos')
     parser.add_argument('--agents', action='store_true', help='Mostrar o menu de agentes')
     options = parser.parse_args()
-    render(options.output, rows=options.rows, columns=options.columns, welcome=options.welcome, tree=options.tree, agents=options.agents)
+    render(options.output, rows=options.rows, columns=options.columns, welcome=options.welcome, tree=options.tree, agents=options.agents, startup=options.startup, theme=options.theme)

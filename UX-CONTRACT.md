@@ -55,6 +55,14 @@ Movimento reduzido e ausência de cor preservam todos
 os comandos e a indicação textual da seleção. As superfícies são de terminal, sem HTML,
 DOM, popups de navegador, fontes remotas ou scrollbars CSS.
 
+O fundo de todas as superfícies é o padrão do emulador, inclusive seleção, mensagens,
+entrada, startup e cartões. `Palette` usa pares com fundo `-1` e texto principal `-1`,
+sem redefinir slots de cor; cores de destaque são ANSI nativas. Seleção usa `>` e
+negrito, inclusive em `NO_COLOR`, sem inversão. Ausência de suporte a cores padrão
+cai para atributos monocromáticos. Fonte: pedido do proprietário em 2026-10-08;
+verificação em `tests/test_graphics.py` e `tests/test_terminal_pty.py` (SGR/pares reais),
+com exemplos de temas claro/escuro gerados por `scripts/render_cli_preview.py`.
+
 `--complete` nunca altera READMEs ou estado. Ele exige vínculos explícitos e percorre
 filhas/dependências; integração/publicação remota continua exigindo observação externa.
 O harness não transforma uma resposta de IA ou relatório de subagente em aprovação.
@@ -64,7 +72,7 @@ O harness não transforma uma resposta de IA ou relatório de subagente em aprov
 `conversation.py` é o dono dos resumos de ações, da apresentação de Markdown e do pedido
 de título. `Terminal.lines` preserva a ordem da conversa: usuário, progresso público,
 ferramentas resumidas, resposta final. `Ctrl+O` alterna detalhes sem mudar foco ou rascunho.
-`TranscriptLine` leva o estilo definido pela origem até `TerminalView`: comentário branco,
+`TranscriptLine` leva o estilo definido pela origem até `TerminalView`: comentário na cor padrão,
 ação azul, falha/recusa âmbar. Quebra de linha e rolagem preservam a distinção; marcadores
 ou indentação dentro do conteúdo não mudam o papel visual. `NO_COLOR` distingue ações
 em negrito de comentários normais, conservando símbolos e descrições de estado.
@@ -344,12 +352,13 @@ de pausa/revogação. Cliques/texto/teclas/arrasto buscam dois intervalos de est
 continua cancelável. Estabilidade não afirma sucesso. Idade/resolução/alvo/consentimento
 continuam verificados; referências são consumidas antes de input e falha parcial não repete.
 
-## Espera verificável e tema navy — 0.9.3
+## Espera verificável — 0.9.3
 
 Fonte: referência visual e relato de subagente sem progresso do proprietário, 2026-10-07.
-Palette adapta tokens compartilhados para conversa, input, seleção e cartões; slots
-de cor programáveis são restaurados ao sair normalmente ou por erro. Fallback ANSI
-e NO_COLOR mantêm teclado, inversão, marcadores e semântica. Não há troca de fonte.
+Palette adapta tokens compartilhados para conversa, input, seleção e cartões.
+Desde o pedido de 2026-10-08, todas essas superfícies herdam o fundo padrão, sem
+reprogramar cores. ANSI e NO_COLOR mantêm teclado, negrito, marcadores e semântica.
+Não há troca de fonte.
 
 SessionRegistry registra fase/tempo separado do heartbeat. agent.run_turn informa
 modelo, ferramenta e compactação; input continua prioritário. Preview e lateral

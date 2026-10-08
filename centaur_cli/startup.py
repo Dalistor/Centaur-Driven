@@ -128,7 +128,7 @@ class StartupWizard:
         self.view.put(screen, 1, 3, WORDMARK, 'muted')
         if width < 40 or height < 18:
             self.view.put(screen, 3, 1, 'Amplie para 40 × 18 para escolher sua IA.', 'muted')
-            self.view.put(screen, height - 1, 1, 'Esc / Ctrl+Q cancela', 'blue')
+            self.view.put(screen, height - 1, 1, 'Esc / Ctrl+Q cancela', 'muted')
             screen.refresh()
             return
         surface = SimpleNamespace(settings=self.picker, busy_started=None)
@@ -147,7 +147,7 @@ class StartupWizard:
                 self.view.put(screen, height - 5 + offset, 3, line, 'warning')
         elif notice:
             self.view.put(screen, 2, 3, notice, 'muted')
-        self.view.put(screen, height - 1, 3, '↑↓ escolher · Enter confirmar · Esc voltar/cancelar · Ctrl+Q sair', 'blue')
+        self.view.put(screen, height - 1, 3, '↑↓ escolher · Enter confirmar · Esc voltar/cancelar · Ctrl+Q sair', 'muted')
         if self.picker.page == 'custom':
             _, cursor = input_window(self.picker.query, len(self.picker.query), width - 8)
             screen.move(8, min(width - 2, 5 + cursor))

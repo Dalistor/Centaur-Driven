@@ -8,12 +8,12 @@ O projeto inclui um executável próprio com interface de terminal,
 histórico por pasta e ferramentas de programação. Requer Python 3.10+ e terminal com curses
 (Linux/macOS). A implementação usa a biblioteca padrão, sem dependências obrigatórias de execução; anexos visuais e captura usam um extra opcional.
 O visual usa o emblema Convergência: duas faixas curvas finas que se encontram, com versão
-animada Braille e fallback em blocos/ASCII. Fundo escuro, comandos em verde e atalhos em azul. Adapta-se ao tamanho do terminal e respeita `NO_COLOR`.
+animada Braille e fallback em blocos/ASCII. Fundo padrão do seu terminal, comandos em verde e atalhos discretos. Adapta-se ao tamanho do terminal e respeita `NO_COLOR`.
 Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.md](UX-CONTRACT.md).
 
-![Abertura do Centaur CLI](docs/cli-welcome.png)
+![Abertura do Centaur CLI](docs/images/cli-native-welcome.svg)
 
-*Captura de uma sessão de demonstração local, com cliente simulado.*
+*Preview do renderer real com dados demonstrativos e exemplo de tema do emulador.*
 
 ### Instalação da versão publicada
 
@@ -57,9 +57,9 @@ OpenRouter usa uma chave de API; Codex e Claude usam o login dos seus CLIs locai
 As preferências da pasta ficam pré-selecionadas. ↑/↓ navegam, Enter confirma e Esc volta
 ou cancela; é possível revisar qualquer campo antes de abrir o chat.
 
-![Seleção inicial do Centaur](docs/cli-startup.png)
+![Seleção inicial do Centaur](docs/images/cli-native-startup.svg)
 
-*Captura de terminal real em uma demonstração com autenticação e catálogo simulados.*
+*Preview do seletor real; o fundo e as cores seguem o seu emulador.*
 
 O modelo e o effort escolhidos definem o **agente principal**. Durante `$run`, o Centaur
 pode escolher outros modelos do mesmo backend para cada subagente, conforme a complexidade
@@ -178,7 +178,7 @@ título em negrito no topo e resposta final separada do trabalho em andamento. O
 pode comunicar próximos passos e descobertas em resumos públicos antes das ferramentas;
 as ações mostram estado pendente, conclusão, falha ou recusa a partir de seus resultados.
 `Ctrl+O` abre as saídas completas; o histórico continua armazenando os resultados originais.
-Comentários públicos da IA ficam em branco; ações de ferramentas em azul/negrito;
+Comentários públicos da IA usam a cor de texto padrão; ações de ferramentas em azul/negrito;
 falhas, interrupções e recusas em âmbar. A distinção acompanha as linhas quebradas e a
 rolagem. Com `NO_COLOR`, ações usam negrito e comentários peso normal.
 Esse resumo não exibe raciocínio interno do provedor. Markdown básico fica legível e
@@ -468,6 +468,8 @@ padrão do Python, com malha em cache e palco limitado para manter o custo previ
 
 ![Renderizador Braille do Centaur em uma sessão de demonstração](docs/cli-graphics.gif)
 
+*Registro da animação em uma versão anterior; o fundo atual é o padrão do emulador.*
+
 O CLI também mostra indicador de atividade, tempo decorrido, nome da conversa e estado de trabalho.
 As mensagens separam autor e conteúdo; seletores compartilham cores e seleção com o histórico.
 A animação indica atividade, não porcentagem de conclusão. Para reduzir movimento:
@@ -480,8 +482,8 @@ CENTAUR_GRAPHICS=0 centaur .
 ```
 
 `CENTAUR_REDUCED_MOTION=1` usa a pose final sem giro. `NO_COLOR` remove cores, mantendo
-seleção por inversão e níveis de brilho por atributos. Terminais sem codificação Braille
-recebem o desenho estático Unicode/ASCII; cores usam ANSI 256 ou o fallback disponível. O CLI preserva rascunho e posição do
+seleção por seta/negrito e níveis de brilho por atributos. Terminais sem codificação Braille
+recebem o desenho estático Unicode/ASCII; cores usam os slots ANSI do emulador ou atributos monocromáticos. O CLI preserva rascunho e posição do
 cursor ao redimensionar. Em terminais que interceptem Shift+←, use `/chats`.
 
 Os chats ficam em `.centaur/chats/*.json` na pasta aberta, com gravação atômica e permissão
@@ -984,14 +986,16 @@ VPS real depende do ambiente de uso. O conjunto não alega deploy remoto apenas 
 
 ### Aparência e subagentes
 
-O fundo agora é azul-marinho; composer, mensagens e cartões usam uma superfície azul
-um pouco mais clara. O título mantém destaque e comentários/ações continuam distintos.
-Cores programáveis são restauradas ao sair; terminais ANSI fixos usam uma aproximação
-e `NO_COLOR` preserva marcadores e negrito.
+O CLI usa o fundo e a cor de texto padrão do seu terminal, inclusive no composer,
+nas mensagens, seleções e cartões. Funciona com tema claro, escuro ou transparência,
+sem redefinir a paleta do emulador. Comandos, ferramentas e avisos usam cores ANSI;
+atalhos e separadores ficam discretos. `NO_COLOR` preserva marcadores e negrito.
 
 Preview do renderer real, com dados demonstrativos:
 
-![Centaur CLI com tema navy e subagente](https://raw.githubusercontent.com/Dalistor/Centaur-Driven/cli-v0.9.3/docs/images/cli-0.9.3.svg)
+![Centaur CLI com fundo padrão e subagente](docs/images/cli-native-dark.svg)
+
+![Centaur CLI em um terminal claro](docs/images/cli-native-light.svg)
 
 Os cartões e o preview informam **Aguardando modelo**, **Executando comando**,
 **Lendo arquivo** ou **Compactando**, com tempo nessa fase. Heartbeat não é prova
