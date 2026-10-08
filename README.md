@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão desta entrega é `0.10.1`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.10.1`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.1).
+A versão desta entrega é `0.10.2`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.10.2`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.2).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.1/centaur_cli-0.10.1-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.2/centaur_cli-0.10.2-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -495,6 +495,13 @@ a conversa aberta; o CLI aguarda todas as sessões terminarem antes de sair. Os 
 compartilham a pasta de trabalho: distribua arquivos/tarefas para evitar edições concorrentes
 no mesmo arquivo. Fechar o terminal encerra o processo; não há serviço de execução após sair.
 
+Ao desfocar a janela ou aba, agentes, mensagens e verificações de atividade continuam
+em execução. Em terminais com eventos de foco, somente o desenho e as animações
+pausam, evitando bloquear a sessão quando o terminal deixa de consumir saída. Ao
+voltar, a tela é redesenhada com o estado atual, preservando rascunho e cursor. Uma
+tecla também recupera o desenho caso o evento de retorno seja perdido. Isso não
+altera a autorização do computer use nem a seleção da conversa.
+
 **Tab** mostra todos os agentes: chats principais e subagentes delegados. Cada linha
 informa **Trabalhando**, **Aguardando input** ou **Parado**, com atualização ao vivo. Enter
 em um subagente abre seu histórico para leitura; outro Enter abre o chat coordenador deste
@@ -576,7 +583,7 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.1'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.2'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```

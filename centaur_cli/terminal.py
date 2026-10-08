@@ -36,7 +36,7 @@ from .computer import ComputerSession
 from .computer_access import ComputerControl
 from .composer import layout_input, attachment_span, atomic_cursor, replace_input, without_attachment_markers
 from .clipboard import clipboard_content, pasted_paths
-from .keyboard import KEY_NEWLINE, PastedText, KeyboardReader, keyboard_protocol, read_key
+from .keyboard import KEY_NEWLINE, KEY_IGNORE, KEY_FOCUS_IN, KEY_FOCUS_OUT, PastedText, KeyboardReader, keyboard_protocol, read_key
 
 
 def display_lines(text, width):
@@ -1659,30 +1659,51 @@ class Terminal:
             pass
         screen.timeout(100)
         keyboard = KeyboardReader()
+        focused = True
         while True:
             frame_start = time.monotonic()
             self.drain_events()
             self.housekeeping()
             self.request_credits()
-            try:
-                curses.curs_set(1 if self.rename_target else 0 if self.approval or (self.question and not self.question.custom) or (self.browser and not self.rename_target)
-                                or (self.settings and self.settings.page != 'custom') else 1)
-            except curses.error:
-                pass
-            self.draw(screen)
+            if focused:
+                try:
+                    curses.curs_set(1 if self.rename_target else 0 if self.approval or (self.question and not self.question.custom) or (self.browser and not self.rename_target)
+                                    or (self.settings and self.settings.page != 'custom') else 1)
+                except curses.error:
+                    pass
+                self.draw(screen)
+            else:
+                # Hidden emulators may stop consuming output. Never tie worker,
+                # inbox or heartbeat progress to writing another animation frame.
+                self.view.animation.pause()
+                # get_wch implicitly refreshes dirty windows, including on resize.
+                screen.clearok(False)
+                screen.untouchwin()
             # Render only while the welcome sequence moves. Idle work retains the
             # existing 100 ms event cadence and does not reproject the mesh.
             timeout = max(1, round((FRAME_SECONDS - (time.monotonic() - frame_start)) * 1000)) \
-                if self.view.animation.active else 100
+                if focused and self.view.animation.active else 100
             screen.timeout(timeout)
             try:
                 key = keyboard.read(screen, timeout)
             except curses.error:
                 continue
+            if key in (KEY_FOCUS_IN, KEY_FOCUS_OUT):
+                focused = key == KEY_FOCUS_IN
+                if focused:
+                    screen.clearok(True)
+                continue
             if key == curses.KEY_RESIZE:
                 curses.update_lines_cols()
-                screen.clearok(True)
+                if focused:
+                    screen.clearok(True)
                 continue
+            if key == KEY_IGNORE:
+                continue
+            if not focused:
+                # Recover even if a terminal drops its focus-in notification.
+                focused = True
+                screen.clearok(True)
             if key in ('\x0f', '\x05', curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE,
                        curses.KEY_NPAGE, curses.KEY_MOUSE):
                 # Navigation/disclosure can move many rows. Repaint rather than relying

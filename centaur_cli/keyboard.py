@@ -7,6 +7,7 @@ import re
 import sys
 
 KEY_NEWLINE, KEY_IGNORE, KEY_PASTE_START = 0x110000, 0x110001, 0x110002
+KEY_FOCUS_IN, KEY_FOCUS_OUT = 0x110003, 0x110004
 
 
 @dataclass(frozen=True)
@@ -22,16 +23,18 @@ def keyboard_protocol(stream=None):
         if enabled:
             # Kitty progressive enhancement + xterm modifyOtherKeys. Unsupported
             # controls are ignored. No all-keys or key-release mode is requested.
-            stream.write('\x1b[>1u\x1b[>4;2m\x1b[?2004h')
+            stream.write('\x1b[>1u\x1b[>4;2m\x1b[?2004h\x1b[?1004h')
             stream.flush()
         yield
     finally:
         if enabled:
-            stream.write('\x1b[?2004l\x1b[>4m\x1b[<1u')
+            stream.write('\x1b[?1004l\x1b[?2004l\x1b[>4m\x1b[<1u')
             stream.flush()
 
 
 def decode_sequence(sequence):
+    if sequence in ('[I', '[O'):
+        return KEY_FOCUS_IN if sequence == '[I' else KEY_FOCUS_OUT
     if re.fullmatch(r'(?:\[|O)[ABCDHF]', sequence):
         return {'A': curses.KEY_UP, 'B': curses.KEY_DOWN, 'C': curses.KEY_RIGHT,
                 'D': curses.KEY_LEFT, 'H': curses.KEY_HOME, 'F': curses.KEY_END}[sequence[-1]]
@@ -73,6 +76,15 @@ def decode_sequence(sequence):
 
 def read_key(screen, timeout=100):
     key = screen.get_wch()
+    if isinstance(key, int):
+        # Recent terminfo databases decode focus as dynamically numbered extended
+        # keys. Their numbers vary by terminal; older databases return raw CSI.
+        try:
+            name = curses.keyname(key)
+        except curses.error:
+            name = None
+        if name in (b'kxIN', b'kxOUT'):
+            return KEY_FOCUS_IN if name == b'kxIN' else KEY_FOCUS_OUT
     if key != '\x1b':
         return key
     consumed = []

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.2 — 2026-10-08
+
+- Desfocar o terminal pausa somente desenho e animações; eventos, respostas, agentes e heartbeat continuam em segundo plano, sem acumular saída em terminais ocultos.
+- Eventos de foco são reconhecidos tanto por CSI quanto por teclas estendidas do curses, sem inserir códigos no rascunho.
+- Retornar ao terminal redesenha o estado atual, inclusive após redimensionamento; digitar também recupera a tela se o evento de retorno for perdido.
+
 ## 0.10.1 — 2026-10-08
 
 - Codex/Claude não aguardam EOF de processos descendentes após o CLI encerrar; respostas completas continuam validadas e respostas incompletas são rejeitadas.
