@@ -247,16 +247,14 @@ class ComputerSession:
             return 'Captura cancelada.'
         if self.control:
             self.control.wait(self.chat_id, self.cancel_event, self.emit)
-            self.control.claim(self)
-        try:
-            backend = self.backend_factory()
-        except BaseException:
-            if self.control:
-                self.control.release(self)
-            raise
+        backend = self.backend_factory()
         with self.lock:
             # Install the entire new session atomically. The old capture worker
             # cannot tear down a replacement backend or report its errors into it.
+            # Claim under the same lock: an old watcher's final cleanup must not
+            # release the replacement's desktop lease during backend creation.
+            if self.control:
+                self.control.claim(self)
             self.stop_event = threading.Event()
             self.backend = backend
             token = self.stop_event

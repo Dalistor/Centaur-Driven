@@ -156,6 +156,17 @@ class ComputerAccessTests(unittest.TestCase):
 
     def test_replacement_session_and_old_watch_cannot_release_new_owner(self):
         first,_=self.session();self.start(first);old=first.thread
+        backend=first.backend
+        def restart_backend():
+            old.join(1)
+            self.assertFalse(old.is_alive())
+            return backend
+        with patch.object(first,'backend_factory',side_effect=restart_backend):
+            self.start(first)
+        self.assertIs(self.control.owner,first)
+        self.assertTrue(first.active)
+        self.assertEqual(len(self.prompts),1)
+        old=first.thread
         first.close()
         second,_=self.session();self.start(second);old.join(1)
         self.assertIs(self.control.owner,second)

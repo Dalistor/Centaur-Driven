@@ -192,6 +192,27 @@ class NativeTrace:
         self.phase, self.hint, self.failed = 'nenhum evento completo', '', False
         self.event = ''
         self.completed = False
+        self.recovering, self.recovery_errors = False, 0
+        self.recovery_episode = 0
+        self.stderr_offset, self.stderr_buffer = 0, b''
+
+    def observe_error(self, detail):
+        hint = failure_hint(self.backend, detail)
+        self.hint = hint or self.hint
+        if 'rede/proxy' in hint:
+            if not self.recovering:
+                self.recovery_episode += 1
+            self.recovering = True
+            self.recovery_errors += 1
+
+    def feed_errors(self, cumulative):
+        data = cumulative.encode('utf-8') if isinstance(cumulative, str) else cumulative or b''
+        self.stderr_buffer += data[self.stderr_offset:]
+        self.stderr_offset = len(data)
+        lines = self.stderr_buffer.split(b'\n')
+        self.stderr_buffer = lines.pop()
+        for line in lines:
+            self.observe_error(line.decode('utf-8', errors='replace'))
 
     def feed(self, cumulative):
         data = cumulative.encode('utf-8') if isinstance(cumulative, str) else cumulative or b''
@@ -213,6 +234,19 @@ class NativeTrace:
                 self.completed = True
             elif self.backend == 'claude' and kind == 'result':
                 self.completed = not event.get('is_error') and event.get('subtype') in (None, 'success')
+            item = event.get('item')
+            message = event.get('message')
+            claude_output_seen = (self.backend == 'claude' and kind == 'assistant' and isinstance(message, dict)
+                                 and isinstance(message.get('content'), list) and any(
+                                     isinstance(block, dict) and block.get('type') in ('text', 'thinking')
+                                     and isinstance(block.get(block['type']), str) and block[block['type']].strip()
+                                     for block in message['content']))
+            if (self.completed or (self.backend == 'codex' and kind in ('item.updated', 'item.completed')
+                    and isinstance(item, dict) and item.get('type') in ('reasoning', 'agent_message')
+                    and isinstance(item.get('text'), str) and item['text'].strip()) or claude_output_seen):
+                # Actual model output proves the stream resumed. Startup envelopes,
+                # stderr chatter and further reconnect notices do not renew recovery.
+                self.recovering = False
             if isinstance(kind, str) and kind in self.phases:
                 self.phase = self.phases[kind]
                 self.event = kind
@@ -228,7 +262,7 @@ class NativeTrace:
                 detail = event.get('result')
                 self.failed = True
             if isinstance(detail, str):
-                self.hint = failure_hint(self.backend, detail) or self.hint
+                self.observe_error(detail)
 
     def snapshot(self, stderr=b''):
         errors = stderr.decode('utf-8', errors='replace') if isinstance(stderr, bytes) else stderr or ''
@@ -236,9 +270,12 @@ class NativeTrace:
         categories = {'rede/proxy': 'rede', 'TLS': 'TLS', 'Limite de uso': 'cota',
                       'contexto excedeu': 'contexto', 'schema': 'schema', 'configuração': 'configuração'}
         warning = next((category for text, category in categories.items() if text in hint), '')
+        if warning == 'rede' and not self.recovering:
+            warning = ''
         return {'event': self.event, 'output_bytes': self.offset,
                 'stderr_bytes': len(stderr) if isinstance(stderr, bytes) else len(errors.encode('utf-8')),
-                'warning': warning}
+                'warning': warning, 'recovering': self.recovering,
+                'recovery_errors': self.recovery_errors, 'recovery_episode': self.recovery_episode}
 
     def diagnostic(self, stderr, input_bytes):
         errors = stderr.decode('utf-8', errors='replace') if isinstance(stderr, bytes) else stderr or ''
@@ -296,6 +333,12 @@ class NativeClient:
                 raise ValueError
         except ValueError:
             raise ValueError('CENTAUR_NATIVE_IDLE_TIMEOUT deve ser 0 (desativado) ou um inteiro de 30 a 3600 segundos.') from None
+        try:
+            self.recovery_timeout = int(os.environ.get('CENTAUR_NATIVE_RECOVERY_TIMEOUT', '180'))
+            if self.recovery_timeout != 0 and not 30 <= self.recovery_timeout <= 3600:
+                raise ValueError
+        except ValueError:
+            raise ValueError('CENTAUR_NATIVE_RECOVERY_TIMEOUT deve ser 0 (desativado) ou um inteiro de 30 a 3600 segundos.') from None
         self.context_windows = {}
         self.model_efforts = {}
         self.speed_support = local_speed_support(backend)
@@ -468,6 +511,7 @@ class NativeClient:
                     input_bytes = len(input_text.encode('utf-8'))
                     last_progress = -float('inf')
                     completed_at, finalized = None, False
+                    recovery_started, recovery_episode = None, 0
                     def notify():
                         if on_progress is not None:
                             try:
@@ -482,6 +526,18 @@ class NativeClient:
                         remaining = deadline - now
                         if remaining <= 0:
                             raise subprocess.TimeoutExpired(arguments, timeout)
+                        if trace.recovering:
+                            if recovery_started is None or recovery_episode != trace.recovery_episode:
+                                recovery_started = now
+                                recovery_episode = trace.recovery_episode
+                            if self.recovery_timeout and now - recovery_started >= self.recovery_timeout:
+                                error = RequestTimeout if request_timeout is not None else RuntimeError
+                                raise error(f'{self.backend}: recuperação de conexão excedeu {self.recovery_timeout:g} segundos '
+                                            'após erro de rede observado no CLI; checkpoints preservados. '
+                                            'Confira rede/proxy e use /retry. Nenhuma ferramenta dessa resposta foi executada. '
+                                            + trace.diagnostic(partial_errors, input_bytes))
+                        else:
+                            recovery_started = None
                         if trace.completed and not trace.failed:
                             if completed_at is None:
                                 completed_at = now
@@ -516,6 +572,7 @@ class NativeClient:
                                         'Nenhuma ferramenta dessa resposta foi executada.')
                         try:
                             output, errors = process.communicate(pending_input, timeout=min(0.1, remaining))
+                            trace.feed_errors(errors)
                             trace.feed(output)
                             partial_errors = errors
                             notify()
@@ -532,12 +589,14 @@ class NativeClient:
                                                    'nenhuma ferramenta dessa resposta foi executada.')
                             if sizes != received:
                                 received, last_output = sizes, time.monotonic()
+                                recovery_state = (trace.recovering, trace.recovery_episode)
+                                trace.feed_errors(partial.stderr)
                                 trace.feed(partial.output)
                                 if trace.failed:
                                     hint = trace.hint or 'O CLI informou uma falha definitiva do turno; confira modelo, conexão e autenticação.'
                                     raise RuntimeError(f'{self.backend}: {hint} '
                                                        'Checkpoints preservados; nenhuma ferramenta dessa resposta foi executada.')
-                                if time.monotonic() - last_progress >= 1:
+                                if (trace.recovering, trace.recovery_episode) != recovery_state or time.monotonic() - last_progress >= 1:
                                     notify()
                                     last_progress = time.monotonic()
                             # EOF belongs to every process inheriting these pipes,

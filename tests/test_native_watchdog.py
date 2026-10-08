@@ -237,10 +237,12 @@ print(json.dumps({'type':'turn.completed'}),flush=True)
             self.assertEqual(activity_label(self.root, chat_id), '')
 
     def test_idle_environment_validation_and_override(self):
-        for value in ('-1', '29', '3601', 'nan'):
-            with patch.dict(os.environ, {'CENTAUR_NATIVE_IDLE_TIMEOUT': value}), patch('centaur_cli.native_client.shutil.which', return_value=sys.executable):
-                with self.assertRaisesRegex(ValueError, 'CENTAUR_NATIVE_IDLE_TIMEOUT'):
-                    NativeClient('codex')
-        for value in ('0', '1800'):
-            with patch.dict(os.environ, {'CENTAUR_NATIVE_IDLE_TIMEOUT': value}), patch('centaur_cli.native_client.shutil.which', return_value=sys.executable):
-                self.assertEqual(NativeClient('codex').idle_timeout, int(value))
+        for variable, attribute in (('CENTAUR_NATIVE_IDLE_TIMEOUT', 'idle_timeout'),
+                                    ('CENTAUR_NATIVE_RECOVERY_TIMEOUT', 'recovery_timeout')):
+            for value in ('-1', '29', '3601', 'nan'):
+                with patch.dict(os.environ, {variable: value}), patch('centaur_cli.native_client.shutil.which', return_value=sys.executable):
+                    with self.assertRaisesRegex(ValueError, variable):
+                        NativeClient('codex')
+            for value in ('0', '1800'):
+                with patch.dict(os.environ, {variable: value}), patch('centaur_cli.native_client.shutil.which', return_value=sys.executable):
+                    self.assertEqual(getattr(NativeClient('codex'), attribute), int(value))

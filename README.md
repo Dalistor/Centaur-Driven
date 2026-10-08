@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão desta entrega é `0.10.3`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.10.3`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.3).
+A versão desta entrega é `0.10.4`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.10.4`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.4).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.3/centaur_cli-0.10.3-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.4/centaur_cli-0.10.4-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -583,7 +583,7 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.3'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.4'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```
@@ -1035,6 +1035,20 @@ o erro informa explicitamente **causa não confirmada**.
 prazo inteiro, mesmo se o processo permanecer aberto. Um aviso `error` recuperável do
 Codex não invalida uma resposta final válida. Arquivo final não sobrepõe `turn.failed`.
 Respostas parciais nunca executam ferramentas; `/retry` continua com os checkpoints.
+
+Desde a **0.10.4**, um erro de rede observado em eventos públicos ou stderr inicia
+um prazo separado de **180 segundos para recuperação da conexão**. A interface
+mostra `Reconectando` com o tempo decorrido. Repetir avisos ou emitir heartbeat não
+renova esse prazo. Saída real do modelo encerra a recuperação e retira o aviso;
+uma falha de conexão posterior recebe seu próprio prazo, sempre dentro do limite
+total da chamada. Se a recuperação não concluir, o erro mantém o diagnóstico e os
+checkpoints. Não há retry automático nem replay de ferramentas.
+
+Esse prazo não mede silêncio do modelo: sem erro de rede, uma resposta estruturada
+silenciosa continua podendo levar até 30 minutos. Para mudar somente a recuperação,
+use `CENTAUR_NATIVE_RECOVERY_TIMEOUT` (30–3600s, ou 0 para desativar). O prazo menor
+da chamada/compactação prevalece. Consulte a
+[reprodução e os limites da investigação](docs/validation-native-recovery.md).
 
 O adaptador usa uma execução efêmera e saída estruturada por etapa; ele não retoma a
 sessão interna do Codex interativo. Portanto, o CLI interativo funcionar não comprova
