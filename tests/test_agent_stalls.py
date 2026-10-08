@@ -85,7 +85,8 @@ class AgentStallTests(unittest.TestCase):
         self.assertEqual(reply['content'], 'OK')
         self.assertEqual(snapshots[-1]['event'], 'turn.completed')
         self.assertNotIn('PRIVATE', json.dumps(snapshots))
-        self.assertEqual(set(snapshots[-1]), {'event', 'warning', 'output_bytes', 'stderr_bytes'})
+        self.assertEqual(set(snapshots[-1]), {'event', 'warning', 'output_bytes', 'stderr_bytes',
+                                            'recovering', 'recovery_errors', 'recovery_episode'})
 
     def test_subagent_inherits_effort_and_advertised_fast_without_changing_model(self):
         for supported in (True, False):

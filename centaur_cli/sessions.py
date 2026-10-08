@@ -85,6 +85,10 @@ def native_activity_label(root, chat_id, now=None):
     elapsed = max(0, int(current - started))
     duration = f'{elapsed // 60}m {elapsed % 60:02}s'
     warning = record.get('native_warning')
+    recovery = record.get('native_recovery_started')
+    if record.get('native_recovering') is True and type(recovery) in (int, float):
+        seconds = max(0, int(current - recovery))
+        return f'CLI · Reconectando há {seconds // 60}m {seconds % 60:02}s · erro de rede observado'
     if warning in NATIVE_WARNINGS:
         return f'Aviso: {warning} · sem saída há {duration}'
     kind = record.get('native_event')
@@ -144,6 +148,19 @@ class SessionRegistry:
             kind, warning = event.get('event'), event.get('warning')
             record['native_event'] = kind if isinstance(kind, str) and kind in NATIVE_PHASES else ''
             record['native_warning'] = warning if isinstance(warning, str) and warning in NATIVE_WARNINGS else ''
+            recovering = event.get('recovering') is True
+            episode = event.get('recovery_episode')
+            if type(episode) is not int or not 0 <= episode <= 1_000_000:
+                episode = 0
+            if recovering and (not record.get('native_recovering') or episode != record.get('native_recovery_episode')):
+                record['native_recovery_started'] = now
+            elif not recovering:
+                record.pop('native_recovery_started', None)
+            record['native_recovering'] = recovering
+            record['native_recovery_episode'] = episode
+            errors = event.get('recovery_errors')
+            if type(errors) is int and 0 <= errors <= 1_000_000:
+                record['native_recovery_errors'] = errors
             self._write(record)
 
     def _write(self, record):

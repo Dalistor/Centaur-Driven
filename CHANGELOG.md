@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.4 — 2026-10-08
+
+- Tornar atômica a aquisição do desktop ao reiniciar computer use: o worker antigo
+  não libera a posse da nova sessão enquanto seu backend é criado.
+- Limitar a recuperação de conexão dos CLIs nativos a três minutos após erro de
+  rede observado. Novos avisos, stderr e heartbeat não renovam esse prazo; saída
+  real do modelo encerra a recuperação. Silêncio sem erro mantém o prazo total de
+  30 minutos. `CENTAUR_NATIVE_RECOVERY_TIMEOUT=0` desativa apenas o limite de recuperação.
+- Mostrar `Reconectando` e o tempo da recuperação no chat e nos cartões de agentes,
+  retirando o aviso quando o modelo retoma. Diagnóstico seguro permanece no erro;
+  não há replay automático nem execução de respostas parciais.
+- Validar reconexões em stdout/stderr, prazo absoluto, cancelamento, compactação e
+  resposta final após recuperação com processos locais controlados. Ver
+  [evidência e limites](docs/validation-native-recovery.md).
+
 ## 0.10.3 — 2026-10-08
 
 - Colar texto longo não encerra o CLI com `File name too long`; falhas ao reconhecer caminhos preservam o texto e o cursor, sem preparar anexos parciais.

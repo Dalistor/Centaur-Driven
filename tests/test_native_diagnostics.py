@@ -1,5 +1,6 @@
 """Reproduce native timeouts and terminal events without an authenticated model."""
 import json
+import time
 import subprocess
 import sys
 from pathlib import Path
@@ -9,6 +10,7 @@ from unittest.mock import patch
 
 from centaur_cli.interaction import RequestTimeout
 from centaur_cli.native_client import NativeClient, NativeTrace, codex_output
+from centaur_cli.sessions import SessionRegistry, native_activity_label
 
 
 class NativeDiagnosticTests(unittest.TestCase):
@@ -39,12 +41,57 @@ class NativeDiagnosticTests(unittest.TestCase):
 
     def test_recoverable_error_does_not_abort_and_cannot_display_secrets(self):
         trace = NativeTrace('codex')
-        trace.feed(json.dumps({'type': 'error', 'message': 'stream disconnected; Reconnecting 1/5 TOKEN PRIVATE'}) + '\n')
+        output = json.dumps({'type': 'error', 'message': 'stream disconnected; Reconnecting 1/5 TOKEN PRIVATE'}) + '\n'
+        trace.feed(output)
         self.assertFalse(trace.failed)
         message = trace.diagnostic('', 17)
         self.assertIn('rede/proxy', message)
         self.assertNotIn('TOKEN', message)
         self.assertNotIn('PRIVATE', message)
+        self.assertTrue(trace.snapshot()['recovering'])
+        data = b'Reconnecting 2/5 PRIVATE\n'
+        for size in range(1, len(data) + 1):
+            trace.feed_errors(data[:size])
+        self.assertEqual(trace.recovery_errors, 2)
+        self.assertNotIn('PRIVATE', json.dumps(trace.snapshot(data)))
+        trace.feed(output + json.dumps({'type': 'error', 'message': 'stream disconnected'}) + '\n'
+                   + json.dumps({'type': 'item.completed', 'item': {'type': 'reasoning', 'text': 'PRIVATE'}}) + '\n')
+        self.assertFalse(trace.snapshot(data)['recovering'])
+        self.assertEqual(trace.snapshot(data)['warning'], '')
+        self.assertEqual(trace.recovery_episode, 1)
+        output += json.dumps({'type': 'error', 'message': 'stream disconnected'}) + '\n'
+        output += json.dumps({'type': 'item.completed', 'item': {'type': 'reasoning', 'text': 'PRIVATE'}}) + '\n'
+        trace.feed(output + json.dumps({'type': 'error', 'message': 'Reconnecting 1/5'}) + '\n')
+        self.assertTrue(trace.recovering)
+        self.assertEqual(trace.recovery_episode, 2)
+
+    def test_repeated_network_failures_have_a_bounded_recovery_budget_without_replay(self):
+        for channel in ('stdout', 'stderr'):
+            for summary in (False, True):
+                with self.subTest(channel=channel, summary=summary), tempfile.TemporaryDirectory() as root:
+                    client = self.client()
+                    client.timeout, client.recovery_timeout = 5, .3
+                    registry = SessionRegistry(root)
+                    chat_id = 'a' * 32
+                    registry.set(chat_id, 'running')
+                    registry.activity(chat_id, 'model')
+                    event = json.dumps({'type': 'error', 'message': 'stream disconnected; Reconnecting PRIVATE'})
+                    statement = (f'print({event!r},flush=True)' if channel == 'stdout'
+                                 else 'print("Reconnecting 1/5 PRIVATE",file=sys.stderr,flush=True)')
+                    code = ('import sys,time; sys.stdin.read()\n'
+                            'while True:\n ' + statement + '\n time.sleep(.05)')
+                    started = time.monotonic()
+                    labels = []
+                    def progress(value):
+                        registry.native_event(chat_id, value)
+                        labels.append(native_activity_label(root, chat_id))
+                    with self.assertRaisesRegex(RequestTimeout if summary else RuntimeError,
+                                                'recuperação de conexão excedeu') as caught:
+                        self.invoke(client, code, on_progress=progress, **({'request_timeout': 4} if summary else {}))
+                    self.assertLess(time.monotonic() - started, 2)
+                    self.assertIn('Nenhuma ferramenta', str(caught.exception))
+                    self.assertNotIn('PRIVATE', str(caught.exception))
+                    self.assertTrue(any('Reconectando' in label for label in labels))
 
     def test_terminal_failure_preserves_safe_category_and_does_not_echo_provider_text(self):
         trace = NativeTrace('codex')
@@ -126,6 +173,17 @@ class NativeDiagnosticTests(unittest.TestCase):
         code = ('import sys,time; sys.stdin.read(); '
                 f'print({json.dumps(events[0])!r},flush=True); time.sleep(.2); '
                 f'print({chr(10).join(map(json.dumps, events[1:]))!r},flush=True)')
+        self.assertEqual(self.invoke(client, code)['content'], 'Recuperou')
+        client.recovery_timeout = 0
+        code = ('import sys,time; sys.stdin.read(); '
+                f'print({json.dumps(events[0])!r},flush=True); time.sleep(.6); '
+                f'print({chr(10).join(map(json.dumps, events[1:]))!r},flush=True)')
+        self.assertEqual(self.invoke(client, code)['content'], 'Recuperou')
+        client.recovery_timeout = .3
+        code = ('import sys,time; sys.stdin.read(); '
+                f'print({json.dumps(events[0])!r},flush=True); time.sleep(.15); '
+                'print(\'{"type":"item.completed","item":{"type":"reasoning","text":"PRIVATE"}}\',flush=True); '
+                f'time.sleep(.6); print({chr(10).join(map(json.dumps, events[1:]))!r},flush=True)')
         self.assertEqual(self.invoke(client, code)['content'], 'Recuperou')
 
     def test_silent_summary_timeout_keeps_typed_exception_and_unknown_cause(self):
