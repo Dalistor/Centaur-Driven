@@ -88,3 +88,54 @@ class ConfigTests(unittest.TestCase):
         terminal.client = object()
         terminal.drain_events()
         self.assertIsNone(terminal.credits)
+
+    def test_updated_selection_survives_navigation_without_mutating_old_worker(self):
+        for backend in ('openrouter', 'codex', 'claude'):
+            with self.subTest(backend=backend):
+                original = type('Client', (), {'backend': backend})()
+                replacement = type('Client', (), {'backend': backend})()
+                terminal = Terminal(self.root, 'main', ChatStore(self.root), original,
+                                    effort='high', approval_mode='ask')
+                chat = terminal.chat
+                chat['messages'] = [{'role': 'user', 'content': 'Preservar conversa'}]
+                worker = terminal.worker_context()
+                with patch.object(terminal, 'request_context_catalog'):
+                    terminal.activate_config(backend, 'other', 'low', replacement, 'never', 'fast')
+                terminal.create_chat_from_menu()
+                terminal.switch_chat(chat)
+                self.assertIs(terminal.client, replacement)
+                self.assertEqual((terminal.model, terminal.effort, terminal.speed, terminal.approval_mode),
+                                 ('other', 'low', 'fast', 'never'))
+                self.assertEqual(terminal.chat['messages'], [{'role': 'user', 'content': 'Preservar conversa'}])
+                self.assertIs(worker.client, original)
+                self.assertEqual((worker.model, worker.effort, worker.approval_mode), ('main', 'high', 'ask'))
+
+    def test_backend_roundtrip_restores_idle_sessions_and_discards_stale_credits(self):
+        terminal = self.terminal
+        first = terminal.chat
+        terminal.store.save(first)
+        terminal.create_chat_from_menu()
+        second = terminal.chat
+        replacement = type('Client', (), {'backend': 'claude'})()
+        with patch.object(terminal, 'request_context_catalog'):
+            terminal.activate_config('claude', 'sonnet', 'low', replacement, 'auto', 'standard')
+        third = terminal.chat
+        terminal.credits = 'Claude balance'
+        terminal.credits_inflight = True
+        terminal.events.put(('backend_credits', (replacement, ('credits', 'late Claude balance'))))
+        terminal.open_chats()
+        terminal.selected = next(i for i, chat in enumerate(terminal.chats) if chat['id'] == first['id'])
+        terminal.handle_browser('\n')
+        self.assertFalse(terminal.browser)
+        self.assertIs(terminal.client, self.client)
+        self.assertEqual((terminal.backend, terminal.model), ('codex', 'main'))
+        self.assertIsNone(terminal.credits)
+        self.assertFalse(terminal.credits_inflight)
+        terminal.drain_events()
+        self.assertIsNone(terminal.credits)
+        terminal.switch_chat(second)
+        self.assertIs(terminal.client, self.client)
+        terminal.switch_chat(third)
+        self.assertIs(terminal.client, replacement)
+        self.assertEqual((terminal.backend, terminal.model, terminal.effort, terminal.approval_mode),
+                         ('claude', 'sonnet', 'low', 'auto'))

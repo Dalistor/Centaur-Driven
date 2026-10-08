@@ -152,6 +152,25 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(terminal.draft, 'segundo')
         self.assertEqual(len(self.store.list()), 2)
 
+    def test_saved_selection_restores_model_effort_speed_but_not_permissions(self):
+        for backend in ('openrouter', 'codex', 'claude'):
+            with self.subTest(backend=backend):
+                client = type('Client', (), {'backend': backend})()
+                terminal = Terminal(self.root, 'model', self.store, client, effort='low', approval_mode='ask')
+                saved = self.store.new('other' if backend == 'openrouter' else 'model', backend)
+                saved.update(effort='high', speed='fast', approval_mode='never',
+                             messages=[{'role': 'user', 'content': 'Anterior'}])
+                self.store.save(saved)
+                terminal.open_chats()
+                terminal.selected = next(i for i, chat in enumerate(terminal.chats) if chat['id'] == saved['id'])
+                terminal.handle_browser('\n')
+                self.assertFalse(terminal.browser)
+                self.assertEqual((terminal.model, terminal.effort, terminal.speed), (saved['model'], 'high', 'fast'))
+                self.assertEqual(terminal.approval_mode, 'ask')
+                terminal.create_chat_from_menu()
+                self.assertEqual((terminal.chat['model'], terminal.chat['effort'], terminal.chat['speed']),
+                                 (saved['model'], 'high', 'fast'))
+
     def test_two_real_workers_route_questions_approvals_and_cancellation(self):
         terminal = self.terminal
         results = {}
@@ -288,6 +307,11 @@ class SessionTests(unittest.TestCase):
         self.terminal.handle('\n')
         self.assertTrue(self.terminal.browser)
         self.assertIn('outro processo',self.terminal.notice)
+        # A remembered idle selection is not ownership of a live runtime.
+        self.terminal.session_contexts[chat['id']] = self.terminal.worker_context()
+        self.terminal.handle('\n')
+        self.assertTrue(self.terminal.browser)
+        self.assertIn('outro processo', self.terminal.notice)
 
     def test_clipboard_control_characters_cannot_enter_composer(self):
         self.terminal.paste_text('a\r\nb\x1b\x03\tc')

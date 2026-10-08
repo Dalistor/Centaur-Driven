@@ -31,6 +31,18 @@ Catálogo atrasado só atualiza o seletor que iniciou a leitura e o mesmo backen
 indisponível permite informar ID; resultado de rede não é confundido com prova de acesso ao
 modelo. Credenciais não entram na configuração, no título ou na conversa.
 
+A navegação conserva cliente, backend, modelo, effort, velocidade e permissões de
+cada sessão deste processo, inclusive antes do primeiro turno. Alterar a configuração
+atualiza o contexto de retomada sem modificar o snapshot de workers anteriores.
+Retomar histórico compatível após reiniciar restaura modelo/effort/velocidade; as
+permissões são as escolhidas na abertura, nunca concedidas pelo histórico. Novos chats
+usam a seleção da sessão aberta. Mudar de cliente limpa cotas/créditos anteriores e
+descarta eventos atrasados desse cliente. Workers de outros chats mantêm sua seleção,
+permissões, fila e cancelamento próprios.
+
+Verificação: `tests/test_config.py`, `tests/test_sessions.py` e a matriz de adaptadores
+em `tests/test_backend_flows.py`; [revisão de roteamento](docs/validation-backend-routing-2026-10-08.md).
+
 Renomear não chama o modelo, não altera ID/modelo/effort/mensagens e não cria outro chat.
 Título deve ter 1–80 caracteres imprimíveis. Enter salva; Esc cancela; uma falha conserva o
 texto digitado. Um chat em execução não pode ser renomeado. A lista mantém selecionado o

@@ -20,6 +20,7 @@ from centaur_cli.native_client import NativeClient, codex_output
 from centaur_cli.openrouter import OpenRouter
 from centaur_cli.sessions import SessionRegistry
 from centaur_cli.subagents import SubagentTools
+from centaur_cli.terminal import Terminal
 from centaur_cli.tools import ProjectTools, TOOLS
 
 
@@ -106,9 +107,25 @@ class BackendFlowTests(unittest.TestCase):
                 registry = SessionRegistry(root)
                 group = AgentGroup(root, chat['id'], cancel, registry=registry)
                 client = OpenRouter('secret') if backend == 'openrouter' else self.native(backend)
+                client.model_efforts = {model: ['default', 'high'],
+                    'provider/worker' if backend == 'openrouter' else 'worker': ['default', 'low']}
+                client.supports_fast = lambda selected: selected == model
+                if backend == 'claude': client.fast_version_checked = True
+                chat.update(effort='high', speed='fast')
                 tools = SubagentTools(ProjectTools(root, lambda _:True, approval_mode='never', cancel_event=cancel),
-                    client, chat['id'], lambda _:None, group=group, registry=registry, background=True)
-                with patch('centaur_cli.openrouter.urlopen', side_effect=self.http):
+                    client, chat['id'], lambda _:None, group=group, registry=registry, background=True,
+                    effort='high', speed='fast')
+                import subprocess
+                transports = []
+                original = subprocess.Popen
+                def start(argv, **options):
+                    transports.append(argv)
+                    return original(argv, **options)
+                def http(request, **options):
+                    transports.append(json.loads(request.data))
+                    return self.http(request, **options)
+                with patch('centaur_cli.openrouter.urlopen', side_effect=http), \
+                        patch('centaur_cli.native_client.subprocess.Popen', side_effect=start):
                     run_turn(chat, client, tools, store, lambda:None)
                     deadline = time.monotonic()+8
                     while group.active and time.monotonic()<deadline: time.sleep(.01)
@@ -126,6 +143,126 @@ class BackendFlowTests(unittest.TestCase):
                 self.assertEqual(len([m for m in chat['messages'] if m.get('agent_kind')=='report']),2)
                 self.assertEqual(group.receive(chat['id']), [])
                 self.assertTrue(all(registry.state(e['chat']['id'])=='stopped' for e in entries))
+                self.assertEqual(chat['model'], model)
+                for entry in entries:
+                    self.assertEqual((entry['chat']['effort'], entry['chat']['speed']), ('default', 'standard'))
+                    self.assertEqual(entry['chat']['approval_mode'], 'never')
+                for request in transports:
+                    if backend == 'openrouter':
+                        if request['model'] == model:
+                            self.assertEqual(request['reasoning']['effort'], 'high')
+                            self.assertEqual(request['service_tier'], 'fast')
+                        else:
+                            self.assertNotIn('reasoning', request)
+                            self.assertNotIn('service_tier', request)
+                            self.assertNotEqual(request['session_id'], chat['id'])
+                    elif request[request.index('--model') + 1] == 'main':
+                        self.assertIn('model_reasoning_effort="high"' if backend == 'codex' else '--effort', request)
+                    else:
+                        self.assertNotIn('--effort', request)
+                        self.assertFalse(any('model_reasoning_effort=' in flag for flag in request))
+
+    def test_configured_chat_roundtrip_executes_with_selected_adapter_and_delegates(self):
+        for backend in ('openrouter', 'codex', 'claude'):
+            with self.subTest(backend=backend):
+                root = self.root / backend
+                root.mkdir()
+                store = ChatStore(root)
+                model = 'provider/main' if backend == 'openrouter' else 'main'
+                original = OpenRouter('secret') if backend == 'openrouter' else self.native(backend)
+                replacement = OpenRouter('secret') if backend == 'openrouter' else self.native(backend)
+                selected = 'provider/worker' if backend == 'openrouter' else 'worker'
+                if backend != 'openrouter': replacement.fixed_model = selected
+                terminal = Terminal(root, model, store, original, approval_mode='never')
+                first = terminal.chat
+                first.update(messages=[{'role': 'user', 'content': 'root'}], title_attempted=True)
+                old_worker = terminal.worker_context()
+                with patch.object(terminal, 'request_context_catalog'):
+                    terminal.activate_config(backend, selected, 'high', replacement, 'never', 'standard')
+                terminal.create_chat_from_menu()
+                terminal.switch_chat(first)
+                self.assertIs(terminal.client, replacement)
+                self.assertIs(old_worker.client, original)
+                with patch('centaur_cli.openrouter.urlopen', side_effect=self.http):
+                    terminal.start_work()
+                    deadline = time.monotonic() + 8
+                    while (terminal.busy or terminal.agent_group.active
+                           or terminal.agent_group.receive(first['id']) or not terminal.events.empty()) \
+                            and time.monotonic() < deadline:
+                        terminal.drain_events()
+                        time.sleep(.01)
+                    terminal.drain_events()
+                self.assertFalse(terminal.busy)
+                self.assertEqual(terminal.agent_group.active, 0)
+                self.assertNotIn('last_error', first)
+                self.assertEqual((first['model'], terminal.model), (selected, selected))
+                self.assertEqual(len(terminal.agent_group.entries), 2)
+                self.assertTrue(all(entry['chat']['status'] == 'reported'
+                                    for entry in terminal.agent_group.entries.values()))
+                self.assertEqual((root / 'result.txt').read_text(),
+                                 'provider/grand' if backend == 'openrouter' else 'grand')
+
+    def test_background_inference_keeps_its_client_and_cancel_scope_across_chats(self):
+        import subprocess
+        for backend in ('openrouter', 'codex', 'claude'):
+            with self.subTest(backend=backend):
+                root = self.root / backend
+                root.mkdir()
+                original = OpenRouter('secret') if backend == 'openrouter' else self.native(backend)
+                replacement = OpenRouter('secret') if backend == 'openrouter' else self.native(backend)
+                model = 'provider/main' if backend == 'openrouter' else 'main'
+                terminal = Terminal(root, model, ChatStore(root), original, approval_mode='never')
+                first = terminal.chat
+                first.update(messages=[{'role': 'user', 'content': 'hang'}], title_attempted=True)
+                entered, release = threading.Event(), threading.Event()
+                start_process = subprocess.Popen
+                def start(*args, **options):
+                    process = start_process(*args, **options)
+                    entered.set()
+                    return process
+                def http(request, **options):
+                    if any(message.get('content') == 'hang' for message in json.loads(request.data)['messages']):
+                        entered.set()
+                        release.wait(8)
+                        return io.BytesIO(b'{"choices":[{"message":{"role":"assistant","content":"Late"}}]}')
+                    return self.http(request, **options)
+                with patch('centaur_cli.openrouter.urlopen', side_effect=http), \
+                        patch('centaur_cli.native_client.subprocess.Popen', side_effect=start), \
+                        patch.object(terminal, 'request_context_catalog'):
+                    terminal.start_work()
+                    try:
+                        self.assertTrue(entered.wait(2))
+                        terminal.create_chat_from_menu()
+                        second = terminal.chat
+                        second.update(messages=[{'role': 'user', 'content': 'root'}], title_attempted=True)
+                        terminal.activate_config(backend, model, 'default', replacement, 'never', 'standard')
+                        terminal.start_work()
+                        deadline = time.monotonic() + 8
+                        while (terminal.busy or terminal.agent_group.active
+                               or terminal.agent_group.receive(second['id']) or not terminal.events.empty()) \
+                                and time.monotonic() < deadline:
+                            terminal.drain_events()
+                            time.sleep(.01)
+                        self.assertFalse(terminal.busy)
+                        self.assertEqual(terminal.agent_group.active, 0)
+                        self.assertTrue(terminal.session_states[first['id']]['busy'])
+                        second_cancel = terminal.cancel_event
+                        terminal.switch_chat(first)
+                        self.assertIs(terminal.client, original)
+                        terminal.cancel_work()
+                        deadline = time.monotonic() + 3
+                        while terminal.busy and time.monotonic() < deadline:
+                            terminal.drain_events()
+                            time.sleep(.01)
+                        self.assertFalse(terminal.busy)
+                        self.assertFalse(second_cancel.is_set())
+                        terminal.switch_chat(second)
+                        self.assertIs(terminal.client, replacement)
+                        self.assertNotIn('last_error', second)
+                        self.assertEqual(len(terminal.agent_group.entries), 2)
+                    finally:
+                        terminal.session_states[first['id']]['cancel_event'].set()
+                        release.set()
 
     def test_compaction_through_each_real_adapter_is_tool_free(self):
         for backend in ('openrouter','codex','claude'):
