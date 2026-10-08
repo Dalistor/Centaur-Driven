@@ -47,6 +47,7 @@ class RecordingTerminal(Terminal):
     def record(self):
         data={'draft':self.draft,'cursor':self.cursor,'busy':self.busy,
               'frames':getattr(self,'frames',0),'ticks':getattr(self,'ticks',0),
+              'mouse_enabled':self.mouse_enabled,
               'chat':self.chat,'requests':self.client.requests,'width':self.input_width,'notice':self.notice,
               'pending_attachments':len(self.pending_attachments),
               'inbox': len(self.inboxes[self.chat['id']].snapshot()) if self.chat['id'] in self.inboxes else 0,
@@ -82,6 +83,63 @@ curses.wrapper(terminal.run)
 
 
 class TerminalPTYTests(unittest.TestCase):
+    def test_native_text_selection_default_and_mouse_toggle_in_real_curses(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            master, slave = pty.openpty()
+            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 100, 0, 0))
+            env = {**os.environ, 'TERM':'xterm-256color', 'CENTAUR_GRAPHICS':'0',
+                   'PYTHONPATH':str(Path(__file__).resolve().parents[1])}
+            env.pop('CENTAUR_MOUSE', None)
+            process = subprocess.Popen([sys.executable, '-c', CHILD, temporary],
+                                       stdin=slave, stdout=slave, stderr=slave, env=env)
+            os.close(slave)
+            transcript = bytearray()
+            def wait_for(predicate, timeout=6):
+                deadline = time.monotonic() + timeout
+                while time.monotonic() < deadline:
+                    if select.select([master], [], [], .02)[0]:
+                        try: transcript.extend(os.read(master, 65536))
+                        except OSError: pass
+                    try:
+                        snapshot = json.loads((root/'snapshot.json').read_text())
+                        if predicate(snapshot): return snapshot
+                    except (OSError, ValueError): pass
+                    if process.poll() is not None: break
+                self.fail('Selection PTY state missing: '+transcript.decode(errors='replace')[-1000:])
+            tracking = rb'\x1b\[\?[^a-z]*\b(?:1000|1002|1003|1006)(?!\d)[^a-z]*h'
+            try:
+                snapshot = wait_for(lambda s:s['width'] > 0)
+                self.assertFalse(snapshot['mouse_enabled'])
+                self.assertIsNone(re.search(tracking, transcript), 'Native selection must own the mouse on launch')
+                os.write(master, 'Rascunho 漢字'.encode())
+                wait_for(lambda s:s['draft'] == 'Rascunho 漢字')
+                os.write(master, b'\x1b[17~')  # F6, decoded by actual terminfo.
+                snapshot = wait_for(lambda s:s['mouse_enabled'])
+                self.assertEqual(snapshot['draft'], 'Rascunho 漢字')
+                self.assertIsNotNone(re.search(tracking, transcript))
+                start = len(transcript)
+                os.write(master, b'\x1b[17~')
+                snapshot = wait_for(lambda s:not s['mouse_enabled'])
+                self.assertRegex(bytes(transcript[start:]), rb'\x1b\[\?[^a-z]*\b1000(?!\d)[^a-z]*l')
+                start = len(transcript)
+                fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', 12, 40, 0, 0))
+                process.send_signal(signal.SIGWINCH)
+                snapshot = wait_for(lambda s:s['width'] < 40)
+                self.assertFalse(snapshot['mouse_enabled'])
+                self.assertEqual(snapshot['draft'], 'Rascunho 漢字')
+                self.assertIsNone(re.search(tracking, transcript[start:]))
+                os.write(master, b'\x11')
+                deadline = time.monotonic()+3
+                while process.poll() is None and time.monotonic() < deadline:
+                    if select.select([master], [], [], .02)[0]:
+                        try: transcript.extend(os.read(master, 65536))
+                        except OSError: pass
+                self.assertEqual(process.poll(), 0)
+            finally:
+                if process.poll() is None: process.kill(); process.wait(timeout=3)
+                os.close(master)
+
     def test_background_focus_keeps_worker_and_heartbeat_live_without_terminal_output(self):
         for terminal_type in ('xterm-256color', 'xterm-color'):
             with self.subTest(terminal=terminal_type), tempfile.TemporaryDirectory() as temporary:
@@ -263,7 +321,8 @@ class TerminalPTYTests(unittest.TestCase):
                 root = Path(temporary)
                 master, slave = pty.openpty()
                 fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 80, 0, 0))
-                env = {**os.environ, 'TERM': 'xterm-color' if mode == 'legacy' else 'xterm-256color', 'CENTAUR_GRAPHICS': '0'}
+                env = {**os.environ, 'TERM': 'xterm-color' if mode == 'legacy' else 'xterm-256color',
+                       'CENTAUR_GRAPHICS': '0', 'CENTAUR_MOUSE': '1'}
                 env.pop('NO_COLOR', None)
                 if mode == 'monochrome': env['NO_COLOR'] = '1'
                 if mode == 'reduced': env['CENTAUR_REDUCED_MOTION'] = '1'

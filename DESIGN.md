@@ -340,3 +340,18 @@ existente representa também delegações recursivas reais. Relatórios recebido
 segundo plano retomam a sessão de origem e preservam o chat/rascunho visíveis.
 Perguntas e permissões concorrentes usam o seletor canônico, uma de cada vez.
 Fundo padrão do emulador, geometria, cores por papel, scroll e movimento reduzido permanecem.
+
+
+## Seleção e cópia de texto — 2026-10-08
+
+O emulador é o dono da seleção de texto e da cópia, como em um CLI convencional.
+Por padrão, o Centaur não captura o mouse: arrastar seleciona a conversa, inclusive
+no preview de subagente. A cópia usa o atalho do emulador (Ctrl+Shift+C no Linux,
+Cmd+C no macOS), sem inverter a seleção na paleta do aplicativo.
+
+F6 alterna explicitamente para cliques/roda nos controles existentes. Nesse modo,
+Shift+arraste seleciona pelo emulador; F6 libera novamente o mouse. A preferência
+é global da interface, sem alterar rascunho, scroll, chat, trabalho ou input pendente.
+CENTAUR_MOUSE=1 inicia com controles por mouse ativos. Aviso inicial/F6 e atalhos
+indicam o gesto; o rodapé lateral oferece Shift+←/Tab quando cliques estão desligados.
+A seleção nativa não possui geometria ou cor controlada pelo Centaur.

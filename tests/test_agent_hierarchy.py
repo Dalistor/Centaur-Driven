@@ -73,6 +73,7 @@ class AgentHierarchyTests(unittest.TestCase):
         self.terminal.refresh_agents()
         self.terminal.draw(Screen((40, 180)))
         left, top, _, _, _ = next(hit for hit in self.terminal.agent_panel_hits if hit[-1]['id'] == grandchild['id'])
+        self.terminal.mouse_enabled = True
         with patch('centaur_cli.terminal.curses.getmouse', return_value=(0, left + 2, top + 1, 0, curses.BUTTON1_PRESSED)), \
                 patch.object(self.terminal, 'switch_chat') as switch:
             self.terminal.handle_mouse()

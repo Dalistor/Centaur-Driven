@@ -3,6 +3,7 @@
 import copy
 import curses
 import json
+import os
 import queue
 import re
 import textwrap
@@ -22,7 +23,7 @@ from .native_usage import BalanceUnavailable
 from .completion import SkillCompletion
 from .conversation import TranscriptLine, generate_title, readable_markdown, tool_activity
 from .tools import ProjectTools
-from .appearance import TerminalView, fit_cells, cell_width
+from .appearance import TerminalView, fit_cells, cell_width, selection_notice
 from .graphics import FRAME_SECONDS
 from .subagents import SubagentTools
 from .agent_runtime import AgentGroup
@@ -126,6 +127,7 @@ class Terminal:
         self.agent_panel_hits = []
         self.agent_panel_area = None
         self.input_hitbox = None
+        self.mouse_enabled = os.environ.get('CENTAUR_MOUSE') == '1'
         self.browser_refreshed = 0
         self.next_cleanup = 0
         self.events = queue.Queue()
@@ -151,7 +153,7 @@ class Terminal:
         self.prompt_index = None
         self.prompt_current = ('', 0)
         self.completion = SkillCompletion(root)
-        self.notice = 'Digite sua intenção · Ctrl+V cola imagem · arraste um arquivo · $config.'
+        self.notice = selection_notice(self.mouse_enabled)
         self.settings = None
         self.rename_target = None
         self.rename_text = ''
@@ -1416,7 +1418,27 @@ class Terminal:
         self.active_agents = [record for record in self.agent_tree.ordered() if record['id'] in active]
         self.agents_refreshed = time.monotonic()
 
+    def configure_mouse(self, enabled):
+        # Native terminal selection owns the pointer by default. Opting into
+        # application clicks/wheel is explicit and never changes session state.
+        mask = (getattr(curses, 'BUTTON4_PRESSED', 0) | getattr(curses, 'BUTTON5_PRESSED', 0)
+                | getattr(curses, 'BUTTON1_PRESSED', 0) | getattr(curses, 'BUTTON1_CLICKED', 0)
+                | getattr(curses, 'BUTTON1_DOUBLE_CLICKED', 0)) if enabled else 0
+        try:
+            available, _ = curses.mousemask(mask)
+            self.mouse_enabled = bool(enabled and available)
+            if self.mouse_enabled:
+                curses.mouseinterval(0)
+        except curses.error:
+            self.mouse_enabled = False
+            try:
+                curses.mousemask(0)
+            except curses.error:
+                pass
+
     def handle_mouse(self):
+        if not self.mouse_enabled:
+            return  # Discard late events after returning control to the emulator.
         try:
             _, x, y, _, state = curses.getmouse()
         except curses.error:
@@ -1547,6 +1569,12 @@ class Terminal:
                 self.switch_chat(selected)
 
     def handle(self, key):
+        if key == curses.KEY_F6:
+            enabled = not self.mouse_enabled
+            self.configure_mouse(enabled)
+            self.notice = ('Cliques indisponíveis neste terminal · arraste para selecionar texto.'
+                           if enabled and not self.mouse_enabled else selection_notice(self.mouse_enabled))
+            return
         if key == '\x07':
             return self.computer_command('$computer revoke')
         if key in ('\x11', '\x03'):
@@ -1673,6 +1701,7 @@ class Terminal:
         try:
             return self._run(screen)
         finally:
+            self.configure_mouse(False)
             self.view.palette.restore()
 
     def _run(self, screen):
@@ -1685,13 +1714,7 @@ class Terminal:
         curses.nonl()  # Enter is CR; Ctrl+J is LF and inserts a line in the chat.
         self.view.palette.initialize()
         screen.keypad(True)
-        try:
-            curses.mousemask(getattr(curses, 'BUTTON4_PRESSED', 0) | getattr(curses, 'BUTTON5_PRESSED', 0)
-                             | getattr(curses, 'BUTTON1_PRESSED', 0) | getattr(curses, 'BUTTON1_CLICKED', 0)
-                             | getattr(curses, 'BUTTON1_DOUBLE_CLICKED', 0))
-            curses.mouseinterval(0)
-        except curses.error:
-            pass
+        self.configure_mouse(self.mouse_enabled)
         screen.timeout(100)
         keyboard = KeyboardReader()
         focused = True

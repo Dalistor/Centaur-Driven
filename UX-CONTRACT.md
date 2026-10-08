@@ -14,6 +14,7 @@ rename e melhorias visuais; as regras de desenvolvimento vêm de
 | Chats | `history.ChatStore`, `Terminal` | IDs imutáveis, gravação atômica, retomada por seleção; rename lê conteúdo atual do disco | `tests/test_cli.py`, `tests/test_terminal_settings.py` |
 | Gráfico da abertura | `graphics.Renderer`, `WelcomeAnimation`, `Palette`, `TerminalView.logo` | Relógio visível; giro finito; digitação encerra; F5 repete; resize mantém fase; reduced motion e fallback estáticos | `tests/test_graphics.py` |
 | Histórico e foco | `Terminal.cursor`, `Terminal.scroll`, `TerminalView` | Shift+← ou /chats abre lista; rascunho preservado ao voltar/cancelar; PgUp/PgDn rolam | `tests/test_terminal_settings.py` |
+| Seleção e cópia | `Terminal.configure_mouse`, `Terminal.handle`, emulador | Mouse livre por padrão; arrastar seleciona; atalho do emulador copia; F6 alterna cliques/roda; opt-in CENTAUR_MOUSE=1; eventos atrasados com mouse desligado não editam | `tests/test_agent_panels_mouse.py`, `tests/test_terminal_pty.py` |
 | Foco da janela | `keyboard.KeyboardReader`, `Terminal.run_screen`, `WelcomeAnimation` | Perda de foco pausa desenho; agentes/eventos/heartbeat continuam; retorno ou tecla redesenha o estado atual sem alterar rascunho ou autorizar ações | `tests/test_composer.py`, `tests/test_terminal_pty.py` |
 | Entrada multilinha | `composer.layout_input`, `keyboard.KeyboardReader`, `Terminal.handle` | Quebra visual sem alterar texto; Enter envia, Shift+Enter/Ctrl+J insere linha; colagem não envia ou aprova | `tests/test_composer.py` |
 | Comandos locais | `completion.LOCAL_COMMANDS`, `SkillCompletion.local_command`, `Terminal.handle` | Enter executa comando local isolado com autocomplete; Tab só completa; skills/menções em frases apenas inserem; compactação informa progresso por fragmento | `tests/test_completion.py`, `tests/test_terminal_pty.py` |
@@ -322,7 +323,14 @@ pelo índice de inserção mais próximo nas células visíveis. Considera Unico
 acentos combinados, quebra visual/real, janela vertical/horizontal e margens do campo.
 Marcadores de anexos continuam indivisíveis. Click atrasado de outro chat/texto é ignorado;
 release/movimento não editam, e clique não envia respostas nem confirma permissões.
-O teclado permanece completo; rastreamento de mouse é ativado somente na sessão curses.
+O teclado permanece completo; desde o pedido de 2026-10-08, o rastreamento de mouse
+é opt-in por F6 ou CENTAUR_MOUSE=1 e só existe na sessão curses. Por padrão, arrastar
+seleciona texto pelo emulador. Ctrl+Shift+C (Linux) / Cmd+C (macOS) copia a seleção.
+Com cliques ativos, Shift+arraste seleciona; F6 libera o mouse novamente. Alternar não
+envia mensagens, responde perguntas, confirma permissões, cancela workers ou move
+o cursor/scroll. Eventos atrasados com captura desligada são ignorados. A saída
+normal ou por erro desliga a captura. Seleção e clipboard pertencem ao emulador,
+sem representação de progresso/clipboard bem-sucedido pelo aplicativo.
 
 Prazos de inferência continuam por chamada, sem deadline global para a espera de tasks.
 Heartbeat de todos os executores mantém o runtime; subagentes vivos/aguardando input
