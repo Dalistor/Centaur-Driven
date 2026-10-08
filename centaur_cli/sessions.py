@@ -87,9 +87,10 @@ def native_activity_label(root, chat_id, now=None):
     warning = record.get('native_warning')
     if warning in NATIVE_WARNINGS:
         return f'Aviso: {warning} · sem saída há {duration}'
-    if elapsed >= 30:
-        return f'Sem nova saída do CLI há {duration}'
     kind = record.get('native_event')
+    if elapsed >= 30:
+        phase = NATIVE_PHASES.get(kind, 'sem evento completo') if isinstance(kind, str) else 'sem evento completo'
+        return f'CLI · {phase} · Sem nova saída do CLI há {duration}'
     return 'CLI · ' + (NATIVE_PHASES.get(kind, 'aguardando eventos') if isinstance(kind, str) else 'aguardando eventos')
 
 

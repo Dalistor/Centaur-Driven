@@ -170,6 +170,37 @@ print(json.dumps({'type':'turn.completed'}),flush=True)
                 except ProcessLookupError:
                     pass
 
+    def test_complete_reply_is_not_blocked_by_shutdown_or_inherited_output(self):
+        for backend in ('codex', 'claude'):
+            for complete, parent_hangs in ((True, False), (False, False), (True, True)):
+                with self.subTest(backend=backend, complete=complete, parent_hangs=parent_hangs):
+                    marker = self.root / f'{backend}-{complete}-{parent_hangs}.pid'
+                    output = self.final_output(backend) if complete else '{"type":"turn.started"}'
+                    code = ('import subprocess,sys,json\n'
+                            'sys.stdin.read()\n'
+                            'p=subprocess.Popen([sys.executable,"-c","import time; time.sleep(30)"],start_new_session=True)\n'
+                            f'open({str(marker)!r},"w").write(str(p.pid))\n'
+                            f'print({output!r},flush=True)\n'
+                            + ('import time; time.sleep(30)\n' if parent_hangs else ''))
+                    client = self.default_client(backend)
+                    client.timeout = 5 if parent_hangs else 3
+                    started = time.monotonic()
+                    try:
+                        with patch.object(client, 'arguments', return_value=[sys.executable, '-c', code]):
+                            if complete:
+                                self.assertEqual(client.complete('fixture', [], [])['content'], 'Resposta pública')
+                            else:
+                                with self.assertRaises(RuntimeError) as error:
+                                    client.complete('fixture', [], [])
+                                self.assertNotIn('tempo limite', str(error.exception))
+                        self.assertLess(time.monotonic() - started, 5 if parent_hangs else 3)
+                    finally:
+                        if marker.exists():
+                            try:
+                                os.kill(int(marker.read_text()), signal.SIGKILL)
+                            except ProcessLookupError:
+                                pass
+
     def test_stalled_child_returns_failed_report_and_persists_public_diagnostic(self):
         store = ChatStore(self.root)
         parent = store.new('fixture', backend='codex')

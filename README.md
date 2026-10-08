@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão desta entrega é `0.10.0`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.10.0`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.0).
+A versão desta entrega é `0.10.1`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.10.1`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.1).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.0/centaur_cli-0.10.0-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.1/centaur_cli-0.10.1-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -576,7 +576,7 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.0'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.1'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```
@@ -1126,3 +1126,15 @@ Pesquisa, decisões e verificação: [coordenação e computer use](docs/validat
 
 A revisão dos fluxos por backend e as correções estão em
 [Validação de agentes por backend](docs/validation-backend-flows.md).
+
+
+### Encerramento das chamadas nativas (0.10.1)
+
+Codex/Claude deixam de aguardar EOF de processos descendentes após o CLI encerrar.
+Uma resposta integral validada, acompanhada de evento terminal de sucesso, também
+libera a etapa após dois segundos de tolerância para o encerramento do CLI. A limpeza
+afeta somente o grupo daquela chamada, sem repetir comandos ou cancelar outros agentes.
+Respostas parciais, lotes inválidos e falhas continuam rejeitados. Em esperas longas,
+a interface mantém visível o último evento público do CLI, ou informa que nenhum
+evento completo foi recebido. O limite de inferência continua 30 minutos; silêncio
+sozinho não comprova travamento. Veja [validação e limites](docs/validation-native-shutdown.md).
