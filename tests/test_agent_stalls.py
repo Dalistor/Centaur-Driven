@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from centaur_cli.history import ChatStore
+from centaur_cli.diagnostics import collect as collect_diagnostics
 from centaur_cli.interaction import TurnCancelled
 from centaur_cli.native_client import NativeClient
 from centaur_cli.sessions import SessionRegistry, native_activity_label
@@ -59,6 +60,8 @@ class AgentStallTests(unittest.TestCase):
             registry.native_event(identifier, {'event': 'turn.started', 'warning': 'rede',
                 'output_bytes': 20, 'stderr_bytes': 0, 'text': 'PRIVATE'})
         with patch('centaur_cli.sessions.time.time', return_value=1100):
+            registry.native_event(identifier, {'event': 'turn.started', 'warning': 'rede',
+                'output_bytes': 20, 'stderr_bytes': 0, 'elapsed_seconds': 100, 'status': 'running'})
             registry.heartbeat()
             self.assertIn('sem saída há 1m 40s', native_activity_label(self.root, identifier))
         self.assertEqual(registry.records[identifier]['phase_started'], 1000)
@@ -86,7 +89,10 @@ class AgentStallTests(unittest.TestCase):
         self.assertEqual(snapshots[-1]['event'], 'turn.completed')
         self.assertNotIn('PRIVATE', json.dumps(snapshots))
         self.assertEqual(set(snapshots[-1]), {'event', 'warning', 'output_bytes', 'stderr_bytes',
-                                            'recovering', 'recovery_errors', 'recovery_episode'})
+                                            'recovering', 'recovery_errors', 'recovery_episode',
+                                            'process_pid', 'input_bytes', 'timeout_seconds',
+                                            'elapsed_seconds', 'status', 'backend'})
+        self.assertEqual(snapshots[-1]['status'], 'completed')
 
     def test_subagent_inherits_effort_and_advertised_fast_without_changing_model(self):
         for supported in (True, False):
@@ -159,6 +165,12 @@ class AgentStallTests(unittest.TestCase):
         child = ChatStore(self.root).agents()[0]
         self.assertEqual(child['status'], 'cancelled')
         self.assertEqual(registry.state(child['id']), 'stopped')
+        diagnostic = collect_diagnostics(self.root, child['id'])['sessions'][0]
+        self.assertEqual(diagnostic['phase'], 'model')
+        self.assertEqual(diagnostic['native']['event'], 'turn.started')
+        self.assertEqual(diagnostic['native']['status'], 'cancelled')
+        self.assertGreater(diagnostic['native']['input_bytes'], 0)
+        self.assertNotIn('process_exists', diagnostic['native'])
         self.assertEqual(len([m for m in child['messages'] if m['role'] == 'tool']), 1)
         self.assertTrue(child['messages'][-1]['content'].startswith('Código de saída: 0'))
 

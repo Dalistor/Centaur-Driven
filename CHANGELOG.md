@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.5 — 2026-10-08
+
+- Substituir as instruções base de executor do Codex pelas instruções do harness,
+  usando `model_instructions_file`, para solicitar somente a próxima etapa.
+- Reconhecer envelopes terminais completos sem LF final, sem aceitar JSON parcial
+  nem dispensar a validação das chamadas antes de concluir a inferência.
+- Adicionar `$diagnose` durante o turno e `centaur diagnose [pasta] --json` sem
+  autenticação/inferência. Preservar metadados após cancelamento e atualizar evento
+  imediatamente; heartbeat e telemetria não contam como saída do modelo.
+- Validar o contrato com Codex oficial 0.161.0 e servidor Responses local isolado,
+  sem conta ou inferência paga, também como gate de CI. Reutilizar regressões vitais
+  de encerramento e cancelamento. Ver [evidência e limites](docs/validation-native-bridge.md).
+
 ## 0.10.4 — 2026-10-08
 
 - Tornar atômica a aquisição do desktop ao reiniciar computer use: o worker antigo

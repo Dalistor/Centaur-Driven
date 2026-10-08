@@ -17,12 +17,12 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 ### Instalação da versão publicada
 
-A versão desta entrega é `0.10.4`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.10.4`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.4).
+A versão desta entrega é `0.10.5`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.10.5`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.5).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.4/centaur_cli-0.10.4-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.5/centaur_cli-0.10.5-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -231,6 +231,7 @@ o cursor no rascunho multilinha; PgUp/PgDn e o mouse continuam rolando a convers
 | `/rename` ou `/rename Novo título` | Renomear a conversa atual sem chamar o modelo. |
 | `Ctrl+O` | Alternar resumo e detalhes das ferramentas na conversa. |
 | `/new` | Criar outra conversa. |
+| `$diagnose` ou `/diagnose` | Consultar metadados da chamada atual, inclusive durante a execução, sem chamar o modelo. `$diagnose clear` fecha o relatório. |
 | `$status` | Mostrar a árvore local das specs, sem chamar o modelo. |
 | `$status --ai` | Analisar evidências e recomendar o que pode concluir ou rodar, somente leitura. |
 | `$credits` ou `/credits` | Atualizar o indicador de créditos sem enviar mensagem ao modelo. |
@@ -583,7 +584,7 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.4'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.5'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```
@@ -775,7 +776,7 @@ ferramentas reais. Não se faz deploy automaticamente ao concluir.
 
 ## Autocomplete e skills adicionais
 
-Digite `$` no início da mensagem ou de um novo termo para abrir a lista das skills Centaur. Continue digitando para filtrar por nome. `@` abre a lista de skills adicionais instaladas no projeto. Use ↑/↓ para selecionar, Tab para completar e Esc para fechar. Enter insere skills; comandos locais isolados (`$agents`, `$attachments`, `$detach`, `$compact`, `$config`, `$credits`, `$status`) executam com um único Enter. Menções a esses comandos no meio de uma frase apenas completam o texto. A lista acompanha o redimensionamento do terminal.
+Digite `$` no início da mensagem ou de um novo termo para abrir a lista das skills Centaur. Continue digitando para filtrar por nome. `@` abre a lista de skills adicionais instaladas no projeto. Use ↑/↓ para selecionar, Tab para completar e Esc para fechar. Enter insere skills; comandos locais isolados (`$agents`, `$attachments`, `$detach`, `$compact`, `$config`, `$credits`, `$diagnose`, `$status`) executam com um único Enter. Menções a esses comandos no meio de uma frase apenas completam o texto. A lista acompanha o redimensionamento do terminal.
 
 Skills adicionais e todos os seus arquivos de apoio ficam em `.centaur/skills/<nome>/`, com um `SKILL.md` na raiz da skill:
 
@@ -1049,6 +1050,29 @@ silenciosa continua podendo levar até 30 minutos. Para mudar somente a recupera
 use `CENTAUR_NATIVE_RECOVERY_TIMEOUT` (30–3600s, ou 0 para desativar). O prazo menor
 da chamada/compactação prevalece. Consulte a
 [reprodução e os limites da investigação](docs/validation-native-recovery.md).
+
+Desde a **0.10.5**, o adaptador substitui as instruções base de executor do Codex
+pelas instruções do harness, usando `model_instructions_file`. Cada chamada deve
+retornar a próxima etapa estruturada; execução e resultados continuam no Centaur.
+Um evento terminal completo sem quebra de linha final também é reconhecido. Isso
+corrige caminhos locais comprovados; não confirma a causa de uma espera específica
+no servidor do modelo. Veja [validação do protocolo](docs/validation-native-bridge.md).
+
+Durante uma espera, digite **`$diagnose`**. Para atualizar os dados, execute novamente;
+`$diagnose clear` fecha o relatório. Em outro terminal, na mesma pasta, use:
+
+```bash
+centaur diagnose --json
+# Ou informe a pasta explicitamente:
+centaur diagnose /caminho/do/projeto --json
+```
+
+O comando mostra versão, fase, último evento público, PID, duração/prazo, contagem de
+bytes e categoria fixa de aviso. Não chama o modelo, não entra na fila do agente e
+não lê prompts, logs brutos ou credenciais. O último diagnóstico permanece após
+Ctrl+C; o início de uma nova fase o substitui. Existência do processo local não
+prova progresso remoto. Preserve esse JSON se a espera voltar, pois a mensagem de
+cancelamento sozinha não identifica sua origem.
 
 O adaptador usa uma execução efêmera e saída estruturada por etapa; ele não retoma a
 sessão interna do Codex interativo. Portanto, o CLI interativo funcionar não comprova

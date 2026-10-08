@@ -62,8 +62,22 @@ jobs:
       - name: Verify capture and input in a disposable desktop
         run: xvfb-run -a -s '-screen 0 800x600x24' env CENTAUR_TEST_DESKTOP=1 python -m unittest discover -s tests -p test_computer_desktop.py -v
 
+  codex-protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.13'
+      - name: Install pinned official Codex CLI without credentials
+        run: npm install --prefix "$RUNNER_TEMP/centaur-codex-protocol" --ignore-scripts --no-audit --no-fund @openai/codex@0.161.0
+      - name: Verify the real CLI against a local synthetic Responses server
+        run: env CENTAUR_TEST_CODEX_BINARY="$RUNNER_TEMP/centaur-codex-protocol/node_modules/.bin/codex" python -m unittest discover -s tests -p test_codex_protocol.py -v
+
   build:
-    needs: [test, computer]
+    needs: [test, computer, codex-protocol]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}

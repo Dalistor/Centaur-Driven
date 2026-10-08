@@ -19,6 +19,9 @@ from .startup import StartupWizard
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == 'diagnose':
+        from .diagnostics import main as diagnose_main
+        return diagnose_main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == 'status':
         from .status_command import main as status_main
         return status_main(sys.argv[2:])
