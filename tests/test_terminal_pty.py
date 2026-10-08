@@ -127,8 +127,12 @@ class TerminalPTYTests(unittest.TestCase):
                     snapshot = wait_for(lambda s:not s['busy'] and len(s['requests']) == 1)
                     self.assertEqual(snapshot['requests'][0]['messages'][-1]['content'], expected)
                     os.write(master, b'\x11')
-                    process.wait(timeout=3)
-                    self.assertEqual(process.returncode, 0)
+                    deadline = time.monotonic() + 6
+                    while process.poll() is None and time.monotonic() < deadline:
+                        if select.select([master], [], [], .02)[0]:
+                            try: transcript.extend(os.read(master, 65536))
+                            except OSError: pass
+                    self.assertEqual(process.poll(), 0)
                 finally:
                     if process.poll() is None: process.kill(); process.wait(timeout=3)
                     os.close(master)

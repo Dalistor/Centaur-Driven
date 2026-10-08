@@ -76,7 +76,8 @@ for line in sys.stdin:
 
     def test_claude_only_completed_results_supply_calls_and_usage_events_stay_public(self):
         events = [
-            {'type': 'assistant', 'message': {'content': [{'type': 'thinking', 'thinking': 'PRIVATE'}]}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'thinking', 'thinking': 'PRIVATE'}],
+             'usage': {'input_tokens': 10, 'cache_read_input_tokens': 50, 'cache_creation_input_tokens': 10, 'output_tokens': 5}}},
             {'type': 'rate_limit_event', 'rate_limit_info': {'rateLimitType': 'five_hour', 'status': 'allowed', 'utilization': .25}},
             {'type': 'result', 'subtype': 'success', 'structured_output': {'content': 'Final', 'calls': []},
              'usage': {'input_tokens': 100, 'cache_read_input_tokens': 50, 'cache_creation_input_tokens': 10, 'output_tokens': 20}}]
@@ -92,6 +93,8 @@ for line in sys.stdin:
         with patch('centaur_cli.native_client.subprocess.Popen', return_value=process):
             reply = client.complete('sonnet', [], [])
         self.assertEqual(reply.usage, {'prompt_tokens':160, 'completion_tokens':20})
+        self.assertEqual(reply.context_usage, {'prompt_tokens':70})
+        self.assertNotIn('context_usage', reply)
         self.assertEqual(client.credits().windows[0].remaining, 75)
 
     def test_native_fast_capability_keeps_model_effort_and_tool_isolation(self):

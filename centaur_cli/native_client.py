@@ -144,6 +144,30 @@ def codex_usage(output):
     return {}
 
 
+def claude_context_usage(output):
+    """Last main-agent request only; the result's usage is cumulative spend."""
+    latest = {}
+    for line in output.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict) or event.get('type') != 'assistant' or event.get('parent_tool_use_id'):
+            continue
+        message = event.get('message')
+        usage = message.get('usage') if isinstance(message, dict) else None
+        if not isinstance(usage, dict):
+            latest = {}
+            continue
+        inputs = [usage.get('input_tokens'), usage.get('cache_read_input_tokens', 0),
+                  usage.get('cache_creation_input_tokens', 0)]
+        # Per-step output_tokens is a placeholder in Claude's public SDK stream.
+        # Estimate the returned reply separately instead of using result totals.
+        latest = ({'prompt_tokens': sum(inputs)}
+                  if all(type(item) is int and item >= 0 for item in inputs) else {})
+    return latest
+
+
 def claude_output(output):
     """Only a complete result can supply executable calls; other events are metadata."""
     if len(output.encode('utf-8')) > 8_000_000:
@@ -684,6 +708,9 @@ class NativeClient:
                     value = value['structured_output']
                 reply = self.reply(value, tools)
                 reply.usage = usage
+                # Codex exec publishes cumulative totals, not its last request.
+                # Keep spend separate; missing request counts use an estimate.
+                reply.context_usage = claude_context_usage(output) if self.backend == 'claude' else {}
                 status = 'completed'
                 notify()
                 return reply

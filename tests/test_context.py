@@ -13,7 +13,7 @@ from centaur_cli.agent import project_prompt, run_turn
 from centaur_cli.context import active_messages, compact_chat, context_label, estimate_tokens, record_context, auto_compaction_needed, save_compaction_progress, save_compaction, CompactionPaused
 from centaur_cli.history import ChatStore
 from centaur_cli.interaction import TurnCancelled, RequestTimeout
-from centaur_cli.native_client import NativeClient, codex_usage
+from centaur_cli.native_client import NativeClient, codex_usage, claude_context_usage
 from centaur_cli.openrouter import ModelReply, OpenRouter
 from centaur_cli.terminal import Terminal
 from centaur_cli.tools import ProjectTools
@@ -583,6 +583,65 @@ class ContextTests(unittest.TestCase):
             self.assertIn('%', context_label(self.chat, self.client, 80)[0])
         with patch.dict(os.environ, {'CENTAUR_CONTEXT_WINDOW': 'invalid'}):
             self.assertNotIn('%', context_label(self.chat, self.client, 80)[0])
+
+    def test_native_cumulative_spend_never_exhausts_context_or_triggers_compaction(self):
+        self.chat['messages'] = [{'role': 'user', 'content': 'small'} for _ in range(8)]
+        for backend in ('codex', 'claude'):
+            with self.subTest(backend=backend):
+                self.client.backend = backend
+                reply = ModelReply({'role': 'assistant', 'content': 'Done'}, 'main',
+                                   {'prompt_tokens': 2_000_000, 'completion_tokens': 500_000})
+                payload = active_messages(self.chat)
+                record_context(self.chat, self.client, payload, [], reply)
+                self.assertFalse(self.chat['context_usage']['provider_count'])
+                self.assertLess(self.chat['context_usage']['used'], 1000)
+                self.assertEqual(self.chat['context_usage']['usage_scope'], 'estimate')
+                self.assertIn('~99% livre', context_label(self.chat, self.client, 80)[0])
+                self.assertFalse(auto_compaction_needed(self.chat, self.client, payload, []))
+                # Older saved chats must also recover before their first request.
+                self.chat['context_usage'] = {'used': 2_500_000, 'provider_count': True,
+                                              'model': 'main', 'history_estimate': estimate_tokens(payload)}
+                self.store.save(self.chat)
+                restored = next(chat for chat in self.store.list() if chat['id'] == self.chat['id'])
+                self.assertIn('~99% livre', context_label(restored, self.client, 80)[0])
+                self.assertFalse(auto_compaction_needed(restored, self.client, payload, []))
+
+    def test_claude_last_request_is_separate_from_cumulative_result_and_child_usage(self):
+        events = [
+            {'type': 'assistant', 'message': {'usage': {'input_tokens': 10, 'output_tokens': 5}}},
+            {'type': 'assistant', 'message': {'usage': {'input_tokens': 100, 'cache_read_input_tokens': 200,
+                                                     'cache_creation_input_tokens': 50, 'output_tokens': 30}}},
+            {'type': 'assistant', 'parent_tool_use_id': 'child',
+             'message': {'usage': {'input_tokens': 900000, 'output_tokens': 900000}}},
+            {'type': 'result', 'usage': {'input_tokens': 2000000, 'output_tokens': 500000}}]
+        reply = ModelReply({'role': 'assistant', 'content': 'Done'}, 'main',
+                           {'prompt_tokens': 2_000_000, 'completion_tokens': 500_000})
+        reply.context_usage = claude_context_usage('\n'.join(map(json.dumps, events)))
+        self.assertEqual(reply.context_usage, {'prompt_tokens': 350})
+        self.client.backend = 'claude'
+        record_context(self.chat, self.client, active_messages(self.chat), [], reply)
+        self.assertEqual(self.chat['context_usage']['used'], 350 + estimate_tokens(reply))
+        self.assertTrue(self.chat['context_usage']['provider_count'])
+        self.assertEqual(self.chat['context_usage']['usage_scope'], 'request')
+        self.assertEqual(claude_context_usage(json.dumps(events[-1])), {})
+        for invalid in (True, -1, None, '100'):
+            damaged = {'type': 'assistant', 'message': {'usage': {'input_tokens': invalid, 'output_tokens': 10}}}
+            self.assertEqual(claude_context_usage('\n'.join(map(json.dumps, [events[1], damaged]))), {})
+
+    def test_compaction_uses_measured_request_then_accounts_for_new_payload_growth(self):
+        self.client.context_windows = {'main': 20000}
+        self.chat['messages'] = [{'role': 'user', 'content': 'x' * 6000} for _ in range(10)]
+        payload = active_messages(self.chat)
+        reply = ModelReply({'role': 'assistant', 'content': 'Done'}, 'main',
+                           {'prompt_tokens': 5000, 'completion_tokens': 100})
+        self.chat['messages'].append(reply)
+        record_context(self.chat, self.client, payload, [], reply)
+        current = active_messages(self.chat)
+        self.assertGreater(estimate_tokens(current), 16000)
+        self.assertFalse(auto_compaction_needed(self.chat, self.client, current, []))
+        self.assertIn('~74% livre', context_label(self.chat, self.client, 80)[0])
+        self.chat['messages'].append({'role': 'tool', 'content': 'x' * 45000})
+        self.assertTrue(auto_compaction_needed(self.chat, self.client, active_messages(self.chat), []))
 
     def test_terminal_command_commits_only_valid_uncancelled_saved_metadata(self):
         terminal = Terminal(self.root, 'main', self.store, self.client)

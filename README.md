@@ -331,13 +331,21 @@ A causa exata de uma falha depende do CLI e modelo; não há troca silenciosa de
 
 A barra à esquerda do rodapé indica **contexto livre**, separado dos créditos à direita.
 `~` marca estimativa: são consideradas mensagens, prompt de projeto e ferramentas; contagens
-de entrada/saída do OpenRouter e eventos públicos do Codex refinam a indicação quando disponíveis.
+da requisição OpenRouter refinam a indicação. No Claude, a entrada da última requisição
+do agente principal refina a barra quando disponível, com saída estimada. Totais de
+`turn.completed` do Codex e de `result` do Claude são consumo acumulado do processo,
+não tamanho do contexto: não são usados como ocupação. O Codex usa a estimativa do
+histórico ativo, e o Claude também quando não há contagem por requisição.
 Ela não soma o consumo de todas as chamadas ou dos subagentes. O custo de imagens e a
 tokenização variam; a porcentagem não é garantia de que o próximo pedido caberá.
 O limite vem do catálogo OpenRouter ou do cache local de modelos Codex. Sem limite conhecido,
 a barra mostra `[?]` e tokens estimados, sem porcentagem. Para um modelo personalizado ou
 Claude, informe a janela real, em tokens, com `CENTAUR_CONTEXT_WINDOW=200000 centaur .`.
 O valor substitui o catálogo; uma variável inválida não cria um limite fictício.
+Conversas antigas com totais nativos salvos são recalculadas ao abrir. A compactação
+automática começa em 80% de ocupação projetada; quando existe contagem da requisição,
+ela é ajustada pelo crescimento do payload, sem ser substituída pela estimativa bruta
+maior. Sem contagem válida, usa a estimativa de mensagens, instruções e ferramentas.
 
 Use **`$compact`** antes de esgotar o contexto, ou após um erro antes de `/retry`.
 O mesmo backend/modelo resume objetivos, restrições, decisões, alterações, validações e
