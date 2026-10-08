@@ -56,6 +56,10 @@ class AttachmentComposerTests(unittest.TestCase):
         self.assertIsNone(pasted_paths(self.root, 'file://remotehost/a.png'))
         self.assertIsNone(pasted_paths(self.root, 'explique '+str(second)))
         self.assertIsNone(pasted_paths(self.root, first.as_uri()+'\nfile:///'+'x'*300))
+        relative = [self.root / (letter * 140 + '.txt') for letter in ('a', 'b')]
+        for path in relative: path.write_text('arquivo')
+        self.assertEqual(pasted_paths(self.root, ' '.join('"'+p.name+'"' for p in relative)),
+                         [str(p) for p in relative])
 
     def test_typed_file_path_while_busy_prepares_then_queues_attachment(self):
         terminal = self.terminal

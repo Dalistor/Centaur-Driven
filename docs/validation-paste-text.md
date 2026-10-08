@@ -13,8 +13,9 @@ falha era capturada pelo worker, mas o texto não entrava no campo. Uma string d
 ## Correção
 
 `clipboard.pasted_paths` só confirma anexos se a lista inteira for de arquivos
-existentes. Erros de consulta ao sistema de arquivos, URI inválida e expansão de
-home indisponível retornam ao texto literal. Nenhuma preparação parcial é iniciada.
+existentes. Consultar a colagem inteira como um caminho é opcional: se falhar,
+os nomes separados ainda são verificados. Falhas na identificação final, URI
+inválida e home indisponível retornam ao texto literal. Nenhuma preparação parcial é iniciada.
 A preparação e a validação dos arquivos confirmados mantêm seu fluxo existente.
 
 ## Validação
@@ -24,7 +25,8 @@ Os testes existentes foram ampliados, sem criar novos métodos de teste:
 - Colagem protegida e Ctrl+V preservam texto longo, Unicode, multilinha, aspas
   incompletas, URI inválida e home inexistente, inserindo no cursor sem enviar.
 - Lista de URIs com um arquivo válido e outro inválido não prepara anexos parciais.
-- Arquivos reais com espaços e listas locais continuam anexando normalmente.
+- Arquivos reais com espaços e listas locais continuam anexando normalmente,
+  inclusive listas de nomes relativos cuja soma ultrapassa o limite de um nome.
 - Curses/PTY reais recebem uma colagem longa com acentos e quebra de linha; o CLI
   permanece aberto, não envia ao modelo nem prepara anexos, e continua editável.
   O fluxo existente roda em cor, NO_COLOR, movimento reduzido e terminal legado.

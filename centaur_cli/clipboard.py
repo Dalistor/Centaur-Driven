@@ -24,10 +24,14 @@ def pasted_paths(root, text):
         # An unquoted clipboard path can contain spaces. This is only a probe:
         # normal prose can exceed filesystem limits or contain invalid path syntax.
         if not uri_list:
-            whole = Path(text.strip()).expanduser()
-            whole = whole if whole.is_absolute() else Path(root) / whole
-            if whole.is_file():
-                tokens = [text.strip()]
+            try:
+                whole = Path(text.strip()).expanduser()
+                whole = whole if whole.is_absolute() else Path(root) / whole
+                if whole.is_file():
+                    tokens = [text.strip()]
+            except (OSError, ValueError, RuntimeError):
+                # A long list can still contain valid individual filenames.
+                pass
         paths = []
         for token in tokens:
             if token.startswith('file:'):

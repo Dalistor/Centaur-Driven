@@ -204,7 +204,7 @@ das verificações com contas reais de provedores.
 ## Anexos preparados pelo usuário
 
 A identificação em `clipboard.pasted_paths` confirma a lista inteira antes de tratar
-uma colagem como arquivos. Falhas de consulta, sintaxe de URI ou expansão de home
+uma colagem como arquivos. Falhas na identificação final, sintaxe de URI ou expansão de home
 retornam ao texto literal; não descartam a mensagem nem encerram o terminal. Texto
 longo/Unicode mantém rascunho e cursor nas colagens protegida e via Ctrl+V. Preparar
 arquivos confirmados continua seguindo validação de formato, capacidade e permissões.
