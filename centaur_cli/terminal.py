@@ -36,6 +36,7 @@ from .computer import ComputerSession
 from .computer_access import ComputerControl
 from .composer import layout_input, attachment_span, atomic_cursor, replace_input, without_attachment_markers
 from .clipboard import clipboard_content, pasted_paths
+from .diagnostics import collect as collect_diagnostics, render as render_diagnostics
 from .keyboard import KEY_NEWLINE, KEY_IGNORE, KEY_FOCUS_IN, KEY_FOCUS_OUT, PastedText, KeyboardReader, keyboard_protocol, read_key
 
 
@@ -70,7 +71,7 @@ class SessionEvents:
 
 
 class Terminal:
-    SESSION_DEFAULTS = {'busy': False, 'approval': None, 'question': None,
+    SESSION_DEFAULTS = {'busy': False, 'approval': None, 'question': None, 'diagnostic_report': None,
                         'computer': None, 'busy_started': None, 'saved_scroll': 0,
                         'notice': '', 'agent_group': None}
 
@@ -85,6 +86,7 @@ class Terminal:
         return property(get, set)
 
     busy = session_value('busy')
+    diagnostic_report = session_value('diagnostic_report')
     approval = session_value('approval')
     question = session_value('question')
     computer = session_value('computer')
@@ -402,6 +404,16 @@ class Terminal:
 
     def submit(self):
         command = without_attachment_markers(self.draft, self.pending_attachments).strip()
+        if command.split(maxsplit=1)[0:1] in (['$diagnose'], ['/diagnose']):
+            if command not in ('$diagnose', '/diagnose', '$diagnose clear', '/diagnose clear'):
+                self.notice = 'Uso: $diagnose [clear] · consulta local, inclusive durante a execução.'
+                return
+            self.diagnostic_report = (None if command.endswith(' clear') else
+                                      render_diagnostics(collect_diagnostics(self.root, self.chat['id'])))
+            self.draft = ''
+            self.scroll = 0
+            self.notice = 'Diagnóstico local · $diagnose clear fecha · execução continua.'
+            return
         if command.split(maxsplit=1)[0:1] in (['$computer'], ['/computer']):
             return self.computer_command(command)
         if self.preparing_attachment or not (self.draft.strip() or self.pending_attachments):
@@ -537,6 +549,7 @@ class Terminal:
         self.chat.update(candidate)
         self.pending_attachments.clear()
         self.draft = ''
+        self.diagnostic_report = None
         self.start_work()
 
     def inbox(self):
@@ -580,6 +593,7 @@ class Terminal:
             return
         self.pending_attachments.clear()
         self.draft = ''
+        self.diagnostic_report = None
         self.notice = 'Mensagem enviada · será tratada após a etapa atual; subagentes continuam.'
 
     def start_work(self):
@@ -1297,6 +1311,9 @@ class Terminal:
                     lines.append(TranscriptLine(f'{index}. {item["name"]}', 'muted'))
                 else:
                     append_text(f'{index}. {item["name"]} · {item["kind"]} · {item["size"]:,} bytes', 'muted')
+        if chat is None and not self.agent_preview and self.diagnostic_report:
+            lines.append(TranscriptLine(''))
+            append_text(self.diagnostic_report, 'muted')
         return lines or ['Centaur experimental · OpenRouter', '', '/new cria chat · /quit sai']
 
     def draw(self, screen):

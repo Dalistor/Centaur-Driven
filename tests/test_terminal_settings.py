@@ -195,6 +195,42 @@ class SettingsTests(unittest.TestCase):
         picker.handle('\x15')
         self.assertEqual(len(picker.options()), 4)
 
+    def test_diagnostics_stay_local_while_busy_and_exclude_untrusted_runtime_fields(self):
+        terminal = self.terminal
+        identifier = terminal.chat['id']
+        terminal.registry.set(identifier, 'running')
+        terminal.registry.activity(identifier, 'model')
+        terminal.registry.native_event(identifier, {'event': 'turn.started', 'output_bytes': 20,
+            'stderr_bytes': 0, 'input_bytes': 100, 'backend': 'codex', 'status': 'running',
+            'elapsed_seconds': 60, 'timeout_seconds': 1800, 'process_pid': os.getpid(), 'text': 'PRIVATE'})
+        path = self.root / '.centaur' / 'runtime' / (identifier + '.json')
+        record = json.loads(path.read_text())
+        record.update(prompt='PRIVATE', native_arguments='PRIVATE', native_warning='PRIVATE')
+        path.write_text(json.dumps(record))
+        terminal.busy = True
+        before = json.dumps(terminal.chat)
+        with patch('centaur_cli.terminal.threading.Thread', side_effect=AssertionError('No model request')), \
+                patch.object(terminal, 'submit_steering', side_effect=AssertionError('No inbox delivery')):
+            terminal.draft = '$diagnose'
+            terminal.submit()
+            self.assertIn('turn.started', terminal.diagnostic_report)
+            self.assertIn('60.0s / 1800s', terminal.diagnostic_report)
+            self.assertNotIn('PRIVATE', terminal.diagnostic_report)
+            self.assertTrue(terminal.busy)
+            terminal.draft = '$diagnose unknown'
+            terminal.submit()
+            self.assertIn('Uso:', terminal.notice)
+            terminal.draft = '/diagnose clear'
+            terminal.submit()
+            self.assertIsNone(terminal.diagnostic_report)
+        self.assertEqual(json.dumps(terminal.chat), before)
+        from centaur_cli.diagnostics import collect
+        path.unlink()
+        external = self.root / 'external.json'
+        external.write_text(json.dumps(record))
+        path.symlink_to(external)
+        self.assertEqual(collect(self.root)['sessions'], [])
+
     def test_async_apply_success_and_failure_keep_original_chat_until_saved(self):
         terminal = self.terminal
         original = terminal.chat['id']

@@ -60,7 +60,7 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 ## Anexos e capturas
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.3'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.5'
 ```
 
 Ctrl+V cola imagem/texto/arquivos; arrastar ou colar caminhos insere marcadores atômicos
@@ -285,3 +285,11 @@ Respostas parciais, lotes inválidos e falhas continuam rejeitados. Em esperas l
 a interface mantém visível o último evento público do CLI, ou informa que nenhum
 evento completo foi recebido. O limite de inferência continua 30 minutos; silêncio
 sozinho não comprova travamento. Veja [validação e limites](docs/validation-native-shutdown.md).
+
+## Diagnóstico de espera
+
+Use `$diagnose` durante a execução, ou `centaur diagnose --json` em outro terminal
+na mesma pasta. Consulta versão, fase, eventos públicos e contagem de bytes sem
+inferência, prompts ou logs brutos. O último estado permanece após Ctrl+C. A versão
+0.10.5 também usa instruções base do harness no Codex e reconhece eventos terminais
+completos sem quebra de linha final. Isso não determina o estado remoto do modelo.

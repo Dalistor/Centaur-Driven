@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import threading
 import time
+import math
 from uuid import uuid4
 
 from .attachments import attachment_directory
@@ -17,6 +18,7 @@ NATIVE_PHASES = {'thread.started': 'sessão iniciada', 'turn.started': 'turno in
                  'system': 'sessão iniciada', 'assistant': 'resposta em andamento',
                  'result': 'resultado recebido', 'rate_limit_event': 'aviso de cota'}
 NATIVE_WARNINGS = ('rede', 'TLS', 'cota', 'contexto', 'schema', 'configuração')
+NATIVE_STATES = ('running', 'completed', 'cancelled', 'timeout', 'failed')
 
 
 def read_record(root, chat_id, now=None):
@@ -112,8 +114,8 @@ class SessionRegistry:
         with self.lock:
             record = {'id':chat_id,'state':state,'pid':os.getpid(),'owner':self.owner,'heartbeat':time.time()}
             previous = self.records.get(chat_id, {})
-            for key in ('phase', 'phase_started'):
-                if key in previous and state != 'stopped':
+            for key in ('phase', 'phase_started', *(key for key in previous if key.startswith('native_'))):
+                if key in previous:
                     record[key] = previous[key]
             if previous.get('state') == 'waiting_input' and state == 'running' and 'phase' in record:
                 record['phase_started'] = time.time()
@@ -161,6 +163,18 @@ class SessionRegistry:
             errors = event.get('recovery_errors')
             if type(errors) is int and 0 <= errors <= 1_000_000:
                 record['native_recovery_errors'] = errors
+            for key, maximum in (('process_pid', 2**31 - 1), ('input_bytes', 100_000_000)):
+                value = event.get(key)
+                if type(value) is int and 0 <= value <= maximum:
+                    record['native_' + key] = value
+            for key in ('timeout_seconds', 'elapsed_seconds'):
+                value = event.get(key)
+                if type(value) in (int, float) and 0 <= value <= 100_000 and math.isfinite(value):
+                    record['native_' + key] = value
+            if event.get('status') in NATIVE_STATES:
+                record['native_status'] = event['status']
+            if event.get('backend') in ('codex', 'claude'):
+                record['native_backend'] = event['backend']
             self._write(record)
 
     def _write(self, record):

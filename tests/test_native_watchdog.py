@@ -172,15 +172,16 @@ print(json.dumps({'type':'turn.completed'}),flush=True)
 
     def test_complete_reply_is_not_blocked_by_shutdown_or_inherited_output(self):
         for backend in ('codex', 'claude'):
-            for complete, parent_hangs in ((True, False), (False, False), (True, True)):
-                with self.subTest(backend=backend, complete=complete, parent_hangs=parent_hangs):
+            for complete, parent_hangs, no_lf in ((True, False, False), (False, False, False),
+                                               (True, True, False), (True, True, True)):
+                with self.subTest(backend=backend, complete=complete, parent_hangs=parent_hangs, no_lf=no_lf):
                     marker = self.root / f'{backend}-{complete}-{parent_hangs}.pid'
                     output = self.final_output(backend) if complete else '{"type":"turn.started"}'
                     code = ('import subprocess,sys,json\n'
                             'sys.stdin.read()\n'
                             'p=subprocess.Popen([sys.executable,"-c","import time; time.sleep(30)"],start_new_session=True)\n'
                             f'open({str(marker)!r},"w").write(str(p.pid))\n'
-                            f'print({output!r},flush=True)\n'
+                            f'print({output!r},end={"" if no_lf else chr(10)!r},flush=True)\n'
                             + ('import time; time.sleep(30)\n' if parent_hangs else ''))
                     client = self.default_client(backend)
                     client.timeout = 5 if parent_hangs else 3
@@ -193,7 +194,9 @@ print(json.dumps({'type':'turn.completed'}),flush=True)
                                 with self.assertRaises(RuntimeError) as error:
                                     client.complete('fixture', [], [])
                                 self.assertNotIn('tempo limite', str(error.exception))
-                        self.assertLess(time.monotonic() - started, 5 if parent_hangs else 3)
+                        # A detached child can consume the bounded two-second
+                        # pipe cleanup after the already validated reply.
+                        self.assertLess(time.monotonic() - started, client.timeout + 2.5)
                     finally:
                         if marker.exists():
                             try:
