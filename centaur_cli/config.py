@@ -54,17 +54,36 @@ def load_config(root):
         return {}
     data = json.loads(path.read_text(encoding='utf-8'))
     if (not isinstance(data, dict) or not {'backend', 'model'} <= set(data)
-            or set(data) - {'backend', 'model', 'effort', 'approval_mode', 'speed'}):
+            or set(data) - {'backend', 'model', 'effort', 'approval_mode', 'speed', 'setup_complete'}):
         raise ValueError('Configuração local inválida; use backend, model, effort e approval_mode opcionais.')
     if 'effort' in data:
         validate_effort(data['backend'], data['effort'])
-    return validate(data['backend'], data['model'], data.get('effort'), data.get('approval_mode'), data.get('speed'))
+    result = validate(data['backend'], data['model'], data.get('effort'), data.get('approval_mode'), data.get('speed'))
+    if 'setup_complete' in data:
+        if not isinstance(data['setup_complete'], bool):
+            raise ValueError('Configuração local inválida: setup_complete.')
+        result['setup_complete'] = data['setup_complete']
+    return result
 
 
 def save_config(root, backend, model, effort=None, approval_mode=None, speed=None):
     data = validate(backend, model, effort, approval_mode, speed)
     path = config_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        try:
+            previous = load_config(root)
+        except ValueError:
+            backup_dir = (path.parent / 'backups').resolve()
+            backup_dir.relative_to(Path(root).resolve())
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            descriptor, backup = tempfile.mkstemp(prefix='config-', suffix='.json', dir=backup_dir)
+            with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+                stream.write(path.read_text(encoding='utf-8'))
+            previous = {}
+        data.update({field: previous[field] for field in ('approval_mode', 'speed')
+                     if field in previous and field not in data and previous.get('backend') == backend})
+    data['setup_complete'] = True
     descriptor, temporary = tempfile.mkstemp(prefix='.config-', dir=path.parent)
     try:
         with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:

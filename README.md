@@ -87,7 +87,11 @@ O catálogo público do OpenRouter pode ser consultado sem chave; escolher um mo
 faz uma chamada de geração. O cadastro de chave continua usando entrada oculta.
 
 Flags e variáveis de ambiente definem as escolhas iniciais e podem ser alteradas no seletor.
-Para abrir diretamente com elas ou com as preferências salvas, use `centaur . --no-setup`.
+O seletor aparece na primeira abertura de cada diretório e confirma as preferências existentes uma vez.
+Após salvar, `setup_complete` registra a confirmação e as próximas aberturas entram direto.
+`$config` continua disponível para revisar as escolhas. Configuração inválida abre o seletor para
+correção; ao salvar, o arquivo anterior fica em `.centaur/backups/`.
+Para ignorar o seletor explicitamente, use `centaur . --no-setup`.
 `centaur status`, `--configure-key` e `--configure-credits-key` continuam com seus fluxos próprios.
 
 ### Desenvolvimento local
@@ -151,7 +155,9 @@ plano ao abrir, a cada 30 segundos e após cada turno. `$credits` ou `/credits` 
 Sem conexão, mantém o último valor com `~` para indicar que está desatualizado; sem leitura
 anterior mostra “indisponível”, sem inventar saldo.
 
-Para ver o **saldo total da conta**, cadastre uma chave separada:
+Para ver o **saldo total da conta**, abra `$config` → **Saldo da conta** (OpenRouter).
+Essa opção também aparece na revisão da primeira configuração e aceita `/credits configure`.
+O cadastro usa entrada oculta fora da conversa e retorna ao mesmo menu. Também é possível cadastrar antes de abrir o CLI:
 
 ```bash
 centaur --configure-credits-key
@@ -163,7 +169,8 @@ administrativos; o CLI a utiliza somente para consultar créditos, separada da c
 Também aceita `OPENROUTER_CREDITS_KEY`; ambas as chaves ficam protegidas contra inclusão no
 chat e no ambiente dos comandos filhos. O endpoint de [saldo da conta exige chave de
 gerenciamento](https://openrouter.ai/docs/api/api-reference/credits/get-remaining-credits).
-Sem ela, mostra **Chave**, com seu limite restante consultado em `GET /api/v1/key`;
+Com ela, mostra **Saldo conta**, pelos créditos comprados menos o uso informado pelo OpenRouter.
+Sem ela, mostra **Limite chave**, com seu limite restante consultado em `GET /api/v1/key`;
 “sem limite” significa que a chave não tem teto, sem informar o saldo da conta.
 
 ### Cotas do Codex e Claude
@@ -243,7 +250,7 @@ o cursor no rascunho multilinha; PgUp/PgDn e o mouse continuam rolando a convers
 | Ctrl+S | Capturar uma vez o monitor principal após três segundos; Enter envia com a mensagem. |
 | `$attachments` / `$detach <número\|all>` | Listar os anexos pendentes / remover um ou todos. |
 | `$compact` ou `/compact` | Iniciar a compactação com um único Enter, mantendo mensagens recentes e histórico completo. O progresso informa fragmento atual/total. |
-| Enter / Shift+Enter ou Ctrl+J | Enviar a mensagem / inserir uma nova linha. No autocomplete, Enter executa comandos locais isolados; para skills, insere a opção. Tab apenas completa. |
+| Enter / Shift+Espaço, Shift+Enter ou Ctrl+J | Enviar a mensagem / inserir uma nova linha. Combinações com Shift dependem do terminal informar o modificador; Ctrl+J funciona também no protocolo legado. No autocomplete, Enter executa comandos locais isolados; para skills, insere a opção. Tab apenas completa. |
 | R ou F2 na lista de chats | Renomear a conversa selecionada; Enter salva e Esc cancela. |
 | `/rename` ou `/rename Novo título` | Renomear a conversa atual sem chamar o modelo. |
 | `Ctrl+O` | Alternar resumo e detalhes das ferramentas na conversa. |
@@ -252,6 +259,7 @@ o cursor no rascunho multilinha; PgUp/PgDn e o mouse continuam rolando a convers
 | `$status` | Mostrar a árvore local das specs, sem chamar o modelo. |
 | `$status --ai` | Analisar evidências e recomendar o que pode concluir ou rodar, somente leitura. |
 | `$credits` ou `/credits` | Atualizar o indicador de créditos sem enviar mensagem ao modelo. |
+| `/credits configure` | Cadastrar a chave de saldo em entrada oculta; também disponível em `$config` → Saldo da conta. |
 | ↑ / ↓ | Recuperar prompts anteriores / avançar até o rascunho atual, inclusive vazio. Fora dessa navegação, rascunhos multilinha usam as setas para editar linhas. Listas têm prioridade. |
 | PgUp / PgDn ou roda do mouse | Rolar a conversa mantendo a posição quando chegam mensagens. PgUp/PgDn também revisam confirmações. |
 | Clique no campo de mensagem | Mover o cursor por células, incluindo quebras, Unicode e anexos atômicos; não envia a mensagem. |
@@ -325,6 +333,10 @@ de uso e incompatibilidade do CLI. O diagnóstico completo fica na conversa e no
 `/retry` retoma o turno sem duplicar a mensagem do usuário ou executar novamente ferramentas
 com resultado registrado. É uma nova solicitação ao mesmo backend, sujeita a custos e limites.
 Respostas inválidas são recusadas integralmente antes de executar qualquer ferramenta delas.
+No OpenRouter, um lote de ferramentas inválido solicita uma única resposta corrigida, com a
+mesma seleção de modelo e dentro do prazo original. Essa chamada adicional usa tokens;
+não executa o lote rejeitado nem repete ferramentas concluídas. Se a correção falhar,
+o erro mostra a causa da rejeição e `/retry` continua disponível.
 A causa exata de uma falha depende do CLI e modelo; não há troca silenciosa de backend.
 
 ### Contexto restante e compactação
@@ -486,7 +498,7 @@ faixas curvas finas, prateada e verde, que se encontram em uma ponta comum, e um
 verde fina que atravessa o centro e avança além da junção. O símbolo
 representa julgamento humano e execução por IA seguindo uma intenção compartilhada.
 A geometria vetorial em relevo tem perspectiva, profundidade, iluminação e rasterização
-Braille Unicode (8 pontos por célula). A sequência dura 6 segundos, com cadência alvo de 20 FPS, e termina em uma pose frontal estável.
+Braille Unicode (8 pontos por célula). A sequência faz uma volta completa de 360° em 4,8 segundos, com cadência alvo de 30 FPS, e termina em uma pose frontal estável.
 F5 repete na abertura sem rascunho; digitar encerra o movimento. Seletores e histórico
 pausam o relógio; redimensionar preserva a fase. O renderizador usa apenas a biblioteca
 padrão do Python, com malha em cache e palco limitado para manter o custo previsível.
@@ -629,6 +641,13 @@ Marcadores são elementos inteiros: ←/→ os atravessam e Backspace/Delete rem
 Ctrl+U limpa a mensagem e seus anexos. ↑ recupera texto e cópias dos anexos da mensagem
 anterior; ↓ retorna ao rascunho atual, incluindo um campo vazio. Uma cópia ausente/alterada
 impede a restauração sem destruir o rascunho. A fila e o texto voltam ao retornar ao chat.
+
+Para inserir uma linha, use **Ctrl+J** ou, em terminais que informam os modificadores,
+**Shift+Espaço** / **Shift+Enter**. No GNOME Terminal com VTE 0.76, Shift+Espaço chega como
+um espaço comum e não pode ser distinguido pelo CLI; use Ctrl+J nessa versão.
+O Centaur solicita o protocolo Kitty com texto associado para preservar maiúsculas,
+acentos e composição Unicode ao reconhecer Shift+Espaço. O protocolo é suspenso
+durante o cadastro de chaves com entrada oculta e restaurado ao voltar ao chat.
 
 No Linux, instale `xclip` para X11 ou `wl-clipboard` para Wayland. No macOS, imagens usam
 Pillow e texto usa `pbpaste`. Em SSH, o clipboard é da máquina que executa o Centaur;

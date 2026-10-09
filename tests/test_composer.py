@@ -50,8 +50,38 @@ class KeyboardTests(unittest.TestCase):
         restore.assert_not_called()
         self.assertEqual(screen.timeouts[-1], 80)
 
+    def test_shift_space_inserts_line_without_changing_plain_space_or_releases(self):
+        for sequence in ('\x1b[32;2u', '\x1b[32;2;32u', '\x1b[32;2:1;32u',
+                         '\x1b[32;2:2;32u', '\x1b[32;66;32u', '\x1b[27;2;32~'):
+            self.assertEqual(read_key(InputScreen(sequence)), KEY_NEWLINE, sequence)
+        for sequence, expected in ((' ', ' '), ('\x1b[32u', ' '), ('\x1b[32;;32u', ' '),
+                                   ('\x1b[32;2:3;32u', KEY_IGNORE)):
+            self.assertEqual(read_key(InputScreen(sequence)), expected)
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        terminal = Terminal(Path(temporary.name), 'model', ChatStore(temporary.name), None)
+        terminal.draft = 'antes depois'
+        terminal.cursor = 5
+        with patch.object(terminal, 'start_work') as start:
+            terminal.handle(read_key(InputScreen('\x1b[32;2;32u')))
+        self.assertEqual(terminal.draft, 'antes\n depois')
+        self.assertEqual(terminal.cursor, 6)
+        self.assertFalse(terminal.chat['messages'])
+        start.assert_not_called()
+
+    def test_all_key_reporting_preserves_actual_unicode_text_and_ctrl_shortcuts(self):
+        for sequence, expected in (('\x1b[97;2;65u', 'A'), ('\x1b[49;2;33u', '!'),
+                                   ('\x1b[97;65;65u', 'A'), ('\x1b[97:65;2;65u', 'A'),
+                                   ('\x1b[0;;101:769u', 'e\u0301'), ('\x1b[97;1;27721u', '汉'),
+                                   ('\x1b[106;5u', '\n'), ('\x1b[118;5u', '\x16'),
+                                   ('\x1b[57441;2u', KEY_IGNORE), ('\x1b[57358u', KEY_IGNORE),
+                                   ('\x1b[0;;13u', KEY_IGNORE), ('\x1b[0;;1114112u', KEY_IGNORE),
+                                   ('\x1b[97;2:3;65u', KEY_IGNORE), ('\x1b[57414u', '\r'),
+                                   ('\x1b[57417;2u', curses.KEY_SLEFT), ('\x1b[57426u', curses.KEY_DC)):
+            self.assertEqual(read_key(InputScreen(sequence)), expected, sequence)
+
     def test_modified_enter_survives_gaps_at_every_boundary(self):
-        for sequence in ('\x1b\r', '\x1b[13;2u', '\x1b[27;2;13~'):
+        for sequence in ('\x1b\r', '\x1b[13;2u', '\x1b[27;2;13~', '\x1b[32;2;32u', '\x1b[27;2;32~'):
             for split in range(1, len(sequence)):
                 with self.subTest(sequence=sequence, split=split):
                     reader = KeyboardReader()
@@ -110,10 +140,24 @@ class KeyboardTests(unittest.TestCase):
         stream = TTY()
         with self.assertRaises(RuntimeError):
             with keyboard_protocol(stream): raise RuntimeError('fixture')
-        self.assertEqual(stream.getvalue(), '\x1b[>1u\x1b[>4;2m\x1b[?2004h\x1b[?1004h\x1b[?1004l\x1b[?2004l\x1b[>4m\x1b[<1u')
+        self.assertEqual(stream.getvalue(), '\x1b[>25u\x1b[>4;2m\x1b[?2004h\x1b[?1004h\x1b[?1004l\x1b[?2004l\x1b[>4m\x1b[<1u')
         stream = StringIO()
         with keyboard_protocol(stream): pass
         self.assertEqual(stream.getvalue(), '')
+
+    def test_plain_keyboard_prompt_restores_outer_protocol_on_failure(self):
+        class TTY(StringIO):
+            def isatty(self): return True
+        stream = TTY()
+        with keyboard_protocol(stream):
+            with self.assertRaises(RuntimeError):
+                with keyboard_protocol(stream, plain=True):
+                    raise RuntimeError('fixture')
+        self.assertEqual(stream.getvalue(),
+            '\x1b[>25u\x1b[>4;2m\x1b[?2004h\x1b[?1004h'
+            '\x1b[>0u\x1b[>4m\x1b[?2004l\x1b[?1004l'
+            '\x1b[<1u\x1b[>4;2m\x1b[?2004h\x1b[?1004h'
+            '\x1b[?1004l\x1b[?2004l\x1b[>4m\x1b[<1u')
 
 
 class ComposerTests(unittest.TestCase):
@@ -244,4 +288,4 @@ class ComposerTests(unittest.TestCase):
         view.draw(screen, terminal)
         self.assertIn('linha 0', screen.text())
         self.assertIn('↓', screen.text())
-        self.assertEqual(screen.cursor[1], 4)
+        self.assertEqual(screen.cursor[1], 6)

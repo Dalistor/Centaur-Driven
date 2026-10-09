@@ -17,19 +17,21 @@ class PastedText:
 
 
 @contextmanager
-def keyboard_protocol(stream=None):
+def keyboard_protocol(stream=None, *, plain=False):
     stream = sys.stdout if stream is None else stream
     enabled = stream.isatty()
     try:
         if enabled:
-            # Kitty progressive enhancement + xterm modifyOtherKeys. Unsupported
-            # controls are ignored. No all-keys or key-release mode is requested.
-            stream.write('\x1b[>1u\x1b[>4;2m\x1b[?2004h\x1b[?1004h')
+            # All keys + associated text make Shift+Space distinguishable while
+            # retaining the actual typed text. Release reporting is not requested.
+            stream.write('\x1b[>0u\x1b[>4m\x1b[?2004l\x1b[?1004l' if plain else
+                         '\x1b[>25u\x1b[>4;2m\x1b[?2004h\x1b[?1004h')
             stream.flush()
         yield
     finally:
         if enabled:
-            stream.write('\x1b[?1004l\x1b[?2004l\x1b[>4m\x1b[<1u')
+            stream.write('\x1b[<1u\x1b[>4;2m\x1b[?2004h\x1b[?1004h' if plain else
+                         '\x1b[?1004l\x1b[?2004l\x1b[>4m\x1b[<1u')
             stream.flush()
 
 
@@ -52,10 +54,10 @@ def decode_sequence(sequence):
             return curses.KEY_SLEFT
         return {'A': curses.KEY_UP, 'B': curses.KEY_DOWN, 'C': curses.KEY_RIGHT,
                 'D': curses.KEY_LEFT, 'H': curses.KEY_HOME, 'F': curses.KEY_END}[key]
-    kitty = re.fullmatch(r'\[(\d+)(?:;(\d+)(?::([123]))?)?u', sequence)
+    kitty = re.fullmatch(r'\[(\d+)(?::\d*(?::\d*)?)?(?:;(\d*)(?::([123]))?)?(?:;(\d+(?::\d+)*))?u', sequence)
     xterm = re.fullmatch(r'\[27;(\d+);(\d+)~', sequence)
     if kitty:
-        code, modifiers, event = kitty.groups()
+        code, modifiers, event, text = kitty.groups()
         if event == '3':
             return KEY_IGNORE
         code, modifiers = int(code), int(modifiers or 1)
@@ -64,6 +66,10 @@ def decode_sequence(sequence):
     else:
         return None
     bits = (modifiers - 1) & 63  # Caps/num lock do not change shortcuts.
+    if code == 32 and bits == 1:
+        return KEY_NEWLINE
+    if code == 57414:
+        code = 13  # Kitty keypad Enter.
     if code == 13 and bits in (0, 1, 4, 5):
         if kitty and event == '2' and not bits & 1:
             return KEY_IGNORE  # An explicit repeat must never submit a draft.
@@ -72,6 +78,21 @@ def decode_sequence(sequence):
         return chr(code & 31)
     if bits in (0, 1) and code in (9, 27, 127):
         return {9: '\t', 27: '\x1b', 127: '\x7f'}[code]
+    keypad_navigation = {57417: curses.KEY_LEFT, 57418: curses.KEY_RIGHT,
+                         57419: curses.KEY_UP, 57420: curses.KEY_DOWN,
+                         57421: curses.KEY_PPAGE, 57422: curses.KEY_NPAGE,
+                         57423: curses.KEY_HOME, 57424: curses.KEY_END,
+                         57425: curses.KEY_IC, 57426: curses.KEY_DC}
+    if code in keypad_navigation:
+        return curses.KEY_SLEFT if code == 57417 and bits == 1 else keypad_navigation[code]
+    if kitty and text:
+        points = [int(point) for point in text.split(':')]
+        if all(32 <= point <= 0x10ffff and not 127 <= point <= 159
+               and not 0xd800 <= point <= 0xdfff for point in points):
+            return ''.join(chr(point) for point in points)
+        return KEY_IGNORE
+    if 57344 <= code <= 63743:
+        return KEY_IGNORE  # Modifier/media keys are not characters in the draft.
     if bits in (0, 1) and 32 <= code <= 0x10ffff:
         return chr(code)
     return KEY_IGNORE

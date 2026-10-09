@@ -52,7 +52,17 @@ class Screen:
         cw, ch = 10, 21
         def color(index, *, background=False, dim=False):
             bg, fg, ansi = self.theme
-            value = (bg if background else fg) if index == -1 else ansi[index]
+            if index == -1:
+                value = bg if background else fg
+            elif index < 16:
+                value = ansi[index % 8]
+            elif index >= 232:
+                level = 8 + (index - 232) * 10
+                value = '#%02x%02x%02x' % (level, level, level)
+            else:
+                levels = (0, 95, 135, 175, 215, 255)
+                offset = index - 16
+                value = '#%02x%02x%02x' % (levels[offset // 36], levels[(offset // 6) % 6], levels[offset % 6])
             if dim and not background:
                 channels = [round(int(value[i:i+2], 16) * .65 + int(bg[i:i+2], 16) * .35)
                             for i in (1, 3, 5)]

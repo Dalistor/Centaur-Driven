@@ -8,15 +8,15 @@ rename e melhorias visuais; as regras de desenvolvimento vêm de
 | Capacidade | Dono canônico | Estados e contrato | Verificação |
 | --- | --- | --- | --- |
 | Select/Listbox | `settings.ConfigPicker`, `appearance.TerminalView.settings` | ↑/↓ selecionam; Enter abre/confirma; Esc volta/cancela; filtro local; salvar explícito | `tests/test_terminal_settings.py` |
-| Inicialização | `startup.StartupPicker`, `StartupWizard`, `__main__.main` | Backend → modelo → effort → permissões → velocidade → revisão; escolhas antes de autenticar; cancelar não cria chat; falha permite tentar novamente | `tests/test_startup.py`, terminal real com PTY |
+| Inicialização | `startup.StartupPicker`, `StartupWizard`, `__main__.main` | Primeiro uso por diretório: backend → modelo → effort → permissões → velocidade → revisão e saldo OpenRouter; escolhas antes de autenticar; salvar marca setup_complete; reabertura direta; cancelar não cria chat; configuração inválida recuperada com backup | `tests/test_startup.py`, terminal real com PTY |
 | Form | `Terminal.handle_settings`, `Terminal.handle_rename` | Validação textual, valores preservados em falha; bloqueio de salvamento duplicado | `tests/test_terminal_settings.py` |
 | Feedback | `Terminal.notice`, `ConfigPicker.error`, `TerminalView.draw` | Mensagem no rodapé, erro permanece no seletor; não substituir erro por sucesso | `tests/test_terminal_settings.py` |
 | Chats | `history.ChatStore`, `Terminal` | IDs imutáveis, gravação atômica, retomada por seleção; rename lê conteúdo atual do disco | `tests/test_cli.py`, `tests/test_terminal_settings.py` |
-| Gráfico da abertura | `graphics.Renderer`, `WelcomeAnimation`, `Palette`, `TerminalView.logo` | Relógio visível; giro finito; digitação encerra; F5 repete; resize mantém fase; reduced motion e fallback estáticos | `tests/test_graphics.py` |
+| Gráfico da abertura | `graphics.Renderer`, `WelcomeAnimation`, `Palette`, `TerminalView.logo` | Relógio visível; giro completo de 360° em 4,8s a 30FPS; digitação encerra; F5 repete; resize mantém fase; reduced motion e fallback estáticos | `tests/test_graphics.py` |
 | Histórico e foco | `Terminal.cursor`, `Terminal.scroll`, `TerminalView` | Shift+← ou /chats abre lista; rascunho preservado ao voltar/cancelar; PgUp/PgDn rolam | `tests/test_terminal_settings.py` |
 | Seleção e cópia | `Terminal.configure_mouse`, `Terminal.handle`, emulador | Mouse livre por padrão; arrastar seleciona; atalho do emulador copia; F6 alterna cliques/roda; opt-in CENTAUR_MOUSE=1; eventos atrasados com mouse desligado não editam | `tests/test_agent_panels_mouse.py`, `tests/test_terminal_pty.py` |
 | Foco da janela | `keyboard.KeyboardReader`, `Terminal.run_screen`, `WelcomeAnimation` | Perda de foco pausa desenho; agentes/eventos/heartbeat continuam; retorno ou tecla redesenha o estado atual sem alterar rascunho ou autorizar ações | `tests/test_composer.py`, `tests/test_terminal_pty.py` |
-| Entrada multilinha | `composer.layout_input`, `keyboard.KeyboardReader`, `Terminal.handle` | Quebra visual sem alterar texto; Enter envia, Shift+Enter/Ctrl+J insere linha; sequências fragmentadas preservadas, repetição explícita de Enter ignorada; colagem não envia ou aprova | `tests/test_composer.py`, `tests/test_terminal_pty.py` |
+| Entrada multilinha | `composer.layout_input`, `keyboard.KeyboardReader`, `Terminal.handle` | Quebra visual sem alterar texto; Enter envia, Shift+Espaço/Shift+Enter quando informados pelo terminal e Ctrl+J inserem linha; sequências fragmentadas preservadas, repetição explícita de Enter ignorada; colagem não envia ou aprova; texto associado preserva maiúsculas e Unicode | `tests/test_composer.py`, `tests/test_terminal_pty.py` |
 | Comandos locais | `completion.LOCAL_COMMANDS`, `SkillCompletion.local_command`, `Terminal.handle` | Enter executa comando local isolado com autocomplete; Tab só completa; skills/menções em frases apenas inserem; compactação informa progresso por fragmento | `tests/test_completion.py`, `tests/test_terminal_pty.py` |
 | Velocidade | `speed`, `ConfigPicker`, `NativeClient`, `OpenRouter` | Standard padrão; Fast só anunciado; custo explicado; não altera modelo/effort; tier solicitado não é tier confirmado | `tests/test_native_usage_speed.py` |
 | Cotas nativas | `native_usage`, `Terminal.request_credits` | RPC Codex somente leitura; eventos Claude públicos em cache; sem saldo inventado, credenciais ou prompts na consulta | `tests/test_native_usage_speed.py` |
@@ -56,8 +56,9 @@ Movimento reduzido e ausência de cor preservam todos
 os comandos e a indicação textual da seleção. As superfícies são de terminal, sem HTML,
 DOM, popups de navegador, fontes remotas ou scrollbars CSS.
 
-O fundo de todas as superfícies é o padrão do emulador, inclusive seleção, mensagens,
-entrada, startup e cartões. `Palette` usa pares com fundo `-1` e texto principal `-1`,
+O fundo da conversa, seleção, startup e cartões é o padrão do emulador.
+Campos de texto usam destaque cinza discreto, padding de duas células e margem lateral nos modais. `Palette` usa pares de conteúdo com fundo `-1` e texto principal `-1`,
+com pares separados para o cinza dos campos (238/252 em 256 cores),
 sem redefinir slots de cor; cores de destaque são ANSI nativas. Seleção usa `>` e
 negrito, inclusive em `NO_COLOR`, sem inversão. Ausência de suporte a cores padrão
 cai para atributos monocromáticos. Fonte: pedido do proprietário em 2026-10-08;
@@ -138,6 +139,12 @@ Erro completo é persistido em `last_error`, fora das mensagens enviadas ao mode
 retoma o histórico sem duplicar o pedido; resultados anteriores não são repetidos. Não há retry
 automático de comandos, mudança de backend ou tentativa de executar fragmentos de resposta.
 `/wide` altera apenas a largura visual. Verificação: `tests/test_native_resilience.py` e PTY.
+
+OpenRouter valida o lote completo antes de executar ferramentas. Se uma resposta violar
+o contrato, solicita uma única correção com a mesma seleção de modelo, respeitando o
+prazo total e cancelamento. O lote rejeitado e o aviso de correção não entram no histórico;
+nenhuma ferramenta dele executa. Falha persistente mostra o motivo específico, sem chaves
+ou argumentos brutos. Verificação: `tests/test_openrouter.py`, `tests/test_backend_flows.py`.
 
 ## Turnos, perguntas e leitura do histórico
 
@@ -364,8 +371,8 @@ continuam verificados; referências são consumidas antes de input e falha parci
 
 Fonte: referência visual e relato de subagente sem progresso do proprietário, 2026-10-07.
 Palette adapta tokens compartilhados para conversa, input, seleção e cartões.
-Desde o pedido de 2026-10-08, todas essas superfícies herdam o fundo padrão, sem
-reprogramar cores. ANSI e NO_COLOR mantêm teclado, negrito, marcadores e semântica.
+O conteúdo e os cartões herdam o fundo padrão; campos têm o cinza discreto solicitado,
+sem reprogramar slots de cor do emulador. ANSI e NO_COLOR mantêm teclado, negrito, marcadores e semântica.
 Não há troca de fonte.
 
 SessionRegistry registra fase/tempo separado do heartbeat. agent.run_turn informa
@@ -473,3 +480,8 @@ Terminais sem eventos de foco mantêm o comportamento normal.
 
 Verificação: [reprodução e evidência](docs/validation-terminal-focus.md), com PTY real,
 saída não consumida, resposta concluída, resize, rascunho e retorno por foco/tecla.
+
+O saldo da conta OpenRouter pode ser cadastrado pela revisão inicial ou `$config` → Saldo da conta.
+O cadastro sai de curses para entrada oculta, valida GET /credits e retorna ao mesmo menu.
+Não altera conversa/modelo/effort e descarta respostas antigas de créditos; campos de permissões
+e velocidade do original continuam ativos. Verificação: tests/test_credits.py e tests/test_startup.py.

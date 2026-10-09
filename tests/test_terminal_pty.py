@@ -55,6 +55,8 @@ class RecordingTerminal(Terminal):
               'tree':[c['title'] for c in self.chats],
               'input_hitbox':{k:v for k,v in (self.input_hitbox or {}).items() if k!='layout'},
               'action_style':self.view.palette.styles['action'],'comment_style':self.view.palette.styles['comment'],
+              'surface_backgrounds':sorted({curses.pair_content(curses.pair_number(style))[1]
+                  for name, style in self.view.palette.styles.items() if not name.startswith('input') and curses.pair_number(style)}),
               'backgrounds':sorted({curses.pair_content(curses.pair_number(style))[1]
                   for style in self.view.palette.styles.values() if curses.pair_number(style)})}
         pending=root/'snapshot.tmp'
@@ -83,6 +85,24 @@ curses.wrapper(terminal.run)
 
 
 class TerminalPTYTests(unittest.TestCase):
+    def assert_field_backgrounds(self, transcript):
+        # Surfaces inherit the emulator; only input fields use the requested muted gray.
+        for sgr in re.findall(rb'\x1b\[([0-9;]*)m', transcript):
+            codes = [int(value) for value in sgr.split(b';') if value]
+            index = 0
+            while index < len(codes):
+                code = codes[index]
+                if code == 38:
+                    index += 3 if codes[index + 1] == 5 else 5
+                    continue
+                if code == 48:
+                    self.assertEqual(codes[index + 1:index + 3], [5, 238])
+                    index += 3
+                    continue
+                if 40 <= code <= 47 or 100 <= code <= 107:
+                    self.assertEqual(code, 40, 'Unexpected field background: ' + repr(sgr))
+                index += 1
+
     def test_fragmented_modified_enter_does_not_submit_in_real_curses(self):
         for terminal_type in ('xterm-256color', 'xterm-color'):
             with self.subTest(terminal=terminal_type), tempfile.TemporaryDirectory() as temporary:
@@ -112,13 +132,18 @@ class TerminalPTYTests(unittest.TestCase):
                     os.write(master, b'first')
                     expected = 'first'
                     wait_for(lambda s:s['draft'] == expected)
-                    for prefix, suffix in ((b'\x1b[13;', b'2u'), (b'\x1b[27;2;', b'13~'), (b'\x1b', b'\r')):
+                    for prefix, suffix in ((b'\x1b[13;', b'2u'), (b'\x1b[27;2;', b'13~'), (b'\x1b', b'\r'),
+                                           (b'\x1b[32;', b'2;32u'), (b'\x1b[27;2;', b'32~')):
                         os.write(master, prefix)
                         time.sleep(.08)  # Longer than a single 25 ms decoder read.
                         os.write(master, suffix + b'next')
                         expected += '\nnext'
                         snapshot = wait_for(lambda s:s['draft'] == expected)
                         self.assertFalse(snapshot['requests'])
+                    os.write(master, b'\x1b[32;1;32u\x1b[97;2;65u\x1b[0;;101:769u')
+                    expected += ' Ae\u0301'
+                    snapshot = wait_for(lambda s:s['draft'] == expected)
+                    self.assertFalse(snapshot['requests'])
                     os.write(master, b'\x1b[13;1:2u\x1b[13;2:3u!')
                     expected += '!'
                     snapshot = wait_for(lambda s:s['draft'] == expected)
@@ -255,10 +280,7 @@ class TerminalPTYTests(unittest.TestCase):
                     wait_for(lambda s: process.poll() is not None)
                     self.assertEqual(process.returncode, 0)
                     self.assertNotIn(b'\x1b]4;', transcript, 'The terminal palette must not be redefined')
-                    for sgr in re.findall(rb'\x1b\[([0-9;]*)m', transcript):
-                        codes = {int(value) for value in sgr.split(b';') if value}
-                        self.assertFalse(codes & (set(range(40, 48)) | set(range(100, 108)) | {48}),
-                                         'Explicit terminal background in SGR: ' + repr(sgr))
+                    self.assert_field_backgrounds(transcript)
                     self.assertIn(b'\x1b[?1004l', transcript)
                 finally:
                     if process.poll() is None: process.kill(); process.wait()
@@ -399,9 +421,10 @@ class TerminalPTYTests(unittest.TestCase):
                     self.fail('Terminal did not reach expected state: ' + transcript.decode(errors='replace')[-1000:])
                 def send(value): os.write(master, value)
                 try:
-                    snapshot = wait_for(lambda s: s['width'] == 73)
+                    snapshot = wait_for(lambda s: s['width'] == 69)
                     self.assertNotEqual(snapshot['action_style'], snapshot['comment_style'])
-                    self.assertEqual(snapshot['backgrounds'], [] if mode == 'monochrome' else [-1])
+                    self.assertEqual(snapshot['surface_backgrounds'], [] if mode == 'monochrome' else [-1])
+                    self.assertEqual(snapshot['backgrounds'], [] if mode == 'monochrome' else [-1, 0] if mode == 'legacy' else [-1, 238])
                     text = 'abc ' * 30
                     send(text.encode() + b'\x1b[13;2u' + b'segunda\nterceira\x1b[27;2;13~quarta')
                     expected = text + '\nsegunda\nterceira\nquarta'
@@ -428,7 +451,7 @@ class TerminalPTYTests(unittest.TestCase):
                     cursor = snapshot['cursor']
                     fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', 12, 40, 0, 0))
                     process.send_signal(signal.SIGWINCH)
-                    snapshot = wait_for(lambda s: s['width'] == 33)
+                    snapshot = wait_for(lambda s: s['width'] == 29)
                     self.assertEqual(snapshot['draft'], expected)
                     self.assertEqual(snapshot['cursor'], cursor)
                     send(b'\r')
@@ -489,10 +512,7 @@ class TerminalPTYTests(unittest.TestCase):
                     self.assertIsNotNone(process.poll(), 'Terminal did not exit after Ctrl+Q')
                     self.assertEqual(process.returncode, 0)
                     self.assertNotIn(b'\x1b]4;', transcript, 'The terminal palette must not be redefined')
-                    for sgr in re.findall(rb'\x1b\[([0-9;]*)m', transcript):
-                        codes = {int(value) for value in sgr.split(b';') if value}
-                        self.assertFalse(codes & (set(range(40, 48)) | set(range(100, 108)) | {48}),
-                                         'Explicit terminal background in SGR: ' + repr(sgr))
+                    self.assert_field_backgrounds(transcript)
                 finally:
                     if process.poll() is None: process.kill(); process.wait()
                     os.close(master)

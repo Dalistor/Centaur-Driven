@@ -25,8 +25,10 @@ assim que o usuário começa a trabalhar.
 ## Linguagem visual
 
 - Fundo e texto padrão do emulador, conforme pedido do proprietário de 2026-10-08,
-  com contenção visual inspirada nos CLIs Codex e Claude. Conversa, composer, seleção
-  e execução lateral compartilham o mesmo fundo, inclusive em temas claros ou transparentes.
+  com contenção visual inspirada nos CLIs Codex e Claude. Conversa, seleção
+  e execução lateral herdam o fundo do emulador, inclusive em temas claros ou transparentes.
+  Campos de texto têm destaque cinza discreto (#444444), texto #d0d0d0, margem lateral
+  de quatro células nos modais e duas células de padding antes do prompt.
   Hierarquia por espaçamento, marcadores e peso; sem blocos de cor por mensagem.
 - Palavra CENTAUR espaçada, emblema abstrato de Convergência em relevo Braille Unicode
   (2 × 4 pontos por célula). Faixa superior prateada e inferior verde; ambas são arcos finos
@@ -43,7 +45,7 @@ assim que o usuário começa a trabalhar.
 
 `appearance.Palette.TOKENS` é a fonte canônica dos papéis: texto `-1` (padrão),
 verde ANSI 2, azul ANSI 4 e aviso ANSI 3. `Palette.initialize` habilita
-`curses.use_default_colors`; todos os pares têm fundo `-1`, sem `init_color`, paleta
+`curses.use_default_colors`; os pares de conversa e painéis têm fundo `-1`, sem `init_color`, paleta
 programável ou preenchimentos navy. Secundário e separadores usam o texto padrão
 com `A_DIM`. O programa herda a aparência clara, escura ou transparente do emulador;
 não tenta detectar o tema nem substituir preferências pessoais.
@@ -65,9 +67,10 @@ atalhos. A lista de chats destaca toda a linha selecionada, com data quando houv
 Confirmações usam âmbar e instruções explícitas para permitir, recusar e revisar a ação.
 O cursor fica visível durante a digitação e oculto na lista ou confirmação.
 
-O campo sem preenchimento começa com três linhas e cresce até oito conforme o espaço. `composer.layout_input`
+O campo com destaque cinza discreto começa com três linhas e cresce até oito conforme o espaço. `composer.layout_input`
 é o dono da quebra por células e da posição do cursor; `keyboard.KeyboardReader` decodifica
-Shift+Enter e colagem protegida. Enter envia, Shift+Enter/Ctrl+J insere linha; ↑/↓ editam
+Shift+Enter, Shift+Espaço e colagem protegida. Enter envia, combinações com Shift quando
+informadas pelo terminal e Ctrl+J inserem linha; ↑/↓ editam
 linhas no rascunho multilinha; em campo vazio/de uma linha, percorrem prompts até o rascunho
 atual, inclusive vazio. `Terminal.recall_prompt` conserva as mensagens salvas e o cursor do
 rascunho. PgUp/PgDn continuam rolando a conversa. O campo acompanha
@@ -118,9 +121,9 @@ requer 40 × 18 e preserva escolhas ao redimensionar. Autenticação acontece de
 fora de curses para manter entrada de chave oculta; o chat e sua animação começam em seguida.
 
 `graphics.Renderer` é o dono da geometria, projeção, profundidade e luminosidade;
-`WelcomeAnimation` é o dono do relógio de tempo visível. A abertura faz uma volta em 6 s,
-com easing quintic, fade de entrada e pose frontal estável ao terminar. Cadência alvo: 20 FPS
-(50 ms, descontando o tempo de desenho). A malha é calculada uma vez; o último quadro é
+`WelcomeAnimation` é o dono do relógio de tempo visível. A abertura faz uma volta completa de 360° em 4,8 s,
+com easing quintic, fade de entrada e pose frontal estável ao terminar. Cadência alvo: 30 FPS
+(33,33 ms, descontando o tempo de desenho). A cobertura contínua mantém a forma visível de lado. A malha é calculada uma vez; o último quadro é
 reutilizado quando estático. Palco limitado a 36 × 16 células, ou 26 × 10 no modo compacto.
 
 A animação pausa quando outra superfície a oculta; digitar encerra o giro na pose frontal.
@@ -141,7 +144,7 @@ atenuado. `comment` deriva de text, `action` de blue com negrito. Em `NO_COLOR`,
 ficam em negrito e comentários em peso normal. `conversation.TranscriptLine` transporta
 o estilo de origem por todas as linhas quebradas, sem inferir papéis por indentação
 ou texto fornecido pela IA. Title e user usam texto padrão com negrito; input usa
-texto normal. Input e cartões reutilizam os mesmos estilos, sem pares de superfície.
+texto claro sobre cinza discreto. Cartões mantêm o fundo do emulador; input usa pares próprios.
 Selecionado usa verde/negrito e marcador `>`, conservando o fundo padrão.
 
 `TerminalView.put` é o único caminho de desenho para cabeçalho, conversa, seletor,

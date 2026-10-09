@@ -11,7 +11,7 @@ from .history import ChatStore
 from .credentials import CredentialStore
 from .backends import BACKENDS, create_client, resolve_selection, resolve_effort, resolve_approval_mode, resolve_speed
 from .permissions import APPROVAL_MODES
-from .config import EFFORTS, save_config, validate
+from .config import EFFORTS, save_config, validate, load_config
 from .setup import configure_key
 from .terminal import Terminal
 from .subagents import COST_TIERS
@@ -60,20 +60,36 @@ def main():
         if options.configure_key:
             configure_key(CredentialStore())
             return
-        options.backend, model = resolve_selection(root, options.backend, options.model)
-        effort = resolve_effort(root, options.backend, options.effort)
-        approval_mode = resolve_approval_mode(root, options.approval_mode)
-        speed = resolve_speed(root, options.backend, options.speed)
-        if options.no_setup:
+        invalid_config = False
+        try:
+            saved = load_config(root)
+        except ValueError:
+            saved, invalid_config = {}, True
+        options.backend, model = resolve_selection(root, options.backend, options.model, saved=saved)
+        effort = resolve_effort(root, options.backend, options.effort, saved=saved)
+        approval_mode = resolve_approval_mode(root, options.approval_mode, saved=saved)
+        speed = resolve_speed(root, options.backend, options.speed, saved=saved)
+        if not invalid_config and (options.no_setup or saved.get('setup_complete', False)):
             client = create_client(options.backend, model)
             if callable(getattr(client, 'check_speed', None)): client.check_speed(model, speed)
         else:
             wizard = StartupWizard(options.backend, model, effort, approval_mode, speed)
+            wizard.root = root
+            if invalid_config:
+                wizard.picker.error = 'Configuração inválida. Revise e salve; o original será preservado em backup.'
             while True:
                 selection = curses.wrapper(wizard.run)
                 if selection is None:
                     print('Inicialização cancelada.')
                     return
+                if selection == 'configure_credits':
+                    try:
+                        configure_key(CredentialStore(), purpose='credits')
+                        wizard.picker.error = ''
+                        wizard.picker.catalog_status = 'Chave de créditos cadastrada.'
+                    except (RuntimeError, OSError, ValueError) as error:
+                        wizard.picker.error = str(error)
+                    continue
                 backend, model, effort, approval_mode = selection
                 speed = wizard.picker.speed
                 try:

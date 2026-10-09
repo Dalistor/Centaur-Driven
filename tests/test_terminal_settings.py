@@ -81,10 +81,10 @@ class SettingsTests(unittest.TestCase):
         terminal.draft = '汉' * 25 + 'END'
         screen = Screen((24, 40))
         TerminalView().draw(screen, terminal)
-        lines = [(row, text) for row, column, text, _ in screen.output if column == 4 and 19 <= row <= 21]
+        lines = [(row, text) for row, column, text, _ in screen.output if column == 6 and 19 <= row <= 21]
         self.assertEqual(''.join(text for _, text in lines), terminal.draft)
         self.assertTrue(lines[-1][1].endswith('END'))
-        self.assertEqual(screen.cursor, (lines[-1][0], 4 + cell_width(lines[-1][1])))
+        self.assertEqual(screen.cursor, (lines[-1][0], 6 + cell_width(lines[-1][1])))
 
     def test_custom_model_reconciles_unsupported_effort(self):
         picker = ConfigPicker('openrouter', 'deep', 'high')

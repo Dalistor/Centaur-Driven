@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 import math
 
-FRAME_SECONDS = 0.05
-SPIN_SECONDS = 6.0
+FRAME_SECONDS = 1 / 30
+SPIN_SECONDS = 4.8
 MAX_COLUMNS, MAX_ROWS = 36, 16
 GRID = 112
 EXTENT = 1.05
@@ -149,35 +149,52 @@ class Renderer:
             raise ValueError('Graphic stage exceeds the bounded renderer.')
         progress = max(0.0, min(1.0, progress))
         phase = smooth(progress)
-        angle = -.35 + (math.tau + .35) * phase
-        tilt = math.sin(math.tau * phase) * .12
+        angle = math.tau * phase if progress < 1 else 0.0
+        tilt = math.sin(math.tau * phase) * .08 if progress < 1 else 0.0
         sy, cy = math.sin(angle), math.cos(angle)
         sx, cx = math.sin(tilt), math.cos(tilt)
         dot_columns, dot_rows = columns * 2, rows * 4
         scale = min((dot_columns - 3) / 2.12, (dot_rows - 3) / 2.12)
+        # Foreshortened surfaces cover fewer dots; retain their side walls.
+        coverage_threshold = min(.28, (STEP * scale) ** 2) * (.35 + .65 * abs(cy))
+        depth_tolerance = STEP * 2 + abs(sy) / max(1.0, scale)
         depth = [-math.inf] * (dot_columns * dot_rows)
         shades = [0.0] * len(depth)
+        coverage = [0.0] * len(depth)
         accents = [False] * len(depth)
-        fade = .35 + .65 * smooth(progress / .10)
+        fade = .55 + .45 * smooth(progress / .12)
         for x, y, z, nx, ny, nz, accent in mesh():
             px, pz = x * cy + z * sy, -x * sy + z * cy
             py, pz = y * cx - pz * sx, y * sx + pz * cx
             perspective = 4.0 / (4.0 - pz)
-            col = int(dot_columns / 2 + px * scale * perspective)
-            row = int(dot_rows / 2 + py * scale * perspective)
+            projected_x = dot_columns / 2 - .5 + px * scale * perspective
+            projected_y = dot_rows / 2 - .5 + py * scale * perspective
+            col, row = math.floor(projected_x), math.floor(projected_y)
+            fraction_x, fraction_y = projected_x - col, projected_y - row
             normal_x, normal_z = nx * cy + nz * sy, -nx * sy + nz * cy
             normal_y, normal_z = ny * cx - normal_z * sx, ny * sx + normal_z * cx
             diffuse = max(0, -.40 * normal_x - .52 * normal_y + .75 * normal_z)
             gloss = max(0, -.20 * normal_x - .30 * normal_y + .93 * normal_z) ** 18
             rim = (1 - abs(normal_z)) ** 2 * .18
             light = min(1.0, .20 + .63 * diffuse + .30 * gloss + rim) * fade
-            # A small splat prevents holes when the relief faces sideways.
-            for dx, dy in ((0, 0), (1, 0), (0, 1)):
+            # Distribute surface coverage across neighboring dots instead of
+            # inflating every sample into an opaque L-shaped splat.
+            area = min(1.0, (STEP * scale * perspective) ** 2)
+            for dx, dy, weight in ((0, 0, (1 - fraction_x) * (1 - fraction_y)),
+                                   (1, 0, fraction_x * (1 - fraction_y)),
+                                   (0, 1, (1 - fraction_x) * fraction_y),
+                                   (1, 1, fraction_x * fraction_y)):
                 c, r = col + dx, row + dy
-                if 0 <= c < dot_columns and 0 <= r < dot_rows:
+                if weight and 0 <= c < dot_columns and 0 <= r < dot_rows:
                     i = r * dot_columns + c
-                    if pz > depth[i]:
+                    contribution = area * weight
+                    if pz > depth[i] + depth_tolerance:
                         depth[i], shades[i], accents[i] = pz, light, accent
+                        coverage[i] = contribution
+                    elif abs(pz - depth[i]) <= depth_tolerance:
+                        coverage[i] += contribution
+                        if pz > depth[i]:
+                            depth[i], shades[i], accents[i] = pz, light, accent
         result = []
         for row in range(rows):
             line = []
@@ -186,14 +203,14 @@ class Renderer:
                 for dy, pair in enumerate(DOT_BITS):
                     for dx, bit in enumerate(pair):
                         i = (row * 4 + dy) * dot_columns + col * 2 + dx
-                        if depth[i] != -math.inf:
+                        if coverage[i] >= coverage_threshold:
                             bits |= bit
                             light += shades[i]
                             count += 1
                             accent_count += accents[i]
                 line.append(Cell(chr(0x2800 + bits) if bits else ' ',
                                  min(15, round(light / count * 15)) if count else 0,
-                                 accent_count > 0))
+                                 accent_count * 2 >= count if count else False))
             result.append(tuple(line))
         return tuple(result)
 
@@ -231,6 +248,7 @@ class WelcomeAnimation:
             self.active = self.elapsed < SPIN_SECONDS
         key = (columns, rows, int(round(progress * SPIN_SECONDS / FRAME_SECONDS)))
         if key != self.cached_key:
-            self.cached_frame = self.renderer.frame(columns, rows, progress)
+            sampled_progress = min(1.0, key[2] * FRAME_SECONDS / SPIN_SECONDS)
+            self.cached_frame = self.renderer.frame(columns, rows, sampled_progress)
             self.cached_key = key
         return self.cached_frame

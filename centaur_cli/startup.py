@@ -14,7 +14,11 @@ from .permissions import MODE_LABELS
 
 class StartupPicker(ConfigPicker):
     startup = True
-    fields = ('Backend', 'Modelo padrão', 'Effort', 'Permissões', 'Velocidade', 'Iniciar conversa')
+    @property
+    def fields(self):
+        fields = list(super().fields)
+        fields[1], fields[-1] = 'Modelo padrão', 'Iniciar conversa'
+        return tuple(fields)
 
     def __init__(self, backend, model, effort, approval_mode='ask', speed='standard'):
         super().__init__(backend, model, effort, approval_mode, speed)
@@ -24,7 +28,8 @@ class StartupPicker(ConfigPicker):
     def values(self):
         return [{'openrouter': 'OpenRouter', 'codex': 'Codex', 'claude': 'Claude'}[self.backend],
                 self.model or 'Padrão do provedor', self.effort,
-                MODE_LABELS[self.approval_mode], 'Rápido · maior uso/custo' if self.speed == 'fast' else 'Padrão', 'Enter para iniciar']
+                MODE_LABELS[self.approval_mode], 'Rápido · maior uso/custo' if self.speed == 'fast' else 'Padrão',
+                *(['Cadastrar ou substituir chave'] if self.backend == 'openrouter' else []), 'Enter para iniciar']
 
     def open_page(self, page):
         self.page, self.query, self.error = page, '', ''
@@ -126,6 +131,8 @@ class StartupWizard:
         screen.erase()
         height, width = screen.getmaxyx()
         self.view.put(screen, 1, 3, WORDMARK, 'muted')
+        if getattr(self, 'root', None):
+            self.view.put(screen, 2, 3, str(self.root), 'muted')
         if width < 40 or height < 18:
             self.view.put(screen, 3, 1, 'Amplie para 40 × 18 para escolher sua IA.', 'muted')
             self.view.put(screen, height - 1, 1, 'Esc / Ctrl+Q cancela', 'muted')
@@ -149,8 +156,8 @@ class StartupWizard:
             self.view.put(screen, 2, 3, notice, 'muted')
         self.view.put(screen, height - 1, 3, '↑↓ escolher · Enter confirmar · Esc voltar/cancelar · Ctrl+Q sair', 'muted')
         if self.picker.page == 'custom':
-            _, cursor = input_window(self.picker.query, len(self.picker.query), width - 8)
-            screen.move(8, min(width - 2, 5 + cursor))
+            _, cursor = input_window(self.picker.query, len(self.picker.query), width - 15)
+            screen.move(8, min(width - 2, 8 + cursor))
         screen.refresh()
 
     def run(self, screen):
@@ -193,5 +200,7 @@ class StartupWizard:
                 self.load_speed()
             elif action == 'cancel':
                 return None
+            elif action == 'configure_credits':
+                return action
             elif action == 'save':
                 return self.picker.backend, self.picker.model, self.picker.effort, self.picker.approval_mode

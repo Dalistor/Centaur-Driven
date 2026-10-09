@@ -26,7 +26,12 @@ def local_models(backend):
 
 
 class ConfigPicker:
-    fields = ('Backend', 'Modelo', 'Effort', 'Permissões', 'Velocidade', 'Salvar preferências')
+    @property
+    def fields(self):
+        fields = ('Backend', 'Modelo', 'Effort', 'Permissões', 'Velocidade')
+        if self.backend == 'openrouter':
+            fields += ('Saldo da conta',)
+        return (*fields, 'Salvar preferências')
 
     def __init__(self, backend, model, effort, approval_mode='ask', speed='standard'):
         self.backend, self.model, self.effort = backend, model, effort
@@ -50,7 +55,8 @@ class ConfigPicker:
     @property
     def values(self):
         return [self.backend, self.model or 'Padrão do provedor', self.effort,
-                MODE_LABELS[self.approval_mode], 'Rápido · maior uso/custo' if self.speed == 'fast' else 'Padrão', 'Enter para salvar']
+                MODE_LABELS[self.approval_mode], 'Rápido · maior uso/custo' if self.speed == 'fast' else 'Padrão',
+                *(['Cadastrar ou substituir chave'] if self.backend == 'openrouter' else []), 'Enter para salvar']
 
     def options(self):
         if self.page == 'backend':
@@ -133,6 +139,8 @@ class ConfigPicker:
             elif enter:
                 if self.row == len(self.fields) - 1:
                     return 'save'
+                if self.fields[self.row] == 'Saldo da conta':
+                    return 'configure_credits'
                 self.page = ('backend', 'model', 'effort', 'permissions', 'speed')[self.row]
                 self.query = ''
                 values = [item[0] for item in self.options()]

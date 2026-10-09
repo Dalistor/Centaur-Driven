@@ -12,6 +12,8 @@ from .graphics import WelcomeAnimation, flat_symbol
 
 WORDMARK = 'C E N T A U R'
 TAGLINE = 'HUMAN INTENT. AMPLIFIED.'
+FIELD_MARGIN = 4
+FIELD_PADDING = 2
 
 
 def copy_shortcut():
@@ -101,7 +103,7 @@ class Palette:
             self.styles['panel_' + name] = self.styles[name]
         for name, source in (('input', 'text'), ('input_green', 'green'),
                              ('input_blue', 'blue'), ('input_muted', 'muted')):
-            self.styles[name] = self.styles[source]
+            self.styles[name] = colors.get(name, self.styles[source])
         # Lighting uses native text attributes, so the mark works on light and
         # transparent backgrounds without assuming an RGB background to blend into.
         for accent in (False, True):
@@ -133,6 +135,19 @@ class Palette:
                 colors[name] = curses.color_pair(pair)
             except curses.error:
                 continue
+        field_background = 238 if getattr(curses, 'COLORS', 0) >= 256 else curses.COLOR_BLACK
+        field_text = 252 if getattr(curses, 'COLORS', 0) >= 256 else curses.COLOR_WHITE
+        for pair, (name, foreground) in enumerate((('input', field_text), ('input_green', curses.COLOR_GREEN),
+                                                 ('input_blue', curses.COLOR_CYAN)), 5):
+            if pair >= curses.COLOR_PAIRS:
+                break
+            try:
+                curses.init_pair(pair, foreground, field_background)
+                colors[name] = curses.color_pair(pair)
+            except curses.error:
+                continue
+        if 'input' in colors:
+            colors['input_muted'] = colors['input'] | curses.A_DIM
         self.configure_styles(colors)
 
     def restore(self):
@@ -241,6 +256,13 @@ class TerminalView:
                 and os.environ.get('CENTAUR_REDUCED_MOTION') != '1'):
             self.put(screen, top + 14, text_column, 'F5 · Repetir animação', 'muted')
 
+    def input_field(self, screen, row, column, value, width, prefix='› ', vertical_padding=False):
+        for offset in (-1, 0, 1) if vertical_padding else (0,):
+            self.put(screen, row + offset, column, ' ' * width, 'input', width)
+        self.put(screen, row, column + FIELD_PADDING, prefix, 'input_green', width - FIELD_PADDING)
+        offset = FIELD_PADDING + cell_width(prefix)
+        self.put(screen, row, column + offset, value, 'input', max(0, width - offset - FIELD_PADDING))
+
     def settings(self, screen, terminal, top, available, width):
         from .permissions import MODE_HELP
         picker = terminal.settings
@@ -260,7 +282,7 @@ class TerminalView:
                 style = 'selected' if index == picker.row else 'text'
                 self.put(screen, row, 2, ' ' * (width - 5), style)
                 self.put(screen, row, 3, f'{">" if index == picker.row else " "} {label}', style,
-                         width - 6 if index == len(picker.fields) - 1 else max(12, width // 2 - 5))
+                         width - 6 if index == len(picker.fields) - 1 else max(12, width // 2 - 3))
                 if index != len(picker.fields) - 1:
                     self.put(screen, row, width // 2, value, style)
             if available > len(picker.fields) + 4:
@@ -269,8 +291,8 @@ class TerminalView:
                          else 'Modelo, effort e velocidade mantêm este chat.', 'muted')
         elif picker.page == 'custom':
             self.put(screen, top + 3, 3, 'ID ou alias do modelo', 'blue')
-            visible, _ = input_window(picker.query, len(picker.query), max(1, width - 8))
-            self.put(screen, top + 5, 3, '> ' + visible)
+            visible, _ = input_window(picker.query, len(picker.query), max(1, width - 15))
+            self.input_field(screen, top + 5, FIELD_MARGIN, visible, width - 9, vertical_padding=True)
         else:
             title = {'backend': 'Backend', 'model': 'Modelo · digite para filtrar',
                      'effort': 'Effort · níveis dependem do modelo',
@@ -278,7 +300,7 @@ class TerminalView:
                      'permissions': 'Permissões das ferramentas'}[picker.page]
             self.put(screen, top + 3, 3, title, 'blue')
             if picker.page == 'model':
-                self.put(screen, top + 4, 3, 'Filtro: ' + (picker.query or 'todos') + ' · Ctrl+U limpar', 'muted')
+                self.input_field(screen, top + 4, FIELD_MARGIN, picker.query or 'todos', width - 9, 'Filtro: ')
             choices = picker.options()
             offset = 5 if picker.page == 'model' else 4
             visible = max(1, available - offset)
@@ -506,12 +528,12 @@ class TerminalView:
         modal = bool(terminal.settings or terminal.rename_target or terminal.browser or terminal.approval or terminal.question)
         draft = terminal.rename_text if terminal.rename_target else '' if terminal.browser else terminal.question.text if terminal.question and terminal.question.custom else '' if terminal.question else terminal.draft
         cursor = terminal.rename_cursor if terminal.rename_target else 0 if terminal.browser else terminal.question.cursor if terminal.question and terminal.question.custom else 0 if terminal.question else terminal.cursor
-        composer_left = 2 if modal else transcript_left - 1
+        composer_left = FIELD_MARGIN if modal else transcript_left - 1
         if modal:
-            composer_width = transcript_left + transcript_width - composer_left + 1 if sidebar else width - 5
+            composer_width = transcript_left + transcript_width - composer_left + 1 if sidebar else width - composer_left - 3
         else:
             composer_width = transcript_width + 2 if sidebar or composer_left != 2 else width - 5
-        input_width = max(1, composer_width - 2)
+        input_width = max(1, composer_width - 2 * FIELD_PADDING - 2)
         terminal.input_width = input_width
         from .composer import layout_input
         layout = layout_input(draft, input_width)
@@ -631,7 +653,7 @@ class TerminalView:
         for offset in range(composer_rows):
             self.put(screen, input_top + offset, composer_left, ' ' * composer_width, 'input')
             if offset < len(visible_lines):
-                self.put(screen, input_top + offset, composer_left + 2, visible_lines[offset], 'input', input_width)
+                self.put(screen, input_top + offset, composer_left + FIELD_PADDING + 2, visible_lines[offset], 'input', input_width)
         if not modal:
             from .composer import attachment_span
             for item in terminal.pending_attachments:
@@ -641,7 +663,7 @@ class TerminalView:
                 for index in range(*span):
                     row, column = layout.positions[index]
                     if input_start <= row < input_start + composer_rows:
-                        self.put(screen, input_top + row - input_start, composer_left + 2 + column,
+                        self.put(screen, input_top + row - input_start, composer_left + FIELD_PADDING + 2 + column,
                                  draft[index], 'input_blue', 1)
         target = ('rename' if terminal.rename_target else 'question' if terminal.question and terminal.question.custom
                   else 'draft' if not modal else None)
@@ -649,17 +671,17 @@ class TerminalView:
             hit_layout = layout_input(visible_lines[0], input_width) if modal else layout
             terminal.input_hitbox = {'chat_id': terminal.chat['id'], 'size': (height, width),
                 'text': draft, 'target': target, 'top': input_top, 'left': composer_left,
-                'text_left': composer_left + 2, 'width': composer_width, 'rows': composer_rows, 'start_row': 0 if modal else input_start,
+                'text_left': composer_left + FIELD_PADDING + 2, 'width': composer_width, 'rows': composer_rows, 'start_row': 0 if modal else input_start,
                 'start_index': horizontal_start, 'layout': hit_layout}
-        self.put(screen, input_top, composer_left, '↑' if input_start else '›', 'input_green')
+        self.put(screen, input_top, composer_left + FIELD_PADDING, '↑' if input_start else '›', 'input_green')
         if input_start + composer_rows < len(layout.lines) and not modal:
-            self.put(screen, input_top + composer_rows - 1, composer_left, '↓', 'input_muted')
+            self.put(screen, input_top + composer_rows - 1, composer_left + FIELD_PADDING, '↓', 'input_muted')
         footer_width = width - 5
         if terminal.credits_status == 'unsupported' and terminal.backend == 'openrouter':
             credits = 'Créditos: CLI'
         credit_width = min(len(credits), max(12, footer_width - 17))
         if len(credits) > credit_width and isinstance(terminal.credits, CreditBalance) and terminal.credits.remaining is not None:
-            scope = 'Conta' if terminal.credits.scope == 'account' else 'Chave'
+            scope = 'Conta' if terminal.credits.scope == 'account' else 'Limite'
             credits = f'{scope}: US$ {terminal.credits.remaining:.2f}'
         credits = fit_cells(credits, credit_width)
         context_width = footer_width - cell_width(credits) - 2
@@ -678,8 +700,8 @@ class TerminalView:
                   '↑↓ escolher · Tab/Enter inserir · Esc fechar') if completing else
                  'y permitir · n recusar · PgUp/PgDn revisar' if terminal.approval else
                  '↑↓ selecionar · Enter retomar · R renomear · Del excluir · Esc voltar' if terminal.browser else
-                 'Enter orientar · Shift+Enter linha · PgUp/PgDn rolar · Ctrl+C parar' if terminal.busy else
-                 'Ctrl+V cola · Ctrl+S captura · Enter envia · Shift+Enter linha · Shift+← chats')
+                 'Enter orientar · Ctrl+J linha · PgUp/PgDn rolar · Ctrl+C parar' if terminal.busy else
+                 'Ctrl+V cola · Ctrl+S captura · Enter envia · Ctrl+J linha · Shift+← chats')
         if terminal.active_agents and not terminal.agent_panel_area and not modal:
             hints = f'{len(terminal.active_agents)} subagentes · Shift+←/Tab · ' + hints
         if terminal.computer and terminal.computer.resume_requested and not modal:
@@ -696,8 +718,8 @@ class TerminalView:
         if terminal.rename_target or (not terminal.approval and not terminal.browser):
             if terminal.settings and terminal.settings.page == 'custom':
                 _, custom_cursor = input_window(terminal.settings.query, len(terminal.settings.query),
-                                                max(1, width - 8))
-                screen.move(top + 5, min(width - 2, 5 + custom_cursor))
+                                                max(1, width - 15))
+                screen.move(top + 5, min(width - 2, FIELD_MARGIN + FIELD_PADDING + 2 + custom_cursor))
             elif not terminal.settings:
-                screen.move(input_top + cursor_row - input_start, min(width - 2, composer_left + 2 + cursor_column))
+                screen.move(input_top + cursor_row - input_start, min(width - 2, composer_left + FIELD_PADDING + 2 + cursor_column))
         screen.refresh()

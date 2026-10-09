@@ -29,7 +29,7 @@ class ConfigTests(unittest.TestCase):
         with patch('centaur_cli.terminal.create_client', return_value=replacement) as factory:
             terminal.submit()
         factory.assert_called_once_with('claude', 'sonnet', allow_setup=False)
-        self.assertEqual(load_config(self.root), {'backend': 'claude', 'model': 'sonnet', 'approval_mode': 'ask', 'speed': 'standard'})
+        self.assertEqual(load_config(self.root), {'backend': 'claude', 'model': 'sonnet', 'approval_mode': 'ask', 'speed': 'standard', 'setup_complete': True})
         self.assertEqual(terminal.model, 'sonnet')
         self.assertEqual(terminal.chat['backend'], 'claude')
         self.assertNotEqual(terminal.chat['id'], old_id)

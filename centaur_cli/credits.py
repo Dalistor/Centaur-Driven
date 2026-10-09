@@ -25,13 +25,15 @@ class CreditBalance:
 
 
 def credit_label(balance, status, width):
+    if status == 'setup':
+        return 'Créditos: configure o backend', 'muted'
     if status == 'unsupported':
         return 'Créditos: consulte o cliente conectado', 'muted'
     cells = 10 if width >= 65 else 5
     if balance is None:
         message = 'consultando' if status == 'loading' else 'indisponível'
         return f'Créditos [{"·" * cells}] {message}', 'muted'
-    scope = 'Conta' if balance.scope == 'account' else 'Chave'
+    scope = ('Saldo conta' if width >= 65 else 'Conta') if balance.scope == 'account' else 'Limite chave'
     if balance.remaining is None:
         suffix = ' · conta indisponível' if width >= 65 else ''
         return f'{scope} [{"·" * cells}] sem limite{suffix}', 'muted'

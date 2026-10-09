@@ -15,6 +15,8 @@ from .backends import create_client
 from .config import save_config, validate
 from .settings import ConfigPicker
 from .openrouter import OpenRouter
+from .credentials import CredentialStore
+from .setup import configure_key
 from .agent import run_turn, project_prompt
 from .tools import TOOLS
 from .context import compact_chat, context_label, estimate_tokens, save_compaction, save_compaction_progress, CompactionPaused
@@ -437,9 +439,20 @@ class Terminal:
         if command in ('/credits', '$credits'):
             self.draft = ''
             self.credits_dirty = True
-            self.notice = ('Atualizando créditos. Saldo da conta: cadastre com --configure-credits-key.'
+            self.notice = (('Atualizando saldo da conta OpenRouter…' if getattr(self.client, 'credits_key', None) else
+                            'Atualizando limite da chave. $config → Saldo da conta habilita o saldo real.')
                            if self.backend == 'openrouter' else f'Atualizando uso {self.backend} · cotas/créditos apenas quando informados pelo CLI.')
             return
+        if command == '/credits configure':
+            self.draft = ''
+            if self.backend != 'openrouter':
+                self.notice = 'Cadastro de créditos disponível no backend OpenRouter.'
+                return
+            if any(state.get('busy') or state.get('agent_group') and state['agent_group'].active
+                   for state in self.session_states.values()):
+                self.notice = 'Aguarde as sessões terminarem para cadastrar a chave de créditos.'
+                return
+            return 'configure_credits'
         secrets = getattr(self.client, 'secrets', (getattr(self.client, 'api_key', None),))
         if any(key and key in self.draft for key in secrets):
             self.draft = ''
@@ -764,6 +777,46 @@ class Terminal:
         chat['speed'] = self.speed
         return chat
 
+    def configure_credits(self, screen):
+        """Use the local hidden-input wizard outside curses, never the chat editor."""
+        curses.def_prog_mode()
+        curses.endwin()
+        try:
+            with keyboard_protocol(plain=True):
+                key = configure_key(CredentialStore(), purpose='credits')
+            if self.backend == 'openrouter' and self.client is not None:
+                client = OpenRouter(self.client.api_key, key)
+                client.model_efforts = dict(self.client.model_efforts)
+                client.speed_support = dict(self.client.speed_support)
+                client.context_windows = dict(self.client.context_windows)
+                # Replacing the client discards pending credit results from the old key.
+                previous_client = self.client
+                self.client = client
+                for context in self.session_contexts.values():
+                    if context.client is previous_client:
+                        context.client = client
+                self.credits = None
+                self.credits_status = 'loading'
+                self.credits_inflight = False
+                self.credits_next_refresh = 0
+                self.credits_dirty = True
+                self.notice = 'Chave cadastrada. Consultando saldo da conta OpenRouter…'
+            else:
+                self.notice = 'Chave cadastrada. Salve a configuração para usar OpenRouter.'
+            if self.settings:
+                self.settings.error = ''
+        except (RuntimeError, OSError, ValueError) as error:
+            redact = getattr(self.client, 'redact', str)
+            self.notice = redact(f'Cadastro de créditos: {error}')
+            if self.settings:
+                self.settings.error = self.notice
+        finally:
+            curses.reset_prog_mode()
+            curses.raw()
+            curses.nonl()
+            screen.keypad(True)
+            screen.clearok(True)
+
     def configure(self, command):
         if self.agent_group and self.agent_group.active:
             self.notice = 'Aguarde os subagentes terminarem ou interrompa este chat antes de trocar a configuração.'
@@ -879,6 +932,12 @@ class Terminal:
             self.load_catalog(picker)
         elif action == 'speed_catalog':
             self.load_speed(picker)
+        elif action == 'configure_credits':
+            if any(state.get('busy') or state.get('agent_group') and state['agent_group'].active
+                   for state in self.session_states.values()):
+                picker.error = 'Aguarde as sessões terminarem para cadastrar a chave de créditos.'
+                return
+            return action
         elif action == 'save':
             secrets = getattr(self.client, 'secrets', ())
             if any(secret and secret in picker.model for secret in secrets):
@@ -1767,5 +1826,8 @@ class Terminal:
                 # Navigation/disclosure can move many rows. Repaint rather than relying
                 # on terminal-specific scroll-region optimizations.
                 screen.clearok(True)
-            if self.handle(key) == 'quit':
+            action = self.handle(key)
+            if action == 'quit':
                 return
+            if action == 'configure_credits':
+                self.configure_credits(screen)

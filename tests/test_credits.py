@@ -7,7 +7,7 @@ import threading
 import unittest
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
 from centaur_cli.appearance import TerminalView
@@ -46,8 +46,8 @@ class CreditTests(unittest.TestCase):
             balance = OpenRouter('chat-secret').credits()
         self.assertTrue(request.call_args.args[0].full_url.endswith('/key'))
         label, _ = credit_label(balance, 'ready', 80)
-        self.assertIn('Chave', label)
-        self.assertNotIn('Conta', label)
+        self.assertIn('Limite chave', label)
+        self.assertNotIn('conta', label.lower())
         self.assertIn('US$ 7.00', label)
 
     def test_unlimited_key_does_not_invent_a_remaining_account_balance(self):
@@ -112,6 +112,81 @@ class CreditTests(unittest.TestCase):
         self.assertEqual(store.load(), 'chat-secret')
         self.assertEqual(store.load_credits_key(), 'management-secret')
         self.assertNotIn('management-secret', output.getvalue())
+
+    def test_credit_commands_stay_local_and_identify_required_credential(self):
+        terminal = Terminal(self.root, '', ChatStore(self.root), OpenRouter('chat-secret'))
+        terminal.draft = '/credits'
+        terminal.submit()
+        self.assertIn('limite da chave', terminal.notice)
+        self.assertIn('$config', terminal.notice)
+        self.assertTrue(terminal.credits_dirty)
+        terminal.draft = '/credits configure'
+        self.assertEqual(terminal.submit(), 'configure_credits')
+        self.assertEqual(terminal.draft, '')
+        self.assertEqual(terminal.chat['messages'], [])
+        terminal.client = self.client
+        terminal.draft = '/credits'
+        terminal.submit()
+        self.assertIn('saldo da conta', terminal.notice)
+        self.assertNotIn('configure', terminal.notice)
+
+    def test_in_app_registration_preserves_chat_and_discards_old_credit_results(self):
+        old_client = OpenRouter('chat-secret')
+        old_client.model_efforts = {'example/model': ['default', 'high']}
+        terminal = Terminal(self.root, 'example/model', ChatStore(self.root), old_client)
+        chat = terminal.chat
+        terminal.credits_inflight = True
+        terminal.events.put(('backend_credits', (old_client, ('credits',
+            CreditBalance('key', Decimal(50), Decimal(49))))))
+        screen = Mock()
+        with patch('centaur_cli.terminal.curses') as curses, \
+                patch('centaur_cli.terminal.configure_key', return_value='management-secret') as wizard:
+            terminal.configure_credits(screen)
+        self.assertEqual(wizard.call_args.kwargs, {'purpose': 'credits'})
+        curses.endwin.assert_called_once()
+        curses.reset_prog_mode.assert_called_once()
+        screen.clearok.assert_called_once_with(True)
+        self.assertIs(terminal.chat, chat)
+        self.assertEqual(terminal.model, 'example/model')
+        self.assertEqual(terminal.client.api_key, 'chat-secret')
+        self.assertEqual(terminal.client.credits_key, 'management-secret')
+        self.assertEqual(terminal.client.model_efforts, old_client.model_efforts)
+        self.assertTrue(terminal.credits_dirty)
+        self.assertFalse(terminal.credits_inflight)
+        terminal.drain_events()
+        self.assertIsNone(terminal.credits)
+        with patch('centaur_cli.openrouter.urlopen', return_value=self.response(
+                {'total_credits': 20, 'total_usage': 3.25})):
+            terminal.fetch_credits(terminal.client)
+        terminal.drain_events()
+        self.assertIn('Saldo conta', credit_label(terminal.credits, terminal.credits_status, 110)[0])
+        self.assertEqual(terminal.credits.remaining, Decimal('16.75'))
+
+    def test_cancelled_registration_restores_terminal_and_existing_balance(self):
+        terminal = Terminal(self.root, '', ChatStore(self.root), self.client)
+        balance = CreditBalance('account', Decimal(10), Decimal(5))
+        terminal.credits = balance
+        terminal.credits_status = 'ready'
+        with patch('centaur_cli.terminal.curses') as curses, \
+                patch('centaur_cli.terminal.configure_key', side_effect=RuntimeError('Configuração cancelada.')):
+            terminal.configure_credits(Mock())
+        curses.reset_prog_mode.assert_called_once()
+        self.assertIs(terminal.client, self.client)
+        self.assertEqual(terminal.credits, balance)
+        self.assertEqual(terminal.credits_status, 'ready')
+        self.assertIn('cancelada', terminal.notice)
+
+    def test_registration_is_not_started_during_work_or_for_native_backend(self):
+        terminal = Terminal(self.root, '', ChatStore(self.root), self.client)
+        terminal.draft = '/credits configure'
+        terminal.busy = True
+        self.assertIsNone(terminal.submit())
+        self.assertEqual(terminal.draft, '/credits configure')
+        terminal.busy = False
+        terminal.backend = 'codex'
+        self.assertIsNone(terminal.submit())
+        self.assertIn('backend OpenRouter', terminal.notice)
+        self.assertEqual(terminal.chat['messages'], [])
 
     def test_management_secret_is_blocked_from_chat_and_tool_outputs(self):
         terminal = Terminal(self.root, '', ChatStore(self.root), self.client)
@@ -178,7 +253,7 @@ class CreditTests(unittest.TestCase):
         for size in ((34, 110), (24, 80), (18, 45), (34, 110)):
             screen.size = size
             view.draw(screen, terminal)
-            row, column, label = next(item for item in screen.output if 'Conta [' in item[2])
+            row, column, label = next(item for item in screen.output if 'conta' in item[2].lower() and 'US$' in item[2])
             self.assertEqual(row, size[0] - 2)
             self.assertEqual(column + len(label), size[1] - 3)
             self.assertEqual(terminal.draft, 'rascunho preservado')

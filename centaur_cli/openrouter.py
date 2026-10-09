@@ -124,8 +124,11 @@ class OpenRouter:
             if not isinstance(function.get('arguments'), str):
                 raise ValueError('Argumentos devem ser JSON textual.')
             parameters = allowed[function['name']]
-            arguments = omit_optional_nulls(json.loads(function['arguments']), parameters)
-            validate_arguments(arguments, parameters)
+            try:
+                arguments = omit_optional_nulls(json.loads(function['arguments']), parameters)
+                validate_arguments(arguments, parameters)
+            except ValueError as error:
+                raise ValueError(function['name'] + ': ' + str(error)) from error
             identifiers.add(identifier)
             normalized.append({'id': identifier, 'type': 'function', 'function': {
                 'name': function['name'], 'arguments': json.dumps(arguments, ensure_ascii=False)}})
@@ -169,6 +172,21 @@ class OpenRouter:
         for key in self.secrets:
             text = text.replace(key, '[CHAVE OCULTA]')
         return text
+
+    def _error_detail(self, error):
+        text = self.redact(str(error))
+        return ' '.join(''.join(character if character.isprintable() else ' '
+                                for character in text).split())[:500]
+
+    def _api_error(self, error, status=None):
+        if isinstance(error, dict):
+            status = status if status is not None else error.get('code')
+            detail = error.get('message', '')
+        else:
+            detail = error or ''
+        prefix = f'OpenRouter HTTP {self._error_detail(status)}' if status else 'OpenRouter recusou a requisição'
+        detail = self._error_detail(detail)
+        return RuntimeError(f'{prefix}: {detail or "Confira chave, saldo e modelo."}')
 
     def credits(self):
         endpoint = 'credits' if self.credits_key else 'key'
@@ -270,34 +288,68 @@ class OpenRouter:
             payload.setdefault('plugins', []).append({'id': 'file-parser', 'pdf': {'engine': 'native'}})
         if session_id:
             payload['session_id'] = session_id
-        request = Request('https://openrouter.ai/api/v1/chat/completions',
-                          data=self.redact(json.dumps(payload)).encode('utf-8'),
-                          headers={'Authorization': 'Bearer ' + self.api_key,
-                                   'Content-Type': 'application/json',
-                                   'X-OpenRouter-Title': 'Centaur CLI'})
+        deadline = time.monotonic() + timeout
         try:
-            result = self.request_json(request, timeout, cancel_event)
-            if not isinstance(result, dict):
-                raise ValueError('Envelope de resposta inválido.')
-            if 'error' in result:
-                raise RuntimeError('OpenRouter recusou a requisição. Confira chave, saldo e modelo.')
-            choice = result['choices'][0]
-            if not isinstance(choice, dict):
-                raise ValueError('Envelope de resposta inválido.')
-            if choice.get('finish_reason') in ('length', 'content_filter', 'error'):
-                raise RuntimeError('OpenRouter não concluiu a resposta; nenhuma ferramenta dessa resposta foi executada.')
-            message = self.reply(choice['message'], tools)
-            return ModelReply(json.loads(self.redact(json.dumps(message))),
-                              self.redact(str(result['model'])) if result.get('model') else None,
-                              result.get('usage') if isinstance(result.get('usage'), dict) else None,
-                              result.get('service_tier'))
+            for attempt in range(2):
+                if cancel_event is not None and cancel_event.is_set():
+                    raise TurnCancelled('Turno interrompido pelo usuário.')
+                remaining = timeout if attempt == 0 else deadline - time.monotonic()
+                if remaining <= 0:
+                    raise RequestTimeout('Tempo limite da requisição OpenRouter; tente novamente.')
+                request = Request('https://openrouter.ai/api/v1/chat/completions',
+                                  data=self.redact(json.dumps(payload)).encode('utf-8'),
+                                  headers={'Authorization': 'Bearer ' + self.api_key,
+                                           'Content-Type': 'application/json',
+                                           'X-OpenRouter-Title': 'Centaur CLI'})
+                result = self.request_json(request, remaining, cancel_event)
+                if not isinstance(result, dict):
+                    raise ValueError('Envelope de resposta inválido.')
+                if 'error' in result:
+                    raise self._api_error(result['error'])
+                choice = result['choices'][0]
+                if not isinstance(choice, dict):
+                    raise ValueError('Envelope de resposta inválido.')
+                if choice.get('error'):
+                    raise self._api_error(choice['error'])
+                if choice.get('finish_reason') in ('length', 'content_filter', 'error'):
+                    raise RuntimeError('OpenRouter não concluiu a resposta; nenhuma ferramenta dessa resposta foi executada.')
+                try:
+                    message = self.reply(choice['message'], tools)
+                except ValueError as error:
+                    if attempt:
+                        raise
+                    # The entire rejected batch is still unexecuted. Ask for one
+                    # corrected reply without replaying it or changing the model.
+                    payload['messages'] = [*messages, {'role': 'user', 'content':
+                        'Aviso local do Centaur: a última resposta foi rejeitada: '
+                        + self._error_detail(error) + ' Nenhuma ferramenta dessa resposta foi executada. '
+                        'Retome a tarefa com uma resposta completa; use somente as ferramentas disponíveis '
+                        'e argumentos JSON nos tipos e campos dos schemas fornecidos. '
+                        'Não repita operações já concluídas no histórico.'}]
+                    continue
+                return ModelReply(json.loads(self.redact(json.dumps(message))),
+                                  self.redact(str(result['model'])) if result.get('model') else None,
+                                  result.get('usage') if isinstance(result.get('usage'), dict) else None,
+                                  result.get('service_tier'))
         except HTTPError as error:
-            raise RuntimeError(f'OpenRouter HTTP {error.code}. Confira chave, saldo e modelo.') from error
+            try:
+                with error:
+                    body = json.loads(error.read(16384))
+                detail = body.get('error') if isinstance(body, dict) else None
+            except (OSError, ValueError):
+                detail = None
+            if (not model and error.code == 400 and isinstance(detail, dict)
+                    and detail.get('message') == 'No models provided'):
+                return self.complete('openrouter/auto', messages, tools, cost_tier=cost_tier,
+                                     session_id=session_id, effort=effort, speed=speed,
+                                     request_timeout=request_timeout, cancel_event=cancel_event)
+            raise self._api_error(detail, error.code) from error
         except TimeoutError as error:
             raise RequestTimeout('Tempo limite da requisição OpenRouter; tente novamente.') from error
         except URLError as error:
             if isinstance(error.reason, TimeoutError):
                 raise RequestTimeout('Tempo limite da requisição OpenRouter; tente novamente.') from error
-            raise RuntimeError('Falha de conexão com OpenRouter; tente novamente.') from error
+            raise RuntimeError('Falha de conexão com OpenRouter: ' + self._error_detail(error.reason) + '. Use /retry para retomar.') from error
         except (ValueError, KeyError, IndexError, TypeError) as error:
-            raise RuntimeError('Resposta inválida do OpenRouter; nenhuma ferramenta dessa resposta foi executada.') from error
+            raise RuntimeError('Resposta inválida do OpenRouter: ' + self._error_detail(error)
+                               + ' Nenhuma ferramenta dessa resposta foi executada.') from error

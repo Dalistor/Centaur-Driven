@@ -17,8 +17,8 @@ def resolve_model(backend, model=None):
     return os.environ.get('OPENROUTER_MODEL', '') if backend == 'openrouter' else os.environ.get('CENTAUR_MODEL', '')
 
 
-def resolve_selection(root, backend=None, model=None):
-    saved = load_config(root)
+def resolve_selection(root, backend=None, model=None, *, saved=None):
+    saved = load_config(root) if saved is None else saved
     selected = backend or os.environ.get('CENTAUR_BACKEND') or saved.get('backend', 'openrouter')
     if selected not in BACKENDS:
         raise ValueError('Backend inválido; use openrouter, codex ou claude.')
@@ -30,21 +30,22 @@ def resolve_selection(root, backend=None, model=None):
     return selected, resolve_model(selected, model)
 
 
-def resolve_effort(root, backend, effort=None):
-    saved = load_config(root)
+def resolve_effort(root, backend, effort=None, *, saved=None):
+    saved = load_config(root) if saved is None else saved
     selected = effort or os.environ.get('CENTAUR_EFFORT')
     if selected is None and saved.get('backend') == backend:
         selected = saved.get('effort')
     return validate_effort(backend, selected or 'default')
 
 
-def resolve_approval_mode(root, mode=None):
+def resolve_approval_mode(root, mode=None, *, saved=None):
+    saved = load_config(root) if saved is None else saved
     return validate_mode(mode or os.environ.get('CENTAUR_APPROVAL_MODE')
-                         or load_config(root).get('approval_mode', 'ask'))
+                         or saved.get('approval_mode', 'ask'))
 
 
-def resolve_speed(root, backend, speed=None):
-    saved = load_config(root)
+def resolve_speed(root, backend, speed=None, *, saved=None):
+    saved = load_config(root) if saved is None else saved
     return validate_speed(speed or os.environ.get('CENTAUR_SPEED')
                           or (saved.get('speed') if saved.get('backend') == backend else None) or 'standard')
 

@@ -118,10 +118,15 @@ class StartupTests(unittest.TestCase):
         factory = self.run_main(wrapper, lambda *args: connected)
         factory.assert_called_once_with('claude', 'sonnet')
         self.assertEqual(len(seen), 2)
-        self.assertEqual(load_config(self.root), {'backend': 'claude', 'model': 'sonnet', 'effort': 'medium', 'approval_mode': 'auto', 'speed': 'standard'})
+        self.assertEqual(load_config(self.root), {'backend': 'claude', 'model': 'sonnet', 'effort': 'medium', 'approval_mode': 'auto', 'speed': 'standard', 'setup_complete': True})
 
     def test_auth_failure_keeps_preferences_and_allows_another_backend(self):
         save_config(self.root, 'codex', 'old', 'high')
+        path = self.root / '.centaur/config.json'
+        import json
+        legacy = json.loads(path.read_text())
+        legacy.pop('setup_complete')
+        path.write_text(json.dumps(legacy))
         visits = []
         def wrapper(run):
             owner = run.__self__
@@ -137,3 +142,100 @@ class StartupTests(unittest.TestCase):
         factory = self.run_main(wrapper, [RuntimeError('Execute codex login.'), SimpleNamespace(backend='claude', secrets=())])
         self.assertEqual(factory.call_count, 2)
         self.assertEqual(load_config(self.root)['backend'], 'claude')
+
+
+class StartupPersistenceTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.path = self.root / '.centaur/config.json'
+
+    def launch(self, selections=(), *flags):
+        import contextlib
+        import io
+        visits = []
+        selections = iter(selections)
+        def wrapper(run):
+            owner = run.__self__
+            visits.append(owner)
+            if isinstance(owner, StartupWizard):
+                return next(selections, None)
+        with contextlib.redirect_stdout(io.StringIO()), \
+                patch('sys.argv', ['centaur', str(self.root), *flags]), \
+                patch('sys.stdin.isatty', return_value=True), patch('sys.stdout.isatty', return_value=True), \
+                patch.dict('os.environ', {}, clear=True), \
+                patch('centaur_cli.__main__.curses.wrapper', side_effect=wrapper), \
+                patch('centaur_cli.__main__.create_client', return_value=SimpleNamespace(backend='openrouter', secrets=())) as factory:
+            main()
+        return visits, factory
+
+    def test_first_directory_confirmation_then_direct_reopen(self):
+        visits, factory = self.launch([('openrouter', 'provider/main', 'low', 'ask')])
+        self.assertIsInstance(visits[0], StartupWizard)
+        self.assertEqual(len(visits), 2)
+        factory.assert_called_once_with('openrouter', 'provider/main')
+        self.assertTrue(load_config(self.root)['setup_complete'])
+        visits, factory = self.launch()
+        self.assertEqual(len(visits), 1)
+        self.assertNotIsInstance(visits[0], StartupWizard)
+        factory.assert_called_once_with('openrouter', 'provider/main')
+        self.root = self.root / 'other'
+        self.root.mkdir()
+        visits, factory = self.launch()
+        self.assertIsInstance(visits[0], StartupWizard)
+        factory.assert_not_called()
+
+    def test_legacy_fields_are_applied_and_preserved_on_confirmation(self):
+        import json
+        self.path.parent.mkdir()
+        legacy = {'backend': 'openrouter', 'model': 'provider/main', 'effort': 'low',
+                  'speed': 'fast', 'approval_mode': 'auto'}
+        self.path.write_text(json.dumps(legacy))
+        visits, factory = self.launch([('openrouter', 'provider/main', 'low', 'auto')])
+        self.assertIsInstance(visits[0], StartupWizard)
+        self.assertEqual(visits[0].picker.speed, 'fast')
+        self.assertEqual(visits[-1].speed, 'fast')
+        self.assertEqual(visits[-1].approval_mode, 'auto')
+        saved = load_config(self.root)
+        self.assertEqual(saved['speed'], 'fast')
+        self.assertEqual(saved['approval_mode'], 'auto')
+        self.assertTrue(saved['setup_complete'])
+
+    def test_invalid_file_only_changes_after_confirmation_with_private_backup(self):
+        self.path.parent.mkdir()
+        original = '{broken configuration'
+        self.path.write_text(original)
+        visits, factory = self.launch()
+        self.assertIn('Configuração inválida', visits[0].picker.error)
+        factory.assert_not_called()
+        self.assertEqual(self.path.read_text(), original)
+        self.launch([('openrouter', '', 'default', 'ask')])
+        backups = list((self.path.parent / 'backups').glob('config-*.json'))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_text(), original)
+        self.assertEqual(backups[0].stat().st_mode & 0o777, 0o600)
+        self.assertTrue(load_config(self.root)['setup_complete'])
+
+    def test_credits_registration_can_be_opened_from_startup_review(self):
+        picker = StartupPicker('openrouter', '', 'default')
+        picker.page = 'fields'
+        picker.row = picker.fields.index('Saldo da conta')
+        self.assertEqual(picker.handle('\n'), 'configure_credits')
+        with patch('centaur_cli.__main__.configure_key', return_value='management-secret') as registration:
+            visits, factory = self.launch(['configure_credits', ('openrouter', '', 'default', 'ask')])
+        registration.assert_called_once()
+        self.assertEqual(registration.call_args.kwargs, {'purpose': 'credits'})
+        self.assertIs(visits[0], visits[1])
+        factory.assert_called_once()
+        self.assertNotIn('management-secret', self.path.read_text())
+
+    def test_credit_configuration_does_not_replace_original_permissions_and_speed_fields(self):
+        from centaur_cli.settings import ConfigPicker
+        for backend in ('openrouter', 'codex', 'claude'):
+            picker = ConfigPicker(backend, '', 'default')
+            self.assertIn('Permissões', picker.fields)
+            self.assertIn('Velocidade', picker.fields)
+            self.assertEqual('Saldo da conta' in picker.fields, backend == 'openrouter')
+            picker.row = len(picker.fields) - 1
+            self.assertEqual(picker.handle('\n'), 'save')

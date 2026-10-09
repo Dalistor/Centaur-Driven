@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from centaur_cli.appearance import Palette, TerminalView
-from centaur_cli.graphics import Renderer, SPIN_SECONDS, WelcomeAnimation
+from centaur_cli.graphics import DOT_BITS, FRAME_SECONDS, Renderer, SPIN_SECONDS, WelcomeAnimation
 from centaur_cli.history import ChatStore
 from centaur_cli.terminal import Terminal, read_key
 from test_terminal_settings import Screen
@@ -30,6 +30,39 @@ class GraphicsTests(unittest.TestCase):
         self.assertTrue(any(cell.accent for line in renderer.frame(36, 16) for cell in line))
         for size in ((0, 1), (37, 16), (36, 17)):
             with self.assertRaises(ValueError): renderer.frame(*size)
+
+    def test_animation_makes_a_full_turn_and_returns_to_front(self):
+        renderer = Renderer()
+        for size in ((36, 16), (26, 10)):
+            stages = []
+            for progress in (0, .35, .5, .65, 1):
+                with self.subTest(size=size, progress=progress):
+                    frame = renderer.frame(*size, progress)
+                    dots = [(x * 2 + dx, y * 4 + dy)
+                            for y, row in enumerate(frame) for x, cell in enumerate(row)
+                            if cell.glyph != ' '
+                            for dy, pair in enumerate(DOT_BITS) for dx, bit in enumerate(pair)
+                            if (ord(cell.glyph) - 0x2800) & bit]
+                    self.assertTrue(dots)
+                    stages.append(dots)
+            front, side, back, other_side, final = stages
+            self.assertEqual(front, final)
+            front_width = max(x for x, _ in front) - min(x for x, _ in front)
+            for edge in (side, other_side):
+                self.assertLess(max(x for x, _ in edge) - min(x for x, _ in edge), front_width * .5)
+            right_tip = [y for x, y in front if x == max(x for x, _ in front)]
+            left_tip = [y for x, y in back if x == min(x for x, _ in back)]
+            self.assertTrue(all(abs(y - size[1] * 2) <= 3 for y in right_tip + left_tip))
+
+    def test_frame_sampling_is_consistent_within_one_animation_tick(self):
+        animation = WelcomeAnimation()
+        animation.frame(26, 10, 0)
+        with patch.object(animation.renderer, 'frame', wraps=animation.renderer.frame) as render:
+            first = animation.frame(26, 10, FRAME_SECONDS * .8)
+            second = animation.frame(26, 10, FRAME_SECONDS * 1.1)
+        self.assertIs(first, second)
+        self.assertEqual(render.call_count, 1)
+        self.assertAlmostEqual(render.call_args.args[2], FRAME_SECONDS / SPIN_SECONDS)
 
     def test_visible_clock_pauses_hidden_and_stops_at_final_pose(self):
         animation = WelcomeAnimation()
@@ -116,9 +149,11 @@ class GraphicsTests(unittest.TestCase):
                 defaults.assert_called_once()
                 colors.assert_not_called()
                 self.assertTrue(pairs.call_args_list)
-                self.assertTrue(all(call.args[2] == -1 for call in pairs.call_args_list))
+                self.assertTrue(all(call.args[2] == -1 for call in pairs.call_args_list[:4]))
+                self.assertEqual(pairs.call_args_list[4].args, (5, 252 if count == 256 else curses.COLOR_WHITE,
+                                                              238 if count == 256 else curses.COLOR_BLACK))
                 self.assertEqual(pairs.call_args_list[0].args[1], -1)
-                self.assertEqual(palette.styles['text'], palette.styles['input'])
+                self.assertNotEqual(palette.styles['text'], palette.styles['input'])
                 self.assertEqual(palette.styles['text'], palette.styles['panel_comment'])
                 self.assertNotEqual(palette.styles['panel_comment'], palette.styles['panel_action'])
                 self.assertTrue(palette.styles['selected'] & curses.A_BOLD)
