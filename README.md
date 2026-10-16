@@ -50,8 +50,9 @@ Nomes curtos de instalações anteriores, como `run`, `spec` e `memory`, e recur
 | [centaur-driven-memory](skills/centaur-driven-memory/SKILL.md) | Consultar e registrar memória histórica, configurar ai-memory e sincronizar pendências. |
 | [centaur-driven-update](skills/centaur-driven-update/SKILL.md) | Reconstruir/migrar a estrutura gerada preservando definições e histórico. |
 | [centaur-driven-deploy](skills/centaur-driven-deploy/SKILL.md) | Preparar GitHub Actions, scripts e acessos para deploy. |
+| [centaur-driven-skill](skills/centaur-driven-skill/SKILL.md) | Baixar e instalar skills adicionais completas em `.centaur/skills/` do projeto. |
 
-`centaur-driven-memory` é uma skill pública e também atende chamadas das demais skills. A dependência ai-memory continua instalada e administrada separadamente. A antiga skill `skill`, que atendia o autocomplete e o catálogo do CLI Centaur, sai desta distribuição.
+`centaur-driven-memory` é uma skill pública e também atende chamadas das demais skills. A dependência ai-memory continua instalada e administrada separadamente. `centaur-driven-skill` substitui a antiga skill `skill` do CLI Centaur: instala em `.centaur/skills/<nome>/` sem executar scripts baixados; como os clientes não descobrem essa pasta automaticamente, a skill local é usada lendo seu `SKILL.md` pelo caminho retornado.
 
 ## Fluxo de trabalho
 

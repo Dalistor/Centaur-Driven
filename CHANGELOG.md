@@ -1,5 +1,9 @@
 # Changelog — skills-only
 
+## 2026-10-16
+
+- Adicionada `centaur-driven-skill`, que instala skills adicionais completas de repositórios GitHub públicos em `.centaur/skills/` do projeto, com staging, rollback e sem executar scripts baixados.
+
 ## 2026-10-09
 
 - Criada a distribuição independente de skills para Codex, Claude Code e Gemini CLI.

@@ -137,7 +137,7 @@ class InstallTests(unittest.TestCase):
         for target in targets:
             target.mkdir(parents=True)
         preview = install.install(self.root, targets)
-        self.assertEqual(len(preview['install']), 12)
+        self.assertEqual(len(preview['install']), 13)
         self.assertTrue(all(not any(target.iterdir()) for target in targets))
         install.install(self.root, targets, True)
         for target in targets:
