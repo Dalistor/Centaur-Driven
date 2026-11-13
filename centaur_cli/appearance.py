@@ -745,7 +745,8 @@ class TerminalView:
                  ('↑↓ escolher · Tab completar · Enter executar · Esc fechar'
                   if terminal.completion.local_command(terminal.draft) else
                   '↑↓ escolher · Tab/Enter inserir · Esc fechar') if completing else
-                 'y permitir · n recusar · PgUp/PgDn revisar' if terminal.approval else
+                 ('y permitir · a sempre · n recusar · PgUp/PgDn revisar' if getattr(terminal.approval[0], 'remember', ()) else
+                  'y permitir · n recusar · PgUp/PgDn revisar') if terminal.approval else
                  '↑↓ selecionar · Enter retomar · R renomear · Del excluir · Esc voltar' if terminal.browser else
                  'Enter orientar · Ctrl+J linha · PgUp/PgDn rolar · Ctrl+C parar' if terminal.busy else
                  'Ctrl+V cola · Ctrl+S captura · Enter envia · Ctrl+J linha · Shift+← chats')

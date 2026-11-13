@@ -20,7 +20,7 @@ from centaur_cli.tools import ProjectTools
 
 # Fala o mesmo protocolo do CLI real: stream-json em stdin/stdout e cliente MCP do servidor configurado.
 FAKE_CLI = r'''#!/usr/bin/env python3
-import json, os, subprocess, sys, time
+import json, os, queue, subprocess, sys, threading, time
 arguments = sys.argv[1:]
 if '--mcp-config' not in arguments:
     sys.exit(9)
@@ -39,9 +39,14 @@ def emit(value):
     sys.stdout.write(json.dumps(value) + '\n'); sys.stdout.flush()
 def assistant(blocks):
     emit({'type': 'assistant', 'message': {'content': blocks, 'usage': {'input_tokens': 5, 'cache_read_input_tokens': 100 * received, 'cache_creation_input_tokens': 0}}})
+class Interrupted(Exception):
+    pass
 def call(name, arguments):
     assistant([{'type': 'tool_use', 'id': 'toolu', 'name': 'mcp__centaur__' + name, 'input': arguments}])
-    return rpc('tools/call', {'name': name, 'arguments': arguments})['content'][0]['text']
+    text = rpc('tools/call', {'name': name, 'arguments': arguments})['content'][0]['text']
+    if text.startswith('Interrompida') and interrupted.wait(5):
+        raise Interrupted
+    return text
 def final(text):
     emit({'type': 'stream_event', 'event': {'type': 'message_start'}})
     emit({'type': 'stream_event', 'event': {'type': 'content_block_delta', 'delta': {'type': 'text_delta', 'text': text[:4]}}})
@@ -49,19 +54,43 @@ def final(text):
     emit({'type': 'result', 'subtype': 'success', 'is_error': False, 'result': text, 'usage': {'input_tokens': 5, 'output_tokens': 7},
           'modelUsage': {'claude-fixture-9': {'contextWindow': 123000, 'maxOutputTokens': 4000}}})
 emit({'type': 'system', 'subtype': 'init', 'tools': names, 'model': 'claude-fixture-9'})
-received = 0
-for line in sys.stdin:
+received, inbox, interrupted, deaf = 0, queue.Queue(), threading.Event(), [False]
+def listen():
+    for line in sys.stdin:
+        message = json.loads(line)
+        if message.get('type') != 'control_request':
+            inbox.put(message)
+        elif not deaf[0]:
+            emit({'type': 'control_response', 'response': {'subtype': 'success', 'request_id': message['request_id']}})
+            interrupted.set()
+    inbox.put(None)
+threading.Thread(target=listen, daemon=True).start()
+def stopped():
+    interrupted.clear()
+    emit({'type': 'result', 'subtype': 'error_during_execution', 'is_error': True, 'result': ''})
+while True:
+    message = inbox.get()
+    if message is None:
+        break
     received += 1
-    text = json.loads(line)['message']['content'][0]['text']
-    log.write(json.dumps({'pid': os.getpid(), 'text': text, 'system': open(arguments[arguments.index('--system-prompt-file') + 1]).read()[:40]}) + '\n'); log.flush()
+    blocks = message['message']['content']
+    text = blocks[0]['text']
+    log.write(json.dumps({'pid': os.getpid(), 'text': text, 'blocks': [block.get('text') for block in blocks], 'system': open(arguments[arguments.index('--system-prompt-file') + 1]).read()[:40]}) + '\n'); log.flush()
     if text.startswith('morra'):
         sys.exit(3)
     if text.startswith('espere'):
-        time.sleep(60)
+        deaf[0] = 'surdo' in text
+        if interrupted.wait(60):
+            stopped()
+        continue
     if 'leia' in text:
         assistant([{'type': 'text', 'text': 'Vou ler e registrar.'}])
-        content = call('read_file', {'path': 'a.txt'})
-        written = call('write_file', {'path': 'b.txt', 'content': 'copiado'})
+        try:
+            content = call('read_file', {'path': 'a.txt'})
+            written = call('write_file', {'path': 'b.txt', 'content': 'copiado'})
+        except Interrupted:
+            stopped()
+            continue
         final(f'{received}|{content}|{written}')
     elif 'inválida' in text:
         final(f'{received}|' + call('read_file', {'path': 5}))
@@ -140,17 +169,59 @@ class NativeSessionTests(unittest.TestCase):
         self.assertIn('Nenhuma ferramenta', reply)
         self.assertEqual([message['role'] for message in self.chat['messages']], ['user', 'assistant'])
 
-    def test_cancelling_kills_the_session_and_the_next_turn_starts_clean(self):
+    def cancelling_tools(self, cancel):
+        return ProjectTools(self.root, lambda _: True, cancel_event=cancel)
+
+    def test_cancelling_interrupts_the_turn_and_keeps_the_native_conversation(self):
         cancel = threading.Event()
-        tools = ProjectTools(self.root, lambda _: True, cancel_event=cancel)
+        tools = self.cancelling_tools(cancel)
         threading.Timer(.5, cancel.set).start()
         started = time.monotonic()
         with self.assertRaises(TurnCancelled):
             self.turn('espere', tools)
-        self.assertLess(time.monotonic() - started, 10)
+        self.assertLess(time.monotonic() - started, 6)
+        self.assertEqual(len(native_session.SESSIONS), 1)
+        cancel.clear()
+        self.assertEqual(self.turn('de novo', tools), '2|eco:de novo')
+        log = self.received()
+        self.assertEqual([entry['text'] for entry in log], ['espere', 'de novo'])  # Nada do histórico é reenviado.
+        self.assertEqual(len({entry['pid'] for entry in log}), 1)
+
+    def test_cli_that_ignores_the_interrupt_is_killed_and_the_next_turn_starts_clean(self):
+        cancel = threading.Event()
+        tools = self.cancelling_tools(cancel)
+        threading.Timer(.3, cancel.set).start()
+        with patch.object(native_session, 'INTERRUPT_SECONDS', .5), self.assertRaises(TurnCancelled):
+            self.turn('espere surdo', tools)
         self.assertEqual(native_session.SESSIONS, [])
-        self.assertEqual(self.turn('de novo')[:2], '1|')
-        self.assertIn('espere', self.received()[-1]['text'])  # A sessão nova recebe o histórico salvo.
+        cancel.clear()
+        self.assertEqual(self.turn('de novo', tools)[:2], '1|')
+        self.assertIn('espere surdo', self.received()[-1]['text'])  # A sessão nova recebe o histórico salvo.
+
+    def test_message_after_an_interrupted_tool_batch_ends_that_turn_and_carries_finished_results(self):
+        cancel = threading.Event()
+        tools = self.cancelling_tools(cancel)
+        original = tools.execute
+        def execute(name, arguments):
+            result = original(name, arguments)
+            cancel.set()  # O usuário interrompe logo depois da primeira ferramenta.
+            return result
+        tools.execute = execute
+        with self.assertRaises(TurnCancelled):
+            self.turn('leia o arquivo', tools)
+        self.assertEqual([message['role'] for message in self.chat['messages']], ['user', 'assistant', 'tool'])
+        cancel.clear()
+        tools.execute = original
+        # Duas mensagens acumuladas viram um único turno; a resposta é a delas, não a do turno interrompido.
+        self.chat['messages'].append({'role': 'user', 'content': 'pare'})
+        self.assertEqual(self.turn('e responda', tools)[:6], '2|eco:')
+        log = self.received()
+        self.assertEqual(len({entry['pid'] for entry in log}), 1)
+        self.assertIn('interrompido pelo usuário', log[1]['blocks'][0])
+        self.assertIn('read_file:\n1\talfa', log[1]['blocks'][0])
+        self.assertEqual(log[1]['blocks'][1:], ['pare', 'e responda'])
+        self.assertFalse((self.root / 'b.txt').exists())
+        self.assertEqual(self.turn('fim', tools), '3|eco:fim')
 
     def test_cli_that_dies_before_answering_falls_back_to_one_call_per_step(self):
         # A fixture recusa (código 9) a invocação sem MCP: é o caminho de uma chamada por etapa.

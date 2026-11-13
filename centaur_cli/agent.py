@@ -11,6 +11,7 @@ from .tools import TOOLS
 from . import skill_catalog
 from .permissions import MODE_HELP
 from .interaction import TurnCancelled
+from . import grants
 from .context import prune_tool_results, active_messages, compaction_state, record_context, auto_compaction_needed, compact_chat, save_compaction, save_compaction_progress, context_window, current_context_usage, estimate_tokens, CompactionPaused
 
 
@@ -43,6 +44,15 @@ COMPUTER_PROMPT = ('Computer use exige autorização própria, inclusive no modo
                    'chamada (um quadro atual), não vídeo contínuo. Não prometa latência em tempo real. ')
 
 
+def granted_prompt(root):
+    rules = grants.load_rules(root)[0][:30]
+    if not rules:
+        return ''
+    return ('O usuário liberou explicitamente estes comandos para rodar sem confirmação nesta pasta (* = quaisquer '
+            'argumentos): ' + ' · '.join(rules) + '. Liberação não é pedido: execute-os apenas quando fizerem parte '
+            'do que o usuário pediu. ')
+
+
 def project_prompt(root, computer=True):
     prompt = ('Você é Centaur, um assistente de programação no terminal. Responda em português. '
               'Investigue antes de alterar e valide o trabalho. Use ferramentas para consultar arquivos; não invente resultados. '
@@ -58,7 +68,9 @@ def project_prompt(root, computer=True):
               'Em trabalhos longos, use report_progress para comunicar progresso real '
               'mesmo quando não precisar de outra ferramenta. A resposta final fica em '
               'uma mensagem sem tool_calls. Não anuncie ações como concluídas antes do resultado. '
-              'O harness aplica o modo de permissões do usuário. '
+              'O harness aplica o modo de permissões do usuário. ' + granted_prompt(root) +
+              'Só o usuário libera comandos, com o comando local $allow (ou "a" na confirmação) e $revoke para retirar; '
+              'se uma ação arriscada como push ou deploy for recusada ou precisar de liberação, diga isso em vez de contornar. '
               'Quando ask_user estiver disponível, faça perguntas curtas para decisões necessárias '
               'que não puder inferir; ofereça até três opções ou nenhuma para resposta livre. '
               'Resposta skipped não é aprovação: esclareça a pendência, sem inventar uma escolha. '

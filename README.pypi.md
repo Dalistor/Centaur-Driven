@@ -89,6 +89,7 @@ não sobrevivem ao encerramento do CLI. Veja formatos, limites e detalhes no REA
 - `$config`: backend, modelo, effort, permissões e velocidade; alterações no mesmo backend preservam o chat.
 - Seleção de modelo com nome, contexto e preço (OpenRouter) e nome, versão e modelo exato de cada alias do Claude (`opus · Opus 5.5 · claude-opus-5-5`), lidos do próprio CLI sem consumir tokens; o cabeçalho do chat mostra o modelo que respondeu.
 - Ferramentas do agente: leitura paginada com linhas numeradas, `edit_file` por trecho exato, `glob`/`grep` sem shell, `run_command` com timeout por chamada e segundo plano, plano visível com `update_plan`; leituras do mesmo lote rodam em paralelo.
+- `$allow <comando>` libera um comando específico (como `git push origin main` ou `npm run deploy *`) para rodar sem confirmação na pasta; `$revoke` retira.
 - `/rewind` desfaz as alterações de arquivo do último turno; hooks do usuário em `~/.config/centaur/hooks.json` rodam antes/depois das ferramentas.
 - OpenRouter com streaming, repetição de falhas transitórias e cache de prompt em modelos Anthropic; backend Claude em sessão persistente com ferramentas via MCP local (`CENTAUR_NATIVE_SESSION=0` desativa).
 - Fast quando anunciado pelo modelo, independente de effort; pode consumir mais créditos. `--speed fast` e `CENTAUR_SPEED` também configuram.

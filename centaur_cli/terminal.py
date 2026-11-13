@@ -37,6 +37,7 @@ from .sessions import SessionRegistry, LABELS, read_record
 from .agent_tree import AgentTree
 from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 from .permissions import validate_mode, MODE_LABELS
+from . import grants
 from .interaction import QuestionPicker, TurnCancelled
 from .computer import ComputerSession
 from .computer_access import ComputerControl
@@ -410,6 +411,31 @@ class Terminal:
             return
         self.draft = ''
 
+    def grant_command(self, command):
+        """Regras de comandos liberados nesta pasta; só o usuário digita, inclusive durante a execução."""
+        name, _, argument = command.partition(' ')
+        argument = argument.strip()
+        try:
+            if name.endswith('revoke'):
+                if not argument:
+                    self.notice = 'Uso: $revoke <número ou comando> · $allow lista as regras.'
+                    return
+                self.notice = f'Liberação removida: {grants.revoke(self.root, argument)}'
+            elif argument:
+                rule = grants.grant(self.root, argument)
+                self.notice = (f'Liberado nesta pasta, sem confirmação: {rule}'
+                               + (' · modo never já não pergunta.' if self.approval_mode == 'never' else ''))
+            else:
+                rules, error = grants.project_rules(self.root), grants.read_store()[1]
+                self.notice = ('Erro: ' + error if error else
+                               'Liberados nesta pasta: ' + ' · '.join(f'{index}) {rule}' for index, rule in enumerate(rules, 1))
+                               + ' · $revoke N remove' if rules else
+                               'Nenhum comando liberado. Ex.: $allow git push origin main · $allow npm run deploy *')
+        except (ValueError, OSError) as error:
+            self.notice = 'Erro: ' + str(getattr(error, 'strerror', None) or error)
+            return
+        self.draft = ''
+
     def submit(self):
         command = without_attachment_markers(self.draft, self.pending_attachments).strip()
         if command.split(maxsplit=1)[0:1] in (['$diagnose'], ['/diagnose']):
@@ -424,6 +450,8 @@ class Terminal:
             return
         if command.split(maxsplit=1)[0:1] in (['$computer'], ['/computer']):
             return self.computer_command(command)
+        if command.split(maxsplit=1)[0:1] in (['$allow'], ['/allow'], ['$revoke'], ['/revoke']):
+            return self.grant_command(command)
         if self.preparing_attachment or not (self.draft.strip() or self.pending_attachments):
             return
         if self.busy:
@@ -1339,7 +1367,12 @@ class Terminal:
 
     def lines(self, width, *, chat=None):
         if chat is None and self.approval and not self.agent_preview:
-            return display_lines('CONFIRMAÇÃO — y: permitir / n: recusar\n\n' + self.approval[0], width)
+            remember = getattr(self.approval[0], 'remember', ())
+            header = 'CONFIRMAÇÃO — y: permitir / n: recusar'
+            if remember:
+                header += (' / a: sempre permitir nesta pasta\nRegra' + ('s' if len(remember) > 1 else '') + ' que "a" grava: '
+                           + ' · '.join(remember) + ' ($allow lista, $revoke remove)')
+            return display_lines(header + '\n\n' + self.approval[0], width)
         if chat is None and self.browser and not self.agent_preview:
             return [f'{">" if index == self.selected else " "} {chat["updated"][:16]}  {chat["title"]}'
                     for index, chat in enumerate(self.chats)] or ['Nenhum chat salvo nesta pasta.']
@@ -1721,8 +1754,9 @@ class Terminal:
                 self.notice = 'Resposta enviada. Aguardando a IA…' if result['status'] == 'answered' else 'Pergunta pulada. Aguardando a IA…'
             return
         if self.approval:
-            if key in ('y', 'Y', 'n', 'N'):
-                self.approval[1].put(key.lower() == 'y')
+            always = key in ('a', 'A') and getattr(self.approval[0], 'remember', ())
+            if key in ('y', 'Y', 'n', 'N') or always:
+                self.approval[1].put('always' if always else key.lower() == 'y')
                 self.approval = None
                 self.scroll = self.saved_scroll
             elif key == curses.KEY_NPAGE:

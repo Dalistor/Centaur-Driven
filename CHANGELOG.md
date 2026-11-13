@@ -2,6 +2,16 @@
 
 ## Não publicado
 
+- Permissões explícitas por comando: `$allow <comando>` libera um comando para rodar sem
+  confirmação na pasta (`git push origin main` exato, ou `npm run deploy *` com quaisquer
+  argumentos), `$allow` lista e `$revoke` remove; na confirmação, `a` grava a regra exata. Linhas
+  compostas exigem cada comando liberado; substituição de comando e redirecionamento sempre
+  perguntam. As regras ficam em `~/.config/centaur/permissions.json`, fora do alcance do agente.
+- Claude: interromper (Ctrl+C) ou orientar no meio de um turno encerra só aquele turno e mantém
+  a conversa nativa; antes a sessão era encerrada e o histórico inteiro reenviado. Resultados de
+  ferramentas já concluídas seguem para o modelo, mensagens acumuladas viram um único turno e a
+  sessão ociosa passa a durar 30 minutos (eram 5).
+
 - Deixar de apagar e redesenhar a tela inteira a cada seta, PgUp/PgDn, roda do mouse, Ctrl+O e
   Ctrl+E no chat: só as células alteradas são reescritas, sem piscar o layout. Rolagem por
   hardware e inserção de linhas continuam desativadas.

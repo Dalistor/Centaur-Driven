@@ -20,6 +20,7 @@ from .permissions import validate_mode, ordinary_path, query_command, query_envi
 from .interaction import ASK_USER, TurnCancelled, validate_question
 from .computer import COMPUTER_TOOLS, ComputerSession
 from .hooks import load_hooks
+from . import grants
 
 
 def tool(name, description, properties, optional=()):
@@ -547,9 +548,21 @@ class ProjectTools:
         timeout = self.integer(arguments.get('timeout'), COMMAND_TIMEOUT, 1, 600, 'timeout')
         query = query_command(self.root, command) if self.approval_mode == 'auto' else None
         automatic = self.approval_mode == 'never' or query is not None
+        if not automatic:
+            # Comandos que o usuário liberou explicitamente nesta pasta ($allow), inclusive os arriscados.
+            automatic = grants.allowed(command, grants.load_rules(self.root)[0])
         label = 'Executar em segundo plano' if background else 'Executar'
-        if not automatic and not self.approve(self.redact(f'{label} na pasta {self.root}:\n{command}')):
-            return 'Execução recusada pelo usuário.'
+        if not automatic:
+            remember = grants.suggested(command)
+            answer = self.approve(grants.request(self.redact(f'{label} na pasta {self.root}:\n{command}'), remember))
+            if not answer:
+                return 'Execução recusada pelo usuário.'
+            if answer == 'always':
+                try:
+                    for rule in remember:
+                        grants.grant(self.root, rule)
+                except (ValueError, OSError):
+                    pass  # A execução desta vez foi aprovada; a regra só não ficou gravada.
         self.check_cancelled()
         env = self.command_environment()
         if query is not None:

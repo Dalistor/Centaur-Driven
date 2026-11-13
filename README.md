@@ -369,6 +369,25 @@ são executadas em paralelo; gravações e comandos mantêm a ordem pedida pelo 
 Efeitos de comandos executados no shell não são desfeitos. As cópias ficam em
 `.centaur/checkpoints/<chat>` e são removidas com o chat.
 
+**Comandos liberados (`$allow`).** Nos modos `ask` e `auto`, você pode liberar comandos
+específicos para rodar sem confirmação nesta pasta, inclusive os arriscados, como push e deploy:
+
+```text
+$allow git push origin main     libera exatamente este comando
+$allow npm run deploy *         libera o comando com quaisquer argumentos (* só no fim)
+$allow                          lista as regras numeradas
+$revoke 2                       remove a regra 2
+```
+
+Na confirmação de um comando, `a` executa e grava a regra exata mostrada na tela. Uma linha com
+`&&`, `;` ou `|` só roda sem perguntar se cada comando dela estiver liberado; redirecionamentos
+(exceto `2>&1` e `> /dev/null`), `$(...)`, crases e comandos em segundo plano com `&` sempre
+pedem confirmação. Só você cria regras: o agente não tem ferramenta para isso, e elas ficam em
+`~/.config/centaur/permissions.json`, fora do projeto, num arquivo que precisa ser seu e sem
+escrita para grupo/outros. A chave `"*"` desse arquivo, editada à mão, vale para todas as pastas.
+O agente é informado das regras e orientado a usá-las apenas quando a tarefa pedir. Uma regra
+ampla como `bash *` ou `python *` equivale, na prática, ao modo `never` para aquele programa.
+
 **Hooks** são comandos seus executados antes ou depois das ferramentas. Ficam em
 `~/.config/centaur/hooks.json` (ou `$XDG_CONFIG_HOME/centaur/hooks.json`), fora do projeto, e o
 arquivo precisa pertencer ao usuário, sem escrita para grupo/outros:

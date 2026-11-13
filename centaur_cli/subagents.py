@@ -4,6 +4,7 @@ import copy
 import json
 import threading
 
+from . import grants
 from .agent import run_turn
 from .history import ChatStore
 from .tools import ProjectTools
@@ -203,7 +204,8 @@ class SubagentTools:
                 finally:
                     state('running')
             tools = ProjectTools(self.root,
-                                 lambda description: interact(self.approve_callback, f'Subagente {title}\n{description}'),
+                                 lambda description: interact(self.approve_callback, grants.request(
+                                     f'Subagente {title}\n{description}', getattr(description, 'remember', ()))),
                                  protected_keys=self.base.protected_keys, approval_mode=self.approval_mode,
                                  ask_user=(lambda question, options: interact(self.ask_callback, question, options)) if self.ask_callback else None,
                                  cancel_event=self.cancel_event)
