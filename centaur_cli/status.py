@@ -193,9 +193,12 @@ Entregue a árvore e uma lista curta de recomendações e bloqueios com referên
 '''
 
 
+READ_ONLY = ('read_skill', 'read_file', 'list_files')
+
+
 class StatusTools(ProjectTools):
     definitions = [entry for entry in TOOLS if entry['function']['name'] in
-                   ('read_skill', 'read_file', 'list_files')] + [
+                   READ_ONLY] + [
         tool('project_status', 'Árvore das specs registradas, somente leitura.', {}),
         tool('lifecycle_status', 'Conferir contratos, dependências e evidências com hashes atuais; não executa testes.',
              {'start_line': 'Primeira linha da projeção (1 para começar); continue até ler todas as linhas'})]
@@ -205,6 +208,6 @@ class StatusTools(ProjectTools):
             return lifecycle_status(self.root, arguments['start_line'])
         if name == 'project_status':
             return render_status(self.root)
-        if name not in ('read_skill', 'read_file', 'list_files'):
+        if name not in READ_ONLY:
             raise ValueError('Análise de status permite somente leitura.')
         return super()._execute(name, arguments)

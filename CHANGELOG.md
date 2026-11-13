@@ -2,6 +2,40 @@
 
 ## Não publicado
 
+- Deixar de apagar e redesenhar a tela inteira a cada seta, PgUp/PgDn, roda do mouse, Ctrl+O e
+  Ctrl+E no chat: só as células alteradas são reescritas, sem piscar o layout. Rolagem por
+  hardware e inserção de linhas continuam desativadas.
+
+- Especificar os modelos na seleção: resumo ao lado de cada opção e painel do item em foco
+  com nome, janela de contexto, saída máxima, preço por 1M de tokens e modalidades (OpenRouter),
+  descrição e contexto (Codex) e, no Claude, a lista do próprio CLI (sem consumir tokens) com
+  nome, versão e modelo exato de cada alias, effort aceito e versões específicas da conta;
+  janela de contexto registrada após a primeira resposta (`~/.config/centaur/models.json`).
+  Incluir o alias `fable`; filtro por ID ou nome; revisão e cabeçalho do chat mostram o modelo
+  servido (`sonnet → claude-sonnet-5-5`); a barra de contexto do Claude usa a janela real.
+- Abertura: a Convergência é traçada das caudas à ponta, gira e recebe um brilho final; o nome
+  é soletrado e as linhas de boas-vindas entram em sequência. Na primeira configuração a abertura
+  ocupa a tela sozinha antes das escolhas (qualquer tecla pula) e não se repete no chat; a seleção
+  ganha a trilha de etapas e a marca em repouso ao lado. Renderização ~40% mais leve (descarte
+  de faces ocultas), malha calculada antes do primeiro quadro e ritmo compensado a 30 quadros/s.
+
+- Ampliar as ferramentas do agente: `read_file` paginado com linhas numeradas e aviso
+  explícito de continuação (antes truncava em 24.000 caracteres sem avisar), `edit_file`
+  por trecho exato, `glob` e `grep` nativos, `run_command` com `timeout` por chamada
+  (padrão 120s), execução em segundo plano com `command_output` e saída longa preservando
+  início e fim, com a íntegra em `.centaur/tool-output/`. Aprovação de gravações mostra diff.
+- Executar em paralelo as consultas consecutivas de um mesmo lote; adicionar o plano
+  visível `update_plan`, `/rewind` para desfazer alterações de arquivo do último turno e
+  hooks do usuário (`before_tool`/`after_tool`) em `~/.config/centaur/hooks.json`.
+- OpenRouter: streaming com texto ao vivo e cancelamento que fecha a conexão, repetição
+  de falhas transitórias com espera crescente e cache de prompt automático em modelos
+  Anthropic, com retorno ao envio sem marcador se a rota o recusar.
+- Remover do contexto enviado, a 60% da janela, resultados antigos e volumosos de
+  ferramentas antes do resumo por IA; o histórico salvo não é alterado.
+- Claude: sessão persistente do CLI com as ferramentas Centaur por servidor MCP local,
+  enviando apenas o que mudou a cada etapa. Volta ao modo de uma chamada por etapa quando
+  o CLI não oferece as opções necessárias ou com `CENTAUR_NATIVE_SESSION=0`. Codex inalterado.
+
 - Separar consumo acumulado de Codex/Claude da ocupação do contexto. Usar entrada
   da última requisição principal do Claude quando disponível e estimativa no Codex;
   invalidar totais nativos antigos ao retomar chats. A compactação ajusta contagens

@@ -88,6 +88,14 @@ class SubagentTools:
     def native_progress(self, event):
         return getattr(self.base, 'native_progress', lambda _: None)(event)
 
+    @property
+    def stream_text(self):
+        return getattr(self.base, 'stream_text', None)
+
+    @property
+    def parallel_safe(self):
+        return getattr(self.base, 'parallel_safe', ())
+
     def receive_messages(self):
         return self.group.receive(self.parent_id)
 
@@ -200,6 +208,7 @@ class SubagentTools:
                                  ask_user=(lambda question, options: interact(self.ask_callback, question, options)) if self.ask_callback else None,
                                  cancel_event=self.cancel_event)
             tools.agent_approve, tools.agent_ask = self.approve_callback, self.ask_callback
+            tools.before_change = getattr(self.base, 'before_change', None)
             if self.registry:
                 tools.activity = lambda phase: self.registry.activity(chat['id'], phase)
                 tools.native_progress = lambda event: self.registry.native_event(chat['id'], event)

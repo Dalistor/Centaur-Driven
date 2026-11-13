@@ -10,6 +10,10 @@ import math
 
 FRAME_SECONDS = 1 / 30
 SPIN_SECONDS = 4.8
+# The mark is drawn from the tails to the shared tip while the turn is still slow,
+# and a highlight crosses it as the turn settles into the front pose.
+REVEAL_SECONDS = 1.1
+GLINT_START = .8
 MAX_COLUMNS, MAX_ROWS = 36, 16
 GRID = 112
 EXTENT = 1.05
@@ -144,7 +148,8 @@ class Cell:
 
 
 class Renderer:
-    def frame(self, columns, rows, progress=1.0):
+    def frame(self, columns, rows, progress=1.0, reveal=1.0, glint=None):
+        """reveal draws the mark from left to right; glint is the position of a passing highlight."""
         if not (1 <= columns <= MAX_COLUMNS and 1 <= rows <= MAX_ROWS):
             raise ValueError('Graphic stage exceeds the bounded renderer.')
         progress = max(0.0, min(1.0, progress))
@@ -163,37 +168,53 @@ class Renderer:
         coverage = [0.0] * len(depth)
         accents = [False] * len(depth)
         fade = .55 + .45 * smooth(progress / .12)
+        front = math.inf if reveal >= 1 else -EXTENT + max(0.0, reveal) * EXTENT * 2.1
+        half_columns, half_rows = dot_columns / 2 - .5, dot_rows / 2 - .5
+        step_scale = STEP * scale
         for x, y, z, nx, ny, nz, accent in mesh():
+            if x > front:
+                continue
+            normal_x, normal_z = nx * cy + nz * sy, -nx * sy + nz * cy
+            normal_y, normal_z = ny * cx - normal_z * sx, ny * sx + normal_z * cx
+            # The relief is a thin double-sided sheet: faces turned away are hidden by the
+            # near side, so skip them before projecting. Side walls (normal_z near 0) stay.
+            if normal_z < -.25:
+                continue
             px, pz = x * cy + z * sy, -x * sy + z * cy
             py, pz = y * cx - pz * sx, y * sx + pz * cx
             perspective = 4.0 / (4.0 - pz)
-            projected_x = dot_columns / 2 - .5 + px * scale * perspective
-            projected_y = dot_rows / 2 - .5 + py * scale * perspective
+            projected_x = half_columns + px * scale * perspective
+            projected_y = half_rows + py * scale * perspective
             col, row = math.floor(projected_x), math.floor(projected_y)
+            if not (-1 <= col < dot_columns and -1 <= row < dot_rows):
+                continue
             fraction_x, fraction_y = projected_x - col, projected_y - row
-            normal_x, normal_z = nx * cy + nz * sy, -nx * sy + nz * cy
-            normal_y, normal_z = ny * cx - normal_z * sx, ny * sx + normal_z * cx
-            diffuse = max(0, -.40 * normal_x - .52 * normal_y + .75 * normal_z)
-            gloss = max(0, -.20 * normal_x - .30 * normal_y + .93 * normal_z) ** 18
-            rim = (1 - abs(normal_z)) ** 2 * .18
-            light = min(1.0, .20 + .63 * diffuse + .30 * gloss + rim) * fade
+            diffuse = -.40 * normal_x - .52 * normal_y + .75 * normal_z
+            gloss = -.20 * normal_x - .30 * normal_y + .93 * normal_z
+            light = .20 + (.63 * diffuse if diffuse > 0 else 0) + (.30 * gloss ** 18 if gloss > 0 else 0) \
+                + (1 - abs(normal_z)) ** 2 * .18
+            light = (light if light < 1 else 1.0) * fade
+            if front - x < .12:
+                light = min(1.0, light + .6 * (1 - (front - x) / .12))  # The bright point that draws the line.
+            if glint is not None:
+                light = min(1.0, light + .6 * max(0.0, 1 - abs(x + .45 * y - glint) / .22))
             # Distribute surface coverage across neighboring dots instead of
             # inflating every sample into an opaque L-shaped splat.
-            area = min(1.0, (STEP * scale * perspective) ** 2)
-            for dx, dy, weight in ((0, 0, (1 - fraction_x) * (1 - fraction_y)),
-                                   (1, 0, fraction_x * (1 - fraction_y)),
-                                   (0, 1, (1 - fraction_x) * fraction_y),
-                                   (1, 1, fraction_x * fraction_y)):
-                c, r = col + dx, row + dy
+            area = step_scale * perspective
+            area = area * area if area < 1 else 1.0
+            i = row * dot_columns + col
+            for c, r, i, weight in ((col, row, i, (1 - fraction_x) * (1 - fraction_y)),
+                                    (col + 1, row, i + 1, fraction_x * (1 - fraction_y)),
+                                    (col, row + 1, i + dot_columns, (1 - fraction_x) * fraction_y),
+                                    (col + 1, row + 1, i + dot_columns + 1, fraction_x * fraction_y)):
                 if weight and 0 <= c < dot_columns and 0 <= r < dot_rows:
-                    i = r * dot_columns + c
-                    contribution = area * weight
-                    if pz > depth[i] + depth_tolerance:
+                    known = depth[i]
+                    if pz > known + depth_tolerance:
                         depth[i], shades[i], accents[i] = pz, light, accent
-                        coverage[i] = contribution
-                    elif abs(pz - depth[i]) <= depth_tolerance:
-                        coverage[i] += contribution
-                        if pz > depth[i]:
+                        coverage[i] = area * weight
+                    elif pz - known >= -depth_tolerance:
+                        coverage[i] += area * weight
+                        if pz > known:
                             depth[i], shades[i], accents[i] = pz, light, accent
         result = []
         for row in range(rows):
@@ -217,9 +238,11 @@ class Renderer:
 
 class WelcomeAnimation:
     """Visible-time clock; hidden panes pause and idle poses stop rendering."""
+    opening_played = False  # Set by the startup screen once the user has watched the opening there.
+
     def __init__(self):
         self.renderer = Renderer()
-        self.elapsed = 0.0
+        self.elapsed = SPIN_SECONDS if WelcomeAnimation.opening_played else 0.0
         self.previous = None
         self.cached_key = None
         self.cached_frame = None
@@ -228,6 +251,17 @@ class WelcomeAnimation:
     def pause(self):
         self.previous = None
         self.active = False
+
+    def settle(self):
+        """Skip to the final pose, e.g. when the opening already played on the previous screen."""
+        self.elapsed = SPIN_SECONDS
+        self.pause()
+
+    def staged(self, start, duration=0.0):
+        """0..1 progress of an accompanying element; 1 whenever the mark is not moving."""
+        if not self.active:
+            return 1.0
+        return 1.0 if duration <= 0 and self.elapsed >= start else 0.0 if duration <= 0 else smooth((self.elapsed - start) / duration)
 
     def replay(self):
         self.elapsed = 0.0
@@ -249,6 +283,10 @@ class WelcomeAnimation:
         key = (columns, rows, int(round(progress * SPIN_SECONDS / FRAME_SECONDS)))
         if key != self.cached_key:
             sampled_progress = min(1.0, key[2] * FRAME_SECONDS / SPIN_SECONDS)
-            self.cached_frame = self.renderer.frame(columns, rows, sampled_progress)
+            moving = sampled_progress < 1
+            reveal = smooth(sampled_progress * SPIN_SECONDS / REVEAL_SECONDS) if moving else 1.0
+            glint = (-1.5 + 3.0 * (sampled_progress - GLINT_START) / (1 - GLINT_START)
+                     if moving and sampled_progress >= GLINT_START else None)
+            self.cached_frame = self.renderer.frame(columns, rows, sampled_progress, reveal=reveal, glint=glint)
             self.cached_key = key
         return self.cached_frame

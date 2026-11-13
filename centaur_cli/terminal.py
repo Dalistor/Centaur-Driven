@@ -9,6 +9,7 @@ import re
 import textwrap
 import threading
 import time
+from uuid import uuid4
 
 from .attachments import prepare_file, capture_screen, check_support, persist, summary_attachments, load_copy, prepare_bytes, MAX_PENDING
 from .backends import create_client
@@ -25,6 +26,8 @@ from .native_usage import BalanceUnavailable
 from .completion import SkillCompletion
 from .conversation import TranscriptLine, generate_title, readable_markdown, tool_activity
 from .tools import ProjectTools
+from .checkpoints import Checkpoints
+from . import models
 from .appearance import TerminalView, fit_cells, cell_width, selection_notice
 from .graphics import FRAME_SECONDS
 from .subagents import SubagentTools
@@ -76,7 +79,7 @@ class SessionEvents:
 class Terminal:
     SESSION_DEFAULTS = {'busy': False, 'approval': None, 'question': None, 'diagnostic_report': None,
                         'computer': None, 'busy_started': None, 'saved_scroll': 0,
-                        'notice': '', 'agent_group': None}
+                        'notice': '', 'agent_group': None, 'stream_text': ''}
 
     def session_value(name):
         def get(self):
@@ -98,6 +101,7 @@ class Terminal:
     notice = session_value('notice')
     cancel_event = session_value('cancel_event')
     agent_group = session_value('agent_group')
+    stream_text = session_value('stream_text')
     del session_value
 
     def __init__(self, root, model, store, client, max_subagent_tier='high', *, effort='default', approval_mode='ask', speed='standard'):
@@ -512,6 +516,28 @@ class Terminal:
             self.chat.pop('last_error', None)
             self.start_work()
             return
+        if command in ('/rewind', '$rewind'):
+            self.draft = ''
+            if self.agent_group and self.agent_group.active:
+                self.notice = 'Aguarde os subagentes terminarem antes de desfazer alterações.'
+                return
+            try:
+                restored, skipped = Checkpoints(self.root, self.chat['id']).rewind()
+            except OSError as error:
+                self.notice = f'Erro ao desfazer: {error.strerror or error}'
+                return
+            if not restored and not skipped:
+                self.notice = 'Nenhuma alteração de arquivo registrada para desfazer neste chat.'
+                return
+            report = ('Alterações de arquivo do último turno desfeitas: ' + (', '.join(restored) or 'nenhuma') + '.'
+                      + (' Não restaurados (sem cópia anterior): ' + ', '.join(skipped) + '.' if skipped else '')
+                      + ' Comandos executados no shell não são desfeitos; releia os arquivos antes de editá-los de novo.')
+            # Fica no histórico para o modelo não confiar no estado anterior dos arquivos.
+            self.chat['messages'].extend([{'role': 'user', 'content': command}, {'role': 'assistant', 'content': report}])
+            self.store.save(self.chat)
+            self.scroll = 0
+            self.notice = f'{len(restored)} arquivo(s) restaurado(s) · /rewind novamente desfaz o turno anterior.'
+            return
         if command == '/rename':
             self.store.save(self.chat)
             self.draft = ''
@@ -583,7 +609,7 @@ class Terminal:
             self.draft = ''
             self.open_chats('agents' if local != '/chats' else 'chats')
             return
-        if local in ('$config', '/new', '/quit', '/retry', '/rename', '$compact', '/compact',
+        if local in ('$config', '/new', '/quit', '/retry', '/rewind', '$rewind', '/rename', '$compact', '/compact',
                      '$credits', '/credits', '$attachments', '/attachments', '$detach', '/detach', '$status', '/status', '/wide'):
             self.notice = 'Aguarde a etapa atual para usar este comando; Enter envia uma mensagem ao agente.'
             return
@@ -897,12 +923,25 @@ class Terminal:
         source = self.client if backend == self.backend else None
         if source is None and backend == 'openrouter':
             source = OpenRouter('')  # Public catalog; switching never asks for credentials here.
+        if backend == 'claude':
+            # O próprio CLI informa as versões exatas atrás de cada alias, sem custo.
+            picker.catalog_status = 'Consultando os modelos do Claude Code…'
+            command = getattr(source, 'command', None)
+            def fetch_claude():
+                try:
+                    catalog, efforts, details = models.claude_catalog(models.refresh_claude(command))
+                    result = (catalog, efforts, '', details)
+                except RuntimeError:
+                    result = ({}, {}, 'Lista do Claude Code indisponível; mostrando os aliases conhecidos.')
+                self.events.put(('catalog', (picker, backend, result)))
+            threading.Thread(target=fetch_claude, daemon=True).start()
+            return
         if not callable(getattr(source, 'model_catalog', None)):
             return
         picker.catalog_status = 'Carregando catálogo…'
         def fetch():
             try:
-                result = (source.model_catalog(), getattr(source, 'model_efforts', {}), '')
+                result = (source.model_catalog(), getattr(source, 'model_efforts', {}), '', getattr(source, 'model_details', {}))
             except Exception:
                 result = ({}, {}, 'Catálogo indisponível. Use Modelo personalizado ou reabra para tentar.')
             self.events.put(('catalog', (picker, backend, result)))
@@ -1035,6 +1074,9 @@ class Terminal:
                                 cancel_event=self.cancel_event, computer=computer)
             base.activity = lambda phase: self.registry.activity(chat['id'], phase)
             base.native_progress = lambda event: self.registry.native_event(chat['id'], event)
+            base.stream_text = lambda text: self.events.put(('stream', text))
+            checkpoints, turn = Checkpoints(self.root, chat['id']), uuid4().hex
+            base.before_change = lambda path: checkpoints.record(path, turn)
             last_request = next((message.get('content') or '' for message in reversed(chat['messages'])
                                  if message['role'] == 'user' and not message.get('agent_source')), '')
             status_analysis = last_request.strip() in ('/status --ai', '$status --ai')
@@ -1200,9 +1242,9 @@ class Terminal:
                     self.notice = ('Anexo inserido na mensagem · Backspace/Delete remove · Enter envia.' if items
                                    else 'Texto colado; Enter envia.' if result.get('text') else 'Clipboard sem imagem ou texto.')
             elif kind == 'catalog':
-                picker, backend, (catalog, efforts, error) = value
+                picker, backend, result = value
                 if self.settings is picker and picker.backend == backend:
-                    picker.update_catalog(backend, catalog, efforts, error)
+                    picker.update_catalog(backend, *result)
             elif kind == 'configured':
                 picker, client, error = value
                 if self.settings is not picker:
@@ -1232,7 +1274,12 @@ class Terminal:
                 self.question = value
                 self.rename_target = None
                 self.saved_scroll = self.scroll
+            elif kind == 'stream':
+                self.stream_text = value
+            elif kind == 'refresh':
+                self.stream_text = ''  # A resposta completa já está no histórico.
             elif kind == 'done':
+                self.stream_text = ''
                 waiting = self.interaction_locks.get(self.chat['id'])
                 waiting = waiting and waiting.locked() and not self.cancel_event.is_set()
                 self.registry.set(self.chat['id'], 'waiting_input' if waiting else 'stopped')
@@ -1358,6 +1405,10 @@ class Terminal:
                 append_text(readable_markdown(content))
                 lines.append(TranscriptLine(''))
         if chat is None and self.busy and not self.approval and not self.agent_preview:
+            if self.stream_text:
+                lines.append(TranscriptLine('◆ Centaur', 'green'))
+                append_text(readable_markdown(self.stream_text))
+                lines.append(TranscriptLine(''))
             append_text('◦ ' + self.view.activity(self, self.notice), 'muted')
         if current_chat.get('last_error'):
             error = current_chat['last_error']
@@ -1773,6 +1824,14 @@ class Terminal:
         curses.nonl()  # Enter is CR; Ctrl+J is LF and inserts a line in the chat.
         self.view.palette.initialize()
         screen.keypad(True)
+        # Navigation can move many rows. Keep hardware scrolling and line insertion off so
+        # curses only rewrites the cells that changed; clearing the screen on every arrow
+        # key made the whole layout flash.
+        for disable in ('idlok', 'scrollok'):
+            try:
+                getattr(screen, disable)(False)
+            except (AttributeError, curses.error):
+                pass
         self.configure_mouse(self.mouse_enabled)
         screen.timeout(100)
         keyboard = KeyboardReader()
@@ -1820,11 +1879,6 @@ class Terminal:
             if not focused:
                 # Recover even if a terminal drops its focus-in notification.
                 focused = True
-                screen.clearok(True)
-            if key in ('\x0f', '\x05', curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE,
-                       curses.KEY_NPAGE, curses.KEY_MOUSE):
-                # Navigation/disclosure can move many rows. Repaint rather than relying
-                # on terminal-specific scroll-region optimizations.
                 screen.clearok(True)
             action = self.handle(key)
             if action == 'quit':

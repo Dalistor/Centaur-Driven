@@ -195,7 +195,7 @@ class CreditTests(unittest.TestCase):
         self.assertEqual(terminal.chat['messages'], [])
         (self.root / 'sample').write_text('management-secret')
         tools = ProjectTools(self.root, lambda _: True, protected_keys=self.client.secrets)
-        self.assertEqual(tools.execute('read_file', {'path': 'sample'}), '[CHAVE OCULTA]')
+        self.assertEqual(tools.execute('read_file', {'path': 'sample'}), '1\t[CHAVE OCULTA]')
         with patch.dict(os.environ, {'OPENROUTER_CREDITS_KEY': 'management-secret'}):
             result = tools.execute('run_command', {'command': 'printenv OPENROUTER_CREDITS_KEY'})
         self.assertIn('Código de saída: 1', result)

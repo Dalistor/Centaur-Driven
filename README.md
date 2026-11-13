@@ -80,6 +80,31 @@ O modelo e o effort escolhidos definem o **agente principal**. Durante `$run`, o
 pode escolher outros modelos do mesmo backend para cada subagente, conforme a complexidade
 e o risco da task. Essa explicação permanece visível nas etapas da seleção inicial.
 
+Na etapa de modelo, cada opção mostra ao lado o que ela é, e o item em foco abre um painel
+com os detalhes disponíveis:
+
+- **OpenRouter**: nome público, janela de contexto, saída máxima, preço de entrada/saída por
+  1M de tokens (US$) e se aceita imagens, PDF e raciocínio ajustável. O filtro procura no ID
+  e no nome. Os dados vêm do catálogo público; campo ausente não é exibido.
+- **Claude**: a lista vem do próprio Claude Code instalado, sem enviar mensagem ao modelo nem
+  consumir tokens: cada alias com seu nome e versão e o **modelo exato** que o atende
+  (por exemplo `opus · Opus 5.5 · claude-opus-5-5`), os níveis de effort aceitos, modo rápido
+  e também as versões específicas que a conta oferece (`claude-opus-5`, `claude-fable-5-1`…).
+  Janela de contexto e saída máxima aparecem depois que o modelo responde uma vez. A lista
+  fica guardada em `~/.config/centaur/models.json`, sem credenciais, e é atualizada ao abrir a
+  etapa de modelo; se o CLI não responder, ficam os aliases conhecidos.
+- **Codex**: descrição e janela de contexto do cache local de modelos do CLI.
+
+"Padrão do provedor" deixa a escolha com a conta ou o CLI; para o Claude, o painel mostra o
+modelo que o padrão serviu da última vez. No chat, o cabeçalho acrescenta `→ modelo servido`
+sempre que o provedor informa um modelo diferente do alias ou roteador escolhido, e a barra
+de contexto do Claude passa a usar a janela real informada pelo CLI.
+
+Na primeira configuração de uma pasta, a abertura animada ocupa a tela sozinha antes das
+escolhas; qualquer tecla a pula. Em terminais a partir de 78 × 22 uma trilha mostra a etapa
+atual da seleção e, a partir de 104 × 24, o emblema fica em repouso ao lado. Nesse caso o chat
+também começa com a marca em repouso (F5 repete).
+
 A conexão é validada depois da confirmação. Se falhar, as escolhas são preservadas para
 corrigir ou trocar o backend. Só após a validação as preferências são salvas em
 `.centaur/config.json` e o chat é aberto. Cancelar a seleção não autentica nem cria um chat.
@@ -318,6 +343,69 @@ que tem prioridade sobre `.centaur/config.json`. Sem preferência, o modo é `as
 serviços acessíveis ao usuário. Os limites das ferramentas de arquivo, a proteção das
 credenciais conhecidas e os timeouts permanecem ativos nos três modos. `$status --ai`
 continua somente leitura, independentemente do modo.
+
+### Ferramentas do agente
+
+O modelo trabalha com ferramentas próprias do Centaur, nos três backends:
+
+- `read_file` numera as linhas e pagina arquivos grandes (`offset`/`limit`, até 2000 linhas por
+  chamada), avisando quando há mais conteúdo em vez de truncar em silêncio.
+- `edit_file` substitui um trecho exato e único (ou todas as ocorrências com `replace_all`);
+  `write_file` fica para arquivos novos ou reescrita completa. A aprovação mostra o diff.
+- `glob` e `grep` localizam arquivos e conteúdo sem passar pelo shell e, por serem leituras,
+  não pedem aprovação. Com `rg` instalado respeitam `.gitignore`; sem ele, uma busca em Python
+  ignora pastas ocultas, `node_modules`, `__pycache__` e `venv`.
+- `run_command` aceita `timeout` por chamada (padrão 120s, até 600s) e `background=true` para
+  servidores e builds longos, acompanhados por `command_output` (saída nova, espera e parada).
+  Saídas longas preservam início e fim; a íntegra fica em `.centaur/tool-output/`.
+  Comandos em segundo plano são encerrados ao sair do CLI.
+- `update_plan` mantém um plano visível na conversa em tarefas com várias etapas.
+
+Consultas consecutivas do mesmo lote (`read_file`, `list_files`, `glob`, `grep`, `read_skill`)
+são executadas em paralelo; gravações e comandos mantêm a ordem pedida pelo modelo.
+
+**`/rewind`** desfaz as alterações de arquivo do último turno feitas por `write_file`/`edit_file`
+(inclusive de subagentes) e registra isso na conversa; repetir o comando volta um turno a mais.
+Efeitos de comandos executados no shell não são desfeitos. As cópias ficam em
+`.centaur/checkpoints/<chat>` e são removidas com o chat.
+
+**Hooks** são comandos seus executados antes ou depois das ferramentas. Ficam em
+`~/.config/centaur/hooks.json` (ou `$XDG_CONFIG_HOME/centaur/hooks.json`), fora do projeto, e o
+arquivo precisa pertencer ao usuário, sem escrita para grupo/outros:
+
+```json
+{"hooks": [
+  {"event": "before_tool", "tools": "write_file|edit_file", "command": "./scripts/proteger.sh"},
+  {"event": "after_tool", "tools": "write_file|edit_file", "command": "ruff check \"$CENTAUR_TOOL_PATH\"",
+   "project": "/caminho/do/projeto", "timeout": 30}
+]}
+```
+
+`tools` é uma expressão regular sobre o nome da ferramenta e `project` restringe o hook a uma
+pasta. O comando roda na raiz do projeto, recebe a chamada em JSON pelo stdin e as variáveis
+`CENTAUR_TOOL_NAME`, `CENTAUR_TOOL_PATH` e `CENTAUR_PROJECT`, sem as chaves dos provedores.
+Um `before_tool` que termina com código 2 bloqueia a ação e sua saída vira o resultado; um
+`after_tool` que falha tem a saída anexada ao resultado para o modelo corrigir (lint, formato).
+
+### Transporte, cache e sessão nativa
+
+No OpenRouter as respostas chegam por streaming: o texto aparece enquanto é gerado e Ctrl+C
+fecha a conexão, o que interrompe a geração nos provedores compatíveis. Falhas transitórias
+(HTTP 408/429/5xx, erro de conexão ou stream interrompido) são repetidas até três vezes com
+espera crescente, dentro do prazo da requisição; nada de uma resposta parcial é executado.
+Modelos `anthropic/*` recebem o marcador de cache de prompt automático; os demais provedores
+compatíveis fazem cache do prefixo por conta própria. `CENTAUR_OPENROUTER_STREAM=0` e
+`CENTAUR_PROMPT_CACHE=0` desativam cada recurso.
+
+Com o backend Claude, o CLI permanece aberto durante o chat: a conversa é nativa (com o cache
+de prompt do próprio CLI) e as ferramentas do Centaur são chamadas por um servidor MCP local,
+continuando sujeitas às permissões, hooks e histórico do Centaur. Compactação, `/retry` após
+erro, troca de modelo ou interrupção reiniciam a sessão a partir do histórico salvo. Sessões
+ociosas por cinco minutos são encerradas. `CENTAUR_NATIVE_SESSION=0`, ou um CLI sem as opções
+necessárias, volta ao modo de uma chamada por etapa. O backend Codex continua nesse modo.
+
+A 60% da janela conhecida, resultados antigos e volumosos de ferramentas saem do contexto
+enviado (o histórico salvo permanece íntegro) antes de recorrer ao resumo por IA aos 80%.
 
 ### Respostas extensas e recuperação
 

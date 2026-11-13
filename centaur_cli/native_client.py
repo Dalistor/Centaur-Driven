@@ -20,6 +20,8 @@ from .speed import local_speed_support, fast_supported, validate_speed
 from .native_usage import NativeBalance, BalanceUnavailable, claude_windows, read_codex_balance
 from .sessions import NATIVE_PHASES
 from .tool_protocol import validate_arguments, omit_optional_nulls
+from . import native_session
+from . import models
 
 
 REPLY_SCHEMA = {
@@ -353,6 +355,8 @@ class NativeClient:
     supports_cancellation = True
     supports_request_timeout = True
     supports_progress = True
+    supports_streaming = True
+    keeps_sessions = True
 
     def __init__(self, backend, model=''):
         if backend not in ('codex', 'claude'):
@@ -383,6 +387,13 @@ class NativeClient:
         self.speed_support = local_speed_support(backend)
         self.quota_windows = {}
         self.fast_version_checked = False
+        # Sessão persistente com ferramentas via MCP; ligada quando o CLI instalado a suporta.
+        self.session_mode, self.session_failures = False, 0
+        if backend == 'claude':
+            # Janelas informadas pelo próprio CLI em respostas anteriores.
+            for alias, entry in models.load_learned('claude').items():
+                if type(entry.get('context')) is int and entry['context'] > 0:
+                    self.context_windows[alias] = self.context_windows[entry['id']] = entry['context']
         self.command = shutil.which(backend)
         if not self.command:
             raise RuntimeError(f'{backend} não instalado ou fora do PATH. Instale o CLI oficial e faça login.')
@@ -418,9 +429,10 @@ class NativeClient:
 
     def model_catalog(self):
         if self.backend == 'claude':
-            self.input_modalities = {name: ['text', 'image'] for name in ('', 'haiku', 'sonnet', 'opus')}
-            if self.fixed_model and re.fullmatch(r'claude-(haiku|sonnet|opus)-[0-9][a-z0-9-]*', self.fixed_model):
+            self.input_modalities = {name: ['text', 'image'] for name in ('', *models.CLAUDE_ALIASES)}
+            if self.fixed_model and re.fullmatch(r'claude-(haiku|sonnet|opus|fable)-[0-9][a-z0-9-]*', self.fixed_model):
                 self.input_modalities[self.fixed_model] = ['text', 'image']
+            # Subagentes escolhem entre estes; o modelo mais caro só entra por escolha explícita do usuário.
             catalog = {'haiku': 'Tasks simples e rápidas', 'sonnet': 'Implementação comum',
                        'opus': 'Investigação complexa e maior risco'}
         else:
@@ -450,6 +462,12 @@ class NativeClient:
         return {name: description for name, description in catalog.items()
                 if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,127}', name)}
 
+    def learn(self, alias, identifier, context=None, output=None):
+        """O CLI informou qual modelo atendeu o alias e sua janela: use e guarde para o seletor."""
+        if type(context) is int and context > 0:
+            self.context_windows[alias] = self.context_windows[identifier] = context
+        models.remember(self.backend, alias, identifier, context, output)
+
     def redact(self, text):
         for secret in self.secrets:
             text = text.replace(secret, '[CHAVE OCULTA]')
@@ -465,6 +483,8 @@ class NativeClient:
             raise RuntimeError(f'Não foi possível iniciar {self.backend}; confira a instalação oficial.') from None
         if result.returncode or any(flag not in result.stdout for flag in required):
             raise RuntimeError(f'Atualize {self.backend}: a integração requer saída estruturada e isolamento de ferramentas/configuração.')
+        self.session_mode = (self.backend == 'claude' and all(flag in result.stdout for flag in native_session.REQUIRED_FLAGS)
+                             and os.environ.get('CENTAUR_NATIVE_SESSION', '1').lower() not in ('0', 'false', 'off'))
 
     def check_authentication(self):
         variables = ('OPENAI_API_KEY', 'CODEX_API_KEY') if self.backend == 'codex' else ('ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN')
@@ -514,7 +534,7 @@ class NativeClient:
             arguments += ['-']
         return arguments
 
-    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', cancel_event=None, speed='standard', request_timeout=None, on_progress=None):
+    def complete(self, model, messages, tools, *, cost_tier=None, session_id=None, effort='default', cancel_event=None, speed='standard', request_timeout=None, on_progress=None, on_delta=None):
         if request_timeout is not None and (isinstance(request_timeout, bool)
                 or not isinstance(request_timeout, (int, float)) or not 0 < request_timeout <= 3600):
             raise ValueError('Tempo limite de requisição inválido.')
@@ -530,6 +550,25 @@ class NativeClient:
         if cancel_event is not None and cancel_event.is_set():
             raise TurnCancelled('Turno interrompido pelo usuário.')
         self.check_speed(model, speed)
+        if self.session_mode and tools:
+            try:
+                reply = native_session.complete(self, self.fixed_model if model is None else model, messages, tools,
+                                                effort=effort, speed=speed, timeout=timeout, owner=session_id,
+                                                cancel_event=cancel_event, on_progress=on_progress, on_delta=on_delta)
+                self.session_failures = 0
+                return reply
+            except native_session.SessionUnavailable:
+                # Sem resposta alguma da sessão: esta etapa segue pelo caminho de uma chamada
+                # por etapa, que também relata autenticação e rede com precisão.
+                self.session_failures += 1
+                self.session_mode = self.session_failures < 2
+                if on_delta is not None:
+                    on_delta('')
+            except (TurnCancelled, RuntimeError):
+                raise
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                detail = str(error) if isinstance(error, ValueError) else 'Não foi possível conversar com a sessão local do CLI.'
+                raise RuntimeError(f'{self.backend}: {self.redact(detail)} Use /retry para retomar.') from None
         conversation, images = split_images(messages, max_images=32)
         prompt = BRIDGE_INSTRUCTIONS + '\n' + self.redact(json.dumps({'conversation': conversation, 'tools': tools}, ensure_ascii=False))
         env = {name: value for name, value in os.environ.items()

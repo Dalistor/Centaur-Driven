@@ -111,7 +111,7 @@ class CredentialTests(unittest.TestCase):
     def test_file_and_command_outputs_redact_key_and_child_environment_does_not_inherit_it(self):
         (self.root / 'sample').write_text(self.key)
         tools = ProjectTools(self.root, lambda _: True, self.key)
-        self.assertEqual(tools.execute('read_file', {'path': 'sample'}), '[CHAVE OCULTA]')
+        self.assertEqual(tools.execute('read_file', {'path': 'sample'}), '1\t[CHAVE OCULTA]')
         with patch.dict(os.environ, {'OPENROUTER_API_KEY': self.key}):
             result = tools.execute('run_command', {'command': 'printenv OPENROUTER_API_KEY'})
         self.assertNotIn(self.key, result)

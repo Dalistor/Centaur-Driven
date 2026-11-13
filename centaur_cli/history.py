@@ -109,6 +109,9 @@ class ChatStore:
                 shutil.rmtree(descendants)
         if directory.exists():
             shutil.rmtree(directory)
+        checkpoints = self.root / '.centaur' / 'checkpoints' / chat_id
+        if checkpoints.is_dir() and not checkpoints.is_symlink() and not checkpoints.parent.is_symlink():
+            shutil.rmtree(checkpoints)
         (runtime / (chat_id + '.json')).unlink(missing_ok=True)
         ComputerPermissions(self.root).revoke(chat_id)
         inbox_directory = self.root / '.centaur' / 'inbox'

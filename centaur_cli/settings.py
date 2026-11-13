@@ -8,21 +8,35 @@ from pathlib import Path
 from .config import BACKENDS, effort_options, validate
 from .permissions import APPROVAL_MODES, MODE_LABELS, MODE_HELP, validate_mode
 from .speed import validate_speed, local_speed_support, fast_supported
+from . import models
+
+
+def codex_cache():
+    path = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))) / 'models_cache.json'
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+        return [entry for entry in data['models'] if isinstance(entry, dict) and entry.get('visibility') == 'list'
+                and isinstance(entry.get('slug'), str)]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
 
 
 def local_models(backend):
     if backend == 'claude':
-        return {'haiku': 'Tasks simples', 'sonnet': 'Implementação', 'opus': 'Investigação'}
+        # A lista guardada da última consulta ao CLI traz as versões exatas; sem ela, só os aliases.
+        return models.claude_catalog(models.cached_claude())[0] or dict(models.CLAUDE_ALIASES)
     if backend == 'codex':
-        path = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))) / 'models_cache.json'
-        try:
-            data = json.loads(path.read_text(encoding='utf-8'))
-            return {entry['slug']: entry.get('description', '') for entry in data['models']
-                    if isinstance(entry, dict) and entry.get('visibility') == 'list'
-                    and isinstance(entry.get('slug'), str)}
-        except (OSError, ValueError, KeyError, TypeError):
-            return {}
+        return {entry['slug']: entry.get('description', '') for entry in codex_cache()}
     return {'openrouter/auto': 'Roteamento automático'}
+
+
+def local_details(backend):
+    """Metadados disponíveis sem rede: aliases do Claude e o cache de modelos do Codex."""
+    if backend == 'claude':
+        return models.claude_details()
+    if backend == 'codex':
+        return {entry['slug']: models.codex_details(entry) for entry in codex_cache()}
+    return {'openrouter/auto': {'description': 'O OpenRouter escolhe o modelo a cada pedido, conforme o conteúdo.'}}
 
 
 class ConfigPicker:
@@ -46,21 +60,51 @@ class ConfigPicker:
         self.pending = False
         self.catalog_status = ''
         self.catalog = local_models(backend)
+        self.details = local_details(backend)
         self.model_efforts = {}
         if backend == 'codex':
             self.load_native_efforts()
+        if backend == 'claude':
+            self.model_efforts = models.claude_catalog(models.cached_claude())[1]
         if model:
             self.catalog.setdefault(model, 'Modelo atual')
 
+    def summary(self, model):
+        """Texto curto ao lado do ID na lista: modelo servido, contexto e preço quando conhecidos."""
+        if model == '':
+            default = models.load_learned(self.backend).get('') if self.backend == 'claude' else None
+            listed = self.details.get('') or {}
+            if listed.get('served'):
+                return ' · '.join(part for part in (listed.get('name'), listed['served']) if part)
+            return default['id'] if default else 'definido fora do Centaur'
+        if model is None:
+            return 'informar um ID ou alias'
+        return models.summary(model, self.details.get(model)) or self.catalog.get(model, '')
+
+    def detail(self, model):
+        return models.detail_lines(self.backend, model, self.details.get(model) if model is not None else None)
+
+    def effort_label(self):
+        return 'Padrão do provedor' if self.effort == 'default' else self.effort
+
+    def model_label(self):
+        """Modelo escolhido, com o que o identifica, para a revisão e o resumo."""
+        if not self.model:
+            return models.DEFAULT_LABELS[self.backend]
+        extra = self.summary(self.model)
+        return self.model + (' · ' + extra if extra else '')
+
     @property
     def values(self):
-        return [self.backend, self.model or 'Padrão do provedor', self.effort,
+        return [models.BACKEND_LABELS[self.backend], self.model_label(), self.effort_label(),
                 MODE_LABELS[self.approval_mode], 'Rápido · maior uso/custo' if self.speed == 'fast' else 'Padrão',
                 *(['Cadastrar ou substituir chave'] if self.backend == 'openrouter' else []), 'Enter para salvar']
 
     def options(self):
         if self.page == 'backend':
-            return [(value, value) for value in BACKENDS]
+            labels = {'openrouter': 'OpenRouter · API key e créditos', 'codex': 'Codex · autenticação do CLI local',
+                      'claude': 'Claude · autenticação do CLI local'}
+            return [(value, labels[value]) for value in BACKENDS]
         if self.page == 'permissions':
             return [(value, MODE_LABELS[value]) for value in APPROVAL_MODES]
         if self.page == 'speed':
@@ -70,11 +114,16 @@ class ConfigPicker:
             return choices
         if self.page == 'effort':
             levels = self.model_efforts.get(self.model, effort_options(self.backend))
-            return [(value, 'Padrão do provedor' if value == 'default' else value)
-                    for value in levels if value in effort_options(self.backend)]
-        models = [(name, name) for name in sorted(self.catalog)
-                  if self.query.casefold() in name.casefold()]
-        return [('', 'Padrão do provedor'), (None, 'Modelo personalizado…'), *models]
+            descriptions = {'default': 'Padrão do provedor', 'none': 'none · Sem raciocínio adicional',
+                            'minimal': 'minimal · Mínimo', 'low': 'low · Baixo', 'medium': 'medium · Equilibrado',
+                            'high': 'high · Alto', 'xhigh': 'xhigh · Muito alto', 'max': 'max · Máximo'}
+            return [(value, descriptions[value]) for value in levels if value in effort_options(self.backend)]
+        # O catálogo público é longo e fica em ordem alfabética; os nativos seguem a ordem do provedor.
+        names = sorted(self.catalog) if self.backend == 'openrouter' else list(self.catalog)
+        query = self.query.casefold()
+        listed = [(name, name) for name in names
+                  if query in name.casefold() or query in str((self.details.get(name) or {}).get('name', '')).casefold()]
+        return [('', 'Padrão do provedor'), (None, 'Modelo personalizado…'), *listed]
 
     def load_native_efforts(self):
         path = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))) / 'models_cache.json'
@@ -86,9 +135,10 @@ class ConfigPicker:
         except (OSError, ValueError, KeyError, TypeError):
             self.model_efforts = {}
 
-    def update_catalog(self, backend, catalog, efforts, error=''):
+    def update_catalog(self, backend, catalog, efforts, error='', details=None):
         if self.backend != backend:
             return
+        self.details.update({name: value for name, value in (details or {}).items() if isinstance(value, dict)})
         choices = self.options()
         current = choices[min(self.selected, len(choices) - 1)][0]
         for name, description in catalog.items():
@@ -163,9 +213,12 @@ class ConfigPicker:
                     self.backend, self.model, self.effort = value, '', 'default'
                     self.speed, self.speed_support = 'standard', local_speed_support(value)
                     self.catalog = local_models(value)
+                    self.details = local_details(value)
                     self.model_efforts = {}
                     if value == 'codex':
                         self.load_native_efforts()
+                    if value == 'claude':
+                        self.model_efforts = models.claude_catalog(models.cached_claude())[1]
                     self.catalog_status = ''
             elif self.page == 'effort':
                 self.effort = value

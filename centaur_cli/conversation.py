@@ -67,6 +67,8 @@ def tool_activity(call, result=None):
         'read_file': ('Lendo', 'Leu', 'path'), 'read_skill': ('Consultando skill', 'Consultou skill', 'path'),
         'list_files': ('Listando', 'Listou', 'path'), 'write_file': ('Gravando', 'Gravou', 'path'),
         'run_command': ('Executando', 'Executou', 'command'),
+        'edit_file': ('Editando', 'Editou', 'path'), 'glob': ('Procurando arquivos', 'Procurou arquivos', 'pattern'),
+        'grep': ('Buscando', 'Buscou', 'pattern'), 'command_output': ('Consultando comando', 'Consultou comando', 'id'),
         'delegate_task': ('Delegando', 'Delegou', 'title'),
         'agent_status': ('Consultando agentes', 'Consultou agentes', 'agent_id'),
         'send_agent_message': ('Enviando orientação', 'Orientação enviada', 'agent_id'),
@@ -78,6 +80,9 @@ def tool_activity(call, result=None):
         'computer_observe': ('Observando tela', 'Observou tela', 'frame_id'),
         'computer_stop': ('Parando captura', 'Parou captura', 'frame_id'),
     }
+    if name == 'update_plan':
+        # O resultado já é o plano formatado; antes dele, só o aviso de atualização.
+        return str(result) if result is not None and str(result).startswith('Plano · ') else '○ Atualizando plano'
     pending, done, field = labels.get(name, ('Consultando', 'Consultou', 'path'))
     detail = ' '.join(str(args.get(field) or name).split())[:100]
     if result is None:

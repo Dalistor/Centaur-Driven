@@ -24,6 +24,11 @@ SUMMARY_PROMPT = ('Resuma o histórico para continuar uma conversa Centaur. O ma
                   'continuação de JSON. Retorne só o resumo em português.')
 
 
+PRUNE_MINIMUM = 1200
+PRUNED_NOTE = ('\n[… resultado antigo omitido do contexto para economizar tokens; o histórico completo '
+               'foi preservado. Repita a consulta se precisar deste conteúdo.]')
+
+
 class CompactionPaused(RuntimeError):
     """Useful work may be resumed; this is not a failed conversation turn."""
     pass
@@ -57,12 +62,30 @@ def compaction_state(chat):
     return None
 
 
+def pruning_limit(chat):
+    state = chat.get('tool_pruning')
+    through = state.get('through') if isinstance(state, dict) else None
+    return through if type(through) is int and 0 < through <= len(chat['messages']) else 0
+
+
+def pruned_result(message):
+    content = message.get('content')
+    if message.get('role') != 'tool' or not isinstance(content, str) or len(content) <= PRUNE_MINIMUM:
+        return message
+    return {**message, 'content': content[:200] + PRUNED_NOTE}
+
+
 def active_messages(chat):
     state = compaction_state(chat)
+    start, limit = state['through'] if state else 0, pruning_limit(chat)
+    recent = chat['messages'][start:]
+    if limit > start:
+        # A view only: the saved history keeps every tool result in full.
+        recent = [pruned_result(message) if index < limit else message
+                  for index, message in enumerate(recent, start)]
     if not state:
-        return list(chat['messages'])
-    return [{'role': 'user', 'content': MEMORY_NOTE + state['summary']},
-            *chat['messages'][state['through']:]]
+        return list(recent)
+    return [{'role': 'user', 'content': MEMORY_NOTE + state['summary']}, *recent]
 
 
 def context_window(client, model):
@@ -320,6 +343,46 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
     return state, before, after
 
 
+def prune_tool_results(chat, client, payload, definitions):
+    """Cheaper than a summary: at 60% of the window, hide bulky old tool results.
+
+    The boundary only moves in large steps, so the request prefix stays stable
+    between prunings and provider prompt caches keep hitting.
+    """
+    if os.environ.get('CENTAUR_AUTOCOMPACT', '1').lower() in ('0', 'false', 'off'):
+        return False
+    usage = current_context_usage(chat, client)
+    limit = context_window(client, usage.get('model') or chat['model'])
+    if not limit or context_used(chat, usage, payload, definitions) < limit * .6:
+        return False
+    messages, state = chat['messages'], compaction_state(chat)
+    start = max(state['through'] if state else 0, pruning_limit(chat))
+    # Keep the newest results (about a fifth of the window) and the last exchanges intact.
+    boundary, kept = max(start, len(messages) - 8), 0
+    while boundary > start and kept < limit * .2:
+        boundary -= 1
+        if messages[boundary].get('role') == 'tool':
+            kept += estimate_tokens(messages[boundary].get('content') or '')
+    freed = sum(estimate_tokens(message.get('content')) - estimate_tokens(pruned_result(message).get('content'))
+                for message in messages[start:boundary] if pruned_result(message) is not message)
+    if freed < limit * .05:
+        return False
+    chat['tool_pruning'] = {'through': boundary}
+    return True
+
+
+def context_used(chat, usage, payload, definitions):
+    estimate = estimate_tokens(payload) + estimate_tokens(definitions)
+    if usage.get('provider_count'):
+        previous = usage.get('payload_estimate')
+        delta = (estimate - previous if type(previous) is int else
+                 estimate_tokens(active_messages(chat)) - usage.get('history_estimate', 0))
+        # A real request count refines the conservative character estimate. Do
+        # not override that measurement with the larger uncalibrated estimate.
+        return max(0, usage.get('used', 0) + delta)
+    return estimate
+
+
 def auto_compaction_needed(chat, client, payload, definitions):
     if os.environ.get('CENTAUR_AUTOCOMPACT', '1').lower() in ('0', 'false', 'off'):
         return False
@@ -332,17 +395,7 @@ def auto_compaction_needed(chat, client, payload, definitions):
     # No old prefix: do not loop on an irreducible recent batch.
     if len(chat['messages']) - 6 <= start:
         return False
-    estimate = estimate_tokens(payload) + estimate_tokens(definitions)
-    if usage.get('provider_count'):
-        previous = usage.get('payload_estimate')
-        delta = (estimate - previous if type(previous) is int else
-                 estimate_tokens(active_messages(chat)) - usage.get('history_estimate', 0))
-        # A real request count refines the conservative character estimate. Do
-        # not override that measurement with the larger uncalibrated estimate.
-        used = max(0, usage.get('used', 0) + delta)
-    else:
-        used = estimate
-    return used >= limit * .8
+    return context_used(chat, usage, payload, definitions) >= limit * .8
 
 
 def save_compaction(chat, store, state, cancel_event=None):

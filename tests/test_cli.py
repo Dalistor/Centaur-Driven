@@ -164,7 +164,7 @@ class CliTests(unittest.TestCase):
     def test_approved_write_is_visible_to_read_tool(self):
         tools = ProjectTools(self.root, lambda _: True)
         tools.execute('write_file', {'path': 'src/example.txt', 'content': 'Olá'})
-        self.assertEqual(tools.execute('read_file', {'path': 'src/example.txt'}), 'Olá')
+        self.assertEqual(tools.execute('read_file', {'path': 'src/example.txt'}), '1\tOlá')
 
     def test_shell_requires_approval(self):
         tools = ProjectTools(self.root, lambda _: False)
@@ -190,7 +190,7 @@ class CliTests(unittest.TestCase):
         chat['messages'].append({'role': 'user', 'content': 'Leia o arquivo'})
         run_turn(chat, Client(), ProjectTools(self.root, lambda _: False), self.store, lambda: None)
         self.assertEqual(requests[1][-1]['tool_call_id'], 'call-1')
-        self.assertEqual(requests[1][-1]['content'], 'contents')
+        self.assertEqual(requests[1][-1]['content'], '1\tcontents')
         self.assertEqual(self.store.list()[0]['messages'][-1]['content'], 'Arquivo consultado.')
 
     def test_interrupted_tool_is_not_reexecuted_on_resume(self):

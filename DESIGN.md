@@ -117,12 +117,33 @@ Textos largos são recortados por células, incluindo a janela de entrada e seu 
 `startup.StartupPicker` reutiliza `ConfigPicker` e o mesmo desenho para a sequência
 Backend → Modelo padrão → Effort → Permissões → Velocidade → revisão. O rodapé explica o agente principal e a
 seleção de modelos por task; erros de conexão têm prioridade nessa área. A tela inicial
-requer 40 × 18 e preserva escolhas ao redimensionar. Autenticação acontece depois da revisão,
+requer 40 × 18 e preserva escolhas ao redimensionar. A partir de 78 × 22 uma trilha
+(Conexão → Modelo → Effort → Permissões → Velocidade → Revisão) marca a etapa atual em verde,
+as concluídas em texto padrão e as pendentes atenuadas. Antes das escolhas, a abertura ocupa a
+tela sozinha: a Convergência centralizada (36 × 16, ou 26 × 10 em telas menores) com nome e
+assinatura, sem nenhum controle visível; qualquer tecla a pula, Ctrl+Q cancela, e ela termina
+0,8 s após a pose final. Movimento reduzido, fallback estático ou falta de espaço vão direto
+às escolhas. Depois dela, a partir de 104 × 24, a marca fica em repouso à direita dos controles
+(20 × 8 células, ou 26 × 10 com 30 linhas), sem legenda; o chat também começa com ela em repouso.
+O laço da abertura desconta o tempo de desenho para manter 30 quadros por segundo, e a malha é
+calculada antes do primeiro quadro. Faces voltadas para trás são descartadas antes da projeção.
+
+Na escolha de modelo, cada opção traz ao lado um resumo atenuado (nome com versão, modelo
+servido, janela de contexto e preço por 1M de tokens) e o item em foco abre um painel de até
+quatro linhas (Modelo, Servido, Limites, Preço, Aceita) no pé da lista. Em telas baixas a lista
+mantém até seis opções visíveis e o painel cede linhas. Campo ausente no catálogo não é exibido.
+O cabeçalho do chat acrescenta `→ modelo servido` quando o provedor informa um modelo diferente
+do alias ou roteador escolhido, e o modelo tem prioridade de largura sobre o caminho da pasta. Autenticação acontece depois da revisão,
 fora de curses para manter entrada de chave oculta; o chat e sua animação começam em seguida.
 
 `graphics.Renderer` é o dono da geometria, projeção, profundidade e luminosidade;
 `WelcomeAnimation` é o dono do relógio de tempo visível. A abertura faz uma volta completa de 360° em 4,8 s,
-com easing quintic, fade de entrada e pose frontal estável ao terminar. Cadência alvo: 30 FPS
+com easing quintic, fade de entrada e pose frontal estável ao terminar. No primeiro 1,1 s, com o giro
+ainda lento, a marca é traçada das caudas até a ponta comum, com um ponto de luz na frente do traço;
+nos 20% finais um brilho diagonal atravessa o relevo, alterando só a luminosidade, nunca a forma.
+O nome é soletrado entre 0,7 s e 1,9 s, a assinatura chega aos 2,1 s e as linhas de boas-vindas
+entram uma a uma a cada 90 ms. Fora do movimento (pose final, digitação, movimento reduzido,
+fallback estático) todos esses elementos aparecem de imediato. Cadência alvo: 30 FPS
 (33,33 ms, descontando o tempo de desenho). A cobertura contínua mantém a forma visível de lado. A malha é calculada uma vez; o último quadro é
 reutilizado quando estático. Palco limitado a 36 × 16 células, ou 26 × 10 no modo compacto.
 
@@ -155,7 +176,7 @@ a fonte e os valores de cor ficam sob controle do terminal do usuário.
 
 | Regra anterior | Evolução autorizada | Execução |
 | --- | --- | --- |
-| A marca aparece só na abertura | Convergência em relevo, arcos finos, giro e pose final | `graphics.Renderer`, `TerminalView.logo` |
+| A marca aparece só na abertura | Convergência em relevo, arcos finos, traço, giro, brilho e pose final; também ao lado da seleção inicial | `graphics.Renderer`, `TerminalView.logo`, `startup.StartupWizard` |
 | Cabeçalho mostra pasta/modelo | Acrescenta nome do chat, effort e estado | `TerminalView.draw` |
 | Esquerda abre histórico | Shift+← abre; esquerda edita | `Terminal.handle` |
 | Créditos no rodapé | Compartilha linha com contexto, sem sobreposição | `TerminalView.draw` |

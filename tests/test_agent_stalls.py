@@ -45,7 +45,7 @@ class AgentStallTests(unittest.TestCase):
         process.wait.side_effect = subprocess.TimeoutExpired('fixture', 2)
         tools = ProjectTools(self.root, lambda _: True)
         with patch('centaur_cli.tools.subprocess.Popen', return_value=process), \
-                patch('centaur_cli.tools.time.monotonic', side_effect=[0, 61]), \
+                patch('centaur_cli.tools.time.monotonic', side_effect=[0, 121]), \
                 patch('centaur_cli.tools.os.killpg'):
             result = tools.execute('run_command', {'command': 'fixture'})
         self.assertIn('não confirmou saída', result)

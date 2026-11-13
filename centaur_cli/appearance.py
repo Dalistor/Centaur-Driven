@@ -8,7 +8,7 @@ import unicodedata
 
 from .credits import CreditBalance, credit_label
 from .native_usage import native_label
-from .graphics import WelcomeAnimation, flat_symbol
+from .graphics import WelcomeAnimation, flat_symbol, mesh
 
 WORDMARK = 'C E N T A U R'
 TAGLINE = 'HUMAN INTENT. AMPLIFIED.'
@@ -173,19 +173,20 @@ class TerminalView:
         except curses.error:
             pass
 
-    def logo(self, screen, row, column, compact=False, terminal=None):
+    def logo(self, screen, row, column, compact=False, terminal=None, size=None, caption=True):
         self.graphic_visible = False
-        columns, rows = (26, 10) if compact else (36, 16)
+        columns, rows = size or ((26, 10) if compact else (36, 16))
         if os.environ.get('CENTAUR_GRAPHICS') == '0':
             self.animation.pause()
-            self.static_logo(screen, row, column, compact)
+            self.static_logo(screen, row, column, compact, size, caption)
             return
         try:
             '\u28ff'.encode(sys.stdout.encoding or 'utf-8')
         except (UnicodeEncodeError, LookupError):
             self.animation.pause()
-            self.static_logo(screen, row, column, compact)
+            self.static_logo(screen, row, column, compact, size, caption)
             return
+        mesh()  # Built once, before reading the clock, so the first frames are not delayed by it.
         frame = self.animation.frame(columns, rows, time.monotonic(),
                                      reduced=os.environ.get('CENTAUR_REDUCED_MOTION') == '1',
                                      editing=bool(terminal and terminal.draft))
@@ -205,11 +206,16 @@ class TerminalView:
                          ''.join(value.glyph for value in line[x:end]),
                          self.palette.graphic_style(cell.shade, cell.accent))
                 x = end
-        self.put(screen, row + rows + 1, column + (columns - len(WORDMARK)) // 2, WORDMARK)
-        self.put(screen, row + rows + 2, column + (columns - len(TAGLINE)) // 2, TAGLINE, 'muted')
+        if not caption:
+            return
+        # The name is spelled as the mark is drawn; the signature arrives once it faces front.
+        letters = round(len(WORDMARK) * self.animation.staged(.7, 1.2))
+        self.put(screen, row + rows + 1, column + (columns - len(WORDMARK)) // 2, WORDMARK[:letters])
+        if self.animation.staged(2.1):
+            self.put(screen, row + rows + 2, column + (columns - len(TAGLINE)) // 2, TAGLINE, 'muted')
 
-    def static_logo(self, screen, row, column, compact=False):
-        columns, rows = (26, 10) if compact else (36, 16)
+    def static_logo(self, screen, row, column, compact=False, size=None, caption=True):
+        columns, rows = size or ((26, 10) if compact else (36, 16))
         try:
             '█▀▄'.encode(sys.stdout.encoding or 'utf-8')
             ascii_only = False
@@ -219,6 +225,8 @@ class TerminalView:
         for index, line in enumerate(symbol):
             self.put(screen, row + index, column, line, 'green' if index >= rows // 2 else 'text')
         symbol_width = max(map(len, symbol))
+        if not caption:
+            return
         self.put(screen, row + len(symbol) + 1, column + max(0, (symbol_width - len(WORDMARK)) // 2), WORDMARK)
         self.put(screen, row + len(symbol) + 2, column + max(0, (symbol_width - len(TAGLINE)) // 2), TAGLINE, 'muted')
 
@@ -240,20 +248,27 @@ class TerminalView:
             self.animation.pause()
         commands = [('$spec', 'Planejar entrega'), ('$run master/0001', 'Executar spec'),
                     ('$check', 'Consultar projeto'), ('$skill', 'Instalar skill')]
-        self.put(screen, top, text_column, 'Centaur CLI', 'title')
-        self.put(screen, top + 1, text_column, 'Sua intenção. Mais alcance.', 'muted')
-        self.put(screen, top + 2, text_column, 'Intenção → contrato → entrega verificada', 'muted')
+        # While the mark is drawn the lines arrive one after another; otherwise all at once.
+        step = iter(range(32))
+        def arrives():
+            return self.animation.staged(.25 + .09 * next(step))
+        for offset, (text, style) in enumerate((('Centaur CLI', 'title'), ('Sua intenção. Mais alcance.', 'muted'),
+                                                ('Intenção → contrato → entrega verificada', 'muted'))):
+            if arrives():
+                self.put(screen, top + offset, text_column, text, style)
         for index, (command, description) in enumerate(commands[:max(0, available - 5)], top + 4):
-            self.put(screen, index, text_column, command, 'green')
-            self.put(screen, index, text_column + 19, description)
+            if arrives():
+                self.put(screen, index, text_column, command, 'green')
+                self.put(screen, index, text_column + 19, description)
         if available >= 11:
-            self.put(screen, top + 9, text_column, '$status  Árvore das specs', 'blue')
-            self.put(screen, top + 10, text_column, '$config  Modelo e effort', 'blue')
-        if available >= 13 or available < 11:
+            for offset, text in enumerate(('$status  Árvore das specs', '$config  Modelo e effort'), 9):
+                if arrives():
+                    self.put(screen, top + offset, text_column, text, 'blue')
+        if (available >= 13 or available < 11) and arrives():
             self.put(screen, top + min(12, available - 1), text_column,
                      '$ skills · @ adicionais · Shift+← chats', 'muted')
         if (width >= 76 and available >= 15 and self.graphic_visible
-                and os.environ.get('CENTAUR_REDUCED_MOTION') != '1'):
+                and os.environ.get('CENTAUR_REDUCED_MOTION') != '1' and arrives()):
             self.put(screen, top + 14, text_column, 'F5 · Repetir animação', 'muted')
 
     def input_field(self, screen, row, column, value, width, prefix='› ', vertical_padding=False):
@@ -272,7 +287,14 @@ class TerminalView:
                    'permissions': '4/5 · Permissões', 'speed': '5/5 · Velocidade',
                    'fields': 'Tudo pronto para começar'}
         self.put(screen, top, 3, heading[picker.page] if startup else 'PREFERÊNCIAS DA IA', 'green')
-        self.put(screen, top + 1, 3, 'Revise sua escolha antes de iniciar o chat.' if startup
+        guidance = {'backend': 'Onde o agente roda e como o uso é cobrado.',
+                    'model': 'O modelo do agente principal · ↑↓ mostra os detalhes de cada opção.',
+                    'custom': 'Informe o ID exato ou um alias aceito pelo provedor.',
+                    'effort': 'Quanto o modelo raciocina antes de responder.',
+                    'permissions': 'O que o agente pode fazer sem perguntar.',
+                    'speed': 'Prioridade de atendimento do provedor.',
+                    'fields': 'Revise sua escolha antes de iniciar o chat.'}
+        self.put(screen, top + 1, 3, guidance[picker.page] if startup
                  else 'Escolha como a IA trabalha nesta pasta.', 'muted')
         if picker.page == 'fields':
             visible = max(1, available - 3)
@@ -282,9 +304,9 @@ class TerminalView:
                 style = 'selected' if index == picker.row else 'text'
                 self.put(screen, row, 2, ' ' * (width - 5), style)
                 self.put(screen, row, 3, f'{">" if index == picker.row else " "} {label}', style,
-                         width - 6 if index == len(picker.fields) - 1 else max(12, width // 2 - 3))
+                         width - 6 if index == len(picker.fields) - 1 else max(12, min(width // 2, 24) - 4))
                 if index != len(picker.fields) - 1:
-                    self.put(screen, row, width // 2, value, style)
+                    self.put(screen, row, min(width // 2, 24), value, style)
             if available > len(picker.fields) + 4:
                 self.put(screen, top + 3 + len(picker.fields), 3, 'Effort: raciocínio · Fast: pode custar mais.', 'muted')
                 self.put(screen, top + 4 + len(picker.fields), 3, 'Enter em Iniciar conversa confirma sua escolha.' if startup
@@ -303,13 +325,32 @@ class TerminalView:
                 self.input_field(screen, top + 4, FIELD_MARGIN, picker.query or 'todos', width - 9, 'Filtro: ')
             choices = picker.options()
             offset = 5 if picker.page == 'model' else 4
-            visible = max(1, available - offset)
+            # O painel do modelo em foco ocupa o pé da lista quando sobram linhas para ela.
+            detail = picker.detail(choices[min(picker.selected, len(choices) - 1)][0]) if picker.page == 'model' else []
+            # A lista mantém até seis opções à vista; em telas baixas ficam as linhas que mais distinguem o modelo.
+            room = available - offset - min(len(choices), 6) - 1
+            priority = ('Servido', 'Limites', 'Preço', 'Aceita', 'Modelo')
+            kept = sorted(detail, key=lambda line: priority.index(line[0]))[:max(0, room)]
+            detail = [line for line in detail if line in kept]
+            visible = max(1, available - offset - (len(detail) + 1 if detail else 0))
             start = max(0, picker.selected - visible + 1)
-            for index, (_, label) in enumerate(choices[start:start + visible]):
+            shown = choices[start:start + visible]
+            label_width = min(max((cell_width(label) for _, label in shown), default=0) + 4, max(18, (width - 8) // 2))
+            for index, (value, label) in enumerate(shown):
                 selected = start + index == picker.selected
                 style = 'selected' if selected else 'text'
                 self.put(screen, top + offset + index, 2, ' ' * (width - 5), style)
-                self.put(screen, top + offset + index, 3, f'{">" if selected else " "} {label}', style)
+                self.put(screen, top + offset + index, 3, f'{">" if selected else " "} {label}', style,
+                         label_width + 2 if picker.page == 'model' else None)
+                if picker.page == 'model' and width >= 60:
+                    self.put(screen, top + offset + index, 5 + label_width, fit_notice(picker.summary(value), width - label_width - 9),
+                             'text' if selected else 'muted')
+            if detail:
+                row = top + available - len(detail) - 1
+                self.put(screen, row, 3, '─' * (width - 7), 'line')
+                for line_offset, (name, text) in enumerate(detail, 1):
+                    self.put(screen, row + line_offset, 3, name, 'blue', 9)
+                    self.put(screen, row + line_offset, 13, fit_notice(text, width - 17), 'text')
             if picker.page == 'speed':
                 room = available - offset - len(choices[start:start + visible])
                 from .terminal import display_lines
@@ -509,7 +550,11 @@ class TerminalView:
             served = terminal.chat.get('speed_served')
             speed_label = ('Fast' if served in ('fast', 'priority') else 'Padrão (fallback)' if served in ('standard', 'default')
                            else 'Fast solicitado' if width >= 80 else 'Fast?') + ' · '
-        model = MODE_LABELS[terminal.approval_mode] + ' · ' + speed_label + terminal.backend + ' · ' + (terminal.chat['model'] or 'padrão')
+        # Um alias ou roteador não diz qual modelo respondeu: mostre o que o provedor informou.
+        served = next((name for name in reversed(terminal.chat.get('models_used') or []) if name), None)
+        chosen = terminal.chat['model'] or 'padrão'
+        model = (MODE_LABELS[terminal.approval_mode] + ' · ' + speed_label + terminal.backend + ' · ' + chosen
+                 + (' → ' + served if served and served != chosen else ''))
         if terminal.computer and terminal.computer.active:
             model = 'COMPUTADOR EM USO · ' + model
         elif terminal.computer and terminal.computer.resume_requested:
@@ -519,8 +564,10 @@ class TerminalView:
         model_style = 'warning' if terminal.approval_mode == 'never' else 'blue'
         self.put(screen, 2, transcript_left, fit_notice('◆ ' + terminal.chat['title'], transcript_width), 'title', transcript_width)
         if width >= 100:
-            self.put(screen, 3, transcript_left, str(terminal.root), 'muted', transcript_width // 2 - 2)
-            self.put(screen, 3, transcript_left + transcript_width // 2, fit_notice(model, transcript_width // 2), model_style, transcript_width // 2)
+            # O modelo tem prioridade sobre o caminho: é o que muda o comportamento da conversa.
+            model_width = max(transcript_width // 2, min(cell_width(model), transcript_width * 3 // 4))
+            self.put(screen, 3, transcript_left, str(terminal.root), 'muted', transcript_width - model_width - 2)
+            self.put(screen, 3, transcript_left + transcript_width - model_width, fit_notice(model, model_width), model_style, model_width)
         else:
             self.put(screen, 3, transcript_left, fit_notice(model, transcript_width), model_style, transcript_width)
         self.put(screen, 4, transcript_left, '─' * transcript_width, 'line')

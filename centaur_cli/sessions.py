@@ -62,7 +62,8 @@ def activity_label(root, chat_id, now=None):
               'tool:wait_agents': 'Aguardando subagentes',
               'tool:agent_status': 'Consultando agentes',
               'tool:send_agent_message': 'Enviando orientação',
-              'tool:run_command': 'Executando comando', 'tool:read_file': 'Lendo arquivo',
+              'tool:update_plan': 'Atualizando plano', 'tool:run_command': 'Executando comando', 'tool:edit_file': 'Editando arquivo',
+              'tool:glob': 'Procurando arquivos', 'tool:grep': 'Buscando no código', 'tool:command_output': 'Consultando comando', 'tool:read_file': 'Lendo arquivo',
               'tool:read_skill': 'Consultando skill', 'tool:write_file': 'Gravando arquivo',
               'tool:list_files': 'Consultando arquivos', 'tool:report_progress': 'Atualizando progresso',
               'tool:ask_user': 'Preparando pergunta'}

@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import threading
+import time
 import unittest
 from urllib.error import HTTPError, URLError
 from unittest.mock import patch
@@ -18,6 +19,7 @@ from centaur_cli.tools import ProjectTools, TOOLS
 class OpenRouterTests(unittest.TestCase):
     def setUp(self):
         self.client = OpenRouter('chat-secret', 'credits-secret')
+        self.client.retry_delays = ()  # Uma tentativa; a repetição tem testes próprios.
 
     def reply(self):
         return io.BytesIO(json.dumps({'model': 'provider/selected', 'choices': [
@@ -201,6 +203,152 @@ class OpenRouterTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'Resposta inválida.*list index out of range'):
                 self.client.complete('provider/fixed', [], [])
         self.assertEqual(request.call_count, 1)
+
+
+class TransportTests(unittest.TestCase):
+    def setUp(self):
+        self.client = OpenRouter('chat-secret')
+        self.client.retry_delays = (0, 0)
+
+    def body(self, value):
+        return io.BytesIO(json.dumps(value).encode())
+
+    def ok(self):
+        return self.body({'model': 'provider/selected', 'choices': [{'message': {'role': 'assistant', 'content': 'Olá'}}]})
+
+    def http(self, code, headers=None):
+        return HTTPError('https://openrouter.ai/api/v1/chat/completions', code, 'API error', headers or {},
+                         io.BytesIO(json.dumps({'error': {'code': code, 'message': 'Sobrecarga'}}).encode()))
+
+    def stream(self, *events, done=True):
+        response = io.BytesIO(b''.join(
+            (event if isinstance(event, bytes) else b'data: ' + json.dumps(event).encode()) + b'\n\n' for event in events)
+            + (b'data: [DONE]\n\n' if done else b''))
+        response.headers = {'Content-Type': 'text/event-stream; charset=utf-8'}
+        return response
+
+    def test_transient_failures_are_retried_and_the_reply_is_used(self):
+        failures = [self.http(429), URLError('connection reset'), self.body({'error': {'code': 502, 'message': 'Provider'}})]
+        for failure in failures:
+            with self.subTest(failure=failure), patch('centaur_cli.openrouter.urlopen', side_effect=[failure, self.ok()]) as request:
+                self.assertEqual(self.client.complete('provider/fixed', [], [])['content'], 'Olá')
+                self.assertEqual(request.call_count, 2)
+
+    def test_retries_are_bounded_and_permanent_errors_are_not_repeated(self):
+        with patch('centaur_cli.openrouter.urlopen', side_effect=[self.http(503), self.http(503), self.http(503)]) as request:
+            with self.assertRaisesRegex(RuntimeError, 'HTTP 503: Sobrecarga'):
+                self.client.complete('provider/fixed', [], [])
+        self.assertEqual(request.call_count, 3)
+        for failure in (self.http(401), self.http(402), URLError(TimeoutError('timed out'))):
+            with self.subTest(failure=failure), patch('centaur_cli.openrouter.urlopen', side_effect=[failure, self.ok()]) as request:
+                with self.assertRaises((RuntimeError, RequestTimeout)):
+                    self.client.complete('provider/fixed', [], [])
+                self.assertEqual(request.call_count, 1)
+
+    def test_retry_wait_is_cancellable_and_never_exceeds_the_request_deadline(self):
+        cancel = threading.Event()
+        self.client.retry_delays = (30,)
+        threading.Timer(.2, cancel.set).start()
+        with patch.object(self.client, 'request_json', side_effect=URLError('reset')) as request:
+            with self.assertRaises(TurnCancelled):
+                self.client.complete('provider/fixed', [], [], cancel_event=cancel)
+        self.assertEqual(request.call_count, 1)
+        with patch('centaur_cli.openrouter.urlopen', side_effect=[self.http(503), self.ok()]) as request:
+            with self.assertRaises(RequestTimeout):
+                self.client.complete('provider/fixed', [], [], request_timeout=5)
+        self.assertEqual(request.call_count, 1)
+
+    def test_stream_is_assembled_into_the_same_validated_reply(self):
+        seen = []
+        events = [b': OPENROUTER PROCESSING',
+                  {'model': 'provider/selected', 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': 'Vou '}}]},
+                  {'choices': [{'index': 0, 'delta': {'content': 'ler.', 'reasoning_details': [
+                      {'type': 'reasoning.text', 'index': 0, 'text': 'pen'}]}}]},
+                  {'choices': [{'index': 0, 'delta': {'reasoning_details': [
+                      {'type': 'reasoning.text', 'index': 0, 'text': 'sando', 'signature': None}]}}]},
+                  {'choices': [{'index': 0, 'delta': {'reasoning_details': [
+                      {'type': 'reasoning.text', 'index': 0, 'signature': 'assinatura'}]}}]},
+                  {'choices': [{'index': 0, 'delta': {'tool_calls': [{'index': 0, 'id': 'a', 'type': 'function',
+                      'function': {'name': 'read_file', 'arguments': '{"pa'}}]}}]},
+                  {'choices': [{'index': 0, 'delta': {'tool_calls': [{'index': 0, 'function': {'arguments': 'th":"x.py"}'}},
+                      {'index': 1, 'id': 'b', 'function': {'name': 'list_files', 'arguments': '{"path":"."}'}}]}}]},
+                  {'choices': [{'index': 0, 'finish_reason': 'tool_calls', 'delta': {}}],
+                   'usage': {'prompt_tokens': 12, 'completion_tokens': 5}}]
+        with patch('centaur_cli.openrouter.urlopen', return_value=self.stream(*events)) as request:
+            reply = self.client.complete('provider/fixed', [], TOOLS, on_delta=seen.append)
+        self.assertIs(json.loads(request.call_args.args[0].data)['stream'], True)
+        self.assertEqual(reply['content'], 'Vou ler.')
+        self.assertEqual(seen[-1], 'Vou ler.')
+        self.assertEqual([(call['id'], call['function']['name'], json.loads(call['function']['arguments'])) for call in reply['tool_calls']],
+                         [('a', 'read_file', {'path': 'x.py'}), ('b', 'list_files', {'path': '.'})])
+        self.assertEqual(reply['reasoning_details'], [{'type': 'reasoning.text', 'index': 0, 'text': 'pensando', 'signature': 'assinatura'}])
+        self.assertEqual((reply.model, reply.usage['prompt_tokens']), ('provider/selected', 12))
+
+    def test_interrupted_or_failed_stream_never_yields_a_partial_reply(self):
+        partial = {'choices': [{'index': 0, 'delta': {'content': 'Metade', 'tool_calls': [
+            {'index': 0, 'id': 'a', 'function': {'name': 'write_file', 'arguments': '{"path":"x","content":"y"}'}}]}}]}
+        self.client.retry_delays = ()
+        with patch('centaur_cli.openrouter.urlopen', return_value=self.stream(partial, done=False)):
+            with self.assertRaisesRegex(RuntimeError, 'Falha de conexão.*Nenhuma ferramenta'):
+                self.client.complete('provider/fixed', [], TOOLS)
+        failed = {'error': {'code': 400, 'message': 'Provider refused'}, 'choices': [{'index': 0, 'finish_reason': 'error', 'delta': {}}]}
+        with patch('centaur_cli.openrouter.urlopen', return_value=self.stream(partial, failed)):
+            with self.assertRaisesRegex(RuntimeError, 'Provider refused'):
+                self.client.complete('provider/fixed', [], TOOLS)
+        self.client.retry_delays = (0,)
+        seen = []
+        final = {'choices': [{'index': 0, 'finish_reason': 'stop', 'delta': {'content': 'Inteira'}}]}
+        with patch('centaur_cli.openrouter.urlopen', side_effect=[self.stream(partial, done=False), self.stream(final)]):
+            self.assertEqual(self.client.complete('provider/fixed', [], TOOLS, on_delta=seen.append)['content'], 'Inteira')
+        self.assertEqual(seen, ['Metade', '', 'Inteira'])
+
+    def test_cancelled_stream_stops_reading_and_closes_the_connection(self):
+        cancel, entered = threading.Event(), threading.Event()
+        class Stream(io.BytesIO):
+            headers = {'Content-Type': 'text/event-stream'}
+            consumed = 0
+            def __next__(inner):
+                inner.consumed += 1
+                entered.set()
+                time.sleep(.05)
+                return b'data: ' + json.dumps({'choices': [{'index': 0, 'delta': {'content': 'x'}}]}).encode() + b'\n'
+        response = Stream()
+        errors = []
+        def run():
+            try:
+                self.client.complete('provider/fixed', [], TOOLS, cancel_event=cancel)
+            except Exception as error:
+                errors.append(error)
+        with patch('centaur_cli.openrouter.urlopen', return_value=response):
+            worker = threading.Thread(target=run)
+            worker.start()
+            self.assertTrue(entered.wait(2))
+            cancel.set()
+            worker.join(2)
+            self.assertFalse(worker.is_alive())
+            self.assertIsInstance(errors[0], TurnCancelled)
+            deadline = time.monotonic() + 2
+            while not response.closed and time.monotonic() < deadline:
+                time.sleep(.01)
+        self.assertTrue(response.closed)
+        self.assertLess(response.consumed, 20)
+
+    def test_anthropic_requests_mark_the_prompt_for_caching_and_fall_back_when_refused(self):
+        with patch('centaur_cli.openrouter.urlopen', return_value=self.ok()) as request:
+            self.client.complete('anthropic/claude-sonnet', [{'role': 'user', 'content': 'Olá'}], [])
+        self.assertEqual(json.loads(request.call_args.args[0].data)['cache_control'], {'type': 'ephemeral'})
+        with patch('centaur_cli.openrouter.urlopen', return_value=self.ok()) as request:
+            self.client.complete('openai/gpt', [{'role': 'user', 'content': 'Olá'}], [])
+        self.assertNotIn('cache_control', json.loads(request.call_args.args[0].data))
+        with patch('centaur_cli.openrouter.urlopen', side_effect=[self.http(400), self.ok()]) as request:
+            self.assertEqual(self.client.complete('anthropic/claude-sonnet', [], [])['content'], 'Olá')
+        self.assertNotIn('cache_control', json.loads(request.call_args.args[0].data))
+        self.assertFalse(self.client.cache)
+        self.client.cache = True
+        with patch('centaur_cli.openrouter.urlopen', side_effect=[self.http(400), self.http(400)]) as request:
+            with self.assertRaisesRegex(RuntimeError, 'HTTP 400'):
+                self.client.complete('anthropic/claude-sonnet', [], [])
+        self.assertTrue(self.client.cache)
 
 
 if __name__ == '__main__':
