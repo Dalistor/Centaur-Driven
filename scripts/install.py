@@ -12,7 +12,7 @@ import uuid
 OBSOLETE = 'centaur-driven-commitAndPush'
 LEGACY_PREFIX = 'centaur-driven-'
 INTERNAL = '_internal'
-RETIRED = ('memory', 'centaur-driven-memory')
+RETIRED = ('memory', 'centaur-driven-memory', 'deploy', 'centaur-driven-deploy')  # deploy virou ops
 
 
 def reject_symlink(path):

@@ -13,11 +13,9 @@ metadata:
 
 Leia a [especificação do sistema](../graphify/references/specification.md). Registre requisitos funcionais e não funcionais em `rules`, e atores, casos de uso e modelo de dados em `specification` no contrato. Evite duplicar a definição; conecte regras a código, testes e evidências.
 
-Para operações de memória, chame a [subskill interna memory](../_internal/memory/SKILL.md): leia suas instruções, informe operação e escopo e use seu contrato. Ela encapsula a dependência ai-memory; consulta permanece somente leitura e registros respeitam a posse de executor/coordenador. Não configure nem migre o backend como efeito colateral.
+## Contratos compartilhados
 
-## Ciclo por contratos — obrigatório
-
-Leia o [ciclo por contratos e evidências](../graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
+Leia o [ciclo por contratos e evidências](../graphify/references/lifecycle.md) ao criar contratos, estado e registros: é a fonte única de estados, aprovação, autonomia, gates e próximos passos. Para memória, use a [subskill interna memory](../_internal/memory/SKILL.md) quando for consultar ou registrar; não configure nem migre o backend por efeito colateral. Nunca converta checklist em prova de comportamento.
 
 ## Memória de implementações
 

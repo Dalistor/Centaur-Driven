@@ -1,6 +1,7 @@
 """Keyboard protocols, including modified Enter and atomic bracketed paste."""
 
 from contextlib import contextmanager
+import os
 import curses
 from dataclasses import dataclass
 import re
@@ -33,6 +34,62 @@ def keyboard_protocol(stream=None, *, plain=False):
             stream.write('\x1b[<1u\x1b[>4;2m\x1b[?2004h\x1b[?1004h' if plain else
                          '\x1b[?1004l\x1b[?2004l\x1b[>4m\x1b[<1u')
             stream.flush()
+
+
+class ShiftProbe:
+    """Shift está pressionado agora? Consulta direta ao X11.
+
+    Emuladores sem protocolo de teclas modificadas (GNOME Terminal até o VTE 0.80, por
+    exemplo) enviam o mesmo byte para Enter e Shift+Enter. Numa sessão X11 local dá para
+    perguntar ao servidor gráfico o estado do teclado; em Wayland, SSH ou sem libX11 a
+    resposta é sempre "não" e valem Ctrl+J, Alt+Enter ou "\\" antes do Enter.
+    """
+    def __init__(self):
+        self.ready, self.library, self.display, self.codes = False, None, None, ()
+        # Só a sessão interativa liga a consulta: fora dela, o teclado físico não diz nada sobre a entrada lida.
+        self.enabled = False
+
+    def connect(self):
+        self.ready = True
+        if (os.environ.get('CENTAUR_SHIFT_PROBE') == '0' or not os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')
+                or os.environ.get('XDG_SESSION_TYPE') == 'wayland' or os.environ.get('SSH_CONNECTION')):
+            return
+        try:
+            import ctypes
+            import ctypes.util
+            name = ctypes.util.find_library('X11')
+            if not name:
+                return
+            library = ctypes.CDLL(name)
+            library.XOpenDisplay.restype = ctypes.c_void_p
+            library.XOpenDisplay.argtypes = [ctypes.c_char_p]
+            library.XKeysymToKeycode.restype = ctypes.c_ubyte
+            library.XKeysymToKeycode.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+            library.XQueryKeymap.argtypes = [ctypes.c_void_p, ctypes.c_char * 32]
+            display = library.XOpenDisplay(None)
+            if not display:
+                return
+            codes = tuple(code for code in (library.XKeysymToKeycode(display, symbol) for symbol in (0xFFE1, 0xFFE2)) if code)
+            self.library, self.display, self.codes, self.buffer = library, display, codes, (ctypes.c_char * 32)()
+        except (OSError, AttributeError, ValueError):
+            self.library = None
+
+    def held(self):
+        if not self.enabled:
+            return False
+        if not self.ready:
+            self.connect()
+        if not self.library or not self.codes:
+            return False
+        try:
+            self.library.XQueryKeymap(self.display, self.buffer)
+            keys = self.buffer.raw
+            return any(keys[code >> 3] & (1 << (code & 7)) for code in self.codes)
+        except (OSError, ValueError):
+            return False
+
+
+SHIFT = ShiftProbe()
 
 
 def decode_sequence(sequence):
@@ -128,6 +185,8 @@ class KeyboardReader:
                     name = None
                 if name in (b'kxIN', b'kxOUT'):
                     return KEY_FOCUS_IN if name == b'kxIN' else KEY_FOCUS_OUT
+            if key == '\r' and self.paste is None and SHIFT.held():
+                return KEY_NEWLINE  # Enter com Shift num emulador que não distingue os dois.
             if key != '\x1b':
                 return key
             self.escape = ''

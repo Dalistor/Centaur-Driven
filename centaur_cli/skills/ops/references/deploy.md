@@ -1,18 +1,8 @@
----
-name: deploy
-description: Prepara GitHub Actions para deploy limpo em VPS, com integridade, transferência com retry, ativação sem interrupção e rollback; configura acessos disponíveis e orienta os próximos passos, sem publicar.
-metadata:
-  version: 5.0.0
-  dependencies: clean-code
----
+# Publicação (deploy)
 
-# Preparar deploy via GitHub Actions
+Publicar o artefato que foi testado, trocar o tráfego sem interrupção e poder voltar. Este guia cobre VPS com GitHub Actions por SSH, o caso em que nada gerencia a publicação por você. Em PaaS ou nuvem com deploy gerenciado, use o mecanismo do provedor e aplique daqui os princípios: artefato único, health check antes e depois da troca, rollback ensaiado e credencial de curta duração (OIDC em vez de chave estática, quando o provedor aceitar).
 
-Entregue o workflow, os scripts necessários e instruções específicas para o projeto. **Não conecte à VPS, não faça deploy direto, não dispare Actions e não faça commit/push como parte desta skill.** Uma solicitação separada e explícita pode autorizar essas ações. Configurar Environment, variables e secrets no GitHub faz parte da preparação quando houver autenticação e permissões suficientes.
-
-## 1. Entender o projeto e escolher o gatilho
-
-Carregue a skill `clean-code` e suas referências pertinentes ao escrever workflows/scripts. Leia `AGENTS.md`, configuração de build, testes, runtime e infraestrutura. Use busca local; Graphify é opcional, sob demanda, sem indexação obrigatória. Respeite o contrato de memória vigente e registre a preparação em `.centaur/`.
+## 1. Escolher o gatilho e levantar os dados
 
 Pergunte se o usuário quer **push na `main` ou execução manual (`workflow_dispatch`)**, exceto se já tiver respondido nesta sessão. Não escolha automaticamente por ele. Manual contém somente `workflow_dispatch`; automático adiciona `push: branches: [main]` e pode manter execução manual.
 
@@ -20,7 +10,7 @@ Obtenha somente os dados ainda desconhecidos: repositório GitHub, Environment, 
 
 ## 2. Definir uma estratégia compatível com ausência de downtime
 
-**Estáticos:** use `templates/deploy-vps.yml` e os scripts desta skill. O servidor existente serve `<VPS_PATH>/current`, um link simbólico trocado por rename atômico no mesmo filesystem. Cada release contém somente o build limpo e recebe diretório próprio. O script verifica checksums, inicia um servidor HTTP candidato em loopback, verifica seu conteúdo, troca o link e verifica um marcador exclusivo pela URL servida. Falha restaura o link anterior e verifica a recuperação; releases antigos são preservados.
+**Estáticos:** use [`templates/deploy-vps.yml`](../templates/deploy-vps.yml) e os scripts em `../scripts/`. O servidor existente serve `<VPS_PATH>/current`, um link simbólico trocado por rename atômico no mesmo filesystem. Cada release contém somente o build limpo e recebe diretório próprio. O script verifica checksums, inicia um servidor HTTP candidato em loopback, verifica seu conteúdo, troca o link e verifica um marcador exclusivo pela URL servida. Falha restaura o link anterior e verifica a recuperação; releases antigos são preservados.
 
 Pré-requisitos a entregar ao usuário, sem executá-los na VPS:
 
@@ -56,7 +46,7 @@ Entregue também o comando de verificação com `IdentitiesOnly=yes`, `BatchMode
 
 - Workflow: `.github/workflows/deploy-vps.yml` (exceção necessária ao layout `.centaur/`, exigida pelo GitHub).
 - Scripts versionados: `.centaur/deploy/seal-static.sh`, `.centaur/deploy/activate-static.sh` e `.centaur/deploy/retry-transfer.sh`, ou equivalentes específicos do runtime.
-- Instruções: `.centaur/deploy/README.md` com gatilho escolhido, pré-requisitos, acessos configurados, pendências, execução, health, rollback, retenção e revogação.
+- Instruções: seção de publicação do runbook em `.centaur/ops/README.md` com gatilho escolhido, pré-requisitos, acessos configurados, pendências, execução, health, rollback, retenção e revogação.
 - Builds, chaves, logs e temporários: `.centaur/deploy/build/`, `artifact/`, `private/`, `logs/`, `tmp/`, ignorados pelo Git.
 
 O template é uma base deliberadamente bloqueada até substituir a etapa de integridade por instalação com lockfile, testes pertinentes e build limpo **reais do projeto**. Adapte a saída para `.centaur/deploy/build/site/`, evitando resíduos de builds anteriores. Não entregue esse `exit 1` como configuração concluída; quando faltarem decisões, mantenha-o e reporte a pendência.
@@ -67,7 +57,7 @@ Dois jobs: `integrity` produz um único artefato testado; `publish` declara `nee
 
 Retry aplica-se **somente à transferência idempotente para a release isolada**: três tentativas, esperas de 5 e 10 segundos e falha explícita ao esgotar. Nunca repetir ativação ou migrações indiscriminadamente. Cada tentativa de execução do Actions usa um ID novo, incluindo `run_attempt`, preservando releases anteriores. `--delete` fica restrito à nova release. Limpeza de versões é posterior à validação, exclui ativa/anterior e respeita janela de cache e drenagem; o template preserva todas por padrão até definir a política.
 
-Valide YAML com parser disponível, `bash -n` nos scripts e `actionlint` quando disponível. Rode os testes do projeto e testes locais das transições/falhas dos scripts. Não confunda essas verificações com um deploy remoto validado.
+Actions fixadas por SHA completo, `persist-credentials: false` no checkout e permissões por job seguem o [endurecimento de workflows](ci.md#endurecimento-de-workflows); o modelo já vem assim. Rode testes locais das transições e falhas dos scripts. Essas verificações não são um deploy remoto validado.
 
 ## 5. Configurar o GitHub quando houver permissão
 
@@ -91,7 +81,7 @@ Esses comandos são modelos: substitua valores e Environment pelo que foi descob
 
 Informe exatamente o que foi gerado, validado localmente, configurado no GitHub e o que ainda depende do operador. Forneça os comandos para autorizar a chave, preparar a infraestrutura, publicar o workflow e executá-lo/acompanhá-lo (`gh workflow run`, `gh run list`, `gh run watch`), **sem executá-los**. Avise que push na main dispara publicação quando esse for o gatilho escolhido. Não declare ausência de downtime comprovada sem ensaio no ambiente alvo.
 
-Documente recuperação manual pelo link/upstream anterior, nomes de releases preservadas, limites do rollback e revogação (remover somente a chave pública dedicada do `authorized_keys` e apagar o secret correspondente). Registre o resultado como **preparação concluída** ou **preparação com pendências**, nunca deploy realizado. Nenhuma atualização Graphify obrigatória.
+Documente recuperação manual pelo link/upstream anterior, nomes de releases preservadas, limites do rollback e revogação (remover somente a chave pública dedicada do `authorized_keys` e apagar o secret correspondente). Registre o resultado como **preparação concluída** ou **preparação com pendências**, nunca deploy realizado.
 
 ## Referências oficiais
 

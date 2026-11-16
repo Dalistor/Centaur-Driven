@@ -291,13 +291,26 @@ class ComputerAccessTests(unittest.TestCase):
         self.assertFalse(self.control.permissions.granted(self.chat['id']))
         self.assertIsNone(self.control.lease.descriptor)
 
+    def test_virtual_consent_never_authorizes_the_real_desktop_and_is_not_a_downgrade(self):
+        permissions,chat=self.control.permissions,self.chat['id']
+        permissions.grant(chat,'virtual')
+        self.assertTrue(permissions.granted(chat,'virtual'));self.assertFalse(permissions.granted(chat))
+        permissions.grant(chat)
+        self.assertTrue(permissions.granted(chat));self.assertTrue(permissions.granted(chat,'virtual'))
+        permissions.grant(chat,'virtual');self.assertTrue(permissions.granted(chat))
+        permissions.path(chat).write_text(json.dumps({'schema':1,'id':chat,'granted':True}))  # Registro anterior ao escopo.
+        self.assertTrue(permissions.granted(chat))
+        permissions.path(chat).write_text(json.dumps({'schema':1,'id':chat,'granted':True,'scope':'outro'}))
+        self.assertFalse(permissions.granted(chat));self.assertFalse(permissions.granted(chat,'virtual'))
+        with self.assertRaises(ValueError):permissions.grant(chat,'outro')
+
     def test_late_consent_write_cannot_restore_revoked_permission(self):
         cancellation=threading.Event();entered=threading.Event();release=threading.Event()
         original=self.control.permissions.grant
-        def write(chat_id):
+        def write(chat_id,*scope):
             entered.set()
             if not release.wait(2):raise RuntimeError('fixture blocked')
-            original(chat_id)
+            original(chat_id,*scope)
         writer=threading.Thread(target=lambda:self.control.grant(self.chat['id'],cancellation))
         revoked=threading.Event()
         revoker=threading.Thread(target=lambda:(self.control.revoke(self.chat['id']),revoked.set()))

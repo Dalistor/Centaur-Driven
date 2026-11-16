@@ -1,5 +1,6 @@
 """Interface curses e navegação entre conversas."""
 
+import sys
 import copy
 import curses
 import json
@@ -25,6 +26,7 @@ from .speed import validate_speed, fast_supported
 from .native_usage import BalanceUnavailable
 from .completion import SkillCompletion
 from .conversation import TranscriptLine, generate_title, readable_markdown, tool_activity
+from .markdown import render as render_markdown
 from .tools import ProjectTools
 from .checkpoints import Checkpoints
 from . import models
@@ -39,12 +41,12 @@ from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 from .permissions import validate_mode, MODE_LABELS
 from . import grants
 from .interaction import QuestionPicker, TurnCancelled
-from .computer import ComputerSession
+from .computer import ComputerSession, DISPLAYS
 from .computer_access import ComputerControl
 from .composer import layout_input, attachment_span, atomic_cursor, replace_input, without_attachment_markers
 from .clipboard import clipboard_content, pasted_paths
 from .diagnostics import collect as collect_diagnostics, render as render_diagnostics
-from .keyboard import KEY_NEWLINE, KEY_IGNORE, KEY_FOCUS_IN, KEY_FOCUS_OUT, PastedText, KeyboardReader, keyboard_protocol, read_key
+from .keyboard import SHIFT, KEY_NEWLINE, KEY_IGNORE, KEY_FOCUS_IN, KEY_FOCUS_OUT, PastedText, KeyboardReader, keyboard_protocol, read_key
 
 
 def display_lines(text, width):
@@ -76,6 +78,9 @@ class SessionEvents:
     def put(self, event):
         self.events.put(('session', (self.chat_id, *event)))
 
+
+WHEEL_GAP = .008   # Setas iguais mais próximas que isto vêm da roda, não do teclado.
+WHEEL_HOLD = .15   # Depois de uma rajada, as setas seguintes continuam rolando.
 
 class Terminal:
     SESSION_DEFAULTS = {'busy': False, 'approval': None, 'question': None, 'diagnostic_report': None,
@@ -131,6 +136,7 @@ class Terminal:
         self.agent_parent_ids = set()
         self.agents_refreshed = 0
         self.agent_panel_scroll = 0
+        self.wheel_until = 0
         self.agent_panel_hits = []
         self.agent_panel_area = None
         self.input_hitbox = None
@@ -394,8 +400,10 @@ class Terminal:
         if action == 'revoke':
             if self.busy:
                 self.cancel_work()
+            display = DISPLAYS.find(chat_id)
             self.computer_control.revoke(chat_id)
-            self.notice = 'Computer use revogado neste chat · próxima utilização exige autorização.'
+            self.notice = ('Computer use revogado neste chat · ' + ('display virtual encerrado · ' if display else '')
+                           + 'próxima utilização exige autorização.')
         elif action == 'pause':
             self.computer_control.pause(chat_id)
             self.notice = 'Computador pausado · $computer resume retoma sem nova autorização.'
@@ -403,9 +411,13 @@ class Terminal:
             self.computer_control.resume(chat_id)
             self.notice = 'Computer use disponível · o agente retoma durante a tarefa.'
         elif action == 'status':
-            granted = self.computer_control.permissions.granted(chat_id)
+            permissions = self.computer_control.permissions
+            granted = ('deste chat ativa' if permissions.granted(chat_id) else
+                       'deste chat só para display virtual' if permissions.granted(chat_id, 'virtual') else 'não concedida')
             state = 'em uso' if self.computer and self.computer.active else 'pausado' if chat_id in self.computer_control.paused else 'parado'
-            self.notice = f'Computador {state} · autorização ' + ('deste chat ativa' if granted else 'não concedida') + ' · $computer pause/resume/revoke'
+            display = DISPLAYS.find(chat_id)
+            self.notice = (f'Computador {state} · autorização {granted}' + (f' · display virtual {display.name} aberto' if display else '')
+                           + ' · $computer pause/resume/revoke')
         else:
             self.notice = 'Uso: $computer [status|pause|resume|revoke] · Ctrl+G revoga imediatamente.'
             return
@@ -1380,6 +1392,8 @@ class Terminal:
         def append_text(text, style='text', indent=''):
             lines.extend(TranscriptLine(indent + line, style)
                          for line in display_lines(text, max(1, width - len(indent))))
+        def append_markdown(text, style='text', indent=''):
+            lines.extend(render_markdown(str(text), width, style, indent))
         current_chat = chat if chat is not None else self.agent_preview if self.browser and self.agent_preview else self.chat
         messages = list(current_chat['messages'])
         results = {m.get('tool_call_id'): m.get('content', '') for m in messages if m['role'] == 'tool'}
@@ -1396,12 +1410,12 @@ class Terminal:
                         content = str(report.get('report', ''))
                     except (ValueError, TypeError, IndexError, AttributeError):
                         pass
-                append_text(readable_markdown(content if self.show_details else content[:800] + ('… · Ctrl+O lê o relatório completo' if len(content) > 800 else '')), 'comment', '  ')
+                append_markdown(content if self.show_details else content[:800] + ('… · Ctrl+O lê o relatório completo' if len(content) > 800 else ''), 'comment', '  ')
                 lines.append(TranscriptLine(''))
             elif message['role'] == 'user':
                 working = False
                 lines.append(TranscriptLine(''))
-                append_text(content, 'user', '› ')
+                append_markdown(content, 'user', '› ')
                 for index, item in enumerate(message.get('attachments', []), 1):
                     append_text(f'  ▧ {index}. {item["name"]} · {item["kind"]} · {item["size"]:,} bytes', 'muted')
                 lines.append(TranscriptLine(''))
@@ -1410,7 +1424,7 @@ class Terminal:
                     lines.append(TranscriptLine('◦ Trabalho · Ctrl+O detalhes', 'muted'))
                     working = True
                 if content:
-                    append_text(readable_markdown(content), 'comment', '  ')
+                    append_markdown(content, 'comment', '  ')
                 for call_index, call in enumerate(message['tool_calls']):
                     actions[call['id']] = call
                     if call['function']['name'] == 'report_progress':
@@ -1425,7 +1439,7 @@ class Terminal:
             elif message['role'] == 'tool':
                 call = actions.get(message.get('tool_call_id'), {})
                 if call.get('function', {}).get('name') == 'report_progress':
-                    append_text(readable_markdown(content), 'comment', '  ')
+                    append_markdown(content, 'comment', '  ')
                 elif self.show_details:
                     lines.append(TranscriptLine('↳ Ferramenta', 'action'))
                     append_text(content)
@@ -1435,12 +1449,12 @@ class Terminal:
                     lines.append(TranscriptLine(''))
                     working = False
                 lines.append(TranscriptLine('◆ Centaur', 'green'))
-                append_text(readable_markdown(content))
+                append_markdown(content)
                 lines.append(TranscriptLine(''))
         if chat is None and self.busy and not self.approval and not self.agent_preview:
             if self.stream_text:
                 lines.append(TranscriptLine('◆ Centaur', 'green'))
-                append_text(readable_markdown(self.stream_text))
+                append_markdown(self.stream_text)
                 lines.append(TranscriptLine(''))
             append_text('◦ ' + self.view.activity(self, self.notice), 'muted')
         if current_chat.get('last_error'):
@@ -1560,6 +1574,31 @@ class Terminal:
         active = {agent['id'] for agent in self.active_agents}
         self.active_agents = [record for record in self.agent_tree.ordered() if record['id'] in active]
         self.agents_refreshed = time.monotonic()
+
+    def wheel(self, key, read):
+        """Roda do mouse com o ponteiro livre para seleção: (rolou?, tecla lida a mais).
+
+        Sem rastreamento de mouse, o emulador entrega cada passo da roda como uma rajada de
+        setas na tela alternativa. Setas idênticas chegando juntas não vêm do teclado.
+        """
+        if (key not in (curses.KEY_UP, curses.KEY_DOWN) or self.mouse_enabled or self.browser or self.settings
+                or self.rename_target or self.question or self.completion.visible):
+            return False, None
+        count, extra, burst, wait = 1, None, time.monotonic() < self.wheel_until, WHEEL_GAP
+        while count < 64:
+            extra = read(wait)
+            if extra != key:
+                break
+            count, extra, burst, wait = count + 1, None, True, .002
+        if not burst:
+            return False, extra
+        self.wheel_until = time.monotonic() + WHEEL_HOLD
+        delta = count if key == curses.KEY_UP else -count
+        if self.approval:
+            self.scroll = max(0, self.scroll + delta)
+        else:
+            self.scroll_chat(delta)
+        return True, extra
 
     def configure_mouse(self, enabled):
         # Native terminal selection owns the pointer by default. Opting into
@@ -1826,6 +1865,11 @@ class Terminal:
         elif key == '\x05':
             self.scroll = 0
         elif key in ('\r', curses.KEY_ENTER):
+            if self.cursor and self.draft[self.cursor - 1] == '\\':
+                # "\\" antes do Enter quebra a linha em qualquer terminal, como em outros CLIs.
+                self.prompt_history = self.prompt_index = None
+                self.replace_draft(self.cursor - 1, self.cursor, '\n')
+                return
             return self.submit()
         elif key in (curses.KEY_BACKSPACE, '\x7f', '\b'):
             self.prompt_history = self.prompt_index = None
@@ -1867,9 +1911,22 @@ class Terminal:
             except (AttributeError, curses.error):
                 pass
         self.configure_mouse(self.mouse_enabled)
+        if sys.stdout.isatty():
+            # Rolagem alternativa: a roda chega como setas mesmo sem rastrear o mouse (xterm não liga sozinho).
+            sys.stdout.write('\x1b[?1007h')
+            sys.stdout.flush()
         screen.timeout(100)
         keyboard = KeyboardReader()
+        SHIFT.enabled = sys.stdin.isatty()
         focused = True
+        pending = None
+
+        def read_soon(seconds):
+            screen.timeout(max(1, round(seconds * 1000)))
+            try:
+                return keyboard.read(screen, max(1, round(seconds * 1000)))
+            except curses.error:
+                return None
         while True:
             frame_start = time.monotonic()
             self.drain_events()
@@ -1894,10 +1951,13 @@ class Terminal:
             timeout = max(1, round((FRAME_SECONDS - (time.monotonic() - frame_start)) * 1000)) \
                 if focused and self.view.animation.active else 100
             screen.timeout(timeout)
-            try:
-                key = keyboard.read(screen, timeout)
-            except curses.error:
-                continue
+            if pending is not None:
+                key, pending = pending, None
+            else:
+                try:
+                    key = keyboard.read(screen, timeout)
+                except curses.error:
+                    continue
             if key in (KEY_FOCUS_IN, KEY_FOCUS_OUT):
                 focused = key == KEY_FOCUS_IN
                 if focused:
@@ -1914,6 +1974,9 @@ class Terminal:
                 # Recover even if a terminal drops its focus-in notification.
                 focused = True
                 screen.clearok(True)
+            scrolled, pending = self.wheel(key, read_soon)
+            if scrolled:
+                continue
             action = self.handle(key)
             if action == 'quit':
                 return

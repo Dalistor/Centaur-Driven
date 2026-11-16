@@ -1,0 +1,30 @@
+# Preparation template: replace the blocked step with the project's real commands.
+# Actions are pinned to full commit SHAs; .github/dependabot.yml (github-actions) keeps them current.
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions: {}
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      # Add the runtime setup the project needs (pinned by SHA) and its services, if any.
+      - name: Install from lockfile, lint, test and build
+        run: |
+          set -euo pipefail
+          # Replace with the project's real commands, in this order:
+          #   1. install strictly from the lockfile   2. format/lint/type-check
+          #   3. the test suite that gates merges      4. the production build
+          echo 'Configure the project install, lint, test and build commands before enabling CI' >&2
+          exit 1

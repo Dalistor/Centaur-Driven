@@ -2,6 +2,7 @@ import functools
 import hashlib
 import http.server
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -10,7 +11,8 @@ import threading
 import unittest
 
 
-SCRIPTS = Path(__file__).resolve().parents[1] / 'centaur_cli/skills/deploy' / 'scripts'
+SKILL = Path(__file__).resolve().parents[1] / 'centaur_cli/skills/ops'
+SCRIPTS = SKILL / 'scripts'
 
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -168,6 +170,39 @@ class DeployTests(unittest.TestCase):
         result, attempts = self.transfer(3)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(attempts, 3)
+
+
+class WorkflowTemplateTests(unittest.TestCase):
+    def workflows(self):
+        return {name: (SKILL / 'templates' / name).read_text() for name in ('ci.yml', 'deploy-vps.yml')}
+
+    def test_actions_are_pinned_to_full_commits_and_checkout_drops_the_token(self):
+        for name, text in self.workflows().items():
+            uses = re.findall(r'uses:\s*(\S+)', text)
+            self.assertTrue(uses, name)
+            for reference in uses:
+                self.assertRegex(reference, r'^[\w.-]+/[\w./-]+@[0-9a-f]{40}$', f'{name}: {reference}')
+            for checkout in re.finditer(r'uses: actions/checkout@.*\n((?:\s+.*\n){1,3})', text):
+                self.assertIn('persist-credentials: false', checkout.group(1), name)
+
+    def test_token_has_no_default_permissions_and_jobs_are_bounded(self):
+        for name, text in self.workflows().items():
+            self.assertIn('\npermissions: {}\n', text, name)
+            self.assertNotIn('write', re.sub(r'#.*', '', text), name)
+            jobs = re.findall(r'^  \w[\w-]*:\n    (?:needs: \w+\n    )?runs-on:', text, re.M)
+            self.assertEqual(len(jobs), text.count('timeout-minutes:'), name)
+            self.assertIsNone(re.search(r'run:[^\n]*\$\{\{', text), name)  # Entradas só por env.
+
+    def test_templates_stay_blocked_until_real_commands_replace_the_placeholder(self):
+        for name, text in self.workflows().items():
+            self.assertIn('exit 1', text, name)
+        self.assertNotIn('cancel-in-progress: true', self.workflows()['deploy-vps.yml'])
+        self.assertIn('package-ecosystem: github-actions', (SKILL / 'templates/dependabot.yml').read_text())
+
+    def test_skill_links_resolve_inside_the_package(self):
+        for document in [SKILL / 'SKILL.md', *sorted((SKILL / 'references').glob('*.md'))]:
+            for target in re.findall(r'\]\((?!https?:)([^)#]+)', document.read_text()):
+                self.assertTrue((document.parent / target).exists(), f'{document.name}: {target}')
 
 
 if __name__ == '__main__':

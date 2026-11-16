@@ -1,5 +1,6 @@
 # Preparation template: choose the trigger and replace integrity commands for the project.
 # Copy the three bundled scripts into .centaur/deploy/ before enabling this workflow.
+# Actions are pinned to full commit SHAs; .github/dependabot.yml (github-actions) keeps them current.
 # Static sites only. Existing server must serve VPS_PATH/current; see SKILL.md for runtime services.
 name: Deploy VPS
 on:
@@ -7,8 +8,7 @@ on:
   # Add ONLY if the user chooses automatic deploy:
   # push:
   #   branches: [main]
-permissions:
-  contents: read
+permissions: {}
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -16,8 +16,12 @@ jobs:
   integrity:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Tests and clean build
         run: |
           # Replace with actual dependency installation, tests and clean build commands.
@@ -30,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           bash .centaur/deploy/seal-static.sh .centaur/deploy/build/site .centaur/deploy/artifact
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release
           path: .centaur/deploy/artifact/
@@ -42,6 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
+    permissions: {}  # Publishes over SSH; the repository token is not needed here.
     env:
       RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
       VPS_HOST: ${{ vars.VPS_HOST }}
@@ -50,7 +55,7 @@ jobs:
       VPS_PATH: ${{ vars.VPS_PATH }}
       HEALTH_URL: ${{ vars.HEALTH_URL }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release
           path: .centaur/deploy/build

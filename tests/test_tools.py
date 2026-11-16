@@ -56,6 +56,36 @@ class ToolTests(unittest.TestCase):
         self.assertIn('3 substituições', tools.execute('edit_file', {'path': 'dup.txt', 'old_string': 'a', 'new_string': 'b', 'replace_all': True}))
         self.assertEqual((self.root / 'dup.txt').read_text(), 'b b b\n')
 
+    def test_view_image_attaches_a_project_image_once_and_never_reads_outside_the_project(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest('Pillow ausente')
+        import base64, io
+        Image.new('RGB', (3200, 1200), 'white').save(self.root / 'shot.png')
+        Image.new('RGB', (40, 20), 'red').save(self.root / 'small.jpg')
+        self.put('notes.txt', 'texto')
+        tools = self.tools()
+        self.assertEqual(tools.observation_messages(), [])
+        self.assertIn('reduzida para 1600×600', tools.execute('view_image', {'path': 'shot.png'}))
+        self.assertIn('recorte [3000, 1000, 200, 100]', tools.execute('view_image', {'path': 'shot.png', 'region': [3000, 1000, 200, 100]}))
+        self.assertIn('small.jpg · 40×20 px', tools.execute('view_image', {'path': 'small.jpg'}))
+        self.assertIn('Até 3 imagens', tools.execute('view_image', {'path': 'small.jpg'}))
+        message, = tools.observation_messages()
+        sizes = []
+        for block in message['content']:
+            if block['type'] == 'image_url':
+                prefix, data = block['image_url']['url'].split(',', 1)
+                self.assertEqual(prefix, 'data:image/png;base64')
+                sizes.append(Image.open(io.BytesIO(base64.b64decode(data))).size)
+        self.assertEqual(sizes, [(1600, 600), (200, 100), (40, 20)])
+        self.assertIn('não confiável', message['content'][0]['text'])
+        self.assertEqual(tools.observation_messages(), [])  # Efêmera: entregue uma única vez.
+        for arguments in ({'path': 'notes.txt'}, {'path': 'missing.png'}, {'path': '../outside.png'},
+                          {'path': 'shot.png', 'region': [0, 0, 3201, 10]}, {'path': 'shot.png', 'region': [0, 0, 10]}):
+            self.assertIn('Erro', tools.execute('view_image', arguments))
+        self.assertEqual(tools.observation_messages(), [])
+
     def test_edit_preserves_windows_line_endings(self):
         target = self.root / 'crlf.txt'
         target.write_bytes(b'um\r\ndois\r\ntres\r\n')

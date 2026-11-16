@@ -86,22 +86,27 @@ def probe_claude(command=None, timeout=15):
             try:
                 process.stdin.write(b'{"type":"control_request","request_id":"models","request":{"subtype":"initialize"}}\n')
                 process.stdin.flush()
-                deadline = time.monotonic() + timeout
+                deadline, pending = time.monotonic() + timeout, b''
+                descriptor = process.stdout.fileno()
                 while time.monotonic() < deadline:
-                    if not select.select([process.stdout], [], [], .2)[0]:
+                    if not select.select([descriptor], [], [], .2)[0]:
                         if process.poll() is not None:
                             break
                         continue
-                    line = process.stdout.readline()
-                    if not line:
+                    # Leitura direta do descritor: com readline(), linhas que chegam juntas ficam
+                    # num buffer que o select não enxerga e a resposta parece nunca ter vindo.
+                    chunk = os.read(descriptor, 65536)
+                    if not chunk:
                         break
-                    try:
-                        event = json.loads(line)
-                    except ValueError:
-                        continue
-                    if isinstance(event, dict) and event.get('type') == 'control_response':
-                        entries = event['response']['response']['models']
-                        return [entry for entry in entries if isinstance(entry, dict) and isinstance(entry.get('value'), str)]
+                    *lines, pending = (pending + chunk).split(b'\n')
+                    for line in lines:
+                        try:
+                            event = json.loads(line)
+                        except ValueError:
+                            continue
+                        if isinstance(event, dict) and event.get('type') == 'control_response':
+                            entries = event['response']['response']['models']
+                            return [entry for entry in entries if isinstance(entry, dict) and isinstance(entry.get('value'), str)]
             finally:
                 process.kill()
                 process.wait(timeout=5)
@@ -152,6 +157,21 @@ def claude_catalog(entries):
             catalog[value] = name
             efforts[value] = ['default', *levels]
     return catalog, efforts, details
+
+
+def remember_quota(backend, windows):
+    """Guarda as janelas de uso informadas pelo CLI; falha de gravação nunca interrompe a conversa."""
+    try:
+        data = read_store()
+        data[backend + '_quota'] = windows
+        write_store(data)
+    except (OSError, ValueError, TypeError):
+        pass
+
+
+def load_quota(backend):
+    stored = read_store().get(backend + '_quota')
+    return stored if isinstance(stored, dict) else {}
 
 
 def remember(backend, alias, identifier, context=None, output=None):

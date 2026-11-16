@@ -9,13 +9,9 @@ metadata:
 
 # security
 
-Para operações de memória, chame a [subskill interna memory](../_internal/memory/SKILL.md): leia suas instruções, informe operação e escopo e use seu contrato. Ela encapsula a dependência ai-memory; consulta permanece somente leitura e registros respeitam a posse de executor/coordenador. Não configure nem migre o backend como efeito colateral.
-
-## Ciclo por contratos — obrigatório
-
-Leia o [ciclo por contratos e evidências](../graphify/references/lifecycle.md) antes de planejar, executar ou declarar progresso. Ele é a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. Contratos versionados definem o molde; specs planejam entregas; estado e evidências comprovam a realização. Preserve o histórico legado e nunca converta checklist em prova de comportamento.
-
 Produza achados acionáveis e rastreáveis ao código atual. Diferencie vulnerabilidade demonstrada, hipótese pendente e recomendação de proteção adicional. Ausência de achados não é certificação de segurança.
+
+O [ciclo por contratos e evidências](../graphify/references/lifecycle.md) e a [subskill interna memory](../_internal/memory/SKILL.md) só precisam ser lidos quando o pedido envolver estado de specs ou histórico; a auditoria consulta sem escrever neles. Checklist nunca vira prova de comportamento.
 
 Adaptação para o Centaur das práticas de contexto, revisão diferencial, verificação e análise de variantes da [Trail of Bits](https://github.com/trailofbits/skills). A [referência de auditoria](references/security-review.md) contém os focos por superfície, o formato do relatório e a atribuição. Leia as partes pertinentes à auditoria. Não exige instalar o marketplace nem executar os workflows originais.
 

@@ -82,9 +82,9 @@ class ConversationTests(unittest.TestCase):
         action_lines = [line for line in lines if line.style == 'action']
         self.assertGreater(len(action_lines), 2)
         self.assertTrue(action_lines[0].startswith('  ✓ Leu'))
-        self.assertTrue(all(line.style == 'text' for line in lines if 'print(' in line))
+        self.assertTrue(all(line.style == 'code' for line in lines if 'print(' in line))  # Código nunca vira ação.
         # The actual drawing path consumes the same styles after wrapping/scroll.
-        terminal.view.palette.styles.update(comment=101, action=102, warning=103, text=104)
+        terminal.view.palette.styles.update(comment=101, action=102, warning=103, text=104, code=105)
         screen = Screen((40, 80))
         with patch('centaur_cli.appearance.curses.curs_set'):
             terminal.draw(screen)
@@ -92,7 +92,7 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(next(style for _, _, text, style in output if 'Comentário que' in text), 101)
         self.assertEqual(next(style for _, _, text, style in output if '✓ Leu frontend' in text), 102)
         self.assertEqual(next(style for _, _, text, style in output if '! Falha' in text), 103)
-        self.assertEqual(next(style for _, _, text, style in output if 'print(' in text), 104)
+        self.assertEqual(next(style for _, _, text, style in output if 'print(' in text), 105)
         with patch.dict('os.environ', {'NO_COLOR': '1'}):
             palette = Palette()
             palette.initialize()

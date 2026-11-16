@@ -64,6 +64,66 @@ deduplicadas por decisão mantendo a mais recente; alterações distintas perman
 em ordem temporal, até três imagens. Metadados mostram área física, tamanho da imagem,
 idade, referência e consentimento do chat. Imagens seguem efêmeras fora do ChatStore.
 
+## Display virtual
+
+`computer_start(purpose, display="virtual")` cria um Xvfb de 1280×800 exclusivo do chat e passa a
+capturar e controlar esse display com as mesmas ferramentas e regras (`frame_id`, validação do
+alvo, zoom, lote, estabilização). O monitor, o mouse e o teclado do usuário não são vistos nem
+usados; não há fail-safe de canto nem lock de desktop, e outra sessão pode usar o desktop real ao
+mesmo tempo. O resultado traz o prefixo para iniciar aplicações, que continuam passando pelo modo
+de permissões de `run_command`:
+
+```
+env DISPLAY=:1 XAUTHORITY=/tmp/centaur-display-xxxx/Xauthority <comando>
+```
+
+| Aspecto | Comportamento |
+| --- | --- |
+| Autorização | Pedida uma vez por chat, com texto próprio. Registro com `scope: virtual`; não autoriza o desktop real. A autorização do desktop real (registro sem `scope` ou `desktop`) cobre também o virtual e nunca é rebaixada. |
+| Isolamento | Cookie MIT aleatório em pasta 0700, `-nolisten tcp`: outros usuários e processos sem o cookie não conectam. Não é sandbox: as aplicações rodam com o usuário e os arquivos dele. |
+| Ciclo de vida | Menus, aprovações, troca de chat e fim do turno param a captura, mas mantêm o display e as aplicações. `computer_stop`, `$computer revoke`/Ctrl+G, exclusão do chat e saída do CLI encerram o display. `$computer status` mostra se há display aberto. |
+| Captura e input | Captura por XCB do Pillow num processo auxiliar, que recebe o cookie no próprio ambiente; input por `xdotool` (XTEST). Texto com acentos é digitado direto, sem área de transferência. |
+| Requisitos | Linux, `Xvfb`, `xdotool`, Pillow com XCB (`sudo apt install xvfb xdotool`). Não usa PyAutoGUI nem mss; funciona em sessão Wayland e sem monitor. |
+| Limites | Sem gerenciador de janelas: janelas abrem sem bordas em 0,0 e alguns toolkits dependem de um para foco, menus e diálogos; o agente pode iniciar um (por exemplo `openbox`) com o mesmo prefixo, se instalado. Resolução fixa. Sem aceleração de GPU. |
+
+`tests/test_computer_virtual.py` cobre o contrato com display simulado e, quando Xvfb, xdotool,
+Tk e Pillow com XCB existem, um fluxo real: recusa de conexão sem cookie, digitação acentuada,
+clique conferido pela aplicação e limpeza do processo e da pasta (`CENTAUR_SKIP_VIRTUAL=1` pula).
+
+## Aplicação isolada por script temporário
+
+Alternativa quando `computer_start` não está disponível (subagentes) ou basta uma captura.
+
+Para ver ou testar uma aplicação sem assumir o desktop, o agente não usa `computer_*`: escreve um
+script temporário com `run_command`, salva a captura dentro do projeto e a abre com
+`view_image(path, region?)`. Teclado e mouse vão para um display virtual, não para o monitor do
+usuário, então não há autorização de computer use, lock de desktop nem pausa em menus; cada
+comando segue o modo de permissões (`$allow` libera os recorrentes).
+
+```sh
+Xvfb :97 -screen 0 1280x800x24 -nolisten tcp & XVFB=$!
+export DISPLAY=:97
+./minha-app & APP=$!
+xdotool search --sync --onlyvisible --name 'Minha App' >/dev/null   # espera a janela
+xdotool mousemove 200 35 click 1 type 'texto'
+xdotool key Return
+scrot -o .centaur/tmp/tela.png        # ou: import -window root arquivo.png
+kill $APP $XVFB
+```
+
+Interfaces web dispensam Xvfb: Playwright ou `chromium --headless --screenshot`. O display
+virtual não tem gerenciador de janelas: janelas abrem sem bordas no canto superior esquerdo.
+As ferramentas (Xvfb, xdotool, scrot/ImageMagick, navegador) são do sistema, não do pacote.
+
+`view_image` aceita PNG, JPEG, WebP e GIF estático de até 8 MiB e 25 megapixels, somente dentro
+do projeto; requer Pillow (extra `attachments` ou `computer`) e modelo com visão. Imagens maiores
+que 1600×1200 são reduzidas; `region=[x,y,largura,altura]`, em pixels do arquivo original, recorta
+antes de reduzir. São até três imagens por decisão, anexadas uma única vez à chamada seguinte e
+fora do histórico: o modelo deve registrar em texto o que observou. O conteúdo é tratado como
+dado não confiável. Coordenadas de `xdotool` são pixels do display virtual, iguais às da captura
+inteira sem redução. Contrato em `tests/test_tools.py`; fluxo real conferido em 2026-11-16 com
+Xvfb 800×600, Tk, `xdotool` e `scrot` (digitar, clicar e ler o resultado na captura).
+
 ## Validação e limites
 
 Fluxo atual 0.9.3: [registro de validação](validation-cli-0.9.3.md). O registro abaixo

@@ -97,9 +97,14 @@ class Palette:
                        'selected': green | curses.A_BOLD,
                        'warning': colors.get('warning', 0) | curses.A_BOLD,
                        'title': text | curses.A_BOLD, 'user': text | curses.A_BOLD,
-                       'comment': text, 'action': blue | curses.A_BOLD}
+                       'comment': text, 'action': blue | curses.A_BOLD,
+                       # Markdown da conversa.
+                       'strong': text | curses.A_BOLD, 'emphasis': text,  # A_ITALIC (bit 31) estoura o atributo do curses; os marcadores somem e o texto fica normal.
+                       'heading': text | curses.A_BOLD | curses.A_UNDERLINE, 'code': blue,
+                       'link': blue | curses.A_UNDERLINE}
         # Composer and agent cards inherit the same background as the transcript.
-        for name in ('text', 'title', 'muted', 'green', 'blue', 'warning', 'action', 'comment', 'user'):
+        for name in ('text', 'title', 'muted', 'green', 'blue', 'warning', 'action', 'comment', 'user',
+                     'line', 'strong', 'emphasis', 'heading', 'code', 'link'):
             self.styles['panel_' + name] = self.styles[name]
         for name, source in (('input', 'text'), ('input_green', 'green'),
                              ('input_blue', 'blue'), ('input_muted', 'muted')):
@@ -645,6 +650,10 @@ class TerminalView:
                 if style == 'user':
                     self.put(screen, row, transcript_left - 1, ' ' * (transcript_width + 2), style)
                 self.put(screen, row, transcript_left, line, style, transcript_width)
+                for begin, end, mark in getattr(line, 'spans', ()):
+                    offset = cell_width(line[:begin])
+                    if offset < transcript_width:
+                        self.put(screen, row, transcript_left + offset, line[begin:end], mark, transcript_width - offset)
         terminal.completion.update(terminal.draft if terminal.cursor == len(terminal.draft) else '')
         completing = (terminal.completion.visible and not terminal.browser and not terminal.approval
                       and not terminal.settings and not terminal.rename_target and not terminal.question)
@@ -749,7 +758,7 @@ class TerminalView:
                   'y permitir · n recusar · PgUp/PgDn revisar') if terminal.approval else
                  '↑↓ selecionar · Enter retomar · R renomear · Del excluir · Esc voltar' if terminal.browser else
                  'Enter orientar · Ctrl+J linha · PgUp/PgDn rolar · Ctrl+C parar' if terminal.busy else
-                 'Ctrl+V cola · Ctrl+S captura · Enter envia · Ctrl+J linha · Shift+← chats')
+                 'Ctrl+V cola · Ctrl+S captura · Enter envia · Shift+Enter linha · Shift+← chats')
         if terminal.active_agents and not terminal.agent_panel_area and not modal:
             hints = f'{len(terminal.active_agents)} subagentes · Shift+←/Tab · ' + hints
         if terminal.computer and terminal.computer.resume_requested and not modal:

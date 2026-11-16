@@ -17,7 +17,7 @@ from .config import validate_effort
 from .vision import split_images, native_input
 from .interaction import TurnCancelled, RequestTimeout
 from .speed import local_speed_support, fast_supported, validate_speed
-from .native_usage import NativeBalance, BalanceUnavailable, claude_windows, read_codex_balance
+from .native_usage import NativeBalance, BalanceUnavailable, claude_windows, read_codex_balance, restore_windows, store_windows
 from .sessions import NATIVE_PHASES
 from .tool_protocol import validate_arguments, omit_optional_nulls
 from . import native_session
@@ -391,6 +391,7 @@ class NativeClient:
         self.session_mode, self.session_failures = False, 0
         if backend == 'claude':
             # Janelas informadas pelo próprio CLI em respostas anteriores.
+            self.quota_windows.update(restore_windows(models.load_quota('claude')))
             for alias, entry in models.load_learned('claude').items():
                 if type(entry.get('context')) is int and entry['context'] > 0:
                     self.context_windows[alias] = self.context_windows[entry['id']] = entry['context']
@@ -406,7 +407,9 @@ class NativeClient:
             return read_codex_balance(self.command)
         if not self.quota_windows:
             raise BalanceUnavailable('Claude informa cotas após uma resposta, quando disponíveis.', 'awaiting')
-        return NativeBalance('claude', tuple(self.quota_windows.values()))
+        order = ('five_hour', 'seven_day')  # Sessão e semana primeiro; as demais na ordem em que chegaram.
+        names = [*(name for name in order if name in self.quota_windows), *(name for name in self.quota_windows if name not in order)]
+        return NativeBalance('claude', tuple(self.quota_windows[name] for name in names))
 
     def supports_fast(self, model):
         if self.backend == 'codex': self.speed_support = local_speed_support(self.backend)
@@ -461,6 +464,12 @@ class NativeClient:
             catalog.setdefault(self.fixed_model, 'Modelo principal configurado')
         return {name: description for name, description in catalog.items()
                 if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,127}', name)}
+
+    def note_quota(self, windows):
+        """Janelas de uso vistas numa resposta: valem agora e abrem a próxima sessão já preenchidas."""
+        if windows:
+            self.quota_windows.update(windows)
+            models.remember_quota(self.backend, store_windows(self.quota_windows))
 
     def learn(self, alias, identifier, context=None, output=None):
         """O CLI informou qual modelo atendeu o alias e sua janela: use e guarde para o seletor."""
@@ -736,7 +745,7 @@ class NativeClient:
                     usage = codex_usage(output)
                 else:
                     value, windows = claude_output(output)
-                    self.quota_windows.update(windows)
+                    self.note_quota(windows)
                     if value.get('is_error') or value.get('subtype') not in (None, 'success'):
                         raise ValueError('O cliente não concluiu a resposta estruturada.')
                     raw_usage = value.get('usage')

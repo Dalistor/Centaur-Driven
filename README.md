@@ -19,9 +19,11 @@ Veja as decisões em [DESIGN.md](DESIGN.md) e os comportamentos em [UX-CONTRACT.
 
 Arraste o mouse sobre o texto do chat e copie pelo atalho do seu terminal:
 **Ctrl+Shift+C no Linux** ou **Cmd+C no macOS**. O Centaur deixa o mouse livre por
-padrão. PgUp/PgDn percorrem o histórico; Shift+←/Tab dão acesso aos subagentes.
+padrão. A roda do mouse e PgUp/PgDn percorrem o histórico; Shift+←/Tab dão acesso aos subagentes.
+A roda funciona com o mouse livre porque o emulador a envia como setas na tela do Centaur; se o
+seu terminal não fizer isso, use PgUp/PgDn ou ative os cliques com F6.
 
-**F6** ativa ou desativa os controles por clique e roda. Com eles ativos, use
+**F6** ativa ou desativa os controles por clique (e a roda sobre os painéis laterais). Com eles ativos, use
 **Shift+arraste** para selecionar texto pelo emulador. Para iniciar nesse modo:
 
 ```bash
@@ -146,7 +148,7 @@ centaur --backend claude /caminho/do/projeto
 
 Com **Codex ou Claude conectado**, `$run` cria subagentes no mesmo backend e escolhe o modelo por task conforme complexidade e risco. `delegate_task` aceita título, task e um modelo do catálogo; `cost_tier` é exclusivo do OpenRouter. `--model` pré-seleciona o modelo principal; a opção Padrão do provedor usa o padrão do CLI nativo. `CENTAUR_MODEL` define esse modelo; `OPENROUTER_MODEL` só afeta OpenRouter. `$config` abre o seletor; `$config <backend> [modelo] [effort] [ask|auto|never] [standard|fast]` altera a fonte da IA e o modelo principal, salvando a preferência local; mudar o backend abre novo chat; modelo, effort e velocidade mantêm a conversa no mesmo backend. Chats gravam o backend e só são retomados com backend compatível; chats nativos também exigem o mesmo modelo principal solicitado.
 
-A interface, o autocomplete, `$status` e as aprovações continuam no Centaur. O adaptador usa saídas estruturadas dos CLIs, sem ferramentas nativas de execução/delegação e sem carregar as personalizações locais desses clientes; leituras, gravações e comandos passam pelas ferramentas do harness. Cada etapa envia o contexto ativo do Centaur a uma execução efêmera do CLI, com limite padrão de 30 minutos (`CENTAUR_NATIVE_TIMEOUT=1800`, faixa de 30–3600 segundos); os históricos ficam no Centaur. O adaptador não interpreta o ID efetivo de modelo quando o CLI não o fornece. As credenciais conhecidas dos backends são ocultadas nas mensagens e saídas e removidas do ambiente dos comandos de projeto.
+A interface, o autocomplete, `$status` e as aprovações continuam no Centaur. O adaptador usa saídas estruturadas dos CLIs, sem ferramentas nativas de execução/delegação e sem carregar as personalizações locais desses clientes; leituras, gravações e comandos passam pelas ferramentas do harness. No Claude, quando o CLI instalado oferece as opções necessárias, cada chat mantém uma sessão persistente do CLI: só as mensagens novas e os resultados de ferramentas são enviados, e interromper encerra apenas o turno (`CENTAUR_NATIVE_SESSION=0` desliga). No Codex, e no Claude sem esse suporte, cada etapa envia o contexto ativo a uma execução efêmera do CLI. O limite padrão por etapa é de 30 minutos (`CENTAUR_NATIVE_TIMEOUT=1800`, faixa de 30–3600 segundos); os históricos ficam no Centaur. O adaptador não interpreta o ID efetivo de modelo quando o CLI não o fornece. As credenciais conhecidas dos backends são ocultadas nas mensagens e saídas e removidas do ambiente dos comandos de projeto.
 
 Também aceita `centaur status --ai --backend codex` ou `--backend claude`. A integração nativa consulta cotas do próprio cliente quando disponíveis, sem acessar créditos OpenRouter ou estimar saldo de assinatura. Usar esses backends segue a autenticação e os limites do respectivo cliente.
 
@@ -174,6 +176,8 @@ A chave cadastrada não é exibida nem enviada no conteúdo dos chats. O CLI rej
 que contenham essa chave e oculta seu valor nas saídas de ferramentas e respostas. Comandos
 filhos não recebem `OPENROUTER_API_KEY`; as ferramentas de arquivo bloqueiam o arquivo de credenciais.
 Mensagens e arquivos consultados pelo modelo são enviados ao OpenRouter.
+
+No Claude, o rodapé mostra o contexto do chat à esquerda e, à direita, quanto resta do limite de 5h e do limite semanal, com o horário de reinício quando há espaço. Esses valores vêm do próprio CLI a cada resposta; os últimos conhecidos abrem a sessão seguinte, marcados com `~`.
 
 No OpenRouter, o canto inferior direito exibe créditos com barra e valor em US$. A consulta roda em segundo
 plano ao abrir, a cada 30 segundos e após cada turno. `$credits` ou `/credits` solicita uma atualização.
@@ -247,8 +251,10 @@ para consultar ou retomar com `$compact`, preservando o histórico e a memória 
 
 A caixa de mensagem começa com três linhas e cresce até oito, conforme o espaço.
 O texto quebra visualmente na borda sem alterar a mensagem enviada. **Shift+Enter** insere
-uma quebra real; **Enter** envia o texto completo. **Ctrl+J** é a alternativa em terminais
-que não distinguem Shift+Enter de Enter. Kitty/CSI-u e xterm modifyOtherKeys são aceitos;
+uma quebra real; **Enter** envia o texto completo. Em terminais que não distinguem Shift+Enter
+de Enter (GNOME Terminal com VTE antigo, por exemplo), o Centaur pergunta ao X11 se o Shift está
+pressionado, numa sessão gráfica local; em Wayland ou SSH use **Ctrl+J**, **Alt+Enter** ou
+digite `\` antes do Enter. Kitty/CSI-u e xterm modifyOtherKeys são aceitos;
 o suporte também depende do emulador, multiplexador e seus atalhos. Sequências recebidas
 em partes são mantidas entre leituras; repetições explícitas de Enter não enviam o rascunho.
 Colagem com bracketed
@@ -275,7 +281,7 @@ o cursor no rascunho multilinha; PgUp/PgDn e o mouse continuam rolando a convers
 | Ctrl+S | Capturar uma vez o monitor principal após três segundos; Enter envia com a mensagem. |
 | `$attachments` / `$detach <número\|all>` | Listar os anexos pendentes / remover um ou todos. |
 | `$compact` ou `/compact` | Iniciar a compactação com um único Enter, mantendo mensagens recentes e histórico completo. O progresso informa fragmento atual/total. |
-| Enter / Shift+Espaço, Shift+Enter ou Ctrl+J | Enviar a mensagem / inserir uma nova linha. Combinações com Shift dependem do terminal informar o modificador; Ctrl+J funciona também no protocolo legado. No autocomplete, Enter executa comandos locais isolados; para skills, insere a opção. Tab apenas completa. |
+| Enter / Shift+Enter, Shift+Espaço, Ctrl+J ou `\` + Enter | Enviar a mensagem / inserir uma nova linha. Shift+Enter vale quando o terminal informa o modificador ou numa sessão X11 local; Ctrl+J e `\` + Enter funcionam em qualquer terminal. No autocomplete, Enter executa comandos locais isolados; para skills, insere a opção. Tab apenas completa. |
 | R ou F2 na lista de chats | Renomear a conversa selecionada; Enter salva e Esc cancela. |
 | `/rename` ou `/rename Novo título` | Renomear a conversa atual sem chamar o modelo. |
 | `Ctrl+O` | Alternar resumo e detalhes das ferramentas na conversa. |
@@ -750,8 +756,9 @@ anterior; ↓ retorna ao rascunho atual, incluindo um campo vazio. Uma cópia au
 impede a restauração sem destruir o rascunho. A fila e o texto voltam ao retornar ao chat.
 
 Para inserir uma linha, use **Ctrl+J** ou, em terminais que informam os modificadores,
-**Shift+Espaço** / **Shift+Enter**. No GNOME Terminal com VTE 0.76, Shift+Espaço chega como
-um espaço comum e não pode ser distinguido pelo CLI; use Ctrl+J nessa versão.
+**Shift+Espaço** / **Shift+Enter**. No GNOME Terminal com VTE 0.76, Shift+Enter funciona em
+sessão X11 local (o CLI consulta o estado do Shift) e `\` + Enter funciona sempre; Shift+Espaço
+chega como um espaço comum e não pode ser distinguido.
 O Centaur solicita o protocolo Kitty com texto associado para preservar maiúsculas,
 acentos e composição Unicode ao reconhecer Shift+Espaço. O protocolo é suspenso
 durante o cadastro de chaves com entrada oculta e restaurado ao voltar ao chat.
@@ -806,6 +813,26 @@ retenção e os custos do backend escolhido.
 Referências: [imagens OpenRouter](https://openrouter.ai/docs/guides/overview/multimodal/image-understanding),
 [PDFs nativos OpenRouter](https://openrouter.ai/docs/guides/overview/multimodal/pdfs),
 [metadados de modelos Codex](https://github.com/openai/codex/blob/main/codex-rs/protocol/src/openai_models.rs).
+
+### Computer use em display virtual
+
+Para o agente testar uma aplicação sozinho, sem ocupar sua tela: **“Abra a aplicação num display
+virtual, preencha o formulário e confira o resultado.”** Ele pede **uma autorização por chat**,
+própria desse modo, cria um display isolado (Xvfb), inicia a aplicação por comando e a opera com
+as mesmas ferramentas de computer use. Seu monitor, mouse e teclado não são vistos nem usados, e
+essa autorização não libera o desktop real. O display fica aberto entre turnos até o agente
+encerrar, `$computer revoke` ou a saída do CLI. Requer Linux com `sudo apt install xvfb xdotool`
+e Pillow; funciona em Wayland. Detalhes e limites em [docs/computer-use.md](docs/computer-use.md).
+
+### Ver uma aplicação sem assumir o desktop
+
+Para conferir uma tela ou testar um fluxo, peça por exemplo: **“Rode a aplicação num display
+virtual, preencha o formulário e me mostre o resultado.”** O agente escreve um script temporário
+(Xvfb com `xdotool` para teclado e mouse, ou navegador headless), salva a captura no projeto e a
+abre com `view_image`. Seu mouse e seu monitor ficam livres, não há autorização de computer use
+e funciona em Wayland ou sem monitor; os comandos seguem o modo de permissões. Requer Pillow
+(extra `attachments` ou `computer`), modelo com visão e as ferramentas do sistema, por exemplo
+`sudo apt install xvfb xdotool scrot`. Detalhes em [docs/computer-use.md](docs/computer-use.md).
 
 ### Computer use com captura contínua
 
@@ -1043,7 +1070,7 @@ Instale `clean-code` completo no mesmo diretório de skills, caso ausente; não 
 | `mcp` | Consultar APIs externas e encaminhar o trabalho à skill apropriada. |
 | `graphify` | Investigar relações e manter índices/mapas sob demanda. |
 | `update` | Migrar/reconstruir estrutura gerada e verificar dependências, preservando definições. |
-| `deploy` | Preparar GitHub Actions e acessos, com instruções para publicação. |
+| `ops` | Preparar a operação: CI, deploy com rollback, execução, segredos, observabilidade, backups e runbook, sem publicar. |
 
 `memory` fica em `skills/_internal/memory/`, com seu contrato e instruções de integração com ai-memory. Outras skills a chamam para consultar e registrar contexto; ela não aparece como comando no catálogo do CLI. O serviço ai-memory continua sendo uma dependência externa opcional.
 
@@ -1082,6 +1109,7 @@ projeto/
     ├── ai-memory/               # Configuração e arquivos locais de memória
     ├── implements/              # Registros no backend files ou histórico legado
     ├── deploy/                  # Scripts e artefatos auxiliares de deploy
+    ├── ops/                     # Inventário operacional, decisões e runbook
     ├── worktrees/               # Execuções isoladas de agentes
     ├── backups/                 # Recuperação de migrações/instalações
     └── tmp/                     # Preparação temporária
@@ -1121,11 +1149,16 @@ python3 /caminho/centaur_cli/skills/update/scripts/migrate.py --root /projeto --
 
 As páginas de acompanhamento geradas antigas são removidas quando reconhecidas; HTML personalizado é preservado.
 
-## Deploy
+## Ops
 
-`/deploy` prepara o workflow e orienta os próximos passos, sem publicar nem executar o workflow. Pergunta entre push na `main` e execução manual; reutiliza SSH ou gera chave se faltar; fornece o comando de autorização da chave pública na VPS. Configura Environment, variables e secrets se houver acesso suficiente ao GitHub.
+`/ops` prepara a operação do sistema a partir do que o projeto já tem, sem publicar, acessar servidores nem disparar workflows. Começa por um inventário de seis áreas — integração (CI), publicação, execução, segredos e acessos, observação e recuperação — e trabalha na que foi pedida ou, num pedido amplo, propõe a ordem do que protege mais. Substitui a antiga skill `deploy`, cujo conteúdo virou a referência de publicação.
 
-O workflow testa a integridade antes da publicação, transfere uma release isolada com retry limitado e só troca tráfego após health checks. Preserva dados e versão anterior para rollback. O template estático usa troca atômica; serviços dinâmicos precisam de estratégia específica, como blue-green. Infraestrutura e migrações incompatíveis com zero downtime são pendências explícitas. Veja [deploy e pré-requisitos](centaur_cli/skills/deploy/SKILL.md).
+- **CI:** workflow com instalação pelo lockfile, lint, testes e build, e as regras de endurecimento que valem para todo workflow: token sem permissões por padrão, actions fixadas pelo SHA do commit com Dependabot para atualizá-las, checkout sem credencial persistida, entradas só por variável de ambiente.
+- **Publicação:** o artefato testado é o publicado; release isolada com retry limitado na transferência, troca de tráfego só após health check e versão anterior preservada para rollback. O modelo estático usa troca atômica; serviços dinâmicos precisam de estratégia específica, como blue-green. Pergunta entre push na `main` e execução manual, reutiliza SSH ou gera chave dedicada e configura Environment, variables e secrets quando há acesso.
+- **Execução e segredos:** processo supervisionado, configuração por ambiente, proxy/TLS, health check e inventário de segredos por nome.
+- **Observação e recuperação:** logs, sinais essenciais e alerta, backup com restauração ensaiada, migrações compatíveis e runbook em `.centaur/ops/README.md`.
+
+Os modelos (`ci.yml`, `deploy-vps.yml`, `dependabot.yml`) vêm bloqueados até receberem os comandos reais do projeto. Infraestrutura e migrações incompatíveis com zero downtime, restauração não ensaiada e alerta não testado são pendências explícitas. Veja a [skill e suas referências](centaur_cli/skills/ops/SKILL.md).
 
 ## Verificação do conjunto
 

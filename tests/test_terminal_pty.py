@@ -1,5 +1,8 @@
 """Exercise real curses input under a disposable POSIX terminal, without an AI account."""
 
+import os
+# Os filhos rodam num terminal de verdade: o Shift físico de quem executa a suíte não pode virar entrada.
+os.environ['CENTAUR_SHIFT_PROBE'] = '0'
 import fcntl
 import json
 import os

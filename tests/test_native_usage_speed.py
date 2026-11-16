@@ -58,6 +58,27 @@ for line in sys.stdin:
         self.assertEqual([m['method'] for m in saved['messages']], ['initialize', 'initialized', 'account/rateLimits/read'])
         self.assertNotIn('private account metadata', repr(balance))
 
+    def test_claude_reports_session_and_week_together_and_they_open_the_next_session(self):
+        import time
+        from centaur_cli.native_usage import restore_windows, store_windows
+        now = int(time.time())
+        event = {'rate_limit_info': {'status': 'allowed_warning', 'resetsAt': now + 3600, 'rateLimitType': 'five_hour', 'unifiedWindows': {
+            'five_hour': {'utilization': .85, 'resetsAt': now + 3600}, 'seven_day': {'utilization': .14, 'resetsAt': now + 400000},
+            'desconhecida': {'utilization': .5}, 'seven_day_opus': {'utilization': 'x'}}}}
+        windows = claude_windows([event])
+        self.assertEqual({name: (window.label, round(window.remaining), window.status) for name, window in windows.items()},
+                         {'five_hour': ('5h', 15, 'allowed_warning'), 'seven_day': ('Semana', 86, 'allowed')})
+        label, style = native_label(NativeBalance('claude', tuple(windows.values())), 'ready', 120)
+        self.assertRegex(label, r'^Claude ~5h: 15% livre \(reinicia \d\d:\d\d\) · Semana: 86% livre \(reinicia \w{3} \d\d/\d\d\)$')
+        self.assertEqual(style, 'warning')
+        self.assertEqual(native_label(NativeBalance('claude', tuple(windows.values())), 'ready', 50)[0], 'Claude ~5h: 15% livre · Semana: 86% livre')
+        # Só o que ainda vale reabre: a janela que já reiniciou não é mostrada com o valor antigo.
+        stored = store_windows(windows)
+        self.assertEqual(restore_windows(stored, now), windows)
+        self.assertEqual(list(restore_windows(stored, now + 7200)), ['seven_day'])
+        self.assertEqual(restore_windows({'five_hour': {'label': '5h', 'remaining': 900, 'resets_at': now + 60}, 'x': 'lixo'}, now), {})
+        self.assertEqual(restore_windows('lixo'), {})
+
     def test_quota_unknown_and_invalid_values_are_never_a_fictitious_balance(self):
         with self.assertRaises(BalanceUnavailable): codex_balance({'rateLimits': {}})
         balance = codex_balance({'rateLimits': {'credits': {'hasCredits': False, 'balance': 'NaN'}}})

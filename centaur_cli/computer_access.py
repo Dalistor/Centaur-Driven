@@ -10,6 +10,7 @@ import threading
 import weakref
 
 from .attachments import attachment_directory
+from .computer import DISPLAYS
 from .interaction import TurnCancelled
 
 
@@ -25,22 +26,28 @@ class ComputerPermissions:
             raise ValueError('Permissões de computer use não podem ser redirecionadas.')
         return path
 
-    def granted(self, chat_id):
+    def granted(self, chat_id, scope='desktop'):
+        """Registro sem scope é do desktop real, que também cobre o display virtual; o inverso não vale."""
         try:
             with self.path(chat_id).open(encoding='utf-8') as source:
                 record = json.loads(source.read(4096))
             return (isinstance(record, dict) and record.get('schema') == 1
-                    and record.get('id') == chat_id and record.get('granted') is True)
+                    and record.get('id') == chat_id and record.get('granted') is True
+                    and record.get('scope', 'desktop') in ('desktop', scope))
         except (OSError, ValueError, TypeError):
             return False
 
-    def grant(self, chat_id):
+    def grant(self, chat_id, scope='desktop'):
+        if scope not in ('desktop', 'virtual'):
+            raise ValueError('Escopo de computer use inválido.')
+        if scope == 'virtual' and self.granted(chat_id):
+            return  # Nunca rebaixar a autorização mais ampla já concedida.
         path = self.path(chat_id)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         descriptor, temporary = tempfile.mkstemp(dir=self.directory)
         try:
             with os.fdopen(descriptor, 'w', encoding='utf-8') as output:
-                json.dump({'schema':1,'id':chat_id,'granted':True,
+                json.dump({'schema':1,'id':chat_id,'granted':True,'scope':scope,
                            'granted_at':datetime.now(timezone.utc).isoformat()}, output)
                 output.flush(); os.fsync(output.fileno())
             os.replace(temporary, path)
@@ -131,7 +138,8 @@ class ComputerControl:
                 raise ValueError('Controle pausado; volte ao chat antes de continuar.')
             if self.owner is not None and self.owner is not session:
                 raise ValueError('Outro chat controla o desktop; aguarde a liberação.')
-            self.lease.acquire()
+            if getattr(session, 'scope', 'desktop') != 'virtual':
+                self.lease.acquire()  # O display virtual não disputa o desktop real com outros processos.
             self.owner = session
 
     def release(self, session):
@@ -153,12 +161,12 @@ class ComputerControl:
             self.paused.discard(chat_id)
             self.condition.notify_all()
 
-    def grant(self, chat_id, cancellation):
+    def grant(self, chat_id, cancellation, scope='desktop'):
         # Serialize persistence with revoke; a late approval cannot resurrect access.
         with self.condition:
             if cancellation and cancellation.is_set():
                 raise TurnCancelled('Autorização interrompida antes de salvar.')
-            self.permissions.grant(chat_id)
+            self.permissions.grant(chat_id, scope)
 
     def revoke(self, chat_id):
         with self.condition:
@@ -167,3 +175,4 @@ class ComputerControl:
         for session in sessions:
             session.authorized = False
             session.close()
+        DISPLAYS.destroy(chat_id)

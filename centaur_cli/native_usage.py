@@ -77,7 +77,7 @@ def codex_balance(result):
 
 def claude_windows(events):
     result = {}
-    names = {'five_hour': '5h', 'seven_day': '7d', 'seven_day_opus': '7d Opus',
+    names = {'five_hour': '5h', 'seven_day': 'Semana', 'seven_day_opus': '7d Opus',
              'seven_day_sonnet': '7d Sonnet', 'overage': 'Extra'}
     for event in events:
         info = event.get('rate_limit_info')
@@ -89,7 +89,48 @@ def claude_windows(events):
         # An allowed event without utilization does not imply a full allowance.
         if remaining is None and status == 'rejected': remaining = 0
         result[kind] = QuotaWindow(names[kind], remaining, timestamp(info.get('resetsAt')), status)
+        # O evento nomeia só a janela mais apertada; o uso de todas vem junto em unifiedWindows.
+        unified = info.get('unifiedWindows')
+        for name, window in (unified.items() if isinstance(unified, dict) else ()):
+            used = window.get('utilization') if isinstance(window, dict) else None
+            if name not in names or type(used) not in (int, float) or percentage(used * 100) is None:
+                continue
+            state = window.get('status') if window.get('status') in ('allowed', 'allowed_warning', 'rejected') else (
+                status if name == kind else 'allowed')
+            result[name] = QuotaWindow(names[name], percentage(used * 100), timestamp(window.get('resetsAt')), state)
     return result
+
+
+def store_windows(windows):
+    """Forma gravável das janelas, para mostrá-las antes da primeira resposta da próxima sessão."""
+    return {name: {'label': window.label, 'remaining': window.remaining, 'resets_at': window.resets_at, 'status': window.status}
+            for name, window in windows.items()}
+
+
+def restore_windows(stored, now=None):
+    """Janelas ainda vigentes de uma sessão anterior; a que já reiniciou não é mostrada."""
+    now, result = time.time() if now is None else now, {}
+    for name, entry in (stored.items() if isinstance(stored, dict) else ()):
+        if not isinstance(entry, dict) or not isinstance(entry.get('label'), str):
+            continue
+        remaining, resets = entry.get('remaining'), timestamp(entry.get('resets_at'))
+        if resets is None or resets <= now:
+            continue
+        if remaining is not None and (type(remaining) not in (int, float) or not 0 <= remaining <= 100):
+            continue
+        result[name] = QuotaWindow(entry['label'][:16], remaining, resets, str(entry.get('status') or '')[:20])
+    return result
+
+
+def reset_label(resets_at, now=None):
+    """Hora do reinício se for nas próximas 24h; depois disso, dia da semana e data."""
+    now = time.time() if now is None else now
+    if type(resets_at) is not int or resets_at <= now:
+        return ''
+    moment = time.localtime(resets_at)
+    if resets_at - now < 86400:
+        return time.strftime('%H:%M', moment)
+    return ('seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom')[moment.tm_wday] + time.strftime(' %d/%m', moment)
 
 
 def native_label(balance, status, width, backend=''):
@@ -110,6 +151,14 @@ def native_label(balance, status, width, backend=''):
         values.append(f'{window.label}: {value}')
     stale = '~' if status == 'error' or balance.backend == 'claude' else ''
     label = f'{name} {stale}' + ' · '.join(values)
+    # Com espaço, diz também quando cada janela reinicia.
+    resets = [reset_label(window.resets_at) for window in balance.windows]
+    if any(resets) and len(values) >= len(resets):
+        offset = len(values) - len(resets)
+        detailed = f'{name} {stale}' + ' · '.join(values[:offset] + [
+            value + (f' (reinicia {reset})' if reset else '') for value, reset in zip(values[offset:], resets)])
+        if len(detailed) <= width:
+            label = detailed
     if len(label) > width:
         parts = ([f'Créd {balance.credits:.1f}'] if balance.credits is not None else [])
         parts += [f'{w.label} {w.remaining:.0f}%' if w.remaining is not None else f'{w.label} ?' for w in balance.windows]

@@ -295,7 +295,7 @@ class NativeSession:
         elif kind == 'system' and isinstance(event.get('model'), str):
             self.served = event['model']  # O modelo exato por trás do alias configurado.
         elif kind == 'rate_limit_event':
-            self.client.quota_windows.update(claude_windows([event]))
+            self.client.note_quota(claude_windows([event]))
         elif kind == 'result':
             return event
         return None

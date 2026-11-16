@@ -289,3 +289,47 @@ class ComposerTests(unittest.TestCase):
         self.assertIn('linha 0', screen.text())
         self.assertIn('↓', screen.text())
         self.assertEqual(screen.cursor[1], 6)
+
+
+class WheelTests(unittest.TestCase):
+    """Roda do mouse com o ponteiro livre: o emulador a entrega como rajada de setas."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.terminal = Terminal(Path(temporary.name), 'model', ChatStore(temporary.name), None)
+        self.terminal.scroll_limit = 100
+
+    def reader(self, *keys):
+        keys = list(keys)
+        return lambda seconds: keys.pop(0) if keys else None
+
+    def test_burst_of_identical_arrows_scrolls_and_a_single_arrow_stays_a_key(self):
+        up, down = curses.KEY_UP, curses.KEY_DOWN
+        self.assertEqual(self.terminal.wheel(up, self.reader()), (False, None))  # Tecla: segue para o compositor.
+        self.assertEqual(self.terminal.scroll, 0)
+        self.assertEqual(self.terminal.wheel(up, self.reader(up, up)), (True, None))
+        self.assertEqual(self.terminal.scroll, 3)
+        # Logo após uma rajada, setas avulsas ainda são da roda (rolagem suave); a tecla lida a mais é devolvida.
+        self.assertEqual(self.terminal.wheel(down, self.reader('x')), (True, 'x'))
+        self.assertEqual(self.terminal.scroll, 2)
+        self.terminal.wheel_until = 0
+        self.assertEqual(self.terminal.wheel(down, self.reader(up)), (False, up))
+        self.assertEqual(self.terminal.wheel('a', self.reader(up)), (False, None))
+
+    def test_wheel_never_steals_arrows_from_lists_or_mouse_mode(self):
+        up = curses.KEY_UP
+        for attribute, value in (('mouse_enabled', True), ('browser', True), ('rename_target', {'id': 'x'})):
+            terminal = self.terminal
+            previous = getattr(terminal, attribute)
+            setattr(terminal, attribute, value)
+            self.assertEqual(terminal.wheel(up, self.reader(up, up)), (False, None), attribute)
+            setattr(terminal, attribute, previous)
+        self.assertEqual(self.terminal.scroll, 0)
+
+    def test_wheel_scrolls_a_long_confirmation(self):
+        self.terminal.approval = ('Executar?', None)
+        self.assertEqual(self.terminal.wheel(curses.KEY_UP, self.reader(curses.KEY_UP)), (True, None))
+        self.assertEqual(self.terminal.scroll, 2)
+        self.terminal.wheel(curses.KEY_DOWN, self.reader(*[curses.KEY_DOWN] * 5))
+        self.assertEqual(self.terminal.scroll, 0)

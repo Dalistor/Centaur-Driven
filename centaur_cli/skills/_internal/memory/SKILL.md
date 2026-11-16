@@ -39,7 +39,7 @@ Graphify é opcional e não é dependência desta subskill. Não consulte o graf
 ## Consultar e registrar
 
 - Consultas históricas usam `memory_query` e leitura integral das páginas relevantes com `memory_read_page`. Passe `workspace` e `project` explicitamente. Confirme afirmações no checkout e nas specs atuais.
-- Escritas de `implement`, `tdd`, `deploy` e `update` seguem o contrato: uma página por mudança com resultado real, sem criar `implements/XXXX/` no modo ai-memory. Hooks complementam essa página; não substituem validação nem comprovante de escrita.
+- Escritas de `implement`, `tdd`, `ops` e `update` seguem o contrato: uma página por mudança com resultado real, sem criar `implements/XXXX/` no modo ai-memory. Hooks complementam essa página; não substituem validação nem comprovante de escrita.
 - `sincronizar` reenvia apenas arquivos pendentes em `.centaur/ai-memory/pending/`, usando a mesma identidade e caminho, sem reexecutar código. Confira o destino antes de reenviar e preserve divergências para resolução, sem sobrescrever páginas diferentes.
 - Consulta somente leitura não instala nada, não escreve páginas, não envia feedback e não consome handoffs. Não use operações de claim/ack para descobrir contexto.
 

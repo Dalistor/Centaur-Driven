@@ -9,6 +9,7 @@ from pathlib import Path
 from uuid import uuid4
 from .attachments import attachment_directory
 from .sessions import read_state
+from .computer import DISPLAYS
 from .computer_access import ComputerPermissions
 
 
@@ -114,6 +115,7 @@ class ChatStore:
             shutil.rmtree(checkpoints)
         (runtime / (chat_id + '.json')).unlink(missing_ok=True)
         ComputerPermissions(self.root).revoke(chat_id)
+        DISPLAYS.destroy(chat_id)
         inbox_directory = self.root / '.centaur' / 'inbox'
         inbox_path = inbox_directory / (chat_id + '.json')
         if not inbox_directory.is_symlink() and not inbox_path.is_symlink():

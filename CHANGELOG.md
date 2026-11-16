@@ -2,6 +2,50 @@
 
 ## Não publicado
 
+- Computer use em display virtual: `computer_start` aceita `display="virtual"` e cria um Xvfb
+  privado (cookie próprio, sem TCP) onde o agente abre aplicações e usa as mesmas ferramentas
+  `computer_*`, com teclado e mouse por `xdotool`, sem ver nem tocar o seu desktop. A autorização
+  é própria e por chat, não libera o desktop real (a do desktop real cobre as duas) e dispensa o
+  lock de desktop. O display sobrevive a pausas, aprovações e turnos; termina com `computer_stop`,
+  `$computer revoke`, exclusão do chat ou saída do CLI. Requer Linux com Xvfb, xdotool e Pillow;
+  não precisa do PyAutoGUI e funciona em Wayland ou sem monitor.
+- Ver aplicações por script temporário: a nova ferramenta `view_image` mostra ao modelo uma imagem
+  do projeto (PNG, JPEG, WebP ou GIF estático), com `region` para recortar detalhes. O agente passa
+  a escrever um script que executa a aplicação num display virtual (Xvfb) ou navegador headless,
+  envia teclado e mouse com `xdotool` e abre a captura, sem assumir o desktop nem pedir a
+  autorização de computer use; funciona em Wayland e sem monitor. Os comandos seguem o modo de
+  permissões normal. Como os quadros de computer use, a imagem vale por uma decisão e não entra no
+  histórico.
+- Markdown na conversa: respostas, comentários e as mensagens enviadas passam a ser desenhados com
+  títulos, listas com recuo, citações, tabelas com bordas (células longas quebram dentro da coluna;
+  em tela estreita viram "Cabeçalho: valor"), blocos de código literais e negrito/código/links
+  estilizados, sem os marcadores. Antes as tabelas apareciam como texto cru com `|`.
+- Shift+Enter quebra a linha também em terminais que não informam o modificador (GNOME Terminal
+  com VTE antigo): numa sessão X11 local o CLI consulta o estado do Shift. `\` antes do Enter
+  quebra a linha em qualquer terminal; Ctrl+J e Alt+Enter continuam valendo.
+
+- Rolagem pela roda do mouse sem abrir mão da seleção de texto: com o ponteiro livre (padrão), a
+  roda chega como rajada de setas e rola a conversa e as confirmações longas; uma seta isolada
+  continua recuperando prompts. F6 segue alternando cliques.
+- Rodapé do Claude mostra contexto, limite de 5h e limite semanal: o CLI informa as duas janelas
+  juntas (`unifiedWindows`), antes só a mais apertada aparecia e sem percentual. Com espaço, mostra
+  quando cada uma reinicia; os últimos valores abrem a sessão seguinte já preenchidos, descartando
+  a janela que já reiniciou.
+- Corrigir a consulta da lista de modelos do Claude, que podia estourar o tempo quando duas linhas
+  do CLI chegavam juntas.
+
+- Skill `deploy` passa a ser `ops`: além da publicação, cobre CI, execução em produção, segredos e
+  acessos, observabilidade, backups com restauração ensaiada e runbook, a partir de um inventário
+  do que o projeto já tem. Novos modelos `ci.yml` e `dependabot.yml`; o workflow de deploy passa a
+  fixar actions pelo SHA do commit, zerar as permissões padrão do token e não persistir a
+  credencial do checkout. A instalação remove a skill `deploy` antiga, com backup.
+- Skills mais leves: o preâmbulo repetido (ciclo, contexto, memória, equipe e clean-code) vira uma
+  tabela de referências lidas quando necessárias, em vez de leitura obrigatória antes de cada
+  fluxo. A instrução de `clean-code` aponta o caminho real no CLI (`read_skill`) e deixa de
+  bloquear `check`, `mcp` e `ops` quando a dependência falta.
+- `security`: a referência ganha cadeia de suprimentos e CI, falhas e condições excepcionais
+  (fail-open), registro e alerta, e a superfície de IA/agentes, com o OWASP Top 10:2025 como índice.
+
 - Permissões explícitas por comando: `$allow <comando>` libera um comando para rodar sem
   confirmação na pasta (`git push origin main` exato, ou `npm run deploy *` com quaisquer
   argumentos), `$allow` lista e `$revoke` remove; na confirmação, `a` grava a regra exata. Linhas

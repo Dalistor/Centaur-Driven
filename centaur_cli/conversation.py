@@ -6,9 +6,11 @@ import re
 
 class TranscriptLine(str):
     """Display text with a role-derived style, independent of content/markers."""
-    def __new__(cls, text, style='text'):
+    def __new__(cls, text, style='text', spans=()):
         line = super().__new__(cls, text)
         line.style = style
+        # Trechos (início, fim, estilo) pintados por cima do estilo da linha: negrito, código, bordas.
+        line.spans = spans
         return line
 
 
@@ -64,7 +66,8 @@ def tool_activity(call, result=None):
     except (ValueError, KeyError, TypeError):
         args = {}
     labels = {
-        'read_file': ('Lendo', 'Leu', 'path'), 'read_skill': ('Consultando skill', 'Consultou skill', 'path'),
+        'read_file': ('Lendo', 'Leu', 'path'), 'view_image': ('Vendo imagem', 'Viu imagem', 'path'),
+        'read_skill': ('Consultando skill', 'Consultou skill', 'path'),
         'list_files': ('Listando', 'Listou', 'path'), 'write_file': ('Gravando', 'Gravou', 'path'),
         'run_command': ('Executando', 'Executou', 'command'),
         'edit_file': ('Editando', 'Editou', 'path'), 'glob': ('Procurando arquivos', 'Procurou arquivos', 'pattern'),
