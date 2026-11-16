@@ -387,7 +387,9 @@ class VirtualDesktop:
                                          for key in arguments['keys']))
             else:
                 for start in range(0, len(arguments['text']), 50):
-                    self.xdo('type', '--delay', 2, '--file', '-', text=arguments['text'][start:start + 50])
+                    chunk = arguments['text'][start:start + 50]
+                    # Fora do teclado padrão o xdotool remapeia uma tecla por caractere; rápido demais, perde letras.
+                    self.xdo('type', '--delay', 2 if chunk.isascii() else 60, '--file', '-', text=chunk)
 
 
 class ComputerSession:

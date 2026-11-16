@@ -322,15 +322,23 @@ mudar apenas o modo preserva a conversa. Chats antigos não restauram permissõe
 
 *Terminal real com cliente simulado. O modo selecionado mostra sua explicação antes de salvar.*
 
-O modo automático aceita consultas com `pwd`, `ls`, `cat`, `head -n`, `tail -n`, `wc`,
-`sed -n '1,200p'`, `rg` (incluindo glob, padrões com alternativas e consultas em `.centaur`)
-e operações específicas de Git (`status`, `diff`, `log`, `ls-files`, branch atual).
+O modo automático executa sem perguntar os comandos de leitura: `pwd`, `ls`, `cat`, `head`,
+`tail`, `wc`, `sed -n '1,200p'`, `rg`, `grep` (sem `-r`), `find` (sem `-exec`/`-delete`), `sort`,
+`uniq`, `cut`, `stat`, `file`, `du`, `tree`, `diff`, `echo`, `which`, `date` e as consultas do
+Git (`status`, `diff`, `log`, `show`, `blame`, `grep`, `ls-files`, `ls-tree`, `rev-parse`,
+`describe`, `shortlog`, e as listagens de `branch`, `remote`, `tag` e `stash list`), com seus
+argumentos. Essas consultas podem ser encadeadas com `|`, `&&`, `||` e `;`, aceitam `2>&1` e
+`> /dev/null`, e toleram um `cd` para a própria raiz do projeto no início. Se qualquer parte
+da linha não for uma consulta reconhecida, a linha inteira pede aprovação.
 O `validate-lifecycle.py` incluído no CLI também pode validar a pasta atual sem confirmação,
 inclusive com `--ready` e `--complete`: usa Python sem hooks de site/ambiente e Git do sistema.
 Isso não libera scripts Python genéricos. Caminhos absolutos dentro do projeto são aceitos.
 As formas aceitas ficam em [permissions.py](centaur_cli/permissions.py). Essas consultas
-usam executáveis do sistema e argumentos diretos, sem shell, configurações de busca ou
-programas externos do Git. Sintaxe de shell, opções desconhecidas, exclusões, testes/builds,
+usam executáveis do sistema, sem configurações de busca ou programas externos do Git; uma
+consulta simples roda sem shell, e uma linha encadeada roda no shell com cada argumento já
+citado, de modo que `$VAR`, crases e globs chegam literais. Arquivos ocultos como `.env` e
+caminhos fora do projeto continuam pedindo aprovação. Redirecionamento para arquivo, opções
+desconhecidas ou que gravam/executam (`--output`, `--pre`, `-exec`), exclusões, testes/builds,
 instalações, rede e operações de Git que alteram estado pedem aprovação. Documentos `.md`,
 `.json` e `.html` em `.centaur/specs`, `implements`, `contracts`, `modules` e `system` são
 edições comuns. Outros caminhos ocultos, links, arquivos executáveis e pastas de credenciais
@@ -385,7 +393,11 @@ $allow                          lista as regras numeradas
 $revoke 2                       remove a regra 2
 ```
 
-Na confirmação de um comando, `a` executa e grava a regra exata mostrada na tela. Uma linha com
+Na confirmação de um comando, `a` executa e grava a regra exata mostrada na tela, e `t` grava
+a família com `*` (por exemplo `python -m pytest *` ou `npm run build *`), para que as variações
+do mesmo comando não perguntem de novo. A família não é oferecida para interpretadores soltos
+(`python script.py`, `bash`), programas destrutivos ou de rede (`rm`, `sudo`, `curl`, `docker`)
+nem para `git push`/`reset`/`clean`; esses só com `$allow` digitado por você. Uma linha com
 `&&`, `;` ou `|` só roda sem perguntar se cada comando dela estiver liberado; redirecionamentos
 (exceto `2>&1` e `> /dev/null`), `$(...)`, crases e comandos em segundo plano com `&` sempre
 pedem confirmação. Só você cria regras: o agente não tem ferramenta para isso, e elas ficam em
@@ -394,7 +406,7 @@ escrita para grupo/outros. A chave `"*"` desse arquivo, editada à mão, vale pa
 O agente é informado das regras e orientado a usá-las apenas quando a tarefa pedir. Uma regra
 ampla como `bash *` ou `python *` equivale, na prática, ao modo `never` para aquele programa.
 
-**Hooks** são comandos seus executados antes ou depois das ferramentas. Ficam em
+**Hooks** são comandos seus executados antes ou depois das ferramentas, ou ao fim do turno. Ficam em
 `~/.config/centaur/hooks.json` (ou `$XDG_CONFIG_HOME/centaur/hooks.json`), fora do projeto, e o
 arquivo precisa pertencer ao usuário, sem escrita para grupo/outros:
 
@@ -411,6 +423,20 @@ pasta. O comando roda na raiz do projeto, recebe a chamada em JSON pelo stdin e 
 `CENTAUR_TOOL_NAME`, `CENTAUR_TOOL_PATH` e `CENTAUR_PROJECT`, sem as chaves dos provedores.
 Um `before_tool` que termina com código 2 bloqueia a ação e sua saída vira o resultado; um
 `after_tool` que falha tem a saída anexada ao resultado para o modelo corrigir (lint, formato).
+
+O evento `stop` impõe uma checagem antes de o agente dar o trabalho por encerrado:
+
+```json
+{"hooks": [{"event": "stop", "command": "python -m pytest -q", "project": "/caminho/do/projeto", "timeout": 300}]}
+```
+
+Ele roda quando o agente vai encerrar um turno em que gravou arquivos, executou comandos ou
+delegou tasks; turnos só de leitura e subagentes não o disparam. Código de saída diferente de
+zero devolve a saída ao agente, que precisa corrigir e encerrar de novo. Depois de três
+correções sem sucesso o turno termina com o aviso de que a checagem ainda falha, para não
+prender a sessão num laço. `stop` ignora `tools`, aceita `timeout` de até 600 segundos e recebe
+pelo stdin os arquivos e o total de linhas alterados no turno. Prefira um comando rápido: ele
+roda a cada encerramento com alterações.
 
 ### Transporte, cache e sessão nativa
 

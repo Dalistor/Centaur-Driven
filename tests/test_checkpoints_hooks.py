@@ -4,7 +4,9 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+
+from centaur_cli.agent import run_turn
 
 from centaur_cli.checkpoints import Checkpoints
 from centaur_cli.conversation import tool_activity
@@ -141,6 +143,57 @@ class HookTests(Base):
         self.assertEqual(load_hooks(self.root.parent / 'missing')[1], load_hooks(self.root)[1])
         (self.config / 'centaur' / 'hooks.json').unlink()
         self.assertEqual(load_hooks(self.root), ([], None))
+
+    def test_stop_hook_returns_the_failing_check_to_the_agent_and_gives_up_after_three_corrections(self):
+        self.configure([{'event': 'stop', 'timeout': 300, 'command':
+                         'cat > "$CENTAUR_PROJECT/stop.json"; test -f "$CENTAUR_PROJECT/fixed.txt" || { echo "1 teste falhou"; exit 1; }'}])
+        store = ChatStore(self.root)
+        chat = store.new('main')
+        chat['messages'] = [{'role': 'user', 'content': 'Corrija'}]
+        def write(identifier, path):
+            return {'role': 'assistant', 'content': None, 'tool_calls': [{'id': identifier, 'type': 'function', 'function': {
+                'name': 'write_file', 'arguments': json.dumps({'path': path, 'content': 'a\nb\n'})}}]}
+        replies = [write('w1', 'code.py'), {'role': 'assistant', 'content': 'Pronto.'},
+                   write('w2', 'fixed.txt'), {'role': 'assistant', 'content': 'Agora sim.'}]
+        seen = []
+        client = Mock(backend='openrouter', secrets=(), supports_cancellation=False, supports_streaming=False,
+                      supports_progress=False, context_windows={})
+        client.complete.side_effect = lambda model, messages, *args, **options: seen.append(messages[-1]) or replies.pop(0)
+        run_turn(chat, client, self.tools(), store, lambda: None)
+        self.assertEqual(replies, [])
+        feedback = [message for message in chat['messages'] if message.get('agent_source') == 'hook']
+        self.assertEqual(len(feedback), 1)  # Falhou uma vez; depois da correção o turno termina.
+        self.assertIn('1 teste falhou', feedback[0]['content'])
+        self.assertIn('Tentativa 1 de 3', feedback[0]['content'])
+        self.assertIn('1 teste falhou', seen[2]['content'])  # O agente recebeu a falha, sem metadado local.
+        self.assertNotIn('agent_source', seen[2])
+        self.assertEqual(chat['messages'][-1]['content'], 'Agora sim.')
+        payload = json.loads((self.root / 'stop.json').read_text())
+        self.assertEqual((payload['event'], payload['changed_files'], payload['changed_lines']), ('stop', ['code.py', 'fixed.txt'], 4))
+
+        (self.root / 'fixed.txt').unlink()
+        tools = self.tools()
+        tools.turn_acted = True
+        verdicts = [tools.stop_hook() for _ in range(4)]
+        self.assertEqual([again for _, again in verdicts], [True, True, True, False])
+        self.assertIn('ainda falha após 3 tentativas', verdicts[3][0])
+
+    def test_stop_hook_is_skipped_for_read_only_turns_and_delegated_executors(self):
+        self.configure([{'event': 'stop', 'command': 'echo falhou; exit 1'}, {'event': 'after_tool', 'timeout': 121, 'command': 'true'}])
+        self.assertIn('1 a 120', load_hooks(self.root)[1])  # Só o stop aceita limites longos.
+        self.configure([{'event': 'stop', 'command': 'echo falhou; exit 1'}])
+        tools = self.tools()
+        tools.execute('list_files', {'path': '.'})
+        self.assertIsNone(tools.stop_hook())
+        tools.execute('write_file', {'path': 'a.txt', 'content': 'x'})
+        self.assertTrue(tools.stop_hook()[1])
+        executor = self.tools()
+        executor.turn_acted = executor.executor = True
+        self.assertIsNone(executor.stop_hook())
+        self.configure([{'event': 'stop', 'command': 'true'}])
+        passing = self.tools()
+        passing.turn_acted = True
+        self.assertIsNone(passing.stop_hook())
 
     def test_model_tools_cannot_reach_the_hook_configuration(self):
         self.configure([])

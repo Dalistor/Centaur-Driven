@@ -93,7 +93,7 @@ class VirtualContractTests(unittest.TestCase):
         self.assertEqual(self.commands[-1][0], ['mouseup', '1'])
         self.act('computer_batch', steps=[{'action': 'type_text', 'text': 'Olá'}, {'action': 'keypress', 'keys': ['enter']}])
         self.assertEqual([command[:2] for command in self.commands[1:]],
-                         [(['click', '1'], None), (['type', '--delay', '2', '--file', '-'], 'Olá'), (['key', 'Return'], None)])
+                         [(['click', '1'], None), (['type', '--delay', '60', '--file', '-'], 'Olá'), (['key', 'Return'], None)])
 
     def test_chat_scope_persists_without_taking_the_desktop_lock_and_revoke_closes_the_display(self):
         folder = tempfile.TemporaryDirectory()

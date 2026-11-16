@@ -2,7 +2,7 @@
 name: start-project
 description: Inicializa o contexto de um projeto existente com AGENTS.md curto, registros e especificação Centaur; usa busca direta e Graphify opcional sob demanda.
 metadata:
-  version: 5.2.0
+  version: 5.3.0
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -53,7 +53,9 @@ Aguarde respostas necessárias antes de registrar uma decisão como confirmada. 
 
 ## Passo 4 — Criar AGENTS.md curto na raiz
 
-O arquivo contém instruções necessárias em toda sessão: regras, comandos essenciais, limites arquiteturais e recuperação de contexto. Detalhes de operação, justificativas, catálogo de arquivos, glossário extenso e histórico ficam em fontes vinculadas no Passo 5. Preserve os títulos Arquitetura de Camadas, Testes e Vocabulário e Idioma do Código usados pelas demais skills; preencha-os de forma concisa, com referências específicas quando necessário.
+O arquivo é enviado ao modelo em toda chamada: cada linha custa contexto e é seguida à risca. Priorize o que o agente **não descobre lendo o repositório**: comandos exatos, convenções fora do padrão e armadilhas. Não descreva o que se deduz do código (lista de pastas, resumo de cada módulo, estilo que o linter já impõe): visões gerais escritas por IA aumentam o custo sem melhorar o resultado. Confirme com o usuário o que for regra dele; não promova inferência a regra.
+
+O arquivo contém instruções necessárias em toda sessão: regras, comandos essenciais, limites arquiteturais e recuperação de contexto. Detalhes de operação, justificativas, catálogo de arquivos, glossário extenso e histórico ficam em fontes vinculadas no Passo 5. Preserve os títulos Arquitetura de Camadas, Testes e Vocabulário e Idioma do Código usados pelas demais skills; preencha-os de forma concisa, com referências específicas quando necessário. Comandos essenciais e Armadilhas vêm primeiro porque são o que mais muda o resultado.
 
 Adapte o template abaixo à estrutura real. Remova placeholders, não invente comandos, camadas ou documentos. Links devem apontar para arquivos existentes ou criados no Passo 5; não obrigue todos os documentos vinculados a serem lidos em toda sessão.
 
@@ -61,7 +63,13 @@ Adapte o template abaixo à estrutura real. Remova placeholders, não invente co
 # [Nome do projeto]
 
 ## Visão Geral
-[Propósito e stack em poucas linhas. Link para visão detalhada existente, se necessário.]
+[Propósito e stack em uma ou duas linhas. Link para visão detalhada existente, se necessário.]
+
+## Comandos essenciais
+[Comandos reais e exatos para instalar, executar, testar (suíte e um teste isolado), lint/type-check e build, com diretório quando necessário. Link para instruções detalhadas de ambiente/deploy já existentes.]
+
+## Armadilhas
+[O que faz perder tempo e não está escrito no código: testes lentos ou instáveis e como rodar só o necessário, pastas geradas ou que não devem ser editadas, passos manuais obrigatórios, serviços que precisam estar no ar, comportamentos contraintuitivos. Omita a seção se não houver nada confirmado; acrescente itens quando um erro se repetir.]
 
 ## Recuperação de contexto
 Priorize busca e símbolos do editor. Graphify é opcional para relações amplas; consulte `.centaur/graphify/graph.json` pelo adaptador da skill apenas quando útil. Confirme fontes atuais. Não indexe automaticamente após mudanças. Decisões e documentação gerada ficam em `.centaur/`; código e testes comprovam comportamento.
@@ -73,11 +81,8 @@ Com ai-memory, chame a subskill interna `memory`: use workspace/projeto explíci
 ## Contratos e realização
 Contratos em `.centaur/contracts/<id>/vNNN.json` definem o comportamento desejado e a autonomia. Estado em `.centaur/state/` e evidências em `.centaur/evidence/` registram a realização; o ciclo normativo de `graphify` define formatos e gates. Contratos aprovados são versionados, não reescritos. Antes de editar, consultar apenas as regras e limites pertinentes. Checklist de spec não comprova comportamento. Consulte specs, fontes e evidências diretamente no terminal. Apresente resultado, validação e próxima ação com links; detalhes ficam nos registros.
 
-## Comandos essenciais
-[Comandos reais para executar, construir e validar, com diretório quando necessário. Link para instruções detalhadas de ambiente/deploy já existentes.]
-
 ## Arquitetura de Camadas
-[Limites obrigatórios e direção das dependências. Tabela curta de camada/módulo, pasta, responsabilidade e proibições somente se útil. Preserve a arquitetura real, mesmo sem camadas convencionais. Referência para detalhes.]
+[Somente limites obrigatórios e direção das dependências que não se deduzem dos arquivos. Tabela curta de camada/módulo, pasta, responsabilidade e proibições somente se útil. Preserve a arquitetura real, mesmo sem camadas convencionais. Referência para detalhes.]
 
 ## Testes
 [Framework, comandos essenciais e local/convenção dos testes; ou ausência explícita. Gates e metas somente quando definidos. Identifique os fluxos/invariantes vitais reais do projeto, sem lista genérica. Reutilize testes existentes; teste novo só para falha concreta em ponto vital ainda sem proteção suficiente. Para baixo impacto, use verificação proporcional. Não busque contagem ou cobertura total.]

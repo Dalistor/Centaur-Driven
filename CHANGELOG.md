@@ -2,6 +2,32 @@
 
 ## Não publicado
 
+- Modo automático pergunta bem menos: as consultas de leitura aceitas passam a incluir `grep`,
+  `find`, `sort`, `uniq`, `cut`, `stat`, `file`, `du`, `tree`, `diff`, `echo`, `which`, `date` e as
+  consultas do Git com argumentos (`git diff arquivo`, `git log -n 5`, `git show`, `git blame`),
+  e podem ser encadeadas com `|`, `&&`, `||` e `;`, com `2>&1`, `> /dev/null` e `cd` para a raiz.
+  Antes só formas exatas como `git diff` passavam, e qualquer `| head` pedia confirmação.
+  Testes, builds e comandos que alteram algo continuam perguntando.
+- Na confirmação de um comando, `t` libera a família (`python -m pytest *`, `npm run build *`),
+  para as variações não perguntarem de novo; não é oferecida para interpretadores soltos,
+  programas destrutivos ou de rede nem para `git push`/`reset`/`clean`.
+- Display virtual: texto com acentos podia perder caracteres na digitação com a máquina
+  ocupada; caracteres fora do teclado padrão agora são digitados com intervalo maior.
+- Hook de fim de turno: `hooks.json` aceita o evento `stop`, executado quando o agente vai encerrar
+  um turno em que gravou arquivos, rodou comandos ou delegou tasks. Se o comando falha (testes,
+  lint, build), a saída volta ao agente, que corrige e tenta de novo, até três vezes; depois disso
+  o turno termina com o aviso de que a checagem não passou. Aceita `timeout` de até 600 s e não
+  roda em turnos só de leitura nem dentro de subagentes.
+- Tamanho da entrega: o resultado de `delegate_task` informa arquivos e linhas alterados pelo
+  subagente e sinaliza entregas acima de ~400 linhas para revisão por partes.
+- Skills: `run` passa a exigir revisão por um executor com contexto novo antes de consolidar,
+  que recebe spec, contrato e diff, sem o relatório de quem implementou; `implement` ganha um
+  caminho curto para mudanças pequenas de baixo risco, com registro mínimo e sem contrato, estado
+  ou evidência; `implement` e `tdd` mandam conferir na aplicação em execução o que muda na
+  interface; `spec` usa ~400 linhas de diff como sinal para dividir tasks. O bloco de contratos
+  compartilhados repetido em seis skills vira uma referência única (`graphify/references/shared.md`).
+- `start-project`: o modelo de `AGENTS.md` prioriza comandos exatos e armadilhas do projeto e
+  desencoraja descrever o que se deduz do código (schema 5.3.0).
 - Computer use em display virtual: `computer_start` aceita `display="virtual"` e cria um Xvfb
   privado (cookie próprio, sem TCP) onde o agente abre aplicações e usa as mesmas ferramentas
   `computer_*`, com teclado e mouse por `xdotool`, sem ver nem tocar o seu desktop. A autorização

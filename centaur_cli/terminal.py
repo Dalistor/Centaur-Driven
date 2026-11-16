@@ -1381,9 +1381,12 @@ class Terminal:
         if chat is None and self.approval and not self.agent_preview:
             remember = getattr(self.approval[0], 'remember', ())
             header = 'CONFIRMAÇÃO — y: permitir / n: recusar'
+            family = getattr(self.approval[0], 'family', ())
             if remember:
                 header += (' / a: sempre permitir nesta pasta\nRegra' + ('s' if len(remember) > 1 else '') + ' que "a" grava: '
                            + ' · '.join(remember) + ' ($allow lista, $revoke remove)')
+            if family:
+                header += ('\nt: permitir todas as variações nesta pasta (* = quaisquer argumentos): ' + ' · '.join(family))
             return display_lines(header + '\n\n' + self.approval[0], width)
         if chat is None and self.browser and not self.agent_preview:
             return [f'{">" if index == self.selected else " "} {chat["updated"][:16]}  {chat["title"]}'
@@ -1400,7 +1403,8 @@ class Terminal:
         for message in messages:
             content = message.get('content') or ''
             if message.get('agent_source'):
-                append_text('↳ Agente ' + str(message['agent_source'])[:8], 'action')
+                append_text('↳ Checagem de fim de turno' if message['agent_source'] == 'hook' else '↳ Agente ' + str(message['agent_source'])[:8],
+                            'warning' if message['agent_source'] == 'hook' else 'action')
                 if message.get('agent_kind') == 'report':
                     try:
                         report = json.loads(content.split('\n', 1)[1])
@@ -1794,8 +1798,9 @@ class Terminal:
             return
         if self.approval:
             always = key in ('a', 'A') and getattr(self.approval[0], 'remember', ())
-            if key in ('y', 'Y', 'n', 'N') or always:
-                self.approval[1].put('always' if always else key.lower() == 'y')
+            family = key in ('t', 'T') and getattr(self.approval[0], 'family', ())
+            if key in ('y', 'Y', 'n', 'N') or always or family:
+                self.approval[1].put('always' if always else 'family' if family else key.lower() == 'y')
                 self.approval = None
                 self.scroll = self.saved_scroll
             elif key == curses.KEY_NPAGE:

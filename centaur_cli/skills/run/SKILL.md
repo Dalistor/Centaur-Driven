@@ -2,7 +2,7 @@
 name: run
 description: Coordena uma spec por execução pelo terminal, com posse explícita, execução adaptativa, evidências e integração conforme autorização.
 metadata:
-  version: 5.4.0
+  version: 5.5.0
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -11,20 +11,11 @@ metadata:
 
 ## Contratos compartilhados
 
-As instruções do usuário e do projeto prevalecem. Leia cada referência quando o trabalho chegar ao que ela rege, não todas por rotina:
-
-| Referência | Leia quando |
-|---|---|
-| [Ciclo por contratos e evidências](../graphify/references/lifecycle.md) | for planejar, mudar estado, registrar evidência ou declarar progresso. É a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. |
-| [Contexto](../graphify/references/context.md) | antes de explorar o projeto e ao redigir a saída. Busca textual e símbolos primeiro; Graphify só sob demanda para relações amplas, sem inicializar nem sincronizar o grafo como efeito colateral. |
-| [Memória](../_internal/memory/SKILL.md) e [seu contrato](../_internal/memory/references/contract.md) | for consultar histórico ou registrar o resultado. O backend em `.centaur/workspace.json` decide o destino: `files` usa `implements/` e `status.md` (inclusive a reserva numérica descrita abaixo); `ai-memory` usa páginas e fila, sem novas pastas. Consulta é somente leitura; não configure nem migre o backend por efeito colateral. |
-| [Módulos e equipe](../graphify/references/team-workspace.md) | o projeto tiver módulos, mais de um responsável, IDs qualificados ou trabalho concorrente. Os exemplos abaixo usam o escopo selecionado. |
-
-Valem mesmo sem abrir as referências: contratos versionados definem o molde, specs planejam entregas e só estado e evidências comprovam a realização; preserve o histórico legado e nunca converta checklist em prova de comportamento.
+As instruções do usuário e do projeto prevalecem. A tabela de [contratos compartilhados](../graphify/references/shared.md) diz qual referência abrir e quando (ciclo, contexto, memória, equipe); abra só a que o trabalho exigir. Valem sempre: contratos versionados definem o molde, specs planejam entregas e só estado e evidências comprovam a realização; preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ### Dependência clean-code — obrigatória
 
-No Centaur CLI, leia `clean-code/SKILL.md` com `read_skill` e resolva as referências pelo mesmo prefixo (`clean-code/references/...`). Em outros agentes, ela fica na pasta de skills do próprio agente (`~/.agents/skills/`, `~/.codex/skills/` ou `~/.claude/skills/`) ou em `.centaur/skills/clean-code/` do projeto. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+Carregue `clean-code` antes de planejar ou escrever código; a [localização por agente](../graphify/references/shared.md) está nos contratos compartilhados. Se estiver ausente ou incompleta, informe a dependência faltante e não prossiga com o trabalho que depende dela.
 
 Verifique a disponibilidade da dependência antes de iniciar as ondas. Cada subagente deve carregá-la na própria sessão; não presuma que herdou sua leitura. Preserve o objetivo, os critérios e o modo da task. Adaptações técnicas dentro da autonomia devem ser registradas; o coordenador só executa diretamente no modo de agente único, pela skill adequada.
 
@@ -91,7 +82,19 @@ ausência dessas ferramentas mantém a alternativa sequencial descrita acima.
 
 Executores não alteram contrato aprovado, spec, índices, estado consolidado ou grafo compartilhado. Escrevem só arquivos sob sua responsabilidade e registros/evidências individuais com IDs únicos. Reportam deltas para o coordenador. Sem canal direto com usuário, ambiguidade que mude contrato volta como bloqueio com alternativas e consequências.
 
-## Passo 4 — Consolidar cada entrega/onda
+## Passo 4 — Revisar com contexto novo e consolidar cada entrega/onda
+
+**Revisão independente antes de consolidar.** Quem escreveu o código, e o coordenador que acompanhou o raciocínio, tendem a confirmar o próprio caminho. Para cada entrega com mudança de código, delegue a revisão a um executor **novo** (`delegate_task` no Centaur CLI; o mecanismo de subagentes do cliente nos demais), com modelo de capacidade igual ou maior que a do executor:
+
+- Entregue **somente**: spec/task, contrato e regras com seus aceites, limites, o diff a revisar (intervalo do Git ou lista de arquivos) e o comando de verificação. Não envie o relatório do executor, o histórico da conversa nem a sua conclusão: o revisor deve ler o código, não a justificativa.
+- Peça que ele confira, nesta ordem: a mudança faz o que o aceite pede (não só o que a task literalmente disse)? Algum comportamento existente quebrou? Há erro de lógica, borda ou segurança nas linhas alteradas? Os testes novos falhariam sem a correção? Algo extrapolou o escopo?
+- O revisor **não edita**: devolve achados com `arquivo:linha`, o cenário concreto de falha, a classificação (**bloqueia o aceite** ou melhoria) e o que não conseguiu verificar. Sem achados, diz o que conferiu.
+- O relatório do revisor também é dado a conferir: reproduza ou leia o trecho antes de agir. Achado que bloqueia o aceite volta ao executor responsável (ou vira task); depois da correção, revise só a correção. Melhorias fora do aceite são registradas, não executadas por conta própria.
+- Dispensa: mudanças só de documentação, texto ou configuração trivial. Sem subagentes disponíveis, releia o diff a partir da spec numa etapa separada e registre que a revisão **não foi independente**.
+
+**Tamanho.** No Centaur CLI, o resultado de `delegate_task` traz `changed` (arquivos e linhas alterados pelas ferramentas de arquivo) e, acima de ~400 linhas, `review_note`. Entrega grande é revisada por partes coesas, uma delegação de revisão por parte; se as partes forem independentes, registre no plano que a task deveria ter sido dividida.
+
+Depois da revisão:
 
 1. Conferir diff, fontes e resultados reais; relatório de executor isolado não é prova. No diff de testes, confirmar qual falha vital cada adição protege e eliminar duplicações entre executores sem perder proteção existente. Falha sem relatório exige inspecionar trabalho preservado antes de qualquer tentativa nova.
 2. Registrar decisões técnicas e comparar impacto previsto/real. Desvio de limite bloqueia a parte afetada; manter trabalho independente.

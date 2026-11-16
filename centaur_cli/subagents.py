@@ -7,7 +7,7 @@ import threading
 from . import grants
 from .agent import run_turn
 from .history import ChatStore
-from .tools import ProjectTools
+from .tools import ProjectTools, LARGE_DELIVERY
 from .interaction import TurnCancelled
 from .agent_runtime import AgentGroup, AGENT_TOOLS
 
@@ -82,6 +82,9 @@ class SubagentTools:
 
     def observation_messages(self):
         return self.base.observation_messages()
+
+    def stop_hook(self):
+        return self.base.stop_hook()
 
     def activity(self, phase):
         return getattr(self.base, 'activity', lambda _: None)(phase)
@@ -187,7 +190,7 @@ class SubagentTools:
         return self.run_child(chat, store, title, task, tier, model)
 
     def run_child(self, chat, store, title, task, tier, model):
-        report = 'Executor encerrado antes de produzir relatório.'
+        report, measured = 'Executor encerrado antes de produzir relatório.', []
         def state(value):
             if self.registry:
                 try:
@@ -205,11 +208,14 @@ class SubagentTools:
                     state('running')
             tools = ProjectTools(self.root,
                                  lambda description: interact(self.approve_callback, grants.request(
-                                     f'Subagente {title}\n{description}', getattr(description, 'remember', ()))),
+                                     f'Subagente {title}\n{description}', getattr(description, 'remember', ()), getattr(description, 'family', ()))),
                                  protected_keys=self.base.protected_keys, approval_mode=self.approval_mode,
                                  ask_user=(lambda question, options: interact(self.ask_callback, question, options)) if self.ask_callback else None,
                                  cancel_event=self.cancel_event)
             tools.agent_approve, tools.agent_ask = self.approve_callback, self.ask_callback
+            tools.executor = True  # A checagem de fim de turno é do principal, com o trabalho integrado.
+            self.base.turn_acted = True
+            measured.append(tools)
             tools.before_change = getattr(self.base, 'before_change', None)
             if self.registry:
                 tools.activity = lambda phase: self.registry.activity(chat['id'], phase)
@@ -252,6 +258,12 @@ class SubagentTools:
                       'parent_id': self.parent_id, 'principal_id': self.group.principal_id,
                       'requested_model': model, 'models_used': models, 'cost_tier': tier,
                       'history': str(store.directory / (chat['id'] + '.json')), 'report': report}
+            if measured:
+                files, lines = len(measured[0].changed_files), measured[0].changed_lines
+                result['changed'] = {'files': files, 'lines': lines}
+                if lines > LARGE_DELIVERY:
+                    result['review_note'] = (f'Entrega grande: ~{lines} linhas alteradas em {files} arquivos pelas ferramentas de '
+                                             'arquivo (comandos de shell não entram na conta). Revise por partes ou divida a task.')
             try:
                 store.save(chat)
             except (OSError, ValueError, RuntimeError):

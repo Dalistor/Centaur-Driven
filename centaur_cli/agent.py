@@ -244,6 +244,14 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
             getattr(tools, 'wait_for_children', lambda: None)()
             if receive():
                 continue
+            verdict = getattr(tools, 'stop_hook', lambda: None)()
+            if verdict:
+                # A falha da checagem do usuário volta ao agente em vez de o turno terminar "pronto".
+                messages.append({'role': 'user', 'content': verdict[0], 'agent_source': 'hook'})
+                store.save(chat)
+                emit()
+                if verdict[1]:
+                    continue
             return
         def execute(call):
             try:

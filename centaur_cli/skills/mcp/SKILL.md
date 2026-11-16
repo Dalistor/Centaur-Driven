@@ -2,7 +2,7 @@
 name: mcp
 description: Ponte dinâmica entre um MCP server e o fluxo centaur - consulta a documentação/tools do MCP informado, extrai o que é relevante para a requisição do usuário e roteia para tdd, implement ou spec com esse contexto anexado. Também instala o MCP no escopo global quando recebe uma URL no lugar do nome. Uso - /mcp Nome do MCP | URL do MCP [Requisição do usuário]. Não depende de nenhum MCP específico - descobre os disponíveis em tempo de execução.
 metadata:
-  version: 5.0.0
+  version: 5.0.1
   optional-dependencies: clean-code, graphify, _internal/memory
 ---
 
@@ -10,16 +10,7 @@ metadata:
 
 ## Contratos compartilhados
 
-As instruções do usuário e do projeto prevalecem. Leia cada referência quando o trabalho chegar ao que ela rege, não todas por rotina:
-
-| Referência | Leia quando |
-|---|---|
-| [Ciclo por contratos e evidências](../graphify/references/lifecycle.md) | for planejar, mudar estado, registrar evidência ou declarar progresso. É a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. |
-| [Contexto](../graphify/references/context.md) | antes de explorar o projeto e ao redigir a saída. Busca textual e símbolos primeiro; Graphify só sob demanda para relações amplas, sem inicializar nem sincronizar o grafo como efeito colateral. |
-| [Memória](../_internal/memory/SKILL.md) e [seu contrato](../_internal/memory/references/contract.md) | for consultar histórico ou registrar o resultado. O backend em `.centaur/workspace.json` decide o destino: `files` usa `implements/` e `status.md` (inclusive a reserva numérica descrita abaixo); `ai-memory` usa páginas e fila, sem novas pastas. Consulta é somente leitura; não configure nem migre o backend por efeito colateral. |
-| [Módulos e equipe](../graphify/references/team-workspace.md) | o projeto tiver módulos, mais de um responsável, IDs qualificados ou trabalho concorrente. Os exemplos abaixo usam o escopo selecionado. |
-
-Valem mesmo sem abrir as referências: contratos versionados definem o molde, specs planejam entregas e só estado e evidências comprovam a realização; preserve o histórico legado e nunca converta checklist em prova de comportamento.
+As instruções do usuário e do projeto prevalecem. A tabela de [contratos compartilhados](../graphify/references/shared.md) diz qual referência abrir e quando (ciclo, contexto, memória, equipe); abra só a que o trabalho exigir. Valem sempre: contratos versionados definem o molde, specs planejam entregas e só estado e evidências comprovam a realização; preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ### Dependência clean-code — recomendada
 

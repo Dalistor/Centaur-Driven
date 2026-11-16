@@ -190,6 +190,10 @@ O sistema não oferece execução arbitrária de código de computer use.
 autorização própria (`scope: virtual`) que não libera o desktop real, sem lock de desktop, com as
 mesmas ferramentas e validações. O display sobrevive a pausas e turnos e termina com
 `computer_stop`, revogação, exclusão do chat ou saída; aplicações entram nele só por `run_command`.
+Hooks do usuário (`~/.config/centaur/hooks.json`) têm três eventos: `before_tool`, `after_tool`
+e `stop`. O `stop` roda quando o principal vai encerrar um turno em que agiu; falha devolve a
+saída ao agente como mensagem marcada `agent_source: hook` (exibida como "Checagem de fim de
+turno"), no máximo três vezes por turno. Subagentes não o disparam.
 Ver uma aplicação isolada não é computer use: o agente roda um script temporário por
 `run_command` (display virtual ou navegador headless, sob o modo de permissões) e abre a
 captura com `view_image`, que só lê imagens do projeto e as anexa a uma única decisão.

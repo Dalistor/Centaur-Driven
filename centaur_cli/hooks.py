@@ -1,4 +1,4 @@
-"""Comandos do usuário executados antes e depois das ferramentas do modelo."""
+"""Comandos do usuário executados antes e depois das ferramentas do modelo e ao fim do turno."""
 
 import json
 import os
@@ -8,7 +8,8 @@ from pathlib import Path
 
 from .credentials import credentials_path
 
-EVENTS = ('before_tool', 'after_tool')
+EVENTS = ('before_tool', 'after_tool', 'stop')
+STOP_TIMEOUT = 600  # Suíte de testes ou build; os demais hooks ficam em 120s.
 
 
 def hooks_path():
@@ -38,11 +39,12 @@ def load_hooks(root):
             event, command = entry['event'], entry['command']
             timeout, project = entry.get('timeout', 30), entry.get('project')
             if event not in EVENTS:
-                raise ValueError(f'event deve ser {" ou ".join(EVENTS)}')
+                raise ValueError(f'event deve ser {", ".join(EVENTS[:-1])} ou {EVENTS[-1]}')
             if not isinstance(command, str) or not command.strip():
                 raise ValueError('command deve ser um texto não vazio')
-            if type(timeout) is not int or not 1 <= timeout <= 120:
-                raise ValueError('timeout deve ser um inteiro de 1 a 120 segundos')
+            limit = STOP_TIMEOUT if event == 'stop' else 120
+            if type(timeout) is not int or not 1 <= timeout <= limit:
+                raise ValueError(f'timeout deve ser um inteiro de 1 a {limit} segundos')
             pattern = re.compile(entry.get('tools', '.*'))
             if project is not None:
                 if not isinstance(project, str) or not Path(project).expanduser().is_absolute():

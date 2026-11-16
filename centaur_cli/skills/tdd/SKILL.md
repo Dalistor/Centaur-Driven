@@ -2,7 +2,7 @@
 name: tdd
 description: Implementa uma mudança guiada por testes (red-green-refactor), com ciclos mínimos, reaproveitamento e manutenção dos testes existentes e registro no backend de memória configurado. Use para falhas concretas em pontos vitais ainda sem proteção suficiente, ou por pedido explícito.
 metadata:
-  version: 5.2.0
+  version: 5.3.0
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -11,20 +11,11 @@ metadata:
 
 ## Contratos compartilhados
 
-As instruções do usuário e do projeto prevalecem. Leia cada referência quando o trabalho chegar ao que ela rege, não todas por rotina:
-
-| Referência | Leia quando |
-|---|---|
-| [Ciclo por contratos e evidências](../graphify/references/lifecycle.md) | for planejar, mudar estado, registrar evidência ou declarar progresso. É a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. |
-| [Contexto](../graphify/references/context.md) | antes de explorar o projeto e ao redigir a saída. Busca textual e símbolos primeiro; Graphify só sob demanda para relações amplas, sem inicializar nem sincronizar o grafo como efeito colateral. |
-| [Memória](../_internal/memory/SKILL.md) e [seu contrato](../_internal/memory/references/contract.md) | for consultar histórico ou registrar o resultado. O backend em `.centaur/workspace.json` decide o destino: `files` usa `implements/` e `status.md` (inclusive a reserva numérica descrita abaixo); `ai-memory` usa páginas e fila, sem novas pastas. Consulta é somente leitura; não configure nem migre o backend por efeito colateral. |
-| [Módulos e equipe](../graphify/references/team-workspace.md) | o projeto tiver módulos, mais de um responsável, IDs qualificados ou trabalho concorrente. Os exemplos abaixo usam o escopo selecionado. |
-
-Valem mesmo sem abrir as referências: contratos versionados definem o molde, specs planejam entregas e só estado e evidências comprovam a realização; preserve o histórico legado e nunca converta checklist em prova de comportamento.
+As instruções do usuário e do projeto prevalecem. A tabela de [contratos compartilhados](../graphify/references/shared.md) diz qual referência abrir e quando (ciclo, contexto, memória, equipe); abra só a que o trabalho exigir. Valem sempre: contratos versionados definem o molde, specs planejam entregas e só estado e evidências comprovam a realização; preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ### Dependência clean-code — obrigatória
 
-No Centaur CLI, leia `clean-code/SKILL.md` com `read_skill` e resolva as referências pelo mesmo prefixo (`clean-code/references/...`). Em outros agentes, ela fica na pasta de skills do próprio agente (`~/.agents/skills/`, `~/.codex/skills/` ou `~/.claude/skills/`) ou em `.centaur/skills/clean-code/` do projeto. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+Carregue `clean-code` antes de planejar ou escrever código; a [localização por agente](../graphify/references/shared.md) está nos contratos compartilhados. Se estiver ausente ou incompleta, informe a dependência faltante e não prossiga com o trabalho que depende dela.
 
 Leia também `references/session-protocol.md` e `references/tests.md` da dependência. Aplique os critérios de responsabilidade, localização e dependências no GREEN e de clareza no REFACTOR. Preserve RED → GREEN → REFACTOR e a proporcionalidade dos critérios de aceite desta skill.
 
@@ -140,7 +131,8 @@ Compare o resultado aos critérios e riscos identificados. Prossiga somente se h
 2. Execute lint/type-check e build quando exigidos ou pertinentes à mudança. Reporte comandos, resultados e limitações reais. Se uma suíte não puder rodar, declare o que ficou sem verificar; falhas preexistentes também aparecem no relatório, separadas das regressões causadas pela mudança.
 3. Revise o diff dos testes: a regra antiga deixou de ser exigida? As remoções perderam algum cenário ainda válido? Fixtures e snapshots representam o contrato atual? Não aprove atualizações em massa sem examinar essas diferenças.
 4. Use cobertura como pista de uma lacuna, quando necessário, ou como gate se o projeto já exigir. Não estabeleça 100% de branches, meta nova ou teste extra só para subir a métrica. Respeite gates existentes sem reduzi-los para obter verde.
-5. Confirme que a implementação e os testes não extrapolaram o pedido. Documente falhas ou bloqueios sem apresentar entrega validada quando os checks necessários não passaram.
+5. Se a mudança altera tela, fluxo ou saída visível, execute a aplicação e confira o resultado conforme a [referência compartilhada](../graphify/references/shared.md); teste verde não mostra como a interface ficou. Sem como executar, declare a parte visual não verificada.
+6. Confirme que a implementação e os testes não extrapolaram o pedido. Documente falhas ou bloqueios sem apresentar entrega validada quando os checks necessários não passaram.
 
 ## Passo 12 — Determinar número da implementação
 

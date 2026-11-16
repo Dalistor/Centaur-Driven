@@ -74,6 +74,21 @@ class SubagentTests(unittest.TestCase):
         self.assertEqual(history['status'], 'reported')
         self.assertEqual(ChatStore(self.root).list(), [])
         self.assertTrue(any('provider/coding-model' in notice for notice in progress))
+        self.assertEqual(result['changed'], {'files': 1, 'lines': 1})
+        self.assertNotIn('review_note', result)
+        self.assertTrue(base.turn_acted)  # O principal confere o trabalho delegado ao encerrar.
+
+    def test_large_delivery_is_flagged_for_the_coordinator_to_review_in_parts(self):
+        replies = [ModelReply({'role': 'assistant', 'content': None, 'tool_calls': [{
+            'id': 'write', 'type': 'function', 'function': {'name': 'write_file', 'arguments': json.dumps(
+                {'path': 'big.py', 'content': ''.join(f'x{n} = {n}\n' for n in range(450))})}}]}, 'm'),
+            ModelReply({'role': 'assistant', 'content': 'Pronto.'}, 'm')]
+        class Client:
+            def complete(inner, *args, **options): return replies.pop(0)
+        tools = SubagentTools(ProjectTools(self.root, lambda _: True, approval_mode='never'), Client(), self.parent_id, lambda _: None)
+        result = json.loads(tools.execute('delegate_task', {'title': 'master/0002 — Task 01', 'task': 'Crie big.py.', 'cost_tier': 'low'}))
+        self.assertEqual(result['changed'], {'files': 1, 'lines': 450})
+        self.assertIn('Entrega grande: ~450 linhas', result['review_note'])
 
     def test_different_tasks_get_different_sessions_and_can_choose_different_models(self):
         calls = []

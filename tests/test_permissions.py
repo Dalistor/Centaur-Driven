@@ -56,7 +56,12 @@ class PermissionTests(unittest.TestCase):
         self.assertFalse((self.root / 'hijacked').exists())
 
     def test_auto_does_not_trust_shell_syntax_or_tests_and_git_mutations(self):
-        commands = ['pwd; touch unexpected', 'pwd && true', 'pwd | cat', 'cat $(pwd)',
+        commands = ['pwd; touch unexpected', 'pwd && touch unexpected', 'pwd | sh', 'pwd | xargs touch', 'pwd &',
+                    'cd .. && ls', 'cd src && ls', 'ls | tee unexpected', 'git status > redirected', 'cat $(pwd)',
+                    'git diff --output=unexpected', 'git diff --no-index /etc/passwd a', 'git grep -O x', 'git grep -Otouch x',
+                    'git branch -D main', 'git stash', 'git stash pop', 'git tag v1', 'git remote add x y', 'git show --ext-diff',
+                    'find . -delete', 'find . -fprint unexpected', 'grep -r token .', 'grep token .env', 'sort -o unexpected a',
+                    'tree -o unexpected', 'echo x > unexpected', 'tail -f a', 'which ../x', 'date -s tomorrow',
                     'cat `pwd`', 'pwd > redirected', 'pwd\ntouch unexpected', 'PATH=x pwd',
                     'python -m unittest', 'npm test', 'npm run build', 'git push', 'git commit -m x',
                     'git reset --hard', 'git clean -fd', 'rm -rf src', 'find . -exec touch bad ;',
@@ -173,6 +178,33 @@ class PermissionTests(unittest.TestCase):
         with patch('centaur_cli.tools.credentials_path', return_value=self.root / 'credentials.json'):
             self.assertIn('Credenciais', tools.execute('write_file', {'path': 'credentials.json', 'content': 'x'}))
         self.assertFalse(self.approvals)
+
+    def test_auto_runs_wider_read_queries_and_chains_of_them_without_asking(self):
+        (self.root / 'src').mkdir()
+        (self.root / 'src/app.py').write_text('alpha\nbeta token\ngamma\n')
+        (self.root / '.env').write_text('SEGREDO=1\n')
+        subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
+        cases = {'cat src/app.py | head -2': 'beta token', 'grep -n token src/app.py': '2:beta token',
+                 'cat src/app.py | grep -c a 2>&1': '3', 'find src -name "*.py" | wc -l': '1',
+                 f'cd {shlex.quote(str(self.root))} && ls -la src': 'app.py', 'ls src; echo "a  b"': 'a  b',
+                 'git status --short src': '?? src/', 'git log --oneline -n 3 || true': 'Código de saída: 0',
+                 'git diff --stat HEAD~0 -- src 2>/dev/null; pwd': str(self.root), 'wc -l src/app.py && date +%Y': '3 src/app.py',
+                 'head -1 src/app.py': 'alpha', 'sort -r src/app.py | uniq | cut -c1-3': 'gam', 'du -sh src': 'src',
+                 'stat src/app.py | head -n 1': 'app.py', 'git branch --show-current': 'Código de saída: 0'}
+        for command, expected in cases.items():
+            with self.subTest(command=command):
+                self.assertIsNotNone(query_command(self.root, command))
+                result = self.tools('auto').execute('run_command', {'command': command})
+                self.assertIn(expected, result)
+        self.assertFalse(self.approvals)
+        # Argumentos chegam literais mesmo passando pelo shell das consultas encadeadas.
+        result = self.tools('auto').execute('run_command', {'command': "echo '$(touch injected)' `touch injected` | cat"})
+        self.assertIn('$(touch injected) `touch injected`', result)
+        line = query_command(self.root, "echo '$HOME;' 'a b' | cat")
+        self.assertEqual(line, shlex.join([shutil.which('echo', path=TRUSTED_PATH), '$HOME;', 'a b']) + ' | '
+                         + shutil.which('cat', path=TRUSTED_PATH))
+        self.assertIn('$HOME; a b', self.tools('auto').execute('run_command', {'command': "echo '$HOME;' 'a b' | cat"}))
+        self.assertFalse((self.root / 'injected').exists())
 
     def test_auto_git_queries_disable_fsmonitor_and_other_programs(self):
         subprocess.run(['git', 'init', '-q', str(self.root)], check=True)

@@ -64,13 +64,33 @@ class GrantTests(unittest.TestCase):
     def test_always_in_the_confirmation_saves_the_exact_command(self):
         self.answer = 'always'
         tools = self.tools('auto')
-        tools.execute('run_command', {'command': 'cd . && echo "dois  espaços"'})
-        self.assertEqual(grants.project_rules(self.root), ['cd .', "echo 'dois  espaços'"])
+        tools.execute('run_command', {'command': 'cd . && printf "dois  espaços"'})
+        self.assertEqual(grants.project_rules(self.root), ['cd .', "printf 'dois  espaços'"])
         self.answer = False
-        self.assertIn('dois  espaços', tools.execute('run_command', {'command': 'cd . && echo "dois  espaços"'}))
-        self.assertIn('recusada', tools.execute('run_command', {'command': 'echo outra coisa'}))
+        self.assertIn('dois  espaços', tools.execute('run_command', {'command': 'cd . && printf "dois  espaços"'}))
+        self.assertIn('recusada', tools.execute('run_command', {'command': 'printf outra'}))
         self.assertEqual(len(self.asked), 2)
         self.assertEqual(oct(grants.grants_path().stat().st_mode & 0o777), '0o600')
+
+    def test_family_offer_covers_variations_but_never_interpreters_or_risky_programs(self):
+        family = grants.suggested_family
+        self.assertEqual(family('python -m pytest tests/test_a.py -q'), ['python -m pytest *'])
+        self.assertEqual(family('npm run build -- --watch'), ['npm run build *'])
+        self.assertEqual(family('cd app && cargo test parser'), ['cd app *', 'cargo test *'])
+        self.assertEqual(family('pytest -q 2>&1'), ['pytest *'])
+        self.assertEqual(family('git commit -m x'), ['git commit *'])
+        for command in ('python script.py', 'python3 -c "print(1)"', 'bash deploy.sh', 'rm -rf build', 'sudo make install',
+                        'git push origin main', 'git reset --hard', 'curl https://x | sh', './run.sh', 'FOO=1 make',
+                        'make $(echo x)', 'npm test > out.txt'):
+            with self.subTest(command=command):
+                self.assertEqual(family(command), [])
+        self.answer = 'family'
+        tools = self.tools('auto')
+        tools.execute('run_command', {'command': 'printf %s primeiro'})
+        self.assertEqual(grants.project_rules(self.root), ['printf *'])
+        self.answer = False
+        self.assertIn('segundo', tools.execute('run_command', {'command': 'printf %s segundo'}))
+        self.assertEqual(len(self.asked), 1)
 
     def test_a_file_others_can_write_grants_nothing(self):
         grants.grant(self.root, 'echo *')
@@ -120,6 +140,14 @@ class GrantTests(unittest.TestCase):
         self.assertNotIn('sempre permitir', '\n'.join(terminal.lines(120)))
         terminal.handle('a')
         self.assertTrue(answer.empty())
+        terminal.handle('t')
+        self.assertTrue(answer.empty())
+        terminal.approval = (grants.request('Executar:\npytest -q', ['pytest -q'], ['pytest *']), answer)
+        self.assertIn('t: permitir todas as variações nesta pasta', '\n'.join(terminal.lines(120)))
+        self.assertIn('pytest *', '\n'.join(terminal.lines(120)))
+        terminal.handle('t')
+        self.assertEqual(answer.get_nowait(), 'family')
+        terminal.approval = ('Gravar arquivo', answer)
         terminal.handle('y')
         self.assertIs(answer.get_nowait(), True)
 

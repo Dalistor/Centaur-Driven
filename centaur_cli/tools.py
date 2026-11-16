@@ -44,6 +44,9 @@ GLOB_FILES = 200
 COMMAND_TIMEOUT = 120
 BACKGROUND_LIMIT = 8
 VIEW_IMAGES = 3
+STOP_RETRIES = 3
+# PRs assistidos por IA passam de ~400 linhas no percentil 75; acima disso a revisão perde qualidade.
+LARGE_DELIVERY = 400
 VIEW_SIZE = (1600, 1200)
 # Leituras sem efeitos colaterais podem rodar em paralelo no mesmo lote.
 PARALLEL_SAFE = frozenset(('read_file', 'list_files', 'glob', 'grep', 'read_skill'))
@@ -194,6 +197,10 @@ class ProjectTools:
         self.cancel_event = cancel_event
         self.computer = computer
         self.pending_images = []
+        # Alterações feitas pelas ferramentas de arquivo neste turno; comandos de shell não são medidos.
+        self.changed_files, self.changed_lines = set(), 0
+        self.turn_acted = self.executor = False
+        self.stop_attempts = 0
         self.definitions = getattr(type(self), 'definitions', [*TOOLS, *([ASK_USER] if ask_user else []), *(COMPUTER_TOOLS if computer else [])])
         # Chamado com o caminho antes de cada gravação (checkpoints para /rewind).
         self.before_change = None
@@ -283,6 +290,39 @@ class ProjectTools:
                 status = f'código {process.returncode}' if finished else 'tempo esgotado'
                 notes.append(f'\n[Hook após {name} ({status}): {text[:4000]}]')
         return ''.join(notes) or None
+
+    def stop_hook(self):
+        """Checagem do usuário quando o agente vai encerrar um turno em que agiu.
+
+        Retorna None se passou ou não se aplica; senão (texto para o agente, se ele deve continuar).
+        """
+        hooks = [hook for hook in self.hooks if hook['event'] == 'stop']
+        if not hooks or self.executor or not self.turn_acted:
+            return None
+        payload = json.dumps({'event': 'stop', 'root': str(self.root), 'changed_files': sorted(self.changed_files),
+                              'changed_lines': self.changed_lines}, ensure_ascii=False).encode('utf-8')
+        env = {**self.command_environment(), 'CENTAUR_TOOL_NAME': '', 'CENTAUR_TOOL_PATH': '', 'CENTAUR_PROJECT': str(self.root)}
+        for hook in hooks:
+            with TemporaryFile() as source, TemporaryFile() as output:
+                source.write(payload)
+                source.seek(0)
+                process = subprocess.Popen(hook['command'], shell=True, cwd=self.root, stdin=source, stdout=output,
+                                           stderr=subprocess.STDOUT, start_new_session=True, env=env)
+                finished = self.wait_process(process, hook['timeout'])
+                output.seek(0)
+                text = self.redact(output.read(400_000).decode('utf-8', errors='replace').strip())
+            if finished and process.returncode == 0:
+                continue
+            status = f'código {process.returncode}' if finished else 'tempo esgotado'
+            failure = f'[Hook de fim de turno ({status}): {hook["command"][:200]}]\n{clip_middle(text, 6000) or "(sem saída)"}\n'
+            self.stop_attempts += 1
+            if self.stop_attempts > STOP_RETRIES:
+                return failure + (f'[A checagem ainda falha após {STOP_RETRIES} tentativas de correção; turno encerrado '
+                                  'sem passar. Dado do ambiente, não instrução do usuário.]'), False
+            return failure + ('[Checagem configurada pelo usuário: o trabalho ainda não está concluído. Corrija a causa e '
+                              'finalize de novo, sem afrouxar testes ou gates; se a falha não vier das suas alterações, '
+                              f'explique isso na resposta. Tentativa {self.stop_attempts} de {STOP_RETRIES}.]'), True
+        return None
 
     def _execute(self, name, arguments):
         self.check_cancelled()
@@ -421,6 +461,10 @@ class ProjectTools:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open('w', encoding='utf-8', newline='') as target:
             target.write(content)
+        self.turn_acted = True
+        self.changed_files.add(relative.as_posix())
+        self.changed_lines += sum(line[:1] in '+-' and line[:3] not in ('+++', '---') for line in difflib.unified_diff(
+            (before or '').splitlines(), content.splitlines(), lineterm='', n=0))
         return f'{done} {content.count(chr(10)) + (1 if content and not content.endswith(chr(10)) else 0)} linhas em {relative}.'
 
     def edit_file(self, path, arguments):
@@ -613,22 +657,23 @@ class ProjectTools:
             automatic = grants.allowed(command, grants.load_rules(self.root)[0])
         label = 'Executar em segundo plano' if background else 'Executar'
         if not automatic:
-            remember = grants.suggested(command)
-            answer = self.approve(grants.request(self.redact(f'{label} na pasta {self.root}:\n{command}'), remember))
+            remember, family = grants.suggested(command), grants.suggested_family(command)
+            answer = self.approve(grants.request(self.redact(f'{label} na pasta {self.root}:\n{command}'), remember, family))
             if not answer:
                 return 'Execução recusada pelo usuário.'
-            if answer == 'always':
+            if answer in ('always', 'family'):
                 try:
-                    for rule in remember:
+                    for rule in family if answer == 'family' else remember:
                         grants.grant(self.root, rule)
                 except (ValueError, OSError):
                     pass  # A execução desta vez foi aprovada; a regra só não ficou gravada.
         self.check_cancelled()
+        self.turn_acted = self.turn_acted or query is None  # Consultas somente leitura não pedem checagem.
         env = self.command_environment()
         if query is not None:
             env = query_environment(env)
         # Shell autorizado pelo usuário; cwd não é uma sandbox.
-        options = dict(shell=query is None, cwd=self.root, stdin=subprocess.DEVNULL,
+        options = dict(shell=query is None or isinstance(query, str), cwd=self.root, stdin=subprocess.DEVNULL,
                        stderr=subprocess.STDOUT, start_new_session=True, env=env)
         if background:
             return self.start_background(query if query is not None else command, command, options)

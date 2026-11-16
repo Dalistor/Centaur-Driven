@@ -57,7 +57,17 @@ falha/cancelamento preservam o modo atual. O seletor mostra descrição e revis�
 commit, e o cabeçalho apresenta o modo ativo. Durante um turno, as ferramentas usam o modo
 com que foram criadas; configuração fica indisponível enquanto o turno estiver ativo.
 
-Consultas automáticas usam argumentos diretos e executáveis do sistema, sem shell ou PATH
+Além das formas abaixo, o modo auto aceita `grep` (sem `-r`), `find` (sem `-exec`/`-delete`/`-fprint`),
+`sort`, `uniq`, `cut`, `stat`, `file`, `du`, `tree`, `diff`, `echo`, `which`, `date` e as consultas do Git
+com argumentos (`show`, `blame`, `grep`, `ls-tree`, `describe`, `shortlog`, listagens de `branch`/`remote`/
+`tag`, `stash list`), recusando opções que gravam arquivo, executam programa ou leem fora do repositório
+(`--output`, `--ext-diff`, `--textconv`, `--no-index`, `-O`). Consultas reconhecidas podem ser encadeadas
+com `|`, `&&`, `||` e `;`; a linha é remontada com executáveis absolutos e argumentos citados antes de ir
+ao shell, e basta um trecho não reconhecido para a linha inteira pedir aprovação. Testes, builds e
+qualquer comando que execute código do projeto continuam pedindo aprovação: liberá-los é um gesto do
+usuário, com `a` (regra exata), `t` (família com `*`) ou `$allow`.
+
+Consultas simples usam argumentos diretos e executáveis do sistema, sem shell ou PATH
 customizado. Git desativa pager, fsmonitor, assinatura, ext-diff e textconv; rg ignora configs.
 Diretórios de instalação do sistema incluem `/usr/local/bin` e `/opt/homebrew/bin`;
 aliases do diretório raiz do projeto são normalizados sem ignorar links internos.

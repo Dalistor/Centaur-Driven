@@ -2,7 +2,7 @@
 name: spec
 description: Define ou evolui contratos de comportamento, limites e autonomia; planeja entregas verticais pequenas com critérios de aceite, rastreabilidade e próximos passos.
 metadata:
-  version: 5.2.0
+  version: 5.3.0
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -15,20 +15,11 @@ Leia a [especificação do sistema](../graphify/references/specification.md). Re
 
 ## Contratos compartilhados
 
-As instruções do usuário e do projeto prevalecem. Leia cada referência quando o trabalho chegar ao que ela rege, não todas por rotina:
-
-| Referência | Leia quando |
-|---|---|
-| [Ciclo por contratos e evidências](../graphify/references/lifecycle.md) | for planejar, mudar estado, registrar evidência ou declarar progresso. É a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. |
-| [Contexto](../graphify/references/context.md) | antes de explorar o projeto e ao redigir a saída. Busca textual e símbolos primeiro; Graphify só sob demanda para relações amplas, sem inicializar nem sincronizar o grafo como efeito colateral. |
-| [Memória](../_internal/memory/SKILL.md) e [seu contrato](../_internal/memory/references/contract.md) | for consultar histórico ou registrar o resultado. O backend em `.centaur/workspace.json` decide o destino: `files` usa `implements/` e `status.md` (inclusive a reserva numérica descrita abaixo); `ai-memory` usa páginas e fila, sem novas pastas. Consulta é somente leitura; não configure nem migre o backend por efeito colateral. |
-| [Módulos e equipe](../graphify/references/team-workspace.md) | o projeto tiver módulos, mais de um responsável, IDs qualificados ou trabalho concorrente. Os exemplos abaixo usam o escopo selecionado. |
-
-Valem mesmo sem abrir as referências: contratos versionados definem o molde, specs planejam entregas e só estado e evidências comprovam a realização; preserve o histórico legado e nunca converta checklist em prova de comportamento.
+As instruções do usuário e do projeto prevalecem. A tabela de [contratos compartilhados](../graphify/references/shared.md) diz qual referência abrir e quando (ciclo, contexto, memória, equipe); abra só a que o trabalho exigir. Valem sempre: contratos versionados definem o molde, specs planejam entregas e só estado e evidências comprovam a realização; preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ### Dependência clean-code — obrigatória
 
-No Centaur CLI, leia `clean-code/SKILL.md` com `read_skill` e resolva as referências pelo mesmo prefixo (`clean-code/references/...`). Em outros agentes, ela fica na pasta de skills do próprio agente (`~/.agents/skills/`, `~/.codex/skills/` ou `~/.claude/skills/`) ou em `.centaur/skills/clean-code/` do projeto. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+Carregue `clean-code` antes de planejar ou escrever código; a [localização por agente](../graphify/references/shared.md) está nos contratos compartilhados. Se estiver ausente ou incompleta, informe a dependência faltante e não prossiga com o trabalho que depende dela.
 
 Leia `references/architecture.md` da dependência para decompor responsabilidades e explicitar a direção das dependências. Registre no contexto técnico da spec que cada executor deve carregar `clean-code`, confirmar as fontes atuais e usar Graphify somente quando necessário. Preserve os modos TDD/direto e planeje apenas as camadas necessárias à demanda.
 
@@ -55,6 +46,8 @@ Leia estado e evidências da versão vigente e confira código relevante. Identi
 ## Passo 4 — Planejar uma entrega vertical pequena
 
 Escolha a menor capacidade demonstrável de ponta a ponta. Uma entrega pode atravessar domínio, persistência, API e interface, respeitando seus limites. Não decomponha obrigatoriamente por camada nem use número de arquivos como limiar de tamanho. Divida por risco, dependências e possibilidade de validação/integracão independente.
+
+Use o tamanho do diff como **sinal de revisão**, não como meta: uma task que deva passar de ~400 linhas alteradas tende a ser grande demais para alguém revisar bem. Nesse caso, divida por comportamento ou registre por que não dá (código gerado, migração mecânica, renomeação em massa) e como a revisão será feita por partes.
 
 Dentro da entrega, tasks têm responsável, posse de arquivos, dependências e modo. Aplique a [política de testes nos pontos vitais](../graphify/references/testing.md): `TDD` só para falha concreta em ponto vital ainda sem proteção suficiente e infraestrutura disponível, ou requisito explícito; `direto` nos demais casos. Cada task carrega critérios observáveis, risco vital quando houver, proteção existente a reutilizar e verificação proporcional. Não planeje teste novo por requisito, arquivo, método ou camada. Tasks técnicas internas não viram marcos humanos de conclusão.
 

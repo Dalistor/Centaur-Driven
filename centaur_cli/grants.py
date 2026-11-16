@@ -24,13 +24,13 @@ HARMLESS = re.compile(r'\s+(?:2>&1|[12]?>\s*/dev/null)(?=\s|$)')
 
 
 class Request(str):
-    """Texto de uma confirmação; `remember` lista as regras que "sempre permitir" gravaria."""
-    remember = ()
+    """Texto de uma confirmação; `remember` lista as regras exatas e `family` as com * que o usuário pode gravar."""
+    remember = family = ()
 
 
-def request(text, remember=()):
+def request(text, remember=(), family=()):
     value = Request(text)
-    value.remember = tuple(remember)
+    value.remember, value.family = tuple(remember), tuple(family)
     return value
 
 
@@ -108,6 +108,46 @@ def suggested(command):
                 rules.append(rule)
         except ValueError:
             return []
+    return rules
+
+
+# Programas que executam qualquer coisa: "python *" equivaleria ao modo never.
+INTERPRETERS = frozenset(('python', 'python3', 'node', 'bash', 'sh', 'zsh', 'fish', 'ruby', 'perl', 'php', 'deno', 'bun',
+                          'env', 'xargs', 'npx', 'uvx', 'pipx', 'nohup', 'time', 'watch'))
+# Nunca oferecidos como família: liberar com * só digitando a regra em $allow.
+RISKY = frozenset(('rm', 'rmdir', 'sudo', 'su', 'doas', 'dd', 'mkfs', 'chmod', 'chown', 'curl', 'wget', 'ssh', 'scp', 'rsync',
+                   'kill', 'pkill', 'killall', 'shutdown', 'reboot', 'eval', 'exec', 'mv', 'truncate', 'shred', 'docker', 'podman'))
+RISKY_GIT = frozenset(('push', 'reset', 'clean', 'checkout', 'restore', 'rebase', 'filter-branch', 'gc'))
+NESTED = frozenset(('run', 'exec', 'compose', '-m'))
+
+
+def suggested_family(command):
+    """Regras com * (programa + subcomando) que cobririam este comando e suas variações; vazio se for arriscado."""
+    parts = segments(command)
+    if not parts:
+        return []
+    rules = []
+    for tokens in parts:
+        program = tokens[0]
+        if '=' in program or '/' in program or tokens[-1] == '*' or program in RISKY:
+            return []
+        head = [program]
+        for token in tokens[1:]:
+            subcommand = re.fullmatch(r'[A-Za-z][\w:-]*', token) or (token == '-m' and program in INTERPRETERS)
+            if not subcommand or (len(head) > 1 and head[-1] not in NESTED) or len(head) >= 3:
+                break
+            head.append(token)
+        if program in INTERPRETERS and (len(head) < 3 or head[1] != '-m'):
+            return []  # Só "python -m módulo *"; script ou interpretador solto não vira família.
+        if program == 'git' and (len(head) < 2 or head[1] in RISKY_GIT):
+            return []
+        rule = shlex.join(head) + ' *'
+        try:
+            parse_rule(rule)
+        except ValueError:
+            return []
+        if rule not in rules:
+            rules.append(rule)
     return rules
 
 

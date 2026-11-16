@@ -71,10 +71,32 @@ def ordinary_path(root, relative):
         return False
 
 
+CONNECTORS = ('|', '&&', '||', ';')
+# Redirecionamentos que não gravam nada; a saída de erro já vai junto com a padrão.
+HARMLESS = re.compile(r'\s+(?:2>&1|[12]?>\s*/dev/null)(?=[\s;&|]|$)')
+GIT_READ = ('status', 'diff', 'log', 'show', 'blame', 'ls-files', 'ls-tree', 'rev-parse', 'shortlog', 'describe', 'grep')
+# Opções que gravam arquivo, executam outro programa ou leem fora do repositório.
+GIT_BLOCKED = ('--output', '--ext-diff', '--textconv', '--no-index', '-O', '--open-files-in-pager', '--contents',
+               '--untracked', '--no-exclude-standard', '--exec', '--upload-pack', '--receive-pack')
+GIT_LISTS = {'branch': ('-a', '-r', '-v', '-vv', '--all', '--remotes', '--list', '--show-current'),
+             'remote': ('-v',), 'tag': ('-l', '--list'), 'stash': ('list',)}
+FIND_BLOCKED = ('-exec', '-execdir', '-ok', '-okdir', '-delete', '-fprint', '-fprint0', '-fprintf', '-fls')
+SIMPLE_FLAGS = {'ls': r'-[laAhR1tSrFd]+', 'cat': r'-n', 'wc': r'-[lwcm]+', 'uniq': r'-[cdui]+', 'sort': r'-[rnufbV]+',
+                'file': r'-b', 'stat': None, 'du': r'-[shac]+|--max-depth=\d+', 'tree': r'-[adfL]+|\d+',
+                'diff': r'-[urqNwb]+', 'nl': None, 'basename': None, 'dirname': None}
+READS_STDIN = ('cat', 'wc', 'uniq', 'sort', 'nl')
+
+
+class ShellQuery(str):
+    """Linha composta só de consultas reconhecidas, com executáveis absolutos e argumentos já citados."""
+
+
 def query_command(root, command):
-    """Return trusted argv for recognized queries; never run auto in a shell."""
+    """Consulta reconhecida: argv confiável, ou ShellQuery para consultas encadeadas; None exige aprovação."""
     if not isinstance(command, str) or any(c in command for c in '\n\r'):
         return None
+    if '"' not in command and "'" not in command:
+        command = HARMLESS.sub('', ' ' + command).strip()
     try:
         lexer = shlex.shlex(command, posix=True, punctuation_chars=';&|><')
         lexer.whitespace_split = True
@@ -82,10 +104,44 @@ def query_command(root, command):
         args = list(lexer)
     except ValueError:
         return None
-    if not args:
+    segments, connectors, current = [], [], []
+    for token in args:
+        if token and all(c in ';&|><' for c in token):
+            if token not in CONNECTORS or not current:
+                return None  # Redirecionamento, segundo plano ou conector solto.
+            segments.append(current)
+            connectors.append(token)
+            current = []
+        else:
+            current.append(token)
+    if not current or len(segments) >= 8:
         return None
-    if any(token and all(c in ';&|><' for c in token) for token in args):
-        return None
+    segments.append(current)
+    if len(segments) > 1 and segments[0][0] == 'cd':
+        # "cd <raiz> && ..." é só hábito do modelo; outra pasta mudaria o sentido dos caminhos validados.
+        try:
+            same = len(segments[0]) == 2 and (Path(root) / segments[0][1]).resolve() == Path(root).resolve()
+        except OSError:
+            same = False
+        if not same or connectors[0] not in ('&&', ';'):
+            return None
+        segments, connectors = segments[1:], connectors[1:]
+    parts = []
+    for index, tokens in enumerate(segments):
+        argv = simple_query(root, tokens, piped=index > 0 and connectors[index - 1] == '|')
+        if argv is None:
+            return None
+        parts.append(argv)
+    if len(parts) == 1:
+        return parts[0]
+    line = shlex.join(parts[0])
+    for connector, argv in zip(connectors, parts[1:]):
+        line += f' {connector} ' + shlex.join(argv)
+    return ShellQuery(line)
+
+
+def simple_query(root, args, piped=False):
+    """Um comando de leitura; piped permite ler da entrada quando não há arquivo."""
     name, rest = args[0], args[1:]
     if name in ('python', 'python3'):
         return lifecycle_query(root, rest)
@@ -93,33 +149,43 @@ def query_command(root, command):
     executable = shutil.which(name, path=TRUSTED_PATH) if '/' not in name else None
     if not executable:
         return None
-    if name == 'pwd' and not rest:
+    paths_ok = lambda tokens: all(query_path(root, token) for token in tokens)
+    if name in ('pwd', 'true') and not rest:
         return [executable]
+    if name == 'date' and (not rest or len(rest) == 1 and rest[0].startswith('+')):
+        return [executable, *rest]
+    if name == 'echo':
+        return [executable, *rest]
+    if name == 'which' and rest and all(re.fullmatch(r'[\w.+-]+', token) for token in rest):
+        return [executable, *rest]
     if name == 'git':
-        permitted = (
-            ['status'], ['status', '--short'], ['status', '--porcelain'],
-            ['diff'], ['diff', '--stat'], ['diff', '--cached'], ['diff', '--cached', '--stat'],
-            ['log'], ['log', '--oneline'], ['log', '-5', '--oneline'],
-            ['ls-files'], ['branch', '--show-current'], ['rev-parse', '--show-toplevel'],
-        )
-        if rest not in permitted:
+        if not rest:
+            return None
+        command, options = rest[0], rest[1:]
+        if command in GIT_LISTS:
+            if any(option not in GIT_LISTS[command] for option in options) or (command == 'stash' and options != ['list']):
+                return None
+        elif command not in GIT_READ or any(option.split('=', 1)[0] in GIT_BLOCKED or option.startswith('-O')
+                                            for option in options):
             return None
         argv = [executable, '--no-pager', '-c', 'core.fsmonitor=false',
-                '-c', 'core.pager=cat', '-c', 'log.showSignature=false', *rest]
-        if rest[0] in ('diff', 'log'):
+                '-c', 'core.pager=cat', '-c', 'log.showSignature=false', command]
+        if command in ('diff', 'log', 'show'):
             argv += ['--no-ext-diff', '--no-textconv']
-        return argv
+        return argv + options
     if name == 'rg':
         flags, rest = [], list(rest)
         file_list = False
         while rest and rest[0].startswith('-'):
             option = rest.pop(0)
-            if option in ('-n', '-i', '-F', '-l', '--hidden'):
+            if option in ('-n', '-i', '-F', '-l', '-w', '-c', '-v', '-S', '-s', '--hidden', '--no-heading'):
                 flags.append(option)
             elif option == '--files' and not file_list:
                 file_list = True
                 flags.append(option)
-            elif option in ('-g', '--glob') and rest and not rest[0].startswith('-'):
+            elif option in ('-g', '--glob', '-t', '--type') and rest and not rest[0].startswith('-'):
+                flags.extend([option, rest.pop(0)])
+            elif option in ('-A', '-B', '-C', '-m') and rest and rest[0].isdigit():
                 flags.extend([option, rest.pop(0)])
             else:
                 return None
@@ -129,38 +195,81 @@ def query_command(root, command):
         else:
             if not rest:
                 return None
-            pattern, paths = rest[:1], rest[1:] or ['.']
-        for token in paths:
-            if not query_path(root, token):
-                return None
+            pattern, paths = rest[:1], rest[1:] or ([] if piped else ['.'])
+        if not paths_ok(paths):
+            return None
         return [executable, '--no-config', *flags, *pattern, *paths]
+    if name == 'grep':
+        # Sem -r: a busca recursiva é do rg, que respeita .gitignore e pula arquivos ocultos.
+        flags, rest = [], list(rest)
+        while rest and rest[0].startswith('-'):
+            option = rest.pop(0)
+            if re.fullmatch(r'-[niwvclLEFHhoqs]+', option) or re.fullmatch(r'--(?:include|exclude)=[^/]+', option):
+                flags.append(option)
+            elif option in ('-A', '-B', '-C', '-m') and rest and rest[0].isdigit():
+                flags.extend([option, rest.pop(0)])
+            elif option == '-e' and rest:
+                flags.extend([option, rest.pop(0)])
+            else:
+                return None
+        pattern = [] if '-e' in flags else rest[:1]
+        paths = rest[len(pattern):]
+        if not (pattern or '-e' in flags) or not paths_ok(paths) or not (paths or piped):
+            return None
+        return [executable, *flags, '--', *pattern, *paths]
     if name == 'sed':
         # Only numeric print addresses: no execution, writes, in-place edits or extra scripts.
-        if len(rest) < 3 or rest[0] != '-n' or not re.fullmatch(r'\d+(?:,\d+)?p', rest[1]):
+        if len(rest) < 2 or rest[0] != '-n' or not re.fullmatch(r'\d+(?:,\d+)?p', rest[1]):
             return None
-        if not all(query_path(root, token) for token in rest[2:]):
+        if not paths_ok(rest[2:]) or not (rest[2:] or piped):
             return None
         return [executable, *rest]
-    if name not in ('ls', 'cat', 'head', 'tail', 'wc'):
+    if name == 'find':
+        index = 0
+        while index < len(rest) and not rest[index].startswith(('-', '(', '!')):
+            index += 1
+        if not paths_ok(rest[:index]) or any(token in FIND_BLOCKED for token in rest[index:]):
+            return None
+        return [executable, *(rest[:index] or ['.']), *rest[index:]]
+    if name in ('head', 'tail'):
+        count = []
+        if rest[:1] in (['-n'], ['-c']) and len(rest) >= 2:
+            count, rest = rest[:2], rest[2:]
+            if not count[1].isdigit() or not 1 <= int(count[1]) <= 10000:
+                return None
+        elif rest and re.fullmatch(r'-\d{1,5}', rest[0]):
+            count, rest = rest[:1], rest[1:]
+        if not paths_ok(rest) or not (rest or piped):
+            return None
+        return [executable, *count, *rest]
+    if name == 'cut':
+        options, rest = [], list(rest)
+        while rest and re.fullmatch(r'-[dfc].{0,24}', rest[0]):
+            option = rest.pop(0)
+            options.append(option)
+            if len(option) == 2:
+                if not rest:
+                    return None
+                options.append(rest.pop(0))
+        if not options or not paths_ok(rest) or not (rest or piped):
+            return None
+        return [executable, *options, *rest]
+    if name not in SIMPLE_FLAGS:
         return None
-    flags = {'ls': {'-l', '-a', '-la', '-al', '-1'}, 'cat': {'-n'},
-             'head': set(), 'tail': set(), 'wc': {'-l', '-w', '-c'}}[name]
-    if name in ('head', 'tail') and rest[:1] == ['-n']:
-        if len(rest) < 3 or not rest[1].isdigit() or not 1 <= int(rest[1]) <= 10000:
-            return None
-        if not all(query_path(root, token) for token in rest[2:]):
-            return None
-        return [executable, *rest]
-    paths = []
-    for token in rest:
-        if token.startswith('-'):
-            if token not in flags:
+    flags, paths = SIMPLE_FLAGS[name], []
+    for position, token in enumerate(rest):
+        if token.startswith('-') or (name == 'tree' and position and rest[position - 1] == '-L'):
+            if not flags or not re.fullmatch(flags, token):
                 return None
+        elif not query_path(root, token):
+            return None
         else:
-            if not query_path(root, token):
-                return None
             paths.append(token)
-    if not paths and name != 'ls':
+    if name == 'sort' and any(token in ('-k', '-t') for token in rest):
+        return None
+    if name == 'diff' and len(paths) != 2:
+        return None
+    if not paths and name not in ('ls', 'tree', 'du') and not (piped and name in READS_STDIN):
         return None
     return [executable, *rest]
 

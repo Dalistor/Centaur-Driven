@@ -2,7 +2,7 @@
 name: implement
 description: Implementa mudanças pontuais e diretas sem TDD (estruturais, config, UI, ou projetos sem testes) - lê o contexto, tira dúvidas, aplica, valida e registra no backend de memória configurado. Use tdd para lacunas de proteção em pontos vitais; para demandas grandes use spec + run.
 metadata:
-  version: 5.2.0
+  version: 5.3.0
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -11,20 +11,11 @@ metadata:
 
 ## Contratos compartilhados
 
-As instruções do usuário e do projeto prevalecem. Leia cada referência quando o trabalho chegar ao que ela rege, não todas por rotina:
-
-| Referência | Leia quando |
-|---|---|
-| [Ciclo por contratos e evidências](../graphify/references/lifecycle.md) | for planejar, mudar estado, registrar evidência ou declarar progresso. É a fonte única de estados, aprovação, autonomia, rastreabilidade, gates e próximos passos. |
-| [Contexto](../graphify/references/context.md) | antes de explorar o projeto e ao redigir a saída. Busca textual e símbolos primeiro; Graphify só sob demanda para relações amplas, sem inicializar nem sincronizar o grafo como efeito colateral. |
-| [Memória](../_internal/memory/SKILL.md) e [seu contrato](../_internal/memory/references/contract.md) | for consultar histórico ou registrar o resultado. O backend em `.centaur/workspace.json` decide o destino: `files` usa `implements/` e `status.md` (inclusive a reserva numérica descrita abaixo); `ai-memory` usa páginas e fila, sem novas pastas. Consulta é somente leitura; não configure nem migre o backend por efeito colateral. |
-| [Módulos e equipe](../graphify/references/team-workspace.md) | o projeto tiver módulos, mais de um responsável, IDs qualificados ou trabalho concorrente. Os exemplos abaixo usam o escopo selecionado. |
-
-Valem mesmo sem abrir as referências: contratos versionados definem o molde, specs planejam entregas e só estado e evidências comprovam a realização; preserve o histórico legado e nunca converta checklist em prova de comportamento.
+As instruções do usuário e do projeto prevalecem. A tabela de [contratos compartilhados](../graphify/references/shared.md) diz qual referência abrir e quando (ciclo, contexto, memória, equipe); abra só a que o trabalho exigir. Valem sempre: contratos versionados definem o molde, specs planejam entregas e só estado e evidências comprovam a realização; preserve o histórico legado e nunca converta checklist em prova de comportamento.
 
 ### Dependência clean-code — obrigatória
 
-No Centaur CLI, leia `clean-code/SKILL.md` com `read_skill` e resolva as referências pelo mesmo prefixo (`clean-code/references/...`). Em outros agentes, ela fica na pasta de skills do próprio agente (`~/.agents/skills/`, `~/.codex/skills/` ou `~/.claude/skills/`) ou em `.centaur/skills/clean-code/` do projeto. Se estiver ausente ou incompleta, informe a dependência faltante e a instalação descrita no README do Centaur; não simule sua aplicação nem prossiga com trabalho dependente dela.
+Carregue `clean-code` antes de planejar ou escrever código; a [localização por agente](../graphify/references/shared.md) está nos contratos compartilhados. Se estiver ausente ou incompleta, informe a dependência faltante e não prossiga com o trabalho que depende dela.
 
 Leia também `references/session-protocol.md` da dependência antes de editar. Aplique seus critérios de localização, responsabilidade única, nomes, erros e revisão do diff nos Passos 6–8. O roteamento e a proporcionalidade de testes desta skill prevalecem: carregar `clean-code` não transforma o modo direto em TDD.
 
@@ -40,11 +31,23 @@ Você é um engenheiro de software sênior executando uma implementação docume
 
 **Exceção:** em modo spec (solicitação com prefixo `Spec YYYY — Task NN`), execute sempre — a task já foi dimensionada na criação da spec.
 
+## Caminho curto para mudança pequena de baixo risco
+
+O fluxo completo abaixo existe para dar rastreabilidade ao que importa; aplicado a um ajuste trivial, ele custa mais do que protege. Use o caminho curto quando **todas** as condições valerem:
+
+- O pedido é inequívoco e não está em modo spec.
+- A mudança fica fora dos pontos vitais da [política de testes](../graphify/references/testing.md) e não altera regra de contrato aprovado, permissão, dados persistidos, interface pública nem dependência.
+- Cabe em poucos arquivos e algumas dezenas de linhas (texto, estilo, mensagem, renomeação local, ajuste de configuração, correção cosmética).
+
+No caminho curto: leia os trechos que vai tocar, aplique com os mesmos critérios de clareza, rode a verificação proporcional (testes existentes da área, lint/type-check quando houver, [conferência visual](../graphify/references/shared.md) se mudou algo que se vê) e revise o diff. **Não** crie nem atualize contrato, estado ou evidência, não edite `AGENTS.md` e pule os Passos 4, 12 e 13. O registro é mínimo: reserve o número pelo Passo 9 e grave um README de poucas linhas (Solicitação, O que mudou, Validação) mais a linha do `status.md`; em ai-memory, uma entrada curta equivalente. Informe o resultado em duas ou três linhas.
+
+Se durante o trabalho alguma condição deixar de valer (a mudança cresce, toca um ponto vital ou revela decisão de produto), pare e siga o fluxo completo, ou encaminhe para `tdd` ou `spec`. Na dúvida sobre o risco, não é caminho curto.
+
 **Roteamento para TDD:** leia a [política de testes nos pontos vitais](../graphify/references/testing.md). Use `/tdd` quando houver falha concreta em ponto vital ainda sem proteção suficiente e infraestrutura disponível. Reaproveite ou amplie testes existentes antes de criar outro. Ser testável, ser regra de negócio ou corrigir um bug de baixo impacto não obriga TDD. Mudanças sem lacuna vital seguem aqui com validação proporcional. Em modo spec, preserve requisitos explícitos de teste e o modo autorizado da task; não transforme um critério de aceite em uma bateria nova.
 
 ## Vínculo obrigatório à realização do contrato
 
-Antes de editar, identificar contrato/versão/regras, limites herdados e autorização. Mudança pequena pode reutilizar contrato existente; sem contrato pertinente, registrar o molde mínimo pela spec (o pedido inequívoco serve de autorização), sem exigir planejamento extenso. Em legado, preservar histórico; evidência e estado novos não são inferidos de checklists antigos.
+Vale para tudo que não se enquadra no caminho curto acima. Antes de editar, identificar contrato/versão/regras, limites herdados e autorização. Mudança pequena pode reutilizar contrato existente; sem contrato pertinente, registrar o molde mínimo pela spec (o pedido inequívoco serve de autorização), sem exigir planejamento extenso. Em legado, preservar histórico; evidência e estado novos não são inferidos de checklists antigos.
 
 Executar uma entrega por comportamento, podendo atravessar camadas dentro da arquitetura e do escopo. Escolher detalhes técnicos dentro de `autonomy`. Mudança de regra, permissão, compatibilidade ou limite exige decisão/nova versão; não ajustar contrato ou testes para encobrir divergência.
 
@@ -166,8 +169,9 @@ Após implementar, tente validar nesta ordem:
 
 1. **Verificação proporcional**: consulte os testes existentes dos comportamentos afetados e execute a seleção pertinente. Adicione ou amplie proteção apenas para falha concreta em ponto vital ainda sem teste suficiente, conforme a política normativa. Se o teste vier depois do código, registre isso sem alegar TDD. Fora dos pontos vitais, use inspeção, build/lint ou demonstração conforme o aceite; não crie teste por ritual. Sem infraestrutura, não a instale como efeito colateral. Rode suíte completa quando exigida pelos gates ou pelo impacto transversal, sem repeti-la a cada ajuste.
 2. **Lint / type-check**: verifique se existe script de lint ou type-check. Se existir, execute. Se não existir, registre e siga.
-3. **Revisão manual**: leia o código implementado uma última vez e confirme que não há bugs óbvios, casos não tratados ou regressões.
-4. **Revisão de arquitetura**: conferir as fronteiras e dependências efetivamente adotadas pelo projeto. Em arquitetura em camadas, verificar suas separações; em organização por capacidades ou outro modelo, aplicar os limites correspondentes. Não inventar camadas nem refatorar arquitetura fora do contrato.
+3. **Conferência do que se vê**: se a mudança altera tela, fluxo ou saída visível, execute a aplicação e confira o resultado conforme a [referência compartilhada](../graphify/references/shared.md) (no Centaur CLI, display virtual ou captura com `view_image`). Sem como executar, registre a parte visual como não verificada.
+4. **Revisão manual**: leia o diff uma última vez como quem não escreveu e confirme que não há bugs óbvios, casos não tratados ou regressões.
+5. **Revisão de arquitetura**: conferir as fronteiras e dependências efetivamente adotadas pelo projeto. Em arquitetura em camadas, verificar suas separações; em organização por capacidades ou outro modelo, aplicar os limites correspondentes. Não inventar camadas nem refatorar arquitetura fora do contrato.
 
 Se encontrar problemas na validação, corrija antes de documentar. Se nenhum mecanismo de validação existir no projeto, documente isso explicitamente no README da implementação.
 
