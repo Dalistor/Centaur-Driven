@@ -36,6 +36,10 @@ class ToolTests(unittest.TestCase):
         self.assertLessEqual(len(first), MAX_OUTPUT)
         last = int(first.rsplit('offset=', 1)[1].split('.')[0]) - 1
         self.assertIn(f'[Linhas 1–{last} de 1200. Há mais conteúdo: continue com offset={last + 1}.]', first)
+        self.put('short.txt', ''.join(f'{number}\n' for number in range(1, 901)))
+        page = self.tools().execute('read_file', {'path': 'short.txt'})
+        self.assertIn('[Linhas 1–400 de 900. Há mais conteúdo: continue com offset=401.]', page)
+        self.assertNotIn('Há mais', self.tools().execute('read_file', {'path': 'short.txt', 'limit': 900}))
         rest = self.tools().execute('read_file', {'path': 'big.txt', 'offset': 1190, 'limit': 5})
         self.assertEqual(rest.split('\n')[0].split('\t')[0], '1190')
         self.assertIn('[Linhas 1190–1194 de 1200. Há mais conteúdo: continue com offset=1195.]', rest)

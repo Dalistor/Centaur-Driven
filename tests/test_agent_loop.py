@@ -7,8 +7,12 @@ import time
 import unittest
 from unittest.mock import Mock
 
-from centaur_cli.agent import run_turn
-from centaur_cli.context import active_messages, estimate_tokens, prune_tool_results
+import os
+from unittest.mock import patch
+
+from centaur_cli.agent import run_turn, REREAD_NOTE
+from centaur_cli.context import active_messages, estimate_tokens, prune_tool_results, record_spend, spend_label, working_window
+from centaur_cli.openrouter import ModelReply
 from centaur_cli.history import ChatStore
 from centaur_cli.terminal import Terminal
 from centaur_cli.tools import ProjectTools
@@ -87,6 +91,50 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual([message.get('tool_call_id') for message in view], [message.get('tool_call_id') for message in self.chat['messages']])
         # Sem novo volume, a fronteira não se move: o prefixo enviado continua igual para o cache.
         self.assertFalse(prune_tool_results(self.chat, client, active_messages(self.chat), []))
+
+    def test_large_windows_are_capped_by_the_context_budget(self):
+        client = Mock(backend='openrouter', context_windows={'main': 1_000_000, 'small': 32_000, })
+        self.assertEqual(working_window(client, 'main'), 150_000)
+        self.assertEqual(working_window(client, 'small'), 32_000)
+        self.assertIsNone(working_window(client, 'unknown'))
+        with patch.dict(os.environ, {'CENTAUR_CONTEXT_BUDGET': '300000'}):
+            self.assertEqual(working_window(client, 'main'), 300_000)
+        with patch.dict(os.environ, {'CENTAUR_CONTEXT_BUDGET': 'off'}):
+            self.assertEqual(working_window(client, 'main'), 1_000_000)
+        # ~100k tokens de resultados: longe de 60% de 1M, mas acima de 60% do orçamento.
+        self.chat['messages'] = self.long_history(results=34, size=9000)
+        self.assertTrue(prune_tool_results(self.chat, client, active_messages(self.chat), []))
+
+    def test_identical_reread_is_replaced_while_the_first_result_is_in_context(self):
+        (self.root / 'a.txt').write_text('linha\n' * 300)
+        tools = ProjectTools(self.root, lambda _: True, approval_mode='never')
+        client = self.client({'role': 'assistant', 'content': None, 'tool_calls': [call('read_file', 'r1', path='a.txt')]},
+                             {'role': 'assistant', 'content': None, 'tool_calls': [call('read_file', 'r2', path='a.txt')]},
+                             {'role': 'assistant', 'content': None, 'tool_calls': [call('write_file', 'w', path='a.txt', content='novo\n' * 300)]},
+                             {'role': 'assistant', 'content': None, 'tool_calls': [call('read_file', 'r3', path='a.txt')]},
+                             {'role': 'assistant', 'content': 'Feito'})
+        run_turn(self.chat, client, tools, self.store, lambda: None)
+        results = {message['tool_call_id']: message['content'] for message in self.chat['messages'] if message['role'] == 'tool'}
+        self.assertIn('linha', results['r1'])
+        self.assertEqual(results['r2'], REREAD_NOTE)
+        self.assertIn('novo', results['r3'])  # O arquivo mudou: a leitura volta inteira.
+        # Resultado podado deixa de estar visível: a releitura precisa trazer o conteúdo.
+        self.chat['tool_pruning'] = {'through': len(self.chat['messages'])}
+        client = self.client({'role': 'assistant', 'content': None, 'tool_calls': [call('read_file', 'r4', path='a.txt')]},
+                             {'role': 'assistant', 'content': 'Feito'})
+        self.chat['messages'].append({'role': 'user', 'content': 'De novo'})
+        run_turn(self.chat, client, tools, self.store, lambda: None)
+        self.assertIn('novo', self.chat['messages'][-2]['content'])
+
+    def test_spend_accumulates_provider_counts_per_chat(self):
+        record_spend(self.chat, ModelReply({}, 'main', {'prompt_tokens': 1000, 'completion_tokens': 50, 'cost': 0.01,
+                                                         'prompt_tokens_details': {'cached_tokens': 800}}))
+        record_spend(self.chat, ModelReply({}, 'main', {'prompt_tokens': 3000, 'completion_tokens': 150, 'cached_tokens': 2200}))
+        record_spend(self.chat, ModelReply({}, 'main', {}))
+        self.assertEqual(self.chat['spend'], {'requests': 2, 'input': 4000, 'cached': 3000, 'output': 200, 'cost': 0.01})
+        label = spend_label(self.chat['spend'], [{'requests': 1, 'input': 1000, 'cached': 0, 'output': 10, 'cost': 0}, None])
+        self.assertEqual(label, 'Este chat: 3 chamadas · entrada 5k (60% do cache) · saída 210 · US$ 0.01 · inclui 1 subagente(s)')
+        self.assertEqual(spend_label(None), '')
 
     def test_pruning_waits_for_pressure_and_a_known_window(self):
         self.chat['messages'] = self.long_history(results=3)

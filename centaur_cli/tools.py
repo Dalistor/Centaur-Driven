@@ -38,6 +38,7 @@ def tool(name, description, properties, optional=()):
 
 MAX_OUTPUT = 24000
 READ_LINES = 2000
+READ_DEFAULT = 400
 LINE_CHARS = 2000
 MATCH_LINES = 250
 GLOB_FILES = 200
@@ -70,11 +71,12 @@ TOOLS = [
           'start_line': 'Número da primeira linha (1 para começar); use chamadas adicionais para continuar'}),
     tool('list_files', 'Listar arquivos de uma pasta do projeto.', {'path': 'Pasta relativa, use . para raiz'}),
     tool('read_file', 'Ler arquivo UTF-8 do projeto com linhas numeradas (número, tabulação, texto). '
-         f'Retorna até {READ_LINES} linhas por chamada e avisa quando há mais; continue com offset. '
+         f'Retorna {READ_DEFAULT} linhas por chamada (até {READ_LINES} com limit) e avisa quando há mais; continue com offset. '
+         'Em arquivo grande, localize com grep e leia só o trecho. '
          'Os números de linha não fazem parte do arquivo.',
          {'path': 'Arquivo relativo',
           'offset': {'type': 'integer', 'minimum': 1, 'description': 'Primeira linha a ler; padrão 1'},
-          'limit': {'type': 'integer', 'minimum': 1, 'maximum': READ_LINES, 'description': 'Quantidade máxima de linhas'}},
+          'limit': {'type': 'integer', 'minimum': 1, 'maximum': READ_LINES, 'description': f'Quantidade máxima de linhas; padrão {READ_DEFAULT}'}},
          optional=('offset', 'limit')),
     tool('write_file', 'Criar um arquivo ou substituir todo o seu conteúdo; aprovação segue o modo de permissões. '
          'Para alterar parte de um arquivo existente, prefira edit_file.',
@@ -391,7 +393,7 @@ class ProjectTools:
 
     def read_file(self, path, offset=None, limit=None):
         offset = self.integer(offset, 1, 1, 10 ** 9, 'offset')
-        limit = self.integer(limit, READ_LINES, 1, READ_LINES, 'limit')
+        limit = self.integer(limit, READ_DEFAULT, 1, READ_LINES, 'limit')
         budget, shown, size, total, last = MAX_OUTPUT - 200, [], 0, 0, offset - 1
         with path.open(encoding='utf-8') as source:
             for total, line in enumerate(source, 1):

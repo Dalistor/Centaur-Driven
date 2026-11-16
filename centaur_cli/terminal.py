@@ -21,7 +21,7 @@ from .credentials import CredentialStore
 from .setup import configure_key
 from .agent import run_turn, project_prompt
 from .tools import TOOLS
-from .context import compact_chat, context_label, estimate_tokens, save_compaction, save_compaction_progress, CompactionPaused
+from .context import compact_chat, context_label, spend_label, estimate_tokens, save_compaction, save_compaction_progress, CompactionPaused
 from .speed import validate_speed, fast_supported
 from .native_usage import BalanceUnavailable
 from .completion import SkillCompletion
@@ -483,7 +483,13 @@ class Terminal:
         if command in ('/credits', '$credits'):
             self.draft = ''
             self.credits_dirty = True
-            self.notice = (('Atualizando saldo da conta OpenRouter…' if getattr(self.client, 'credits_key', None) else
+            try:
+                children = [entry.get('spend') for entry in self.store.agents()
+                            if self.chat['id'] in (entry.get('principal_id'), entry.get('parent_id'))]
+            except (OSError, ValueError):
+                children = []
+            spent = spend_label(self.chat.get('spend'), children)
+            self.notice = (spent + ' · ' if spent else '') + (('Atualizando saldo da conta OpenRouter…' if getattr(self.client, 'credits_key', None) else
                             'Atualizando limite da chave. $config → Saldo da conta habilita o saldo real.')
                            if self.backend == 'openrouter' else f'Atualizando uso {self.backend} · cotas/créditos apenas quando informados pelo CLI.')
             return

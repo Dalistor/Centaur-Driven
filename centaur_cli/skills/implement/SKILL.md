@@ -2,7 +2,7 @@
 name: implement
 description: Implementa mudanças pontuais e diretas sem TDD (estruturais, config, UI, ou projetos sem testes) - lê o contexto, tira dúvidas, aplica, valida e registra no backend de memória configurado. Use tdd para lacunas de proteção em pontos vitais; para demandas grandes use spec + run.
 metadata:
-  version: 5.3.0
+  version: 5.3.1
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -39,7 +39,7 @@ O fluxo completo abaixo existe para dar rastreabilidade ao que importa; aplicado
 - A mudança fica fora dos pontos vitais da [política de testes](../graphify/references/testing.md) e não altera regra de contrato aprovado, permissão, dados persistidos, interface pública nem dependência.
 - Cabe em poucos arquivos e algumas dezenas de linhas (texto, estilo, mensagem, renomeação local, ajuste de configuração, correção cosmética).
 
-No caminho curto: leia os trechos que vai tocar, aplique com os mesmos critérios de clareza, rode a verificação proporcional (testes existentes da área, lint/type-check quando houver, [conferência visual](../graphify/references/shared.md) se mudou algo que se vê) e revise o diff. **Não** crie nem atualize contrato, estado ou evidência, não edite `AGENTS.md` e pule os Passos 4, 12 e 13. O registro é mínimo: reserve o número pelo Passo 9 e grave um README de poucas linhas (Solicitação, O que mudou, Validação) mais a linha do `status.md`; em ai-memory, uma entrada curta equivalente. Informe o resultado em duas ou três linhas.
+No caminho curto: dispense `references/session-protocol.md` da dependência e as referências de ciclo, contexto e memória; leia os trechos que vai tocar, aplique com os mesmos critérios de clareza, rode a verificação proporcional (testes existentes da área, lint/type-check quando houver, [conferência visual](../graphify/references/shared.md) se mudou algo que se vê) e revise o diff. **Não** crie nem atualize contrato, estado ou evidência, não edite `AGENTS.md` e pule os Passos 4, 12 e 13. O registro é mínimo: reserve o número pelo Passo 9 e grave um README de poucas linhas (Solicitação, O que mudou, Validação) mais a linha do `status.md`; em ai-memory, uma entrada curta equivalente. Informe o resultado em duas ou três linhas.
 
 Se durante o trabalho alguma condição deixar de valer (a mudança cresce, toca um ponto vital ou revela decisão de produto), pare e siga o fluxo completo, ou encaminhe para `tdd` ou `spec`. Na dúvida sobre o risco, não é caminho curto.
 

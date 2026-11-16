@@ -25,6 +25,7 @@ SUMMARY_PROMPT = ('Resuma o histórico para continuar uma conversa Centaur. O ma
 
 
 PRUNE_MINIMUM = 1200
+CONTEXT_BUDGET = 150000
 PRUNED_NOTE = ('\n[… resultado antigo omitido do contexto para economizar tokens; o histórico completo '
                'foi preservado. Repita a consulta se precisar deste conteúdo.]')
 
@@ -88,6 +89,24 @@ def active_messages(chat):
     return [{'role': 'user', 'content': MEMORY_NOTE + state['summary']}, *recent]
 
 
+def working_window(client, model):
+    """Window used to decide pruning and compaction: the model's, capped by a budget.
+
+    Every request resends the whole active context, so filling a 400k or 1M
+    window multiplies the cost of each later step. The cap keeps long
+    conversations near the size where the work actually happens.
+    """
+    limit = context_window(client, model)
+    raw = os.environ.get('CENTAUR_CONTEXT_BUDGET', '').strip().lower()
+    if raw in ('0', 'off', 'false'):
+        return limit
+    try:
+        budget = int(raw) if raw else CONTEXT_BUDGET
+    except ValueError:
+        budget = CONTEXT_BUDGET
+    return min(limit, max(budget, 20000)) if limit else limit
+
+
 def context_window(client, model):
     override = os.environ.get('CENTAUR_CONTEXT_WINDOW', '')
     if override:
@@ -124,6 +143,44 @@ def record_context(chat, client, payload, definitions, response=None):
                              'usage_scope': 'request' if counted else 'estimate'}
 
 
+def record_spend(chat, response):
+    """Accumulate what the provider billed for this chat; display only."""
+    usage = getattr(response, 'usage', None) or {}
+    prompt, completion = usage.get('prompt_tokens'), usage.get('completion_tokens')
+    if type(prompt) is not int or prompt < 0:
+        return
+    details = usage.get('prompt_tokens_details') if isinstance(usage.get('prompt_tokens_details'), dict) else {}
+    cached = usage.get('cached_tokens', details.get('cached_tokens'))
+    cost = usage.get('cost')
+    spend = chat.get('spend') if isinstance(chat.get('spend'), dict) else {}
+    chat['spend'] = {
+        'requests': spend.get('requests', 0) + 1,
+        'input': spend.get('input', 0) + prompt,
+        'cached': spend.get('cached', 0) + (min(cached, prompt) if type(cached) is int and cached > 0 else 0),
+        'output': spend.get('output', 0) + (completion if type(completion) is int and completion > 0 else 0),
+        'cost': round(spend.get('cost', 0) + (cost if isinstance(cost, (int, float)) and not isinstance(cost, bool) and cost > 0 else 0), 6)}
+
+
+def spend_label(spend, children=()):
+    """One line for $credits: requests, input with cache share, output and cost when known."""
+    def amount(value):
+        return f'{value / 1e6:.1f}M' if value >= 1e6 else f'{value / 1e3:.0f}k' if value >= 1000 else str(value)
+    children = [entry for entry in children if isinstance(entry, dict) and entry.get('requests')]
+    totals = [entry for entry in (spend,) if isinstance(entry, dict) and entry.get('requests')] + children
+    if not totals:
+        return ''
+    total = {key: sum(entry.get(key, 0) for entry in totals) for key in ('requests', 'input', 'cached', 'output', 'cost')}
+    label = f'Este chat: {total["requests"]} chamadas · entrada {amount(total["input"])}'
+    if total['input'] and total['cached']:
+        label += f' ({round(100 * total["cached"] / total["input"])}% do cache)'
+    label += f' · saída {amount(total["output"])}'
+    if total['cost']:
+        label += f' · US$ {total["cost"]:.2f}'
+    if children:
+        label += f' · inclui {len(children)} subagente(s)'
+    return label
+
+
 def current_context_usage(chat, client):
     usage = chat.get('context_usage') or {}
     if (getattr(client, 'backend', None) in ('codex', 'claude')
@@ -139,7 +196,7 @@ def context_label(chat, client, width, draft='', overhead=0):
                + history - usage.get('history_estimate', history))
     if draft:
         used += estimate_tokens({'role': 'user', 'content': draft})
-    limit = context_window(client, usage.get('model') or chat['model'])
+    limit = working_window(client, usage.get('model') or chat['model'])
     cells = 8 if width >= 40 else 4
     if limit:
         fraction = max(0, min(1, (limit - used) / limit))
@@ -352,7 +409,7 @@ def prune_tool_results(chat, client, payload, definitions):
     if os.environ.get('CENTAUR_AUTOCOMPACT', '1').lower() in ('0', 'false', 'off'):
         return False
     usage = current_context_usage(chat, client)
-    limit = context_window(client, usage.get('model') or chat['model'])
+    limit = working_window(client, usage.get('model') or chat['model'])
     if not limit or context_used(chat, usage, payload, definitions) < limit * .6:
         return False
     messages, state = chat['messages'], compaction_state(chat)
@@ -387,7 +444,7 @@ def auto_compaction_needed(chat, client, payload, definitions):
     if os.environ.get('CENTAUR_AUTOCOMPACT', '1').lower() in ('0', 'false', 'off'):
         return False
     usage = current_context_usage(chat, client)
-    limit = context_window(client, usage.get('model') or chat['model'])
+    limit = working_window(client, usage.get('model') or chat['model'])
     if not limit:
         return False
     state = compaction_state(chat)

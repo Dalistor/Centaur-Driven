@@ -2,6 +2,18 @@
 
 ## Não publicado
 
+- Gasto de tokens: poda e compactação automáticas passam a usar uma janela de trabalho de no
+  máximo 150 mil tokens (`CENTAUR_CONTEXT_BUDGET` ajusta ou desliga). Antes dependiam só da janela
+  do modelo e, em modelos de 400 mil a 1 milhão de tokens, praticamente não disparavam, com todo o
+  histórico reenviado a cada chamada. A barra de contexto passa a medir essa janela de trabalho.
+- Reler arquivo ou skill com os mesmos argumentos devolve um aviso curto enquanto o resultado
+  idêntico ainda está no contexto; se o arquivo mudou ou o resultado foi podado, volta inteiro.
+- `read_file` entrega 400 linhas por chamada por padrão (até 2000 com `limit`).
+- `$credits` mostra o gasto do chat: chamadas, entrada com a parcela do cache, saída e custo
+  informado pelo OpenRouter, incluindo subagentes. Contado a partir desta versão.
+- Skills: as referências de ciclo, contexto e memória deixam de ser lidas em mudanças diretas sem
+  spec com backend `files`; `clean-code` é carregada uma vez por conversa; o caminho curto de
+  `implement` dispensa `session-protocol.md` (graphify 5.2.1, implement 5.3.1).
 - Modo automático pergunta bem menos: as consultas de leitura aceitas passam a incluir `grep`,
   `find`, `sort`, `uniq`, `cut`, `stat`, `file`, `du`, `tree`, `diff`, `echo`, `which`, `date` e as
   consultas do Git com argumentos (`git diff arquivo`, `git log -n 5`, `git show`, `git blame`),

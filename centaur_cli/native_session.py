@@ -378,7 +378,8 @@ class NativeSession:
                     self.client.learn(self.alias, self.served, served.get('contextWindow'), served.get('maxOutputTokens'))
                 raw = result.get('usage') if isinstance(result.get('usage'), dict) else {}
                 inputs = [raw.get(key, 0) for key in ('input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens')]
-                reply.usage = ({'prompt_tokens': sum(inputs), 'completion_tokens': raw.get('output_tokens')}
+                reply.usage = ({'prompt_tokens': sum(inputs), 'completion_tokens': raw.get('output_tokens'),
+                                'cached_tokens': inputs[1]}
                                if all(type(item) is int and item >= 0 for item in inputs) else {})
                 return finish(reply)
             # O texto que antecede a chamada sai pelo stdout; dê a ele um instante para chegar.

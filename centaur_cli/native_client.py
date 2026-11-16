@@ -142,7 +142,8 @@ def codex_usage(output):
             usage = event.get('usage') or {}
             if isinstance(usage, dict):
                 return {'prompt_tokens': usage.get('input_tokens'),
-                        'completion_tokens': usage.get('output_tokens')}
+                        'completion_tokens': usage.get('output_tokens'),
+                        'cached_tokens': usage.get('cached_input_tokens')}
     return {}
 
 
@@ -751,7 +752,8 @@ class NativeClient:
                     raw_usage = value.get('usage')
                     if not isinstance(raw_usage, dict): raw_usage = {}
                     inputs = [raw_usage.get(key, 0) for key in ('input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens')]
-                    usage = ({'prompt_tokens': sum(inputs), 'completion_tokens': raw_usage.get('output_tokens')}
+                    usage = ({'prompt_tokens': sum(inputs), 'completion_tokens': raw_usage.get('output_tokens'),
+                              'cached_tokens': inputs[1]}
                              if all(type(item) is int and item >= 0 for item in inputs) else {})
                     value = value['structured_output']
                 reply = self.reply(value, tools)

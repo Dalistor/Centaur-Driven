@@ -455,8 +455,16 @@ erro, troca de modelo ou interrupção reiniciam a sessão a partir do históric
 ociosas por cinco minutos são encerradas. `CENTAUR_NATIVE_SESSION=0`, ou um CLI sem as opções
 necessárias, volta ao modo de uma chamada por etapa. O backend Codex continua nesse modo.
 
-A 60% da janela conhecida, resultados antigos e volumosos de ferramentas saem do contexto
+A 60% da janela de trabalho, resultados antigos e volumosos de ferramentas saem do contexto
 enviado (o histórico salvo permanece íntegro) antes de recorrer ao resumo por IA aos 80%.
+A janela de trabalho é a do modelo limitada a 150 mil tokens: como cada chamada reenvia todo
+o contexto ativo, encher uma janela de 400 mil ou 1 milhão multiplica o custo de cada passo.
+`CENTAUR_CONTEXT_BUDGET=300000 centaur .` muda o teto e `CENTAUR_CONTEXT_BUDGET=off` volta a
+usar a janela inteira do modelo. A barra de contexto mede o espaço livre nessa janela de
+trabalho. Reler um arquivo ou skill cujo resultado idêntico ainda está no contexto devolve
+só um aviso, e `read_file` entrega 400 linhas por chamada (até 2000 com `limit`).
+`$credits` mostra o gasto do chat: chamadas, tokens de entrada com a parcela vinda do cache,
+tokens de saída e, no OpenRouter, o custo informado, somando os subagentes.
 
 ### Respostas extensas e recuperação
 

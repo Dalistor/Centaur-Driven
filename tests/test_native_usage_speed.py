@@ -113,7 +113,7 @@ for line in sys.stdin:
         process = SimpleNamespace(returncode=0, communicate=lambda *a, **k: (output, ''))
         with patch('centaur_cli.native_client.subprocess.Popen', return_value=process):
             reply = client.complete('sonnet', [], [])
-        self.assertEqual(reply.usage, {'prompt_tokens':160, 'completion_tokens':20})
+        self.assertEqual(reply.usage, {'prompt_tokens':160, 'completion_tokens':20, 'cached_tokens':50})
         self.assertEqual(reply.context_usage, {'prompt_tokens':70})
         self.assertNotIn('context_usage', reply)
         self.assertEqual(client.credits().windows[0].remaining, 75)

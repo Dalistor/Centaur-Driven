@@ -733,8 +733,8 @@ class NativeContextTests(unittest.TestCase):
             self.assertEqual(client.model_efforts['max'], ['default'])
         output = '\n'.join(map(json.dumps, [{'type': 'item.completed', 'item': {'type': 'reasoning', 'text': 'private'}},
             {'type': 'turn.completed', 'usage': {'input_tokens': 100, 'cached_input_tokens': 80, 'output_tokens': 30}}]))
-        self.assertEqual(codex_usage(output), {'prompt_tokens': 100, 'completion_tokens': 30})
-        self.assertEqual(codex_usage('invalid\n{"type":"turn.completed","usage":null}'), {'prompt_tokens': None, 'completion_tokens': None})
+        self.assertEqual(codex_usage(output), {'prompt_tokens': 100, 'completion_tokens': 30, 'cached_tokens': 80})
+        self.assertEqual(codex_usage('invalid\n{"type":"turn.completed","usage":null}'), {'prompt_tokens': None, 'completion_tokens': None, 'cached_tokens': None})
 
     def test_summary_timeout_kills_real_native_process_without_changing_chat_timeout(self):
         with tempfile.TemporaryDirectory() as temporary:

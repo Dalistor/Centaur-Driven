@@ -12,11 +12,11 @@ from . import skill_catalog
 from .permissions import MODE_HELP
 from .interaction import TurnCancelled
 from . import grants
-from .context import prune_tool_results, active_messages, compaction_state, record_context, auto_compaction_needed, compact_chat, save_compaction, save_compaction_progress, context_window, current_context_usage, estimate_tokens, CompactionPaused
+from .context import pruning_limit, prune_tool_results, active_messages, compaction_state, record_context, record_spend, working_window, auto_compaction_needed, compact_chat, save_compaction, save_compaction_progress, context_window, current_context_usage, estimate_tokens, CompactionPaused
 
 
 TOOL_PROMPT = ('Ferramentas de arquivo: localize com glob e grep em vez de run_command; leia com read_file, que numera '
-               'as linhas e, em arquivos grandes, avisa como continuar com offset. Altere arquivos existentes com '
+               'as linhas e, em arquivos grandes, avisa como continuar com offset. Cada leitura fica no contexto e é reenviada a cada passo: em arquivo grande, ache o ponto com grep e leia só o trecho com offset e limit; não releia arquivo, skill ou referência cujo conteúdo ainda está na conversa. Altere arquivos existentes com '
                'edit_file, copiando o trecho exato sem os números de linha; reserve write_file para arquivos novos '
                'ou reescrita completa e nunca regrave um arquivo que você não leu inteiro. Consultas independentes '
                '(read_file, glob, grep, list_files) podem ir no mesmo lote: o harness as executa em paralelo. '
@@ -142,6 +142,28 @@ def project_prompt(root, computer=True):
     return prompt
 
 
+REREAD_MINIMUM = 600
+REREAD_NOTE = ('[Conteúdo idêntico ao da leitura anterior com os mesmos argumentos, ainda presente nesta conversa; '
+               'nada mudou desde então. Use aquele resultado em vez de reler.]')
+
+
+def repeated_read(chat, call, result):
+    """A read that returns what the active context already holds costs tokens on every later request."""
+    name = call['function']['name']
+    if name not in ('read_file', 'read_skill') or not isinstance(result, str) or len(result) < REREAD_MINIMUM:
+        return result
+    messages, state = chat['messages'], compaction_state(chat)
+    # Pruned or summarized results are no longer visible to the model: those reads must come back whole.
+    start = max(state['through'] if state else 0, pruning_limit(chat))
+    same = {other['id'] for message in messages[start:] for other in message.get('tool_calls', [])
+            if other['id'] != call['id'] and other['function']['name'] == name
+            and other['function']['arguments'] == call['function']['arguments']}
+    if any(message.get('role') == 'tool' and message.get('tool_call_id') in same and message.get('content') == result
+           for message in messages[start:]):
+        return REREAD_NOTE
+    return result
+
+
 def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
     messages = chat['messages']
     # Completa chamadas interrompidas sem repetir operações com efeitos colaterais.
@@ -200,7 +222,7 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
             activity('compact')
             if progress: progress('Compactando automaticamente o contexto · histórico preservado…')
             try:
-                limit = context_window(client, current_context_usage(chat, client).get('model') or chat['model'])
+                limit = working_window(client, current_context_usage(chat, client).get('model') or chat['model'])
                 overhead = estimate_tokens([payload[0], *observations]) + estimate_tokens(definitions)
                 state, before, after = compact_chat(chat, client, getattr(tools, 'cancel_event', None), progress=progress,
                     checkpoint=lambda pending: save_compaction_progress(chat, store, pending, getattr(tools, 'cancel_event', None)),
@@ -237,6 +259,7 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
             chat.setdefault('models_used', []).append(selected_model)
         messages.append(response)
         record_context(chat, client, payload, definitions, response)
+        record_spend(chat, response)
         store.save(chat)
         emit()
         calls = response.get('tool_calls', [])
@@ -257,7 +280,7 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
             try:
                 arguments = json.loads(call['function']['arguments'])
                 activity('tool:' + call['function']['name'])
-                return tools.execute(call['function']['name'], arguments)
+                return repeated_read(chat, call, tools.execute(call['function']['name'], arguments))
             except (ValueError, KeyError, TypeError) as error:
                 return f'Chamada inválida: {error}'
         parallel_safe = getattr(tools, 'parallel_safe', ())
