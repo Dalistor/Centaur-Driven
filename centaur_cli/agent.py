@@ -10,9 +10,9 @@ from .attachments import provider_messages
 from .tools import TOOLS
 from . import skill_catalog
 from .permissions import MODE_HELP
-from .interaction import TurnCancelled
+from .interaction import RequestTimeout, TurnCancelled
 from . import grants
-from .context import pruning_limit, prune_tool_results, active_messages, compaction_state, record_context, record_spend, working_window, auto_compaction_needed, compact_chat, save_compaction, save_compaction_progress, context_window, current_context_usage, estimate_tokens, CompactionPaused
+from .context import context_used, pruning_limit, prune_tool_results, active_messages, compaction_state, record_context, record_spend, working_window, auto_compaction_needed, compact_chat, save_compaction, save_compaction_progress, context_window, current_context_usage, estimate_tokens, CompactionPaused
 
 
 TOOL_PROMPT = ('Ferramentas de arquivo: localize com glob e grep em vez de run_command; leia com read_file, que numera '
@@ -143,6 +143,7 @@ def project_prompt(root, computer=True):
 
 
 REREAD_MINIMUM = 600
+SOFT_COMPACT_SECONDS = 120
 REREAD_NOTE = ('[Conteúdo idêntico ao da leitura anterior com os mesmos argumentos, ainda presente nesta conversa; '
                'nada mudou desde então. Use aquele resultado em vez de reler.]')
 
@@ -218,7 +219,16 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
         if prune_tool_results(chat, client, payload, definitions):
             store.save(chat)
             payload = [payload[0]] + active_messages(chat) + observations
-        if auto_compaction_needed(chat, client, payload, definitions):
+        # The budget is a cost limit, not the model's: below 80% of the real window a slow or
+        # failing summary is deferred instead of holding the turn.
+        usage_now = current_context_usage(chat, client)
+        hard = context_window(client, usage_now.get('model') or chat['model'])
+        soft = working_window(client, usage_now.get('model') or chat['model'])
+        used_now = context_used(chat, usage_now, payload, definitions)
+        optional = bool(hard and soft and soft < hard and used_now < hard * .8)
+        if optional and used_now < chat.get('compaction_retry_at', 0):
+            pass
+        elif auto_compaction_needed(chat, client, payload, definitions):
             activity('compact')
             if progress: progress('Compactando automaticamente o contexto · histórico preservado…')
             try:
@@ -226,22 +236,33 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
                 overhead = estimate_tokens([payload[0], *observations]) + estimate_tokens(definitions)
                 state, before, after = compact_chat(chat, client, getattr(tools, 'cancel_event', None), progress=progress,
                     checkpoint=lambda pending: save_compaction_progress(chat, store, pending, getattr(tools, 'cancel_event', None)),
-                    target_tokens=max(0, limit * .6 - overhead) if limit else None)
+                    target_tokens=max(0, limit * .6 - overhead) if limit else None,
+                    time_budget=SOFT_COMPACT_SECONDS if optional else None)
                 check_cancelled()
                 save_compaction(chat, store, state, getattr(tools, 'cancel_event', None))
+                chat.pop('compaction_retry_at', None)
             except TurnCancelled:
                 raise
-            except CompactionPaused:
-                raise
-            except (ValueError, RuntimeError, OSError) as error:
-                raise RuntimeError('Compactação automática falhou; histórico preservado. '
-                                   'Use $compact ou ajuste CENTAUR_CONTEXT_WINDOW. ' + str(error)) from error
-            payload = [payload[0]] + active_messages(chat) + observations
-            if state.get('partial') and limit and estimate_tokens(payload) + estimate_tokens(definitions) >= limit * .8:
-                raise CompactionPaused('Trecho do contexto compactado; ainda há mensagens grandes para resumir. '
-                                       'Use $compact e depois /retry; histórico preservado.')
-            if progress: progress(f'Contexto compactado automaticamente: ~{before:,} → ~{after:,} tokens. '
-                                  f'Aguardando {getattr(client, "backend", "modelo")}…')
+            except (CompactionPaused, RequestTimeout, ValueError, RuntimeError, OSError) as error:
+                if not optional:
+                    if isinstance(error, CompactionPaused):
+                        raise
+                    raise RuntimeError('Compactação automática falhou; histórico preservado. '
+                                       'Use $compact ou ajuste CENTAUR_CONTEXT_WINDOW. ' + str(error)) from error
+                check_cancelled()
+                # Try again only after the conversation grows; the saved draft is reused then.
+                chat['compaction_retry_at'] = used_now + soft * .1
+                state = None
+                if progress: progress('Compactação adiada (resumo demorou ou falhou); o contexto ainda cabe no modelo. '
+                                      f'Aguardando {getattr(client, "backend", "modelo")}…')
+            if state:
+                payload = [payload[0]] + active_messages(chat) + observations
+                if (not optional and state.get('partial') and limit
+                        and estimate_tokens(payload) + estimate_tokens(definitions) >= limit * .8):
+                    raise CompactionPaused('Trecho do contexto compactado; ainda há mensagens grandes para resumir. '
+                                           'Use $compact e depois /retry; histórico preservado.')
+                if progress: progress(f'Contexto compactado automaticamente: ~{before:,} → ~{after:,} tokens. '
+                                      f'Aguardando {getattr(client, "backend", "modelo")}…')
             emit()
         if receive():
             payload = [payload[0]] + active_messages(chat) + observations

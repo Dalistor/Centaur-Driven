@@ -6,6 +6,10 @@
   máximo 150 mil tokens (`CENTAUR_CONTEXT_BUDGET` ajusta ou desliga). Antes dependiam só da janela
   do modelo e, em modelos de 400 mil a 1 milhão de tokens, praticamente não disparavam, com todo o
   histórico reenviado a cada chamada. A barra de contexto passa a medir essa janela de trabalho.
+- Compactação disparada pelo orçamento (com folga na janela real do modelo) tem prazo de 120 s e
+  não bloqueia mais o turno: se o resumo demorar ou falhar, o turno segue com o contexto atual, o
+  rascunho fica salvo e a próxima tentativa só ocorre depois de a conversa crescer. Perto do limite
+  real do modelo ela continua obrigatória.
 - Reler arquivo ou skill com os mesmos argumentos devolve um aviso curto enquanto o resultado
   idêntico ainda está no contexto; se o arquivo mudou ou o resultado foi podado, volta inteiro.
 - `read_file` entrega 400 linhas por chamada por padrão (até 2000 com `limit`).

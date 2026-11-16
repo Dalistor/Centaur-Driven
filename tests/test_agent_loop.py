@@ -136,6 +136,35 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(label, 'Este chat: 3 chamadas · entrada 5k (60% do cache) · saída 210 · US$ 0.01 · inclui 1 subagente(s)')
         self.assertEqual(spend_label(None), '')
 
+    def test_budget_compaction_that_stalls_is_deferred_instead_of_blocking_the_turn(self):
+        from centaur_cli.context import CompactionPaused
+        from centaur_cli import agent
+        # Texto do modelo (não podável) acima de 80% do orçamento, longe do limite real de 1M.
+        self.chat['messages'] = [{'role': 'user', 'content': 'Trabalhe'}] + [
+            {'role': 'assistant', 'content': 'y' * 9000} for _ in range(45)] + [{'role': 'user', 'content': 'Continue'}]
+        tools = ProjectTools(self.root, lambda _: True, approval_mode='never')
+        client = self.client({'role': 'assistant', 'content': 'Feito'})
+        client.context_windows = {'main': 1_000_000}
+        notes = []
+        with patch.object(agent, 'compact_chat', side_effect=CompactionPaused('lento')) as compact:
+            run_turn(self.chat, client, tools, self.store, lambda: None, progress=notes.append)
+            self.assertEqual(compact.call_args.kwargs['time_budget'], agent.SOFT_COMPACT_SECONDS)
+            self.assertEqual(self.chat['messages'][-1]['content'], 'Feito')
+            self.assertTrue(any('Compactação adiada' in note for note in notes))
+            # Sem crescimento relevante, o próximo turno não tenta de novo.
+            self.chat['messages'].append({'role': 'user', 'content': 'Mais'})
+            client.complete.side_effect = lambda *args, **options: {'role': 'assistant', 'content': 'Ok'}
+            run_turn(self.chat, client, tools, self.store, lambda: None)
+            self.assertEqual(compact.call_count, 1)
+        # Perto do limite real do modelo a compactação continua obrigatória.
+        client = self.client({'role': 'assistant', 'content': 'Feito'})
+        client.context_windows = {'main': 150_000}
+        self.chat.pop('compaction_retry_at', None)
+        self.chat['messages'].append({'role': 'user', 'content': 'Outra'})
+        with patch.object(agent, 'compact_chat', side_effect=CompactionPaused('lento')):
+            with self.assertRaises(CompactionPaused):
+                run_turn(self.chat, client, tools, self.store, lambda: None)
+
     def test_pruning_waits_for_pressure_and_a_known_window(self):
         self.chat['messages'] = self.long_history(results=3)
         self.assertFalse(prune_tool_results(self.chat, Mock(backend='openrouter', context_windows={'main': 200000}), active_messages(self.chat), []))

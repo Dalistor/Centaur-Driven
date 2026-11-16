@@ -214,7 +214,7 @@ def context_label(chat, client, width, draft='', overhead=0):
     return label, 'muted'
 
 
-def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None, target_tokens=None):
+def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None, target_tokens=None, time_budget=None):
     """Return new metadata; leave full history, errors and existing memory untouched."""
     messages = copy.deepcopy(chat['messages'])
     old = compaction_state(chat)
@@ -284,6 +284,7 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
     try:
         budget = int(os.environ.get('CENTAUR_COMPACT_TIMEOUT', '1800'))
         if not 30 <= budget <= 3600: raise ValueError
+        if time_budget: budget = min(budget, time_budget)
     except ValueError:
         raise ValueError('CENTAUR_COMPACT_TIMEOUT deve ser um inteiro entre 30 e 3600 segundos.') from None
     deadline = time.monotonic() + budget
