@@ -11,7 +11,7 @@ import threading
 import unittest
 
 
-SKILL = Path(__file__).resolve().parents[1] / 'centaur_cli/skills/ops'
+SKILL = Path(__file__).resolve().parents[1] / 'skills/ops'
 SCRIPTS = SKILL / 'scripts'
 
 

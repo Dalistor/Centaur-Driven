@@ -7,10 +7,8 @@ import unittest
 from unittest.mock import patch
 from zipfile import ZipFile, ZipInfo
 
-from centaur_cli.completion import SkillCompletion
-from centaur_cli.skill_catalog import names, read
 
-PATH = Path(__file__).resolve().parents[1] / 'centaur_cli/skills/skill/scripts/install.py'
+PATH = Path(__file__).resolve().parents[1] / 'skills/skill/scripts/install.py'
 SPEC = importlib.util.spec_from_file_location('additional_skill_installer', PATH)
 installer = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(installer)
@@ -47,11 +45,7 @@ class SkillInstallTests(unittest.TestCase):
         self.assertFalse((self.root / '.centaur/skills/other').exists())
         self.assertEqual(result['invoke'], '@example')
         self.assertEqual(len(result['archive_sha256']), 64)
-        completion = SkillCompletion(self.root)
-        completion.update('@ex')
-        self.assertEqual(completion.options, ['example'])
-        self.assertIn('Guia completo', read('@example/references/guide.md', 1, self.root))
-        self.assertIn('skill', names())
+        self.assertEqual((destination / 'references/guide.md').read_text(), 'Guia completo')
 
     def test_existing_installation_is_preserved_without_downloading(self):
         self.install()

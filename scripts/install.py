@@ -39,7 +39,7 @@ def fingerprint(directory):
 
 def source_skills(root):
     skills = {}
-    for directory in sorted((root / 'centaur_cli/skills').glob('*')):
+    for directory in sorted((root / 'skills').glob('*')):
         reject_symlink(directory)
         if directory.name in (OBSOLETE, INTERNAL) or not directory.is_dir():
             continue
@@ -63,7 +63,7 @@ def clean_fingerprint(directory):
 def install(root, targets, apply=False):
     public_skills = source_skills(root)
     skills = dict(public_skills)
-    internal = root / 'centaur_cli/skills' / INTERNAL
+    internal = root / 'skills' / INTERNAL
     reject_symlink(internal)
     if internal.exists():
         files = fingerprint(internal)

@@ -18,7 +18,7 @@ class InstallTests(unittest.TestCase):
         self.target = self.base / 'skills'
         self.root.mkdir()
         self.target.mkdir()
-        self.put(self.root / 'centaur_cli/skills/check/SKILL.md', 'new skill')
+        self.put(self.root / 'skills/check/SKILL.md', 'new skill')
         self.put(self.target / 'check/SKILL.md', 'old skill')
         self.put(self.target / 'centaur-driven-commitAndPush/SKILL.md', 'obsolete')
         self.put(self.target / 'other/SKILL.md', 'unrelated')
@@ -28,7 +28,7 @@ class InstallTests(unittest.TestCase):
         path.write_text(body)
 
     def test_dry_run_then_replace_and_remove_obsolete_idempotently(self):
-        self.put(self.root / 'centaur_cli/skills/check/__pycache__/x.pyc', 'cache')
+        self.put(self.root / 'skills/check/__pycache__/x.pyc', 'cache')
         result = install.install(self.root, [self.target])
         self.assertFalse(result['applied'])
         self.assertEqual((self.target / 'check/SKILL.md').read_text(), 'old skill')
@@ -79,8 +79,8 @@ class InstallTests(unittest.TestCase):
         self.assertEqual((self.target / 'check/SKILL.md').read_text(), 'old skill')
 
     def test_memory_moves_to_internal_resources_with_backup(self):
-        self.put(self.root / 'centaur_cli/skills/_internal/memory/SKILL.md', 'internal memory')
-        self.put(self.root / 'centaur_cli/skills/_internal/memory/references/contract.md', 'contract')
+        self.put(self.root / 'skills/_internal/memory/SKILL.md', 'internal memory')
+        self.put(self.root / 'skills/_internal/memory/references/contract.md', 'contract')
         for name in ('memory', 'centaur-driven-memory'):
             self.put(self.target / name / 'SKILL.md', name)
         preview = install.install(self.root, [self.target])
@@ -95,7 +95,7 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(install.install(self.root, [self.target], True)['changed'], [])
 
     def test_internal_publish_failure_preserves_public_memory(self):
-        self.put(self.root / 'centaur_cli/skills/_internal/memory/SKILL.md', 'internal memory')
+        self.put(self.root / 'skills/_internal/memory/SKILL.md', 'internal memory')
         self.put(self.target / 'memory/SKILL.md', 'previous memory')
         self.put(self.target / '_internal/memory/SKILL.md', 'previous internal')
         real_replace = install.os.replace
@@ -113,7 +113,7 @@ class InstallTests(unittest.TestCase):
     def test_symlink_is_rejected_without_touching_unrelated_target(self):
         self.put(self.base / 'outside/SKILL.md', 'outside')
         (self.target / 'linked').symlink_to(self.base / 'outside')
-        self.put(self.root / 'centaur_cli/skills/linked/SKILL.md', 'replacement')
+        self.put(self.root / 'skills/linked/SKILL.md', 'replacement')
         with self.assertRaisesRegex(ValueError, 'simbólico'):
             install.install(self.root, [self.target], True)
         self.assertEqual((self.base / 'outside/SKILL.md').read_text(), 'outside')

@@ -1,12 +1,5 @@
 __pycache__/
 *.py[cod]
-*.egg-info/
-/build/
-/dist/
-/.venv/
-node_modules/
-/vscode-extension/
-premium-audit.json
 
 # Local Centaur context belongs to this PC, not the skills repository.
 /.centaur/
