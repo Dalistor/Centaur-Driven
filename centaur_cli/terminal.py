@@ -188,7 +188,7 @@ class Terminal:
         self.max_subagent_tier = max_subagent_tier
         self.show_details = False
         self.login_request = None
-        self.login_done_at = 0
+        self.login_done_at = float('-inf')  # O relógio monotônico pode estar perto de zero logo após o boot.
         self.pending_titles = {}
         self.title_tasks = set()
         self.context_overhead = estimate_tokens(project_prompt(root)) + estimate_tokens(TOOLS)
