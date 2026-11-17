@@ -38,7 +38,7 @@ def logged_in(backend, command):
     """True/False segundo o próprio CLI; None quando ele não respondeu."""
     try:
         result = subprocess.run([command, *STATUS[backend]], capture_output=True, text=True, timeout=15)
-    except (OSError, subprocess.TimeoutExpired):
+    except Exception:  # Consulta de melhor esforço: qualquer falha aqui significa apenas "não sei".
         return None
     return result.returncode == 0
 
