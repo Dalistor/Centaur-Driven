@@ -17,6 +17,8 @@ class ChatStore:
     def __init__(self, root):
         self.root = Path(root).resolve()
         self.directory = self.root / '.centaur' / 'chats'
+        # Creation times already confirmed on disk: a save per step must not re-read the whole transcript.
+        self.created = {}
 
     def new(self, model, backend='openrouter'):
         created = datetime.now(timezone.utc).isoformat()
@@ -25,7 +27,9 @@ class ChatStore:
 
     def save(self, chat, *, touch=True):
         path = self.path(chat['id'])
-        if path.exists():
+        if (path, chat['id']) in self.created:
+            chat['created'] = self.created[path, chat['id']]
+        elif path.exists():
             try:
                 existing = json.loads(path.read_text(encoding='utf-8'))
                 if not isinstance(existing, dict):
@@ -45,6 +49,7 @@ class ChatStore:
                 output.flush()
                 os.fsync(output.fileno())
             os.replace(temporary, self.directory / (chat['id'] + '.json'))
+            self.created[path, chat['id']] = chat['created']
         finally:
             Path(temporary).unlink(missing_ok=True)
 
@@ -64,6 +69,8 @@ class ChatStore:
                         and isinstance(chat['messages'], list)
                         and isinstance(chat['title'], str)
                         and isinstance(chat['updated'], str)):
+                    # The file is the authority: it may have been rewritten outside this process.
+                    self.created.pop((self.path(chat['id']), chat['id']), None)
                     if not chat.get('created'):
                         chat['created'] = chat['updated']
                         self.save(chat, touch=False)
@@ -121,6 +128,7 @@ class ChatStore:
         if not inbox_directory.is_symlink() and not inbox_path.is_symlink():
             inbox_path.unlink(missing_ok=True)
         path.unlink(missing_ok=True)
+        self.created.pop((path, chat_id), None)
 
     def agents(self, parent_id=None, *, active_only=False):
         base = self.root / '.centaur' / 'agents'

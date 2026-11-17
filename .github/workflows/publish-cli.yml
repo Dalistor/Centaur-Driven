@@ -39,6 +39,9 @@ jobs:
       # also run on macOS.
       - run: python -m unittest discover -s tests -v
       - run: python -m compileall -q centaur_cli
+      - name: Lint for real errors (undefined names, unused imports)
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        run: python -m pip install ruff==0.17.5 && python -m ruff check centaur_cli scripts tests evals
       - name: Install optional macOS clipboard dependencies
         if: matrix.os == 'macos-latest'
         run: python -m pip install '.[attachments]'

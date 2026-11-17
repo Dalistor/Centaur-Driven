@@ -1,0 +1,5 @@
+{
+ "prompt": "Adicione ao wc.py a opção --words, que imprime apenas a quantidade de palavras de cada arquivo (formato \"<n> <arquivo>\"), e a opção --total, que acrescenta uma última linha \"<soma> total\" quando combinada com --words ou com a contagem de linhas padrão. O comportamento sem opções não pode mudar.",
+ "check": "python3 check.py",
+ "timeout": 60
+}

@@ -34,6 +34,17 @@ Issues = "https://github.com/Dalistor/Centaur-Driven/issues"
 [tool.setuptools.dynamic]
 version = {attr = "centaur_cli.__version__"}
 
+[tool.ruff]
+target-version = "py310"
+line-length = 240
+
+[tool.ruff.lint]
+# Erros reais (nomes indefinidos, imports e variáveis sem uso, sintaxe); estilo não é verificado.
+select = ["F", "E9"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F841"]
+
 [project.scripts]
 centaur = "centaur_cli.__main__:main"
 

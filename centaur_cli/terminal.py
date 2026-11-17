@@ -25,7 +25,7 @@ from .context import compact_chat, context_label, spend_label, estimate_tokens, 
 from .speed import validate_speed, fast_supported
 from .native_usage import BalanceUnavailable
 from .completion import SkillCompletion
-from .conversation import TranscriptLine, generate_title, readable_markdown, tool_activity
+from .conversation import TranscriptLine, generate_title, tool_activity
 from .markdown import render as render_markdown
 from .tools import ProjectTools
 from .checkpoints import Checkpoints
@@ -35,7 +35,7 @@ from .graphics import FRAME_SECONDS
 from .subagents import SubagentTools
 from .agent_runtime import AgentGroup
 from .inbox import Inbox
-from .sessions import SessionRegistry, LABELS, read_record
+from .sessions import SessionRegistry, read_record
 from .agent_tree import AgentTree
 from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 from .permissions import validate_mode, MODE_LABELS
@@ -46,7 +46,7 @@ from .computer_access import ComputerControl
 from .composer import layout_input, attachment_span, atomic_cursor, replace_input, without_attachment_markers
 from .clipboard import clipboard_content, pasted_paths
 from .diagnostics import collect as collect_diagnostics, render as render_diagnostics
-from .keyboard import SHIFT, KEY_NEWLINE, KEY_IGNORE, KEY_FOCUS_IN, KEY_FOCUS_OUT, PastedText, KeyboardReader, keyboard_protocol, read_key
+from .keyboard import SHIFT, KEY_NEWLINE, KEY_IGNORE, KEY_FOCUS_IN, KEY_FOCUS_OUT, PastedText, KeyboardReader, keyboard_protocol
 
 
 def display_lines(text, width):

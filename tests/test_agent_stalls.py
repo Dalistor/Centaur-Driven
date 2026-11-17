@@ -1,13 +1,11 @@
 """Bound command cleanup, safe live native telemetry and the command/model boundary."""
 import json
-import os
 from pathlib import Path
 import shlex
 import subprocess
 import sys
 import tempfile
 import threading
-import time
 import unittest
 from unittest.mock import Mock, patch
 

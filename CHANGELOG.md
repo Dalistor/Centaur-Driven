@@ -2,6 +2,34 @@
 
 ## Não publicado
 
+- Compactação mais barata e com menos perda: no OpenRouter o contexto antigo é resumido em uma ou
+  duas chamadas (fragmentos de até 400 mil caracteres) em vez de cerca de oito; Codex e Claude
+  mantêm fragmentos de 48 mil. O resumo pode ter até 24 mil caracteres (antes 6 mil) e passa a
+  carregar o último plano de `update_plan` e a lista de arquivos já alterados no trecho resumido.
+- Freios do turno: um turno pausa após 300 chamadas ao modelo (`CENTAUR_TURN_STEPS`, `0` desliga)
+  e, opcionalmente, ao gastar `CENTAUR_TURN_COST` dólares (OpenRouter); `/retry` continua de onde
+  parou. Uma chamada de ferramenta idêntica que devolve o mesmo resultado pela terceira vez recebe
+  um aviso para o agente mudar de abordagem.
+- `write_file` não apaga o que o agente não viu: sem confirmação (modos `auto` e `never`), regravar
+  um arquivo existente exige tê-lo lido no turno, e em qualquer modo a gravação é recusada se o
+  arquivo mudou desde a leitura (você, um comando ou outro agente). Gravações de `write_file` e
+  `edit_file` passam a ser atômicas, preservando permissões e vínculos.
+- Posse de arquivos verificada: `delegate_task` aceita `files` (padrões glob) e o harness recusa
+  gravações do subagente fora deles, exceto registros em `.centaur/`.
+- Sandbox opcional no modo `auto` (`CENTAUR_SANDBOX=1`, Linux com bubblewrap): comandos que
+  pediriam confirmação, como testes e builds, rodam sem perguntar em um sandbox sem rede, com
+  gravação apenas na pasta do projeto (não em `.git`, `.centaur`, `.github`, `.vscode`, `.idea`,
+  `.husky`, `.envrc`), sem as pastas de credenciais do usuário, com `.env*` vazios e sem variáveis
+  de ambiente com nome de segredo. O agente pode pedir `outside_sandbox=true`, que volta a pedir
+  sua confirmação. Comandos liberados com `$allow` continuam rodando fora dele. Experimental.
+- O system prompt fica fixo durante o turno: liberar um comando no meio dele não invalida mais o
+  cache de prompt da conversa; a nova regra aparece no turno seguinte.
+- Salvar o histórico não relê mais o arquivo inteiro do chat a cada passo.
+- Avaliações: `python scripts/eval_agent.py --model <id>` roda as tarefas de `evals/` em cópias
+  descartáveis dentro do sandbox e informa sucesso, chamadas, tokens e custo por tarefa, para
+  comparar versões e ajustes do harness. Consome créditos do backend.
+- CI: `ruff` verifica nomes indefinidos e imports sem uso.
+
 - Gasto de tokens: poda e compactação automáticas passam a usar uma janela de trabalho de no
   máximo 150 mil tokens (`CENTAUR_CONTEXT_BUDGET` ajusta ou desliga). Antes dependiam só da janela
   do modelo e, em modelos de 400 mil a 1 milhão de tokens, praticamente não disparavam, com todo o

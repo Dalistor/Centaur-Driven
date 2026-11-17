@@ -8,7 +8,6 @@ import atexit
 import base64
 from collections import deque
 import io
-import json
 import os
 from pathlib import Path
 import secrets

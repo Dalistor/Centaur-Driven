@@ -1,12 +1,9 @@
 """Codex-style clipboard, atomic placeholders and restored drafts."""
 import curses
-import io
 import os
-from pathlib import Path
 import sys
 import threading
 import time
-from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 

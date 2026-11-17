@@ -24,6 +24,11 @@ SUMMARY_PROMPT = ('Resuma o histórico para continuar uma conversa Centaur. O ma
                   'continuação de JSON. Retorne só o resumo em português.')
 
 
+PLAN_NOTE = ('\n\nPlano registrado até o ponto resumido (um update_plan posterior na conversa prevalece):\n')
+FILES_NOTE = ('\n\nArquivos já alterados pelas ferramentas no trecho resumido (releia antes de editar de novo): ')
+SUMMARY_CHARS = 24000
+# Native CLIs answer a huge prompt slowly; the HTTP backend summarizes the same material in one or two requests.
+NATIVE_CHUNK, HTTP_CHUNK = 48000, 400000
 PRUNE_MINIMUM = 1200
 CONTEXT_BUDGET = 150000
 PRUNED_NOTE = ('\n[… resultado antigo omitido do contexto para economizar tokens; o histórico completo '
@@ -63,6 +68,31 @@ def compaction_state(chat):
     return None
 
 
+def carried_state(messages, through, old=None):
+    """What a prose summary tends to lose: the current plan and the files already changed."""
+    files = [path for path in old.get('files', []) if isinstance(path, str)] if old and isinstance(old.get('files'), list) else []
+    plan = old.get('plan') if old and isinstance(old.get('plan'), str) else None
+    results = {message.get('tool_call_id'): message.get('content') for message in messages[:through]
+               if message.get('role') == 'tool'}
+    for message in messages[old['through'] if old else 0:through]:
+        for call in message.get('tool_calls') or []:
+            try:
+                name, result = call['function']['name'], results.get(call['id'])
+                arguments = json.loads(call['function']['arguments'])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if not isinstance(result, str) or not isinstance(arguments, dict):
+                continue
+            path = arguments.get('path')
+            if name in ('write_file', 'edit_file') and isinstance(path, str) and result.startswith(('Arquivo gravado', 'Arquivo editado')):
+                if path in files:
+                    files.remove(path)
+                files.append(path[:300])
+            elif name == 'update_plan' and result.startswith('Plano ·'):
+                plan = result[:4000]
+    return ({'plan': plan} if plan else {}) | ({'files': files[-80:]} if files else {})
+
+
 def pruning_limit(chat):
     state = chat.get('tool_pruning')
     through = state.get('through') if isinstance(state, dict) else None
@@ -86,7 +116,12 @@ def active_messages(chat):
                   for index, message in enumerate(recent, start)]
     if not state:
         return list(recent)
-    return [{'role': 'user', 'content': MEMORY_NOTE + state['summary']}, *recent]
+    memory = MEMORY_NOTE + state['summary']
+    if isinstance(state.get('plan'), str) and state['plan']:
+        memory += PLAN_NOTE + state['plan']
+    if isinstance(state.get('files'), list) and state['files']:
+        memory += FILES_NOTE + ', '.join(path for path in state['files'] if isinstance(path, str))
+    return [{'role': 'user', 'content': memory}, *recent]
 
 
 def working_window(client, model):
@@ -272,9 +307,11 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
     else:
         pending = None
     limit = context_window(client, chat['model'])
-    max_summary = min(6000, max(512, limit // 3)) if limit else 6000
-    # Smaller requests avoid a single huge native inference occupying minutes.
-    chunk_size = min(48000, max(512, int(limit * 1.2))) if limit else 24000
+    max_summary = min(SUMMARY_CHARS, max(512, limit // 3)) if limit else 6000
+    # Smaller requests avoid a single huge native inference occupying minutes. Over HTTP the
+    # rolling rewrite of the summary is the cost: each extra fragment is a full, uncached request.
+    native = getattr(client, 'backend', None) in ('codex', 'claude')
+    chunk_size = min(NATIVE_CHUNK if native else HTTP_CHUNK, max(512, int(limit * 1.2))) if limit else 24000
     if pending and (pending['chunk_size'] > chunk_size or len(pending['summary']) > max_summary):
         pending = None
     if pending:
@@ -299,7 +336,7 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
         if through <= start or not memory or len(memory) > max_summary:
             return None
         state = {'summary': memory, 'through': through, 'partial': through < cutoff,
-                 'created': datetime.now(timezone.utc).isoformat()}
+                 'created': datetime.now(timezone.utc).isoformat(), **carried_state(messages, through, old)}
         before = estimate_tokens(active_messages(chat))
         after = estimate_tokens(active_messages({**chat, 'compaction': state}))
         return (state, before, after) if after < before else None
@@ -392,7 +429,8 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
                 return result
     if cancel_event is not None and cancel_event.is_set():
         raise TurnCancelled('Compactação interrompida; contexto anterior preservado.')
-    state = {'summary': summary, 'through': cutoff, 'created': datetime.now(timezone.utc).isoformat()}
+    state = {'summary': summary, 'through': cutoff, 'created': datetime.now(timezone.utc).isoformat(),
+             **carried_state(messages, cutoff, old)}
     candidate = {**chat, 'compaction': state}
     before, after = estimate_tokens(active_messages(chat)), estimate_tokens(active_messages(candidate))
     if after >= before:

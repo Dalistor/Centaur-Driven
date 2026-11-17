@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from .config import BACKENDS, effort_options, validate
-from .permissions import APPROVAL_MODES, MODE_LABELS, MODE_HELP, validate_mode
+from .permissions import APPROVAL_MODES, MODE_LABELS, validate_mode
 from .speed import validate_speed, local_speed_support, fast_supported
 from . import models
 

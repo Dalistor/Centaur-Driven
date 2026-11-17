@@ -26,6 +26,10 @@ class ContextTests(unittest.TestCase):
         budget = patch.dict(os.environ, {'CENTAUR_COMPACT_TIMEOUT': '180'})
         budget.start()
         self.addCleanup(budget.stop)
+        # Fragment mechanics are exercised at the native size; the HTTP size has its own test.
+        chunk = patch('centaur_cli.context.HTTP_CHUNK', 48000)
+        chunk.start()
+        self.addCleanup(chunk.stop)
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
@@ -240,6 +244,43 @@ class ContextTests(unittest.TestCase):
                             for call in self.client.complete.call_args_list))
         self.assertEqual(self.chat['messages'], original)
         self.assertTrue(all(call.args[2] == [] for call in self.client.complete.call_args_list))
+
+    def test_http_backend_summarizes_a_large_context_in_few_requests_and_native_keeps_fragments(self):
+        self.client.context_windows = {'main': 200000}
+        self.chat['messages'] = [{'role': 'user' if index % 2 == 0 else 'assistant',
+                                 'content': f'Parte {index}: ' + 'contexto ' * 2000} for index in range(24)]
+        with patch('centaur_cli.context.HTTP_CHUNK', 400000):
+            compact_chat(self.chat, self.client)
+            self.assertLessEqual(self.client.complete.call_count, 2)
+            self.assertIn('limite máximo 24000', self.client.complete.call_args.args[1][0]['content'])
+            self.client.complete.reset_mock()
+            self.client.backend = 'claude'
+            compact_chat(self.chat, self.client)
+        self.assertGreater(self.client.complete.call_count, 3)
+
+    def test_summary_carries_the_plan_and_changed_files(self):
+        def call(identifier, name, arguments, result):
+            return [{'role': 'assistant', 'content': None, 'tool_calls': [{'id': identifier, 'type': 'function',
+                     'function': {'name': name, 'arguments': json.dumps(arguments)}}]},
+                    {'role': 'tool', 'tool_call_id': identifier, 'content': result}]
+        self.chat['messages'] = [
+            {'role': 'user', 'content': 'pedido ' * 300},
+            *call('p', 'update_plan', {'steps': []}, 'Plano · 1/2 concluídas\n✓ ler\n▸ corrigir'),
+            *call('w', 'edit_file', {'path': 'src/a.py', 'old_string': 'a', 'new_string': 'b'}, 'Arquivo editado (1 substituição). 3 linhas em src/a.py.'),
+            *call('r', 'write_file', {'path': 'src/recusado.py', 'content': 'x'}, 'Alteração recusada pelo usuário.'),
+            *[{'role': 'user' if index % 2 else 'assistant', 'content': 'conversa ' * 200} for index in range(8)]]
+        state, _, _ = compact_chat(self.chat, self.client)
+        self.assertEqual(state['files'], ['src/a.py'])
+        self.chat['compaction'] = state
+        memory = active_messages(self.chat)[0]['content']
+        self.assertIn('▸ corrigir', memory)
+        self.assertIn('src/a.py', memory)
+        self.assertNotIn('recusado', memory)
+        # A later compaction keeps what the earlier one carried.
+        self.chat['messages'] += [{'role': 'user' if index % 2 else 'assistant', 'content': 'mais ' * 300} for index in range(10)]
+        later, _, _ = compact_chat(self.chat, self.client)
+        self.assertEqual(later['files'], ['src/a.py'])
+        self.assertIn('▸ corrigir', later['plan'])
 
     def test_resume_uses_summary_and_keeps_results_without_reexecuting_actions(self):
         self.chat['messages'][-2:] = [

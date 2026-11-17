@@ -1,0 +1,5 @@
+{
+ "prompt": "Renomeie a função calc() do pacote shop para order_total() em todo o projeto (definição, importações, chamadas e documentação no README.md). Não deixe um alias com o nome antigo. Os testes devem continuar passando.",
+ "check": "python3 -m unittest -q test_shop.py && ! grep -rnw calc --include=*.py --include=*.md . && grep -q 'def order_total' shop/pricing.py",
+ "timeout": 60
+}

@@ -8,7 +8,8 @@ from unittest.mock import patch
 from centaur_cli.appearance import Palette, TerminalView
 from centaur_cli.graphics import DOT_BITS, FRAME_SECONDS, Renderer, SPIN_SECONDS, WelcomeAnimation
 from centaur_cli.history import ChatStore
-from centaur_cli.terminal import Terminal, read_key
+from centaur_cli.terminal import Terminal
+from centaur_cli.keyboard import read_key
 from test_terminal_settings import Screen
 
 

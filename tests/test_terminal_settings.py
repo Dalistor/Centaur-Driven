@@ -15,7 +15,8 @@ from centaur_cli.history import ChatStore
 from centaur_cli.native_client import NativeClient
 from centaur_cli.openrouter import OpenRouter
 from centaur_cli.settings import ConfigPicker
-from centaur_cli.terminal import Terminal, read_key
+from centaur_cli.terminal import Terminal
+from centaur_cli.keyboard import read_key
 from centaur_cli.tools import ProjectTools
 
 

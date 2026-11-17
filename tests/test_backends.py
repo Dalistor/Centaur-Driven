@@ -8,9 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from centaur_cli.__main__ import main
-from centaur_cli.agent import run_turn
 from centaur_cli.backends import create_client, resolve_model
-from centaur_cli.credits import credit_label
 from centaur_cli.history import ChatStore
 from centaur_cli.native_client import NativeClient
 from centaur_cli.subagents import SubagentTools
@@ -111,7 +109,7 @@ class BackendTests(unittest.TestCase):
             with patch.object(client, 'model_catalog', return_value={'fixed': 'Main', 'fast': 'Simple tasks'}):
                 tools = SubagentTools(ProjectTools(self.root, lambda _: False), client, 'a' * 32, lambda _: None)
                 properties = next(tool['function']['parameters']['properties'] for tool in tools.definitions if tool['function']['name'] == 'delegate_task')
-                self.assertEqual(set(properties), {'title', 'task', 'model'})
+                self.assertEqual(set(properties), {'title', 'task', 'model', 'files'})
                 self.assertEqual(properties['model']['enum'], ['fixed', 'fast'])
                 for field, value in (('model', 'provider/other'), ('cost_tier', 'low')):
                     output = tools.execute('delegate_task', {'title': 'Task', 'task': 'Contrato', field: value})

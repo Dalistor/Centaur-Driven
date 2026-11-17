@@ -2,9 +2,7 @@ import io
 import json
 import os
 from pathlib import Path
-import subprocess
 import tempfile
-import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch

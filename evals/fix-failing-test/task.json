@@ -1,0 +1,5 @@
+{
+ "prompt": "O teste em test_intervals.py está falhando. Encontre a causa em intervals.py e corrija, sem alterar o teste.",
+ "check": "python3 -m unittest -q test_intervals.py && test \"$(sha256sum test_intervals.py | cut -d' ' -f1)\" = \"$(cat .test.sha256)\"",
+ "timeout": 60
+}

@@ -7,7 +7,7 @@ import threading
 from . import grants
 from .agent import run_turn
 from .history import ChatStore
-from .tools import ProjectTools, LARGE_DELIVERY
+from .tools import ProjectTools, LARGE_DELIVERY, glob_matcher
 from .interaction import TurnCancelled
 from .agent_runtime import AgentGroup, AGENT_TOOLS
 
@@ -24,6 +24,10 @@ DELEGATE_TASK = {
                               'description': 'low para tarefas simples, medium para implementação comum, high/xhigh/max para maior risco; respeite o máximo configurado'},
                 'model': {'type': 'string', 'default': 'openrouter/auto',
                           'description': 'Use openrouter/auto; modelo específico somente quando explicitamente definido pelo usuário ou pela task'},
+                'files': {'type': 'array', 'maxItems': 40, 'items': {'type': 'string', 'maxLength': 300},
+                          'description': 'Posse de arquivos da task, como padrões glob relativos à raiz (src/api/**, tests/test_api.py). '
+                                         'Quando informada, o harness recusa gravações do executor fora dela (exceto registros em .centaur/); '
+                                         'use posses disjuntas em tasks simultâneas'},
             }, 'required': ['title', 'task'], 'additionalProperties': False,
         },
     },
@@ -150,6 +154,13 @@ class SubagentTools:
         model = arguments.get('model', 'openrouter/auto') if self.routing else arguments.get('model', self.client.fixed_model)
         if not isinstance(title, str) or not title.strip() or not isinstance(task, str) or not task.strip():
             raise ValueError('Informe título e contrato da task.')
+        files = arguments.get('files')
+        if files is not None and (not isinstance(files, list) or not files or len(files) > 40
+                                  or any(not isinstance(item, str) for item in files)):
+            raise ValueError('files deve listar de 1 a 40 padrões de arquivos.')
+        owned = getattr(self.base, 'owned', None)
+        if files is not None:
+            owned = [*(owned or []), [glob_matcher(item) for item in files]]
         title = self.base.redact(title)
         if self.routing and (tier not in COST_TIERS or COST_TIERS.index(tier) > COST_TIERS.index(self.max_tier)):
             raise ValueError(f'Faixa solicitada excede o máximo {self.max_tier}; ajuste a task ou a configuração.')
@@ -175,7 +186,7 @@ class SubagentTools:
             raise
         if self.background:
             try:
-                thread = threading.Thread(target=self.run_child, args=(chat, store, title, task, tier, model), daemon=True)
+                thread = threading.Thread(target=self.run_child, args=(chat, store, title, task, tier, model, owned), daemon=True)
                 thread.start()
             except Exception:
                 chat['status'] = 'failed'
@@ -187,9 +198,9 @@ class SubagentTools:
             return json.dumps({'id': chat['id'], 'title': title, 'status': 'started',
                                'parent_id': self.parent_id, 'principal_id': self.group.principal_id,
                                'history': str(store.directory / (chat['id'] + '.json'))}, ensure_ascii=False)
-        return self.run_child(chat, store, title, task, tier, model)
+        return self.run_child(chat, store, title, task, tier, model, owned)
 
-    def run_child(self, chat, store, title, task, tier, model):
+    def run_child(self, chat, store, title, task, tier, model, owned=None):
         report, measured = 'Executor encerrado antes de produzir relatório.', []
         def state(value):
             if self.registry:
@@ -214,6 +225,7 @@ class SubagentTools:
                                  cancel_event=self.cancel_event)
             tools.agent_approve, tools.agent_ask = self.approve_callback, self.ask_callback
             tools.executor = True  # A checagem de fim de turno é do principal, com o trabalho integrado.
+            tools.owned = owned
             self.base.turn_acted = True
             measured.append(tools)
             tools.before_change = getattr(self.base, 'before_change', None)

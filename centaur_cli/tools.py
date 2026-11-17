@@ -21,9 +21,10 @@ from .credentials import credentials_path
 from . import skill_catalog
 from .permissions import validate_mode, ordinary_path, query_command, query_environment, TRUSTED_PATH
 from .interaction import ASK_USER, TurnCancelled, validate_question
-from .computer import COMPUTER_TOOLS, ComputerSession
+from .computer import COMPUTER_TOOLS
 from .hooks import load_hooks
 from . import grants
+from . import sandbox
 
 
 def tool(name, description, properties, optional=()):
@@ -105,8 +106,11 @@ TOOLS = [
          {'command': 'Comando executado na raiz do projeto',
           'timeout': {'type': 'integer', 'minimum': 1, 'maximum': 600,
                       'description': f'Limite em segundos; padrão {COMMAND_TIMEOUT}'},
-          'background': {'type': 'boolean', 'description': 'Executar em segundo plano; padrão false'}},
-         optional=('timeout', 'background')),
+          'background': {'type': 'boolean', 'description': 'Executar em segundo plano; padrão false'},
+          'outside_sandbox': {'type': 'boolean', 'description': 'Só quando um resultado anterior informar execução em '
+                              'sandbox e o comando precisar de rede ou de gravar fora do projeto: pede confirmação ao '
+                              'usuário para rodar fora dele; padrão false'}},
+         optional=('timeout', 'background', 'outside_sandbox')),
     tool('command_output', 'Consultar um comando em segundo plano: estado e saída nova desde a última consulta.',
          {'id': 'Identificador devolvido por run_command',
           'wait': {'type': 'integer', 'minimum': 0, 'maximum': 60,
@@ -202,6 +206,10 @@ class ProjectTools:
         # Alterações feitas pelas ferramentas de arquivo neste turno; comandos de shell não são medidos.
         self.changed_files, self.changed_lines = set(), 0
         self.turn_acted = self.executor = False
+        # Estado (mtime, tamanho) de cada arquivo quando este agente o leu ou gravou pela última vez.
+        self.seen = {}
+        # Camadas de posse de um executor (padrões glob por nível de delegação); None = sem restrição.
+        self.owned = None
         self.stop_attempts = 0
         self.definitions = getattr(type(self), 'definitions', [*TOOLS, *([ASK_USER] if ask_user else []), *(COMPUTER_TOOLS if computer else [])])
         # Chamado com o caminho antes de cada gravação (checkpoints para /rewind).
@@ -380,7 +388,7 @@ class ProjectTools:
                 before = path.read_text(encoding='utf-8') if path.is_file() else None
             except ValueError:
                 before = None  # Conteúdo não textual: a aprovação mostra o arquivo novo.
-            return self.change_file(path, arguments['path'], before, content, 'Arquivo gravado.')
+            return self.change_file(path, arguments['path'], before, content, 'Arquivo gravado.', whole=True)
         return self.edit_file(path, arguments)
 
     @staticmethod
@@ -391,9 +399,18 @@ class ProjectTools:
             raise ValueError(f'{label} deve ser um inteiro de {low} a {high}.')
         return value
 
+    @staticmethod
+    def file_state(path):
+        try:
+            status = path.stat()
+            return status.st_mtime_ns, status.st_size
+        except OSError:
+            return None
+
     def read_file(self, path, offset=None, limit=None):
         offset = self.integer(offset, 1, 1, 10 ** 9, 'offset')
         limit = self.integer(limit, READ_DEFAULT, 1, READ_LINES, 'limit')
+        self.seen[path] = self.file_state(path)
         budget, shown, size, total, last = MAX_OUTPUT - 200, [], 0, 0, offset - 1
         with path.open(encoding='utf-8') as source:
             for total, line in enumerate(source, 1):
@@ -451,23 +468,61 @@ class ProjectTools:
         return (f'Imagem {label}: anexada à próxima decisão, uma única vez. '
                 'Registre em texto o que precisar lembrar; ela não fica no histórico.')
 
-    def change_file(self, path, supplied, before, content, done):
+    def change_file(self, path, supplied, before, content, done, whole=False):
         relative = path.relative_to(self.root)
         automatic = self.approval_mode == 'never' or (self.approval_mode == 'auto'
                     and ordinary_path(self.root, supplied))
+        if self.owned is not None and relative.parts[:1] != ('.centaur',) and not all(
+                any(matches(relative.as_posix()) for matches in layer) for layer in self.owned):
+            raise ValueError(f'{relative} está fora dos arquivos de posse desta task; outro agente pode estar '
+                             'trabalhando nele. Relate a necessidade ao coordenador em vez de alterar.')
+        state = self.file_state(path) if whole and path.is_file() else None
+        if state and state[1]:
+            # Regravar por cima do que não se viu apaga trabalho do usuário ou de outro agente.
+            if path in self.seen and self.seen[path] != state:
+                raise ValueError('Arquivo mudou desde a sua última leitura (usuário, comando ou outro agente): '
+                                 'releia com read_file e reaplique a alteração sobre o conteúdo atual.')
+            if path not in self.seen and automatic:
+                # Com confirmação, o usuário vê o diff; sem ela, ninguém conferiria o que será apagado.
+                raise ValueError('Arquivo já existe e não foi lido neste turno: leia-o com read_file antes de '
+                                 'substituí-lo, ou altere só o trecho com edit_file.')
         if not automatic and not self.approve(self.redact(change_preview(relative, before, content))):
             return 'Alteração recusada pelo usuário.'
         self.check_cancelled()
         if self.before_change:
             self.before_change(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open('w', encoding='utf-8', newline='') as target:
-            target.write(content)
+        self.write_text(path, content)
+        self.seen[path] = self.file_state(path)
         self.turn_acted = True
         self.changed_files.add(relative.as_posix())
         self.changed_lines += sum(line[:1] in '+-' and line[:3] not in ('+++', '---') for line in difflib.unified_diff(
             (before or '').splitlines(), content.splitlines(), lineterm='', n=0))
         return f'{done} {content.count(chr(10)) + (1 if content and not content.endswith(chr(10)) else 0)} linhas em {relative}.'
+
+    @staticmethod
+    def write_text(path, content):
+        """Troca atômica: uma interrupção no meio não deixa o arquivo truncado."""
+        temporary = path.with_name(f'.{path.name}.{uuid4().hex[:8]}.tmp')
+        try:
+            linked = path.stat().st_nlink > 1
+        except OSError:
+            linked = False
+        try:
+            if linked:
+                raise OSError  # Trocar o arquivo desfaria o vínculo com os outros nomes.
+            with temporary.open('x', encoding='utf-8', newline='') as target:
+                target.write(content)
+                target.flush()
+                os.fsync(target.fileno())
+            if path.exists():
+                shutil.copymode(path, temporary)
+            os.replace(temporary, path)
+        except OSError:
+            temporary.unlink(missing_ok=True)
+            # Pasta sem permissão de criação ou arquivo com vínculos: grava no lugar, como antes.
+            with path.open('w', encoding='utf-8', newline='') as target:
+                target.write(content)
 
     def edit_file(self, path, arguments):
         old, new, every = arguments['old_string'], arguments['new_string'], arguments.get('replace_all') or False
@@ -649,8 +704,9 @@ class ProjectTools:
         command, background = arguments['command'], arguments.get('background') or False
         if not isinstance(command, str) or not command.strip():
             raise ValueError('Informe um comando não vazio.')
-        if type(background) is not bool:
-            raise ValueError('background deve ser booleano.')
+        outside = arguments.get('outside_sandbox') or False
+        if type(background) is not bool or type(outside) is not bool:
+            raise ValueError('background e outside_sandbox devem ser booleanos.')
         timeout = self.integer(arguments.get('timeout'), COMMAND_TIMEOUT, 1, 600, 'timeout')
         query = query_command(self.root, command) if self.approval_mode == 'auto' else None
         automatic = self.approval_mode == 'never' or query is not None
@@ -658,6 +714,11 @@ class ProjectTools:
             # Comandos que o usuário liberou explicitamente nesta pasta ($allow), inclusive os arriscados.
             automatic = grants.allowed(command, grants.load_rules(self.root)[0])
         label = 'Executar em segundo plano' if background else 'Executar'
+        boxed = None
+        if not automatic and self.approval_mode == 'auto' and not outside:
+            # Sem rede e sem gravar fora do projeto, testes e builds dispensam a confirmação.
+            boxed = sandbox.wrap(self.root, command)
+            automatic = boxed is not None
         if not automatic:
             remember, family = grants.suggested(command), grants.suggested_family(command)
             answer = self.approve(grants.request(self.redact(f'{label} na pasta {self.root}:\n{command}'), remember, family))
@@ -674,13 +735,16 @@ class ProjectTools:
         env = self.command_environment()
         if query is not None:
             env = query_environment(env)
-        # Shell autorizado pelo usuário; cwd não é uma sandbox.
-        options = dict(shell=query is None or isinstance(query, str), cwd=self.root, stdin=subprocess.DEVNULL,
+        if boxed:
+            env = sandbox.environment(env)
+        # Shell autorizado pelo usuário; cwd não é uma sandbox (só `boxed` roda isolado).
+        options = dict(shell=not boxed and (query is None or isinstance(query, str)), cwd=self.root, stdin=subprocess.DEVNULL,
                        stderr=subprocess.STDOUT, start_new_session=True, env=env)
+        target = boxed or (query if query is not None else command)
         if background:
-            return self.start_background(query if query is not None else command, command, options)
+            return (sandbox.NOTE if boxed else '') + self.start_background(target, command, options)
         with TemporaryFile() as output:
-            process = subprocess.Popen(query if query is not None else command, stdout=output, **options)
+            process = subprocess.Popen(target, stdout=output, **options)
             finished = self.wait_process(process, timeout)
             if finished is None:
                 return 'Comando encerrado: sinal enviado, mas o processo não confirmou saída; confira o estado antes de retomar.'
@@ -690,6 +754,8 @@ class ProjectTools:
             header = (f'Código de saída: {process.returncode}\n' if finished else
                       f'Comando encerrado: limite de {timeout} segundos atingido. Para tarefas longas, '
                       'aumente timeout (até 600) ou use background=true.\n')
+            if boxed:
+                header = sandbox.NOTE + header
             budget = MAX_OUTPUT - len(header) - 300
             if len(text) > budget:
                 saved = self.output_directory() / f'{time.strftime("%Y%m%d-%H%M%S")}-{uuid4().hex[:6]}.txt'

@@ -7,7 +7,6 @@ import base64
 import io
 import os
 import threading
-import time
 import unittest
 from unittest.mock import patch
 

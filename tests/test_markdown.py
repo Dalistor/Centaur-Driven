@@ -1,5 +1,4 @@
 """Markdown da conversa: o que a tela mostra e quais trechos recebem estilo."""
-import curses
 from pathlib import Path
 import tempfile
 import unittest

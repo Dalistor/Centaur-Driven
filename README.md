@@ -383,6 +383,23 @@ são executadas em paralelo; gravações e comandos mantêm a ordem pedida pelo 
 Efeitos de comandos executados no shell não são desfeitos. As cópias ficam em
 `.centaur/checkpoints/<chat>` e são removidas com o chat.
 
+**Sandbox no modo automático (experimental).** Com `CENTAUR_SANDBOX=1` em Linux com
+[bubblewrap](https://github.com/containers/bubblewrap) instalado, os comandos que o modo `auto`
+perguntaria (testes, builds, scripts) rodam sem confirmação dentro de um sandbox: sem rede,
+sistema somente leitura, gravação apenas na pasta do projeto (exceto `.git`, `.centaur`,
+`.github`, `.vscode`, `.idea`, `.husky` e `.envrc`), sem acesso a `~/.ssh`, `~/.aws` e demais
+pastas de credenciais, com arquivos `.env*` vazios e sem variáveis de ambiente com nome de
+segredo. Quando um comando precisa de rede ou de gravar fora (instalar dependências, `git
+commit`), o agente o repete com `outside_sandbox=true` e você confirma como antes. Comandos
+liberados com `$allow` rodam fora do sandbox. Se o bubblewrap não estiver disponível ou o sistema
+bloquear namespaces, nada muda: o comando pede confirmação.
+
+**Limites do turno.** Um turno pausa após 300 chamadas ao modelo (`CENTAUR_TURN_STEPS=600` muda,
+`0` desliga) e, se você definir `CENTAUR_TURN_COST=5`, ao gastar esse valor em dólares informado
+pelo OpenRouter. O histórico fica salvo e `/retry` continua. Sem confirmação (modos `auto` e
+`never`), `write_file` só substitui um arquivo existente que o agente leu no turno; em qualquer
+modo, recusa se o arquivo mudou desde a leitura.
+
 **Comandos liberados (`$allow`).** Nos modos `ask` e `auto`, você pode liberar comandos
 específicos para rodar sem confirmação nesta pasta, inclusive os arriscados, como push e deploy:
 
