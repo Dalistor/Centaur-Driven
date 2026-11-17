@@ -1,6 +1,6 @@
 # Changelog
 
-## Não publicado
+## 0.10.6 — 2026-11-17
 
 - Login perdido nos backends Codex e Claude: quando o CLI oficial desloga ou a credencial expira
   (no início, ao trocar o backend em `$config` ou no meio de um turno), o Centaur detecta, entrega

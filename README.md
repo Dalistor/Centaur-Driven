@@ -34,12 +34,12 @@ A seleção/cópia usa os recursos do emulador. Ctrl+C continua interrompendo o 
 
 ### Instalação da versão publicada
 
-A versão desta entrega é `0.10.5`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.10.5`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.5).
+A versão desta entrega é `0.10.6`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.10.6`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.6).
 Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.5/centaur_cli-0.10.5-py3-none-any.whl
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.6/centaur_cli-0.10.6-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
@@ -789,7 +789,7 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.5'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.6'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```
