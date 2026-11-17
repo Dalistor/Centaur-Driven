@@ -12,6 +12,7 @@ from .tools import TOOLS
 from . import skill_catalog
 from .permissions import MODE_HELP
 from .interaction import RequestTimeout, TurnCancelled
+from .login import LoginRequired
 from . import grants
 from .context import context_used, pruning_limit, prune_tool_results, active_messages, compaction_state, record_context, record_spend, working_window, auto_compaction_needed, compact_chat, save_compaction, save_compaction_progress, context_window, current_context_usage, estimate_tokens, CompactionPaused
 
@@ -271,7 +272,7 @@ def run_turn(chat, client, tools, store, emit, instructions='', progress=None):
                 check_cancelled()
                 save_compaction(chat, store, state, getattr(tools, 'cancel_event', None))
                 chat.pop('compaction_retry_at', None)
-            except TurnCancelled:
+            except (TurnCancelled, LoginRequired):
                 raise
             except (CompactionPaused, RequestTimeout, ValueError, RuntimeError, OSError) as error:
                 if not optional:

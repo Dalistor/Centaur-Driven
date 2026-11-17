@@ -57,7 +57,19 @@ def readable_markdown(text):
     return '\n'.join(result)
 
 
+class Activity(str):
+    """Resumo de uma ação: marcador e rótulo até `label_end`; depois, o detalhe (caminho, comando)."""
+    label_end = None
+
+
 def tool_activity(call, result=None):
+    text, detail = describe_activity(call, result)
+    summary = Activity(text)
+    summary.label_end = len(text) - len(detail) if detail and text.endswith(detail) else len(text)
+    return summary
+
+
+def describe_activity(call, result=None):
     name = call.get('function', {}).get('name', 'ferramenta')
     try:
         args = json.loads(call['function']['arguments'])
@@ -85,40 +97,40 @@ def tool_activity(call, result=None):
     }
     if name == 'update_plan':
         # O resultado já é o plano formatado; antes dele, só o aviso de atualização.
-        return str(result) if result is not None and str(result).startswith('Plano · ') else '○ Atualizando plano'
+        return (str(result) if result is not None and str(result).startswith('Plano · ') else '○ Atualizando plano'), ''
     pending, done, field = labels.get(name, ('Consultando', 'Consultou', 'path'))
     detail = ' '.join(str(args.get(field) or name).split())[:100]
     if result is None:
-        return f'○ {pending} {detail}'
+        return f'○ {pending} {detail}', detail
     result = str(result)
     if name == 'delegate_task':
         try:
             delegation = json.loads(result)
             status = delegation.get('status')
             if status == 'failed':
-                return f'! Subagente falhou · {detail}'
+                return f'! Subagente falhou · {detail}', detail
             if status == 'cancelled':
-                return f'! Subagente interrompido · {detail}'
+                return f'! Subagente interrompido · {detail}', detail
             if status == 'reported':
-                return f'✓ Relatório recebido · {detail}'
+                return f'✓ Relatório recebido · {detail}', detail
             if status == 'started':
-                return f'● Subagente iniciado · {detail}'
+                return f'● Subagente iniciado · {detail}', detail
         except (ValueError, TypeError, AttributeError):
             pass
     if name == 'ask_user':
         try:
             answer = json.loads(result)
             if answer.get('status') == 'skipped':
-                return '– Pergunta pulada · ' + detail
+                return '– Pergunta pulada · ' + detail, detail
             if answer.get('status') == 'answered':
-                return '✓ Respondeu · ' + str(answer['answer'])
+                return '✓ Respondeu · ' + str(answer['answer']), str(answer['answer'])
         except (ValueError, TypeError, KeyError, AttributeError):
             pass
     if (result.startswith(('Erro na ferramenta:', 'Chamada inválida:', 'Falha ao delegar task:', 'Comando encerrado'))
             or (result.startswith('Código de saída: ') and not result.startswith('Código de saída: 0\n'))):
-        return f'! Falha · {detail}'
+        return f'! Falha · {detail}', detail
     if 'recusad' in result[:80].lower():
-        return f'– Recusado · {detail}'
+        return f'– Recusado · {detail}', detail
     if result.startswith('Execução interrompida'):
-        return f'! Interrompido · {detail}'
-    return f'✓ {done} {detail}'
+        return f'! Interrompido · {detail}', detail
+    return f'✓ {done} {detail}', detail

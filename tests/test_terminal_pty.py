@@ -424,7 +424,7 @@ class TerminalPTYTests(unittest.TestCase):
                     self.fail('Terminal did not reach expected state: ' + transcript.decode(errors='replace')[-1000:])
                 def send(value): os.write(master, value)
                 try:
-                    snapshot = wait_for(lambda s: s['width'] == 69)
+                    snapshot = wait_for(lambda s: s['width'] == 68)
                     self.assertNotEqual(snapshot['action_style'], snapshot['comment_style'])
                     self.assertEqual(snapshot['surface_backgrounds'], [] if mode == 'monochrome' else [-1])
                     self.assertEqual(snapshot['backgrounds'], [] if mode == 'monochrome' else [-1, 0] if mode == 'legacy' else [-1, 238])
@@ -454,7 +454,7 @@ class TerminalPTYTests(unittest.TestCase):
                     cursor = snapshot['cursor']
                     fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', 12, 40, 0, 0))
                     process.send_signal(signal.SIGWINCH)
-                    snapshot = wait_for(lambda s: s['width'] == 29)
+                    snapshot = wait_for(lambda s: s['width'] == 28)
                     self.assertEqual(snapshot['draft'], expected)
                     self.assertEqual(snapshot['cursor'], cursor)
                     send(b'\r')

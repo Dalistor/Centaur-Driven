@@ -2,6 +2,7 @@
 
 import argparse
 import curses
+import shutil
 import sys
 from pathlib import Path
 
@@ -16,6 +17,18 @@ from .setup import configure_key
 from .terminal import Terminal
 from .subagents import COST_TIERS
 from .startup import StartupWizard
+from .login import LoginRequired, sign_in
+
+
+def connect(backend, model):
+    """Cria o cliente; se o CLI oficial perdeu o login, abre o login dele aqui e tenta de novo."""
+    try:
+        return create_client(backend, model)
+    except LoginRequired as error:
+        command = shutil.which(error.backend)
+        if not (command and sys.stdin.isatty() and sys.stdout.isatty() and sign_in(error.backend, command)):
+            raise
+        return create_client(backend, model)
 
 
 def main():
@@ -70,7 +83,7 @@ def main():
         approval_mode = resolve_approval_mode(root, options.approval_mode, saved=saved)
         speed = resolve_speed(root, options.backend, options.speed, saved=saved)
         if not invalid_config and (options.no_setup or saved.get('setup_complete', False)):
-            client = create_client(options.backend, model)
+            client = connect(options.backend, model)
             if callable(getattr(client, 'check_speed', None)): client.check_speed(model, speed)
         else:
             wizard = StartupWizard(options.backend, model, effort, approval_mode, speed)
@@ -95,7 +108,7 @@ def main():
                 try:
                     validate(backend, model, effort, approval_mode)
                     # Leave curses before credential entry, preserving masked input.
-                    client = create_client(backend, model)
+                    client = connect(backend, model)
                     if callable(getattr(client, 'check_speed', None)): client.check_speed(model, speed)
                     if any(secret and secret in model for secret in getattr(client, 'secrets', ())):
                         raise ValueError('Chave detectada no modelo; informe apenas o ID do modelo.')

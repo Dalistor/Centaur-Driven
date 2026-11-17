@@ -7,6 +7,7 @@ import json
 import os
 import queue
 import re
+import shutil
 import textwrap
 import threading
 import time
@@ -40,6 +41,7 @@ from .agent_tree import AgentTree
 from .status import ANALYSIS_INSTRUCTIONS, StatusTools, render_status
 from .permissions import validate_mode, MODE_LABELS
 from . import grants
+from . import login
 from .interaction import QuestionPicker, TurnCancelled
 from .computer import ComputerSession, DISPLAYS
 from .computer_access import ComputerControl
@@ -185,6 +187,8 @@ class Terminal:
         self.credits_dirty = False
         self.max_subagent_tier = max_subagent_tier
         self.show_details = False
+        self.login_request = None
+        self.login_done_at = 0
         self.pending_titles = {}
         self.title_tasks = set()
         self.context_overhead = estimate_tokens(project_prompt(root)) + estimate_tokens(TOOLS)
@@ -889,6 +893,42 @@ class Terminal:
             screen.keypad(True)
             screen.clearok(True)
 
+    def sign_in(self, screen):
+        """Entrega o terminal ao login oficial do CLI e, se der certo, retoma o turno que falhou."""
+        (backend, chat_id), self.login_request = self.login_request, None
+        if time.monotonic() - self.login_done_at < 60:
+            # O CLI acabou de confirmar o login e voltou a recusar: não insistir em laço.
+            self.notice = f'{backend} recusou a credencial logo após o login. Confira a conta com {login.command_text(backend)} e use /retry.'
+            return
+        command = shutil.which(backend)
+        mouse = self.mouse_enabled
+        self.configure_mouse(False)
+        curses.def_prog_mode()
+        curses.endwin()
+        done = False
+        try:
+            with keyboard_protocol(plain=True):
+                done = bool(command) and login.sign_in(backend, command)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            curses.reset_prog_mode()
+            curses.raw()
+            curses.nonl()
+            screen.keypad(True)
+            screen.clearok(True)
+            self.configure_mouse(mouse)
+        if not done:
+            self.notice = f'Login não concluído. Execute {login.command_text(backend)} em outro terminal e use /retry.'
+            return
+        self.login_done_at = time.monotonic()
+        if chat_id == self.chat['id'] and not self.busy and self.chat.get('last_error'):
+            self.chat.pop('last_error', None)
+            self.start_work()
+            self.notice = f'Login em {backend} concluído. Retomando o turno.'
+        else:
+            self.notice = f'Login em {backend} concluído.' + (' Repita $config para trocar o backend.' if chat_id is None else '')
+
     def configure(self, command):
         if self.agent_group and self.agent_group.active:
             self.notice = 'Aguarde os subagentes terminarem ou interrompa este chat antes de trocar a configuração.'
@@ -916,6 +956,8 @@ class Terminal:
             save_config(self.root, backend, model, effort if len(parts) >= 4 else None, approval_mode, speed)
         except (RuntimeError, OSError, ValueError) as error:
             self.notice = f'Configuração não alterada: {error}'
+            if isinstance(error, login.LoginRequired):
+                self.login_request = (error.backend, None)
             return
         self.activate_config(backend, model, effort, client, approval_mode, speed)
 
@@ -1184,6 +1226,8 @@ class Terminal:
             except OSError:
                 pass
             completion_notice = f'Erro: {message} · /retry retoma este turno.'
+            if isinstance(error, login.LoginRequired):
+                self.events.put(('login', (error.backend, chat['id'])))
         finally:
             self.registry.set(chat['id'], 'stopped')
             computer.close()
@@ -1324,6 +1368,8 @@ class Terminal:
                 self.stream_text = value
             elif kind == 'refresh':
                 self.stream_text = ''  # A resposta completa já está no histórico.
+            elif kind == 'login':
+                self.login_request = value
             elif kind == 'done':
                 self.stream_text = ''
                 waiting = self.interaction_locks.get(self.chat['id'])
@@ -1425,7 +1471,10 @@ class Terminal:
             elif message['role'] == 'user':
                 working = False
                 lines.append(TranscriptLine(''))
-                append_markdown(content, 'user', '› ')
+                # O marcador abre a mensagem; as linhas seguintes só acompanham o recuo.
+                for index, line in enumerate(render_markdown(str(content), width, 'user', '› ')):
+                    text = str(line) if not index else '  ' + str(line)[2:] if str(line).startswith('› ') else '' if str(line) == '›' else str(line)
+                    lines.append(TranscriptLine(text, 'user', line.spans if index else ((0, 1, 'green'), *line.spans)))
                 for index, item in enumerate(message.get('attachments', []), 1):
                     append_text(f'  ▧ {index}. {item["name"]} · {item["kind"]} · {item["size"]:,} bytes', 'muted')
                 lines.append(TranscriptLine(''))
@@ -1445,7 +1494,23 @@ class Terminal:
                         siblings_after = any(other['function']['name'] == 'delegate_task'
                                              for other in message['tool_calls'][call_index + 1:])
                         summary = ('├─↳ ' if siblings_after else '└─↳ ') + summary
-                    append_text(summary, 'warning' if warning else 'action', '  ')
+                    if '\n' in summary:  # Plano: uma linha por passo.
+                        append_text(summary, 'comment', '  ')
+                        continue
+                    # Marcador colorido, rótulo legível e detalhe discreto, em uma linha; Ctrl+O mostra o comando inteiro.
+                    marker = len(summary) - len(summary.lstrip('├└─↳ ')) + 2
+                    label_end = 2 + getattr(summary, 'label_end', len(summary))
+                    spans = ((marker, marker + 1, 'warning' if warning else 'ok' if summary[marker - 2] == '✓' else 'action'),
+                             (marker + 1, label_end, 'warning' if warning else 'text'))
+                    text = '  ' + summary
+                    if self.show_details:
+                        rows = display_lines(summary, max(1, width - 4))
+                        lines.append(TranscriptLine('  ' + rows[0], 'muted', spans))
+                        lines.extend(TranscriptLine('    ' + row, 'muted') for row in rows[1:])
+                    else:
+                        if cell_width(text) > width:
+                            text = fit_cells(text, max(1, width - 1)) + '…'
+                        lines.append(TranscriptLine(text, 'muted', spans))
             elif message['role'] == 'tool':
                 call = actions.get(message.get('tool_call_id'), {})
                 if call.get('function', {}).get('name') == 'report_progress':
@@ -1941,6 +2006,8 @@ class Terminal:
         while True:
             frame_start = time.monotonic()
             self.drain_events()
+            if self.login_request and not self.busy:
+                self.sign_in(screen)
             self.housekeeping()
             self.request_credits()
             if focused:

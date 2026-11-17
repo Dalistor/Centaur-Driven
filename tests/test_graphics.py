@@ -115,10 +115,10 @@ class GraphicsTests(unittest.TestCase):
             root = Path(directory)
             terminal = Terminal(root, 'test', ChatStore(root), None)
             view = terminal.view
-            for size in ((34, 110), (24, 80), (42, 60), (18, 45), (12, 40), (8, 30)):
+            for size in ((34, 110), (24, 80), (42, 60), (18, 45), (17, 45), (12, 40), (8, 30)):
                 screen = Screen(size)
                 view.draw(screen, terminal)
-                if size[0] == 18:
+                if size[0] == 17:
                     self.assertIn('Digite', screen.text())
             terminal.draft = 'Intenção sem enviar'
             view.draw(Screen((34, 110)), terminal)

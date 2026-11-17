@@ -255,7 +255,8 @@ class CreditTests(unittest.TestCase):
             view.draw(screen, terminal)
             row, column, label = next(item for item in screen.output if 'conta' in item[2].lower() and 'US$' in item[2])
             self.assertEqual(row, size[0] - 2)
-            self.assertEqual(column + len(label), size[1] - 3)
+            # O rodapé termina na margem direita da coluna de leitura (até 100 células, centralizada).
+            self.assertEqual(column + len(label), size[1] - 3 - max(0, size[1] - 106) // 2)
             self.assertEqual(terminal.draft, 'rascunho preservado')
 
 

@@ -22,6 +22,7 @@ from .sessions import NATIVE_PHASES
 from .tool_protocol import validate_arguments, omit_optional_nulls
 from . import native_session
 from . import models
+from . import login
 
 
 REPLY_SCHEMA = {
@@ -329,11 +330,10 @@ class NativeTrace:
         return evidence + ' Causa não confirmada pelo CLI; silêncio não prova travamento. '
 
 
-def process_failure(backend, code, stderr, output=''):
-    """Classify known diagnostics without echoing prompts, account data or reasoning."""
+def failure_text(backend, stderr, output=''):
+    """Public diagnostics only: stderr plus error/result envelopes, never assistant/reasoning text."""
     text = stderr.lower()
-    # --json reports many failures on stdout. Read only public error/result
-    # envelopes, never classify or display assistant/reasoning log text.
+    # --json reports many failures on stdout.
     for line in output.splitlines():
         try: event = json.loads(line)
         except ValueError: continue
@@ -346,9 +346,23 @@ def process_failure(backend, code, stderr, output=''):
         else:
             continue
         if isinstance(detail, str): text += '\n' + detail.lower()
+    return text
+
+
+def process_failure(backend, code, stderr, output=''):
+    """Classify known diagnostics without echoing prompts, account data or reasoning."""
+    text = failure_text(backend, stderr, output)
     hint = failure_hint(backend, text) or ('Confira conexão, acesso ao modelo e autenticação com '
             + ('codex login.' if backend == 'codex' else 'claude auth login.'))
     return f'{backend} encerrou com código {code}. {hint} Nenhuma ferramenta dessa resposta foi executada.'
+
+
+def process_error(backend, command, code, stderr, output=''):
+    """The exception for a failed run: LoginRequired when the CLI lost its login, else the classified failure."""
+    text = failure_text(backend, stderr, output)
+    if login.mentions_logout(text) or (not failure_hint(backend, text) and login.logged_in(backend, command) is False):
+        return login.LoginRequired(backend)
+    return RuntimeError(process_failure(backend, code, stderr, output))
 
 
 class NativeClient:
@@ -500,14 +514,11 @@ class NativeClient:
         variables = ('OPENAI_API_KEY', 'CODEX_API_KEY') if self.backend == 'codex' else ('ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN')
         if any(os.environ.get(name, '').strip() for name in variables):
             return
-        arguments = [self.command, 'login', 'status'] if self.backend == 'codex' else [self.command, 'auth', 'status']
-        login = 'codex login' if self.backend == 'codex' else 'claude auth login'
-        try:
-            result = subprocess.run(arguments, capture_output=True, text=True, timeout=15)
-        except (OSError, subprocess.TimeoutExpired):
-            raise RuntimeError(f'Não foi possível conferir a autenticação; execute {login}.') from None
-        if result.returncode:
-            raise RuntimeError(f'{self.backend} não autenticado. Execute {login} e abra o Centaur novamente.')
+        state = login.logged_in(self.backend, self.command)
+        if state is None:
+            raise RuntimeError(f'Não foi possível conferir a autenticação; execute {login.command_text(self.backend)}.')
+        if not state:
+            raise login.LoginRequired(self.backend)
 
     def arguments(self, directory, model=None, effort='default', schema=None, speed='standard'):
         validate_effort(self.backend, effort)
@@ -740,13 +751,15 @@ class NativeClient:
                 if process.returncode and not finalized:
                     status = 'failed'
                     notify()
-                    raise RuntimeError(process_failure(self.backend, process.returncode, errors, output))
+                    raise process_error(self.backend, self.command, process.returncode, errors, output)
                 if self.backend == 'codex':
                     value = codex_output(directory, output)
                     usage = codex_usage(output)
                 else:
                     value, windows = claude_output(output)
                     self.note_quota(windows)
+                    if value.get('is_error') and login.mentions_logout(str(value.get('result') or '')):
+                        raise login.LoginRequired('claude')
                     if value.get('is_error') or value.get('subtype') not in (None, 'success'):
                         raise ValueError('O cliente não concluiu a resposta estruturada.')
                     raw_usage = value.get('usage')

@@ -84,7 +84,7 @@ class MarkdownTests(unittest.TestCase):
                                      {'role': 'assistant', 'content': '# Título\n| a | b |\n|---|---|\n| 1 | 2 |'}]
         lines = terminal.lines(40)
         user = [line for line in lines if line.style == 'user']
-        self.assertEqual([str(line) for line in user], ['› Faça isto:', '› • passo um', '›', '› fim'])
+        self.assertEqual([str(line) for line in user], ['› Faça isto:', '  • passo um', '', '  fim'])
         self.assertEqual((marked(user[0], 'strong'), marked(user[1], 'code')), (['isto'], ['um']))
         self.assertIn('│ 1 │ 2 │', lines)
         screen = Screen((40, 60))

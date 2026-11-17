@@ -35,16 +35,18 @@ assim que o usuário começa a trabalhar.
   com espaço negativo amplo, ponta compartilhada e flecha verde horizontal ao centro. Curvas Bézier cúbicas com largura total
   aproximada de 0,13 unidades e afilamento na junção; perspectiva, bisel e luz em CPU.
   O fallback em blocos/ASCII deriva da mesma geometria. Não usa imagens nem fontes externas.
-- Cor de texto padrão para conteúdo; verde ANSI para comandos e autores; azul ANSI
-  para modelo e ferramentas; texto atenuado para caminhos, atalhos e separadores;
-  amarelo ANSI para confirmações e erros. Os RGB são definidos pelo emulador.
+- Cor de texto padrão para conteúdo; verde ANSI para comandos, autores e ações concluídas;
+  ciano ANSI para informação (código, links, ações em andamento, rótulos de seção); texto
+  atenuado para caminhos, detalhes de ações, atalhos e separadores; amarelo ANSI para
+  confirmações, erros e o modo "Sem perguntar". Os RGB são definidos pelo emulador. O azul
+  ANSI não é usado: em vários emuladores ele fica ilegível sobre fundo escuro.
 - Linhas horizontais discretas separam identidade, trabalho e campo de entrada.
 - A fonte é a monoespaçada do terminal do usuário. O CLI não troca fontes ou configurações.
 
 ## Paleta do terminal
 
 `appearance.Palette.TOKENS` é a fonte canônica dos papéis: texto `-1` (padrão),
-verde ANSI 2, azul ANSI 4 e aviso ANSI 3. `Palette.initialize` habilita
+verde ANSI 2, informação em ciano ANSI 6 (papel `blue`) e aviso ANSI 3. `Palette.initialize` habilita
 `curses.use_default_colors`; os pares de conversa e painéis têm fundo `-1`, sem `init_color`, paleta
 programável ou preenchimentos navy. Secundário e separadores usam o texto padrão
 com `A_DIM`. O programa herda a aparência clara, escura ou transparente do emulador;
@@ -62,7 +64,7 @@ Em janelas amplas, símbolo e wordmark aparecem à esquerda, com apresentação 
 `$status` e `/new`, aparecem separados em azul. Em 80 × 24 o símbolo fica compacto. Em janelas estreitas, prioriza os comandos;
 abaixo de 40 × 12 mostra orientação de tamanho e preserva o campo de entrada.
 
-O título em negrito fica no topo da coluna de leitura (até 100 células), acima da pasta e do modelo. A conversa e a entrada compartilham o mesmo alinhamento. Mensagens do usuário usam o fundo padrão, texto principal e negrito; respostas usam o texto normal, com autor em verde. Comentários públicos da IA e `report_progress` usam texto principal em peso normal. Ações pendentes/concluídas usam informação azul em negrito; falha, interrupção e recusa usam âmbar. Cabeçalho de trabalho e espera mantêm tom secundário. Ações mostram estado por texto e símbolo; Ctrl+O alterna as saídas completas. O cabeçalho identifica a pasta e o modelo. O rodapé mantém estado, mensagem digitada e
+O cabeçalho tem duas linhas e uma régua na coluna de leitura (até 100 células): o título em negrito com `◆` verde à esquerda e a palavra CENTAUR atenuada à direita; abaixo, a pasta atenuada à esquerda (`~` no lugar da home e, sem espaço, só as últimas pastas depois de `…/`) e, à direita, backend, modelo, effort e o modo de permissão. Só o modo "Sem perguntar" e o uso do computador ganham cor (âmbar). A assinatura “HUMAN INTENT. AMPLIFIED.” fica na abertura. Conversa, campo de entrada e rodapé compartilham as mesmas margens. Mensagens do usuário usam o fundo padrão, texto principal e negrito; respostas usam o texto normal, com autor em verde. Comentários públicos da IA e `report_progress` usam texto principal em peso normal. Mensagens do usuário abrem com `›` verde só na primeira linha. Cada ação ocupa uma linha: marcador colorido (`✓` verde, `○` ciano, `!`/`–` âmbar), rótulo em texto normal e detalhe (caminho, comando) atenuado, cortado com `…` quando não cabe; Ctrl+O mostra a ação inteira e as saídas. Falha, interrupção e recusa têm marcador e rótulo em âmbar. Medidores do rodapé usam verde sem negrito. Cabeçalho de trabalho e espera mantêm tom secundário. Ações mostram estado por texto e símbolo; Ctrl+O alterna as saídas completas. O cabeçalho identifica a pasta e o modelo. O rodapé mantém estado, mensagem digitada e
 atalhos. A lista de chats destaca toda a linha selecionada, com data quando houver espaço. A seta esquerda edita o texto; Shift+← abre os chats.
 Confirmações usam âmbar e instruções explícitas para permitir, recusar e revisar a ação.
 O cursor fica visível durante a digitação e oculto na lista ou confirmação.

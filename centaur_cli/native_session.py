@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 
 from .interaction import TurnCancelled
+from .login import LoginRequired, mentions_logout
 from .native_usage import claude_windows
 from .vision import split_images
 
@@ -302,7 +303,7 @@ class NativeSession:
 
     def advance(self, conversation, tools, *, timeout, cancel_event=None, on_progress=None, on_delta=None):
         """Entrega as novidades e espera a próxima resposta: chamadas de ferramenta ou texto final."""
-        from .native_client import NativeTrace, failure_hint, process_failure
+        from .native_client import NativeTrace, failure_hint, process_error
         self.deliver(conversation)
         started = last_output = time.monotonic()
         # Só eventos completos alimentam o diagnóstico; os deltas de texto contam apenas como atividade.
@@ -349,9 +350,10 @@ class NativeSession:
             if kind == 'exit':
                 self.errors.flush()
                 errors = (self.directory / 'stderr.log').read_bytes()[-20000:].decode('utf-8', errors='replace')
-                if not self.answered:
-                    raise SessionUnavailable(process_failure('claude', value, errors, output.decode('utf-8', errors='replace')))
-                raise RuntimeError(process_failure('claude', value, errors, output.decode('utf-8', errors='replace')))
+                failure = process_error('claude', self.client.command, value, errors, output.decode('utf-8', errors='replace'))
+                if not self.answered and not isinstance(failure, LoginRequired):
+                    raise SessionUnavailable(str(failure))
+                raise failure
             calls = [value] if kind == 'call' else []
             if kind == 'output':
                 last_output, seen = now, seen + len(value)
@@ -369,6 +371,8 @@ class NativeSession:
                     continue
                 if result.get('is_error') or result.get('subtype') not in (None, 'success'):
                     detail = str(result.get('result') or result.get('subtype') or '')
+                    if mentions_logout(detail):
+                        raise LoginRequired('claude')
                     raise RuntimeError('claude não concluiu a resposta. ' + (failure_hint('claude', detail.lower())
                                        or self.client.redact(' '.join(detail.split())[:300])) + ' Use /retry para retomar.')
                 text = result.get('result') if isinstance(result.get('result'), str) and result['result'].strip() else '\n\n'.join(self.text)

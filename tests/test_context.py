@@ -721,7 +721,7 @@ class ContextTests(unittest.TestCase):
             context, credits = entries
             self.assertIn('Ctx', context[1]) if size[1] < 80 else self.assertTrue(context[1].startswith(('Ctx', 'Contexto')))
             self.assertLessEqual(context[0] + len(context[1]), credits[0])
-            self.assertEqual(credits[0] + len(credits[1]), size[1] - 3)
+            self.assertEqual(credits[0] + len(credits[1]), size[1] - 3 - max(0, size[1] - 106) // 2)
         self.assertIn('$compact é um comando local', project_prompt(self.root))
 
     def test_openrouter_carries_usage_and_catalog_window_outside_api_message(self):

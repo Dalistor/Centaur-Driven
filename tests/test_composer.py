@@ -272,7 +272,7 @@ class ComposerTests(unittest.TestCase):
         view = TerminalView()
         screen = Screen((24, 80))
         view.draw(screen, terminal)
-        bars = [row for row, column, text, _ in screen.output if column == 2 and len(text) == 75 and text.isspace()]
+        bars = [row for row, column, text, _ in screen.output if column == 3 and len(text) == 74 and text.isspace()]
         self.assertEqual(bars, [19, 20, 21])
         terminal.draft = '\n'.join(f'linha {i}' for i in range(15))
         expected = terminal.draft
@@ -288,7 +288,7 @@ class ComposerTests(unittest.TestCase):
         view.draw(screen, terminal)
         self.assertIn('linha 0', screen.text())
         self.assertIn('↓', screen.text())
-        self.assertEqual(screen.cursor[1], 6)
+        self.assertEqual(screen.cursor[1], 7)
 
 
 class WheelTests(unittest.TestCase):

@@ -41,6 +41,21 @@ def fit_cells(text, width):
     return ''.join(result)
 
 
+def short_path(path, width):
+    """Pasta com ~ no lugar da home; sem espaço, ficam as últimas pastas, que são as que identificam o projeto."""
+    text, home = str(path), os.path.expanduser('~')
+    if home not in ('', os.sep) and (text == home or text.startswith(home + os.sep)):
+        text = '~' + text[len(home):]
+    if cell_width(text) <= width:
+        return text
+    parts = text.split(os.sep)
+    while len(parts) > 1 and cell_width('…' + os.sep + os.sep.join(parts[1:])) > width:
+        parts.pop(0)
+    if len(parts) > 1:
+        return '…' + os.sep + os.sep.join(parts[1:])
+    return fit_notice(parts[0], width)
+
+
 def fit_notice(text, width):
     """Single row inside the composer; preserve an explicit truncation marker."""
     text = ' '.join(str(text).split())
@@ -77,8 +92,9 @@ def setup_heading():
 class Palette:
     # Native ANSI slots follow the user's terminal theme; -1 inherits its defaults.
     # This is the one runtime token source, mirrored in DESIGN.md.
+    # Informação usa o ciano: o azul ANSI é escuro demais sobre fundos escuros em vários emuladores.
     TOKENS = {'text': -1, 'green': curses.COLOR_GREEN,
-              'blue': curses.COLOR_BLUE, 'warning': curses.COLOR_YELLOW}
+              'blue': curses.COLOR_CYAN, 'warning': curses.COLOR_YELLOW}
 
     def __init__(self):
         self.configure_styles({})
@@ -93,7 +109,7 @@ class Palette:
         blue = colors.get('blue', 0)
         self.styles = {'text': text, 'muted': text | curses.A_DIM,
                        'line': text | curses.A_DIM, 'blue': blue,
-                       'green': green | curses.A_BOLD,
+                       'green': green | curses.A_BOLD, 'ok': green,
                        'selected': green | curses.A_BOLD,
                        'warning': colors.get('warning', 0) | curses.A_BOLD,
                        'title': text | curses.A_BOLD, 'user': text | curses.A_BOLD,
@@ -103,7 +119,7 @@ class Palette:
                        'heading': text | curses.A_BOLD | curses.A_UNDERLINE, 'code': blue,
                        'link': blue | curses.A_UNDERLINE}
         # Composer and agent cards inherit the same background as the transcript.
-        for name in ('text', 'title', 'muted', 'green', 'blue', 'warning', 'action', 'comment', 'user',
+        for name in ('text', 'title', 'muted', 'green', 'ok', 'blue', 'warning', 'action', 'comment', 'user',
                      'line', 'strong', 'emphasis', 'heading', 'code', 'link'):
             self.styles['panel_' + name] = self.styles[name]
         for name, source in (('input', 'text'), ('input_green', 'green'),
@@ -511,6 +527,48 @@ class TerminalView:
         navigation = 'roda: rolar · clique: abrir' if terminal.mouse_enabled else 'Shift+← · F6 cliques'
         self.put(screen, bottom - 1, left, fit_notice(f'{start + 1}–{start + len(visible)}/{len(agents)} · {navigation}', width), 'muted', width)
 
+    def header(self, screen, terminal, row, left, width):
+        """Título e marca; abaixo, pasta à esquerda e conexão à direita; depois a linha que abre a conversa."""
+        from .permissions import MODE_LABELS
+        brand = WORDMARK if width >= 60 else ''
+        title_width = width - (len(brand) + 3 if brand else 0) - 2
+        self.put(screen, row, left, '◆', 'green', 1)
+        self.put(screen, row, left + 2, fit_notice(terminal.chat['title'], title_width), 'title', title_width)
+        if brand:
+            self.put(screen, row, left + width - len(brand), brand, 'muted')
+        # Um alias ou roteador não diz qual modelo respondeu: mostre o que o provedor informou.
+        served = next((name for name in reversed(terminal.chat.get('models_used') or []) if name), None)
+        chosen = terminal.chat['model'] or 'padrão'
+        model = terminal.backend + ' · ' + chosen + (' → ' + served if served and served != chosen else '')
+        if terminal.chat.get('effort', 'default') != 'default':
+            model += ' · ' + terminal.chat['effort']
+        if terminal.chat.get('speed') == 'fast':
+            speed = terminal.chat.get('speed_served')
+            model += ' · ' + ('Fast' if speed in ('fast', 'priority') else 'Padrão (fallback)' if speed in ('standard', 'default')
+                              else 'Fast solicitado' if width >= 80 else 'Fast?')
+        # O que pede atenção fica por último, na ponta direita, e é o único trecho colorido.
+        alert = ('COMPUTADOR EM USO · ' if terminal.computer and terminal.computer.active else
+                 'COMPUTADOR PAUSADO · ' if terminal.computer and terminal.computer.resume_requested else '')
+        mode = alert + MODE_LABELS[terminal.approval_mode]
+        mode_style = 'warning' if alert or terminal.approval_mode == 'never' else 'muted'
+        model = fit_notice(model, max(8, width - cell_width(mode) - 3))
+        status_width = cell_width(model) + 3 + cell_width(mode)
+        if status_width > width:  # Janela estreita: a conexão cede lugar ao modo de permissão.
+            model, status_width = '', cell_width(mode)
+        column = left + width - status_width
+        path_width = width - status_width - 3
+        if path_width >= 12:
+            # O modelo tem prioridade sobre o caminho: é o que muda o comportamento da conversa.
+            self.put(screen, row + 1, left, short_path(terminal.root, path_width), 'muted', path_width)
+        else:
+            column = left
+        if model:
+            self.put(screen, row + 1, column, model, 'text')
+            self.put(screen, row + 1, column + cell_width(model), ' · ', 'muted')
+            column += cell_width(model) + 3
+        self.put(screen, row + 1, column, fit_notice(mode, width), mode_style, width)
+        self.put(screen, row + 2, left, '─' * width, 'line')
+
     def draw(self, screen, terminal):
         # Only the welcome surface owns animation time; hidden editors never advance it.
         if (terminal.settings or terminal.rename_target or terminal.browser
@@ -535,9 +593,6 @@ class TerminalView:
             self.put(screen, height - 1, 0, '> ' + terminal.draft, 'green')
             screen.refresh()
             return
-        self.put(screen, 1, 2, WORDMARK, 'muted')
-        if width >= 66:
-            self.put(screen, 1, width - len(TAGLINE) - 3, TAGLINE, 'muted')
         transcript_width = width - 6 if terminal.wide_chat else min(100, width - 6)
         transcript_left = max(3, (width - transcript_width) // 2)
         sidebar = None
@@ -549,42 +604,16 @@ class TerminalView:
                 transcript_width = min(transcript_width, width - panel_width - 9)
                 transcript_left = 3
             sidebar = (transcript_left + transcript_width + 3, panel_width)
-        from .permissions import MODE_LABELS
-        speed_label = ''
-        if terminal.chat.get('speed') == 'fast':
-            served = terminal.chat.get('speed_served')
-            speed_label = ('Fast' if served in ('fast', 'priority') else 'Padrão (fallback)' if served in ('standard', 'default')
-                           else 'Fast solicitado' if width >= 80 else 'Fast?') + ' · '
-        # Um alias ou roteador não diz qual modelo respondeu: mostre o que o provedor informou.
-        served = next((name for name in reversed(terminal.chat.get('models_used') or []) if name), None)
-        chosen = terminal.chat['model'] or 'padrão'
-        model = (MODE_LABELS[terminal.approval_mode] + ' · ' + speed_label + terminal.backend + ' · ' + chosen
-                 + (' → ' + served if served and served != chosen else ''))
-        if terminal.computer and terminal.computer.active:
-            model = 'COMPUTADOR EM USO · ' + model
-        elif terminal.computer and terminal.computer.resume_requested:
-            model = 'COMPUTADOR PAUSADO · ' + model
-        if terminal.chat.get('effort', 'default') != 'default':
-            model += ' · ' + terminal.chat['effort']
-        model_style = 'warning' if terminal.approval_mode == 'never' else 'blue'
-        self.put(screen, 2, transcript_left, fit_notice('◆ ' + terminal.chat['title'], transcript_width), 'title', transcript_width)
-        if width >= 100:
-            # O modelo tem prioridade sobre o caminho: é o que muda o comportamento da conversa.
-            model_width = max(transcript_width // 2, min(cell_width(model), transcript_width * 3 // 4))
-            self.put(screen, 3, transcript_left, str(terminal.root), 'muted', transcript_width - model_width - 2)
-            self.put(screen, 3, transcript_left + transcript_width - model_width, fit_notice(model, model_width), model_style, model_width)
-        else:
-            self.put(screen, 3, transcript_left, fit_notice(model, transcript_width), model_style, transcript_width)
-        self.put(screen, 4, transcript_left, '─' * transcript_width, 'line')
-        top, available = 5, height - 11
+        self.header(screen, terminal, 1, transcript_left, transcript_width)
+        top, available = 4, height - 10
         modal = bool(terminal.settings or terminal.rename_target or terminal.browser or terminal.approval or terminal.question)
         draft = terminal.rename_text if terminal.rename_target else '' if terminal.browser else terminal.question.text if terminal.question and terminal.question.custom else '' if terminal.question else terminal.draft
         cursor = terminal.rename_cursor if terminal.rename_target else 0 if terminal.browser else terminal.question.cursor if terminal.question and terminal.question.custom else 0 if terminal.question else terminal.cursor
-        composer_left = FIELD_MARGIN if modal else transcript_left - 1
+        composer_left = FIELD_MARGIN if modal else transcript_left
         if modal:
             composer_width = transcript_left + transcript_width - composer_left + 1 if sidebar else width - composer_left - 3
         else:
-            composer_width = transcript_width + 2 if sidebar or composer_left != 2 else width - 5
+            composer_width = transcript_width
         input_width = max(1, composer_width - 2 * FIELD_PADDING - 2)
         terminal.input_width = input_width
         from .composer import layout_input
@@ -601,9 +630,7 @@ class TerminalView:
             top, available = 3, height - 9
             for row in range(height - 5):
                 self.put(screen, row, 0, ' ' * (width - 1))
-            self.put(screen, 0, transcript_left, fit_notice('◆ ' + terminal.chat['title'], transcript_width), 'title', transcript_width)
-            self.put(screen, 1, transcript_left, fit_notice(model, transcript_width), model_style, transcript_width)
-            self.put(screen, 2, transcript_left, '─' * transcript_width, 'line')
+            self.header(screen, terminal, 0, transcript_left, transcript_width)
         # Keep at least two conversation rows when space allows. The chat input
         # grows to eight rows; modal editors retain their single-line geometry.
         capacity = min(8, max(1, available - 1))
@@ -732,7 +759,9 @@ class TerminalView:
         self.put(screen, input_top, composer_left + FIELD_PADDING, '↑' if input_start else '›', 'input_green')
         if input_start + composer_rows < len(layout.lines) and not modal:
             self.put(screen, input_top + composer_rows - 1, composer_left + FIELD_PADDING, '↓', 'input_muted')
-        footer_width = width - 5
+        # Fora dos modais, rodapé, campo e conversa compartilham as mesmas margens.
+        footer_left, footer_width = ((2, width - 5) if modal else (transcript_left, width - transcript_left - 3) if sidebar
+                                     else (transcript_left, transcript_width))
         if terminal.credits_status == 'unsupported' and terminal.backend == 'openrouter':
             credits = 'Créditos: CLI'
         credit_width = min(len(credits), max(12, footer_width - 17))
@@ -742,8 +771,10 @@ class TerminalView:
         credits = fit_cells(credits, credit_width)
         context_width = footer_width - cell_width(credits) - 2
         context, context_style = terminal.context_label(context_width)
-        self.put(screen, height - 2, 2, context, context_style, context_width)
-        self.put(screen, height - 2, width - cell_width(credits) - 3, credits, credit_style)
+        # Medidores em peso normal: só a cor de aviso deve chamar atenção.
+        calm = {'green': 'ok'}
+        self.put(screen, height - 2, footer_left, context, calm.get(context_style, context_style), context_width)
+        self.put(screen, height - 2, footer_left + footer_width - cell_width(credits), credits, calm.get(credit_style, credit_style))
         hints = ('Enter salvar · Esc cancelar · Ctrl+U limpar' if terminal.rename_target else
                  'Enter coordenador · Esc lista · PgUp/PgDn ler subagente' if terminal.agent_preview and terminal.browser else
                  '↑↓ escolher · Enter abrir · N novo chat · Tab chats/agentes · Esc voltar' if terminal.browser else
@@ -768,11 +799,11 @@ class TerminalView:
         mouse_hint = 'F6 seleção' if terminal.mouse_enabled else 'F6 cliques'
         gesture = 'Shift+arraste' if terminal.mouse_enabled else 'Arraste'
         copy_hint = f'{gesture} · {copy_shortcut()} copia'
-        if width >= 112 and len(hints) + len(copy_hint) + 3 <= width - 5:
+        if width >= 112 and len(hints) + len(copy_hint) + 3 <= footer_width:
             hints += ' · ' + copy_hint
-        if len(hints) + len(mouse_hint) + 3 <= width - 5:
+        if len(hints) + len(mouse_hint) + 3 <= footer_width:
             hints += ' · ' + mouse_hint
-        self.put(screen, height - 1, 2, hints, 'muted')
+        self.put(screen, height - 1, footer_left, fit_notice(hints, footer_width), 'muted', footer_width)
         if terminal.rename_target or (not terminal.approval and not terminal.browser):
             if terminal.settings and terminal.settings.page == 'custom':
                 _, custom_cursor = input_window(terminal.settings.query, len(terminal.settings.query),

@@ -226,7 +226,9 @@ class NativeSessionTests(unittest.TestCase):
     def test_cli_that_dies_before_answering_falls_back_to_one_call_per_step(self):
         # A fixture recusa (código 9) a invocação sem MCP: é o caminho de uma chamada por etapa.
         for expected_mode in (True, False):
-            with self.assertRaisesRegex(RuntimeError, 'claude encerrou com código'):
+            # A fixture não implementa `auth status`; o login é conferido em test_login.
+            with patch('centaur_cli.login.logged_in', return_value=True), \
+                    self.assertRaisesRegex(RuntimeError, 'claude encerrou com código'):
                 self.client.complete('fixture', [{'role': 'system', 'content': 's'}, {'role': 'user', 'content': 'morra'}], self.tools.definitions)
             self.assertEqual(self.client.session_mode, expected_mode)
         self.assertEqual(len(self.received()), 2)

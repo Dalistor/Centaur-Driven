@@ -2,6 +2,14 @@
 
 ## Não publicado
 
+- Login perdido nos backends Codex e Claude: quando o CLI oficial desloga ou a credencial expira
+  (no início, ao trocar o backend em `$config` ou no meio de um turno), o Centaur detecta, entrega
+  o terminal ao login oficial (`codex login` / `claude auth login`), que mostra o link de acesso e
+  abre o navegador, e ao concluir retoma o turno que falhou. Ctrl+C cancela e mantém `/retry`.
+- Visual do chat: cabeçalho em duas linhas (título e marca; pasta abreviada, conexão e modo de
+  permissão), informação em ciano no lugar do azul ANSI, que ficava ilegível em fundo escuro, ações
+  em uma linha com marcador colorido e detalhe discreto (Ctrl+O mostra tudo), `›` só na primeira
+  linha da mensagem do usuário, e conversa, campo e rodapé nas mesmas margens.
 - Compactação mais barata e com menos perda: no OpenRouter o contexto antigo é resumido em uma ou
   duas chamadas (fragmentos de até 400 mil caracteres) em vez de cerca de oito; Codex e Claude
   mantêm fragmentos de 48 mil. O resumo pode ter até 24 mil caracteres (antes 6 mil) e passa a

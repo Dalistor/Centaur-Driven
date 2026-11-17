@@ -78,20 +78,32 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(next(line for line in lines if 'Comentário que' in line).style, 'comment')
         self.assertEqual(next(line for line in lines if 'público da IA' in line).style, 'comment')
         self.assertTrue(all(line.style == 'user' for line in lines if line.startswith('› ')))
-        self.assertTrue(all(line.style == 'warning' for line in lines if 'Falha' in line or 'Recusado' in line))
-        action_lines = [line for line in lines if line.style == 'action']
-        self.assertGreater(len(action_lines), 2)
-        self.assertTrue(action_lines[0].startswith('  ✓ Leu'))
+        # Ações ocupam uma linha: marcador colorido, rótulo legível e detalhe discreto, cortado com reticências.
+        action_lines = [line for line in lines if line.style == 'muted' and line.spans]
+        self.assertEqual(len(action_lines), 3)
+        self.assertTrue(action_lines[0].startswith('  ✓ Leu') and action_lines[0].endswith('…'))
+        self.assertEqual(action_lines[0].spans, ((2, 3, 'ok'), (3, 8, 'text')))
+        for line in action_lines[1:]:
+            self.assertTrue('Falha' in line or 'Recusado' in line)
+            self.assertEqual({mark for _, _, mark in line.spans}, {'warning'})
+        terminal.show_details = True
+        detailed = terminal.lines(28)  # Ctrl+O quebra a ação em linhas em vez de cortar.
+        self.assertFalse(any(line.endswith('…') for line in detailed if getattr(line, 'spans', ())))
+        self.assertGreater(len([line for line in detailed if 'long-path' in line]), 2)
+        terminal.show_details = False
         self.assertTrue(all(line.style == 'code' for line in lines if 'print(' in line))  # Código nunca vira ação.
         # The actual drawing path consumes the same styles after wrapping/scroll.
-        terminal.view.palette.styles.update(comment=101, action=102, warning=103, text=104, code=105)
+        terminal.view.palette.styles.update(comment=101, action=102, warning=103, text=104, code=105, ok=106, muted=107)
         screen = Screen((40, 80))
         with patch('centaur_cli.appearance.curses.curs_set'):
             terminal.draw(screen)
         output = screen.output
         self.assertEqual(next(style for _, _, text, style in output if 'Comentário que' in text), 101)
-        self.assertEqual(next(style for _, _, text, style in output if '✓ Leu frontend' in text), 102)
-        self.assertEqual(next(style for _, _, text, style in output if '! Falha' in text), 103)
+        self.assertEqual(next(style for _, _, text, style in output if '✓ Leu frontend' in text), 107)  # Linha discreta…
+        self.assertEqual(next(style for _, _, text, style in output if text == '✓'), 106)  # …com o marcador em verde
+        self.assertEqual(next(style for _, _, text, style in output if text.strip() == 'Leu'), 104)  # e o rótulo legível.
+        self.assertEqual(next(style for _, _, text, style in output if text == '!'), 103)
+        self.assertEqual(next(style for _, _, text, style in output if text.startswith(' Falha')), 103)
         self.assertEqual(next(style for _, _, text, style in output if 'print(' in text), 105)
         with patch.dict('os.environ', {'NO_COLOR': '1'}):
             palette = Palette()
