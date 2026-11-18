@@ -130,6 +130,16 @@ class CoordinationTests(unittest.TestCase):
         self.assertNotIn('reports', json.loads(tools.execute('agent_status', {'agent_id': child})))
         self.assertEqual(json.loads(tools.execute('agent_status', {'agent_id': other}))['reports'][0]['status'], 'failed')
 
+    def test_long_wait_is_accepted_and_still_returns_as_soon_as_a_child_reports(self):
+        child = self.child()
+        tools = self.tools(object())
+        self.assertIn('de 1 a 300', tools.execute('wait_agents', {'wait_seconds': 301}))
+        threading.Timer(.2, lambda: self.group.finish(child, {'id': child, 'title': 'T', 'status': 'reported', 'report': 'Feito'})).start()
+        started = time.monotonic()
+        waited = json.loads(tools.execute('wait_agents', {'wait_seconds': 300}))
+        self.assertLess(time.monotonic() - started, 5)
+        self.assertEqual(waited['reports'][0]['report'], 'Feito')
+
     def test_only_the_user_and_coordinator_guidance_redirect_work(self):
         child = self.child()
         self.group.message(child, self.chat['id'], 'Terminei a leitura')

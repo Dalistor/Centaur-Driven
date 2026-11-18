@@ -2,6 +2,13 @@
 
 ## Não lançado
 
+- Menos tokens em `$run`: a skill passa a pedir uma revisão independente por onda (não por task),
+  com modelo intermediário por padrão e modelo maior só em entrega de risco alto; a correção de um
+  achado é conferida pelo coordenador, e só volta a um revisor quando extensa ou de risco alto.
+- `delegate_task` aceita `diff` (`base`, `paths`): o harness anexa o diff do Git à task de revisão,
+  cortado em 60 mil caracteres, com a lista de arquivos novos ainda não rastreados.
+- `wait_agents` espera até 300 s (padrão 120 s, antes 30 s e 10 s); continua retornando assim que
+  um executor conclui ou chega mensagem, então o coordenador faz menos chamadas só para aguardar.
 - Relatório de subagente não é mais confundido com mensagem do usuário: ele chega em um envelope
   `<subagent_report>` marcado como aviso do harness, e mensagens entre agentes em `<agent_message>`.
   Um relatório que chega durante um lote de ferramentas não cancela mais as chamadas restantes nem

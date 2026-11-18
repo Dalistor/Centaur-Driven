@@ -65,7 +65,8 @@ roteamento, não um teto de gasto em dinheiro. O padrão do CLI permite até `hi
 No chat Centaur, iniciar tasks independentes em segundo plano, respeitando dependências e posse.
 `delegate_task` com `status=started` confirma início, não conclusão. Consultar `agent_status`
 para fase e progresso público; enviar orientação via `send_agent_message`; usar `wait_agents`
-para aguardar sem inferências repetitivas. Reavaliar novas mensagens do usuário após a etapa atual. Cada
+para aguardar sem inferências repetitivas, com esperas longas (120 a 300 s): a espera termina sozinha
+quando um executor conclui ou chega mensagem, e cada retorno custa uma chamada com o contexto inteiro. Reavaliar novas mensagens do usuário após a etapa atual. Cada
 subagente OpenRouter recebe uma `session_id` própria; nesse backend, o roteador pode manter ou trocar o modelo durante
 a task. O campo `models_used` registra modelos efetivamente informados nas respostas; Codex/Claude preservam o modelo solicitado e não inventam o ID efetivo quando o CLI não o fornece. Persistem em
 `.centaur/agents/<chat-coordenador>/<id>.json`, separados dos chats principais.
@@ -84,15 +85,19 @@ Executores não alteram contrato aprovado, spec, índices, estado consolidado ou
 
 ## Passo 4 — Revisar com contexto novo e consolidar cada entrega/onda
 
-**Revisão independente antes de consolidar.** Quem escreveu o código, e o coordenador que acompanhou o raciocínio, tendem a confirmar o próprio caminho. Para cada entrega com mudança de código, delegue a revisão a um executor **novo** (`delegate_task` no Centaur CLI; o mecanismo de subagentes do cliente nos demais), com modelo de capacidade igual ou maior que a do executor:
+**Revisão independente antes de consolidar.** Quem escreveu o código, e o coordenador que acompanhou o raciocínio, tendem a confirmar o próprio caminho. Delegue a revisão das mudanças de código a um executor **novo** (`delegate_task` no Centaur CLI; o mecanismo de subagentes do cliente nos demais):
 
-- Entregue **somente**: spec/task, contrato e regras com seus aceites, limites, o diff a revisar (intervalo do Git ou lista de arquivos) e o comando de verificação. Não envie o relatório do executor, o histórico da conversa nem a sua conclusão: o revisor deve ler o código, não a justificativa.
+- **Uma revisão por onda, não por task.** A revisão parte do zero e relê spec, contrato e código: é a etapa mais cara da execução. Reúna as entregas com código da onda em uma única delegação, informando o aceite de cada task. Revise à parte somente a entrega de risco alto (segurança, autenticação, dinheiro, dados ou migração, concorrência, operação irreversível) ou a que recebeu `review_note`.
+- **Modelo do revisor.** O padrão é o nível intermediário do backend (Sonnet no Claude; `cost_tier` `medium` no OpenRouter). Use modelo igual ou maior que o do executor somente na revisão separada de risco alto. Capacidade maior não substitui um pedido de revisão bem delimitado.
+- **Diff anexado pelo harness.** No Centaur CLI, passe `diff` em `delegate_task` (`base`: `HEAD` para trabalho não commitado, ou a ref/intervalo da onda; `paths`: os arquivos das entregas). O harness anexa o diff à task, e o revisor não gasta etapas descobrindo o que mudou. Não cole o diff no texto da task.
+
+- Entregue **somente**: spec/task, contrato e regras com seus aceites, limites, o diff a revisar (campo `diff`; nos demais clientes, intervalo do Git ou lista de arquivos) e o comando de verificação. Não envie o relatório do executor, o histórico da conversa nem a sua conclusão: o revisor deve ler o código, não a justificativa.
 - Peça que ele confira, nesta ordem: a mudança faz o que o aceite pede (não só o que a task literalmente disse)? Algum comportamento existente quebrou? Há erro de lógica, borda ou segurança nas linhas alteradas? Os testes novos falhariam sem a correção? Algo extrapolou o escopo?
 - O revisor **não edita**: devolve achados com `arquivo:linha`, o cenário concreto de falha, a classificação (**bloqueia o aceite** ou melhoria) e o que não conseguiu verificar. Sem achados, diz o que conferiu.
-- O relatório do revisor também é dado a conferir: reproduza ou leia o trecho antes de agir. Achado que bloqueia o aceite volta ao executor responsável (ou vira task); depois da correção, revise só a correção. Melhorias fora do aceite são registradas, não executadas por conta própria.
+- O relatório do revisor também é dado a conferir: reproduza ou leia o trecho antes de agir. Achado que bloqueia o aceite volta ao executor responsável (ou vira task). Depois da correção, confira você mesmo o diff da correção contra o achado; delegue nova revisão, limitada a esse diff, somente se a correção for extensa ou tocar área de risco alto. Melhorias fora do aceite são registradas, não executadas por conta própria.
 - Dispensa: mudanças só de documentação, texto ou configuração trivial. Sem subagentes disponíveis, releia o diff a partir da spec numa etapa separada e registre que a revisão **não foi independente**.
 
-**Tamanho.** No Centaur CLI, o resultado de `delegate_task` traz `changed` (arquivos e linhas alterados pelas ferramentas de arquivo) e, acima de ~400 linhas, `review_note`. Entrega grande é revisada por partes coesas, uma delegação de revisão por parte; se as partes forem independentes, registre no plano que a task deveria ter sido dividida.
+**Tamanho.** No Centaur CLI, o resultado de `delegate_task` traz `changed` (arquivos e linhas alterados pelas ferramentas de arquivo) e, acima de ~400 linhas, `review_note`. Entrega grande sai da revisão da onda e é revisada por partes coesas, uma delegação de revisão por parte; se as partes forem independentes, registre no plano que a task deveria ter sido dividida.
 
 Depois da revisão:
 

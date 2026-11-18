@@ -1395,7 +1395,7 @@ uma chamada ao provedor. Subagentes existentes continuam trabalhando.
 `delegate_task` inicia em segundo plano; `started` não significa sucesso. `agent_status`
 consulta a árvore, fase, tempo sem saída e comentários/ações públicos. `send_agent_message`
 envia orientação ao principal ou executor em execução, entregue entre etapas. `wait_agents`
-aguarda atualizações por até 30s sem inferência. Relatórios voltam ao pai imediato e ao
+aguarda atualizações por até 300s sem inferência (padrão 120s) e retorna antes quando um executor conclui ou chega mensagem. Em revisões, `delegate_task` aceita `diff` (`base` e `paths`) e o harness anexa o diff do Git à task. Relatórios voltam ao pai imediato e ao
 principal; a sessão principal retoma para conferi-los, mesmo com outro chat aberto.
 Executores podem delegar, mas compartilham seis vagas simultâneas por principal, incluindo
 filhos e netos. Uma conclusão libera vaga; cancelar o principal cancela toda a árvore.

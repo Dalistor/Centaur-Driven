@@ -10,6 +10,8 @@ from .conversation import tool_activity
 from .sessions import read_record
 
 MAX_AGENTS = 6
+# A espera acorda com relatório, mensagem ou cancelamento; o teto só limita o silêncio entre consultas.
+MAX_WAIT, DEFAULT_WAIT = 300, 120
 
 
 def definition(name, description, properties, required=()):
@@ -23,8 +25,10 @@ AGENT_TOOLS = [
                {'agent_id': {'type': 'string', 'description': 'ID completo; vazio consulta todos'}}),
     definition('send_agent_message', 'Enviar orientação a um agente em execução desta árvore. Entrega após a etapa atual, sem cancelar tarefas nem ampliar permissões.',
                {'agent_id': {'type': 'string'}, 'message': {'type': 'string', 'maxLength': 4000}}, ('agent_id', 'message')),
-    definition('wait_agents', 'Aguardar atualização sem chamada ao modelo. Interrompe a espera ao chegar mensagem; não cancela executores.',
-               {'wait_seconds': {'type': 'integer', 'minimum': 1, 'maximum': 30}}),
+    definition('wait_agents', 'Aguardar atualização sem chamada ao modelo. A espera termina sozinha quando um executor conclui ou chega mensagem; '
+               'não cancela executores. Cada retorno custa uma chamada ao modelo com o contexto inteiro: com executores em andamento, '
+               'prefira esperas longas (120 a 300 s) em vez de consultas curtas repetidas.',
+               {'wait_seconds': {'type': 'integer', 'minimum': 1, 'maximum': MAX_WAIT, 'default': DEFAULT_WAIT}}),
 ]
 
 
@@ -211,8 +215,8 @@ class AgentGroup:
                                'total_agents': len(self.entries), 'agents': records}, ensure_ascii=False)
 
     def wait(self, agent_id, seconds):
-        if type(seconds) is not int or not 1 <= seconds <= 30:
-            raise ValueError('wait_seconds deve ser de 1 a 30.')
+        if type(seconds) is not int or not 1 <= seconds <= MAX_WAIT:
+            raise ValueError(f'wait_seconds deve ser de 1 a {MAX_WAIT}.')
         deadline = time.monotonic() + seconds
         with self.changed:
             while any(identifier != agent_id and entry['active'] for identifier, entry in self.entries.items()) and not self.receive(agent_id) and not self.cancel_event.is_set():

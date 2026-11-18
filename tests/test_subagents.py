@@ -1,5 +1,6 @@
 import io
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -190,6 +191,31 @@ class SubagentTests(unittest.TestCase):
         self.assertEqual(result['report'], 'Relatório livre')
         self.assertEqual(result['structured'], {'summary': 'CI cobre staging', 'files': ['ci.yml'], 'checks': ['actionlint · passou'],
                                                 'pending': ['deploy'], 'blockers': []})
+
+    def test_review_delegation_carries_the_git_diff_and_rejects_unsafe_refs(self):
+        git = lambda *arguments: subprocess.run(['git', '-C', str(self.root), *arguments], check=True, capture_output=True)
+        git('init', '-q')
+        (self.root / 'app.py').write_text('valor = 1\n')
+        (self.root / 'other.py').write_text('outro = 1\n')
+        git('add', '.')
+        git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'base')
+        (self.root / 'app.py').write_text('valor = 2\n')
+        (self.root / 'other.py').write_text('outro = 2\n')
+        (self.root / 'novo.py').write_text('novo = 1\n')
+        seen = []
+        class Client:
+            def complete(inner, model, messages, tools, **options):
+                seen.append(messages[1]['content'])
+                return ModelReply({'role': 'assistant', 'content': 'Sem achados'}, 'provider/chosen')
+        tools = SubagentTools(ProjectTools(self.root, lambda _: False), Client(), self.parent_id, lambda _: None)
+        tools.execute('delegate_task', {'title': 'Revisão', 'task': 'Revise a onda 1', 'diff': {'base': 'HEAD', 'paths': ['app.py', 'novo.py']}})
+        self.assertTrue(seen[0].startswith('Revise a onda 1\n\n[Anexado pelo harness: git diff HEAD -- app.py novo.py.'))
+        self.assertIn('+valor = 2', seen[0])
+        self.assertNotIn('outro = 2', seen[0])
+        self.assertIn('não rastreados (não aparecem no diff; leia-os): novo.py', seen[0])
+        for unsafe in ({'base': '--output=/tmp/x'}, {'base': 'HEAD', 'paths': ['../fora']}, {'base': 'HEAD', 'paths': ['-p']}, {'base': 'ref-inexistente'}):
+            self.assertIn('Falha ao delegar task', tools.execute('delegate_task', {'title': 'Revisão', 'task': 'x', 'diff': unsafe}))
+        self.assertEqual(len(seen), 1)
 
     def test_project_skill_is_read_before_the_packaged_one_and_says_so(self):
         folder = self.root / '.centaur/skills/run'
