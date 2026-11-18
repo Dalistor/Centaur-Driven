@@ -1021,7 +1021,7 @@ Skills adicionais e todos os seus arquivos de apoio ficam em `.centaur/skills/<n
     └── scripts/
 ```
 
-O nome sugerido é o nome da pasta. Pastas incompletas ou internas não aparecem. `$run` usa a skill Centaur; `@run` usa `.centaur/skills/run/SKILL.md`, sem substituir a skill integrada. O agente lê skills adicionais com `read_skill` usando `@nome/SKILL.md` e `@nome/references/arquivo.md`. A leitura permanece dentro da skill selecionada; links que saem da pasta de skills do projeto não são aceitos.
+O nome sugerido é o nome da pasta. Pastas incompletas ou internas não aparecem. A pasta aberta tem precedência: se existir `.centaur/skills/run/SKILL.md`, tanto `@run` quanto `$run` usam essa skill do projeto, e o CLI avisa ao abrir quais skills integradas foram substituídas; sem cópia local, `$run` usa a skill Centaur do pacote. O resultado de `read_skill` indica quando a skill veio do projeto. O agente lê skills adicionais com `read_skill` usando `@nome/SKILL.md` e `@nome/references/arquivo.md`. A leitura permanece dentro da skill selecionada; links que saem da pasta de skills do projeto não são aceitos.
 
 ```text
 $run master/0001

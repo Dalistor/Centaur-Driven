@@ -5,7 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from centaur_cli.agent import run_turn
+from centaur_cli import skill_catalog
+from centaur_cli.agent import project_prompt, run_turn
 from centaur_cli.history import ChatStore
 from centaur_cli.openrouter import ModelReply, OpenRouter
 from centaur_cli.subagents import SubagentTools
@@ -172,6 +173,44 @@ class SubagentTests(unittest.TestCase):
         self.assertEqual(chat['model'], 'provider/coordinator')
         self.assertEqual(len(store.list()), 1)
         self.assertIn('Conferir evidências', chat['messages'][-1]['content'])
+
+    def test_executor_structured_report_reaches_the_coordinator_and_the_principal_has_no_such_tool(self):
+        class Client:
+            def complete(inner, model, messages, tools, **options):
+                self.assertIn('submit_report', [entry['function']['name'] for entry in tools])
+                if messages[-1]['role'] == 'user':
+                    return {'role': 'assistant', 'content': None, 'tool_calls': [{
+                        'id': 'report', 'type': 'function', 'function': {'name': 'submit_report', 'arguments': json.dumps({
+                            'summary': 'CI cobre staging', 'files': ['ci.yml'], 'checks': ['actionlint · passou'], 'pending': ['deploy']})}}]}
+                return ModelReply({'role': 'assistant', 'content': 'Relatório livre'}, 'provider/chosen')
+        tools = SubagentTools(ProjectTools(self.root, lambda _: False), Client(), self.parent_id, lambda _: None)
+        self.assertNotIn('submit_report', [entry['function']['name'] for entry in tools.definitions])
+        self.assertIn('desconhecida', tools.execute('submit_report', {'summary': 'x'}))
+        result = json.loads(tools.execute('delegate_task', {'title': 'Task', 'task': 'Ajustar CI'}))
+        self.assertEqual(result['report'], 'Relatório livre')
+        self.assertEqual(result['structured'], {'summary': 'CI cobre staging', 'files': ['ci.yml'], 'checks': ['actionlint · passou'],
+                                                'pending': ['deploy'], 'blockers': []})
+
+    def test_project_skill_is_read_before_the_packaged_one_and_says_so(self):
+        folder = self.root / '.centaur/skills/run'
+        (folder / 'references').mkdir(parents=True)
+        (folder / 'SKILL.md').write_text('name: run\nFluxo local')
+        (folder / 'references/guide.md').write_text('Guia local')
+        (self.root / '.centaur/skills/ponytail').mkdir()
+        (self.root / '.centaur/skills/ponytail/SKILL.md').write_text('name: ponytail\nSó no projeto')
+        tools = ProjectTools(self.root, lambda _: False)
+        read = lambda path: tools.execute('read_skill', {'path': path, 'start_line': '1'})
+        self.assertIn('Fluxo local', read('run/SKILL.md'))
+        self.assertIn('do projeto (.centaur/skills/run), no lugar da skill do CLI', read('run/SKILL.md').splitlines()[0])
+        self.assertIn('Guia local', read('run/references/guide.md'))
+        self.assertIn('Fluxo local', read('@run/SKILL.md'))
+        self.assertIn('Só no projeto', read('ponytail/SKILL.md'))
+        self.assertNotIn('no lugar', read('ponytail/SKILL.md').splitlines()[0])
+        self.assertTrue(read('spec/SKILL.md').startswith('Skill: spec/SKILL.md | linhas'))  # Sem cópia local, vale o pacote.
+        self.assertIn('Erro', read('run/../../../secret'))
+        self.assertEqual(skill_catalog.local_overrides(self.root), ['run'])
+        prompt = project_prompt(self.root)
+        self.assertIn('substituem as do CLI nesta pasta: run.', prompt)
 
     def test_local_clean_code_dependency_is_readable_but_cannot_escape_its_directory(self):
         folder = self.root / '.centaur/skills/clean-code'

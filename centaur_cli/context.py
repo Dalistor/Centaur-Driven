@@ -124,14 +124,14 @@ def active_messages(chat):
     return [{'role': 'user', 'content': memory}, *recent]
 
 
-def working_window(client, model):
+def working_window(client, model, fallback=None):
     """Window used to decide pruning and compaction: the model's, capped by a budget.
 
     Every request resends the whole active context, so filling a 400k or 1M
     window multiplies the cost of each later step. The cap keeps long
     conversations near the size where the work actually happens.
     """
-    limit = context_window(client, model)
+    limit = context_window(client, model, fallback)
     raw = os.environ.get('CENTAUR_CONTEXT_BUDGET', '').strip().lower()
     if raw in ('0', 'off', 'false'):
         return limit
@@ -142,7 +142,9 @@ def working_window(client, model):
     return min(limit, max(budget, 20000)) if limit else limit
 
 
-def context_window(client, model):
+def context_window(client, model, fallback=None):
+    """`fallback` is the configured model: a served model the catalog does not know yet
+    must not turn a known limit into an unknown one in the middle of a chat."""
     override = os.environ.get('CENTAUR_CONTEXT_WINDOW', '')
     if override:
         try:
@@ -151,14 +153,25 @@ def context_window(client, model):
                 return value
         except ValueError:
             pass
-    value = getattr(client, 'context_windows', {}).get(model)
-    return value if type(value) is int and value > 0 else None
+    windows = getattr(client, 'context_windows', {})
+    for name in (model, fallback):
+        value = windows.get(name) if name else None
+        if type(value) is int and value > 0:
+            return value
+    return None
 
 
 def record_context(chat, client, payload, definitions, response=None):
     """Record only the current main conversation, never cumulative subagent usage."""
     history_estimate = estimate_tokens(active_messages(chat))
     estimate = estimate_tokens(payload) + estimate_tokens(definitions)
+    measured = current_context_usage(chat, client)
+    if response is None and measured.get('provider_count') and type(measured.get('payload_estimate')) is int:
+        # Before a request, keep the provider's last count as the anchor and add only what grew
+        # since. Falling back to the character estimate here made the bar jump at every step.
+        chat['context_usage'] = {**measured, 'used': context_used(chat, measured, payload, definitions),
+                                 'history_estimate': history_estimate, 'payload_estimate': estimate}
+        return
     if response is not None:
         estimate += estimate_tokens(response)
     model = getattr(response, 'model', None) or chat['model']
@@ -231,7 +244,7 @@ def context_label(chat, client, width, draft='', overhead=0):
                + history - usage.get('history_estimate', history))
     if draft:
         used += estimate_tokens({'role': 'user', 'content': draft})
-    limit = working_window(client, usage.get('model') or chat['model'])
+    limit = working_window(client, usage.get('model') or chat['model'], chat['model'])
     cells = 8 if width >= 40 else 4
     if limit:
         fraction = max(0, min(1, (limit - used) / limit))
@@ -448,7 +461,7 @@ def prune_tool_results(chat, client, payload, definitions):
     if os.environ.get('CENTAUR_AUTOCOMPACT', '1').lower() in ('0', 'false', 'off'):
         return False
     usage = current_context_usage(chat, client)
-    limit = working_window(client, usage.get('model') or chat['model'])
+    limit = working_window(client, usage.get('model') or chat['model'], chat['model'])
     if not limit or context_used(chat, usage, payload, definitions) < limit * .6:
         return False
     messages, state = chat['messages'], compaction_state(chat)
@@ -483,7 +496,7 @@ def auto_compaction_needed(chat, client, payload, definitions):
     if os.environ.get('CENTAUR_AUTOCOMPACT', '1').lower() in ('0', 'false', 'off'):
         return False
     usage = current_context_usage(chat, client)
-    limit = working_window(client, usage.get('model') or chat['model'])
+    limit = working_window(client, usage.get('model') or chat['model'], chat['model'])
     if not limit:
         return False
     state = compaction_state(chat)

@@ -26,6 +26,7 @@ from .context import compact_chat, context_label, spend_label, estimate_tokens, 
 from .speed import validate_speed, fast_supported
 from .native_usage import BalanceUnavailable
 from .completion import SkillCompletion
+from . import skill_catalog
 from .conversation import TranscriptLine, generate_title, tool_activity
 from .markdown import render as render_markdown
 from .tools import ProjectTools
@@ -34,7 +35,7 @@ from . import models
 from .appearance import TerminalView, fit_cells, cell_width, selection_notice
 from .graphics import FRAME_SECONDS
 from .subagents import SubagentTools
-from .agent_runtime import AgentGroup
+from .agent_runtime import AgentGroup, report_payload
 from .inbox import Inbox
 from .sessions import SessionRegistry, read_record
 from .agent_tree import AgentTree
@@ -169,6 +170,9 @@ class Terminal:
         self.prompt_current = ('', 0)
         self.completion = SkillCompletion(root)
         self.notice = selection_notice(self.mouse_enabled)
+        overrides = skill_catalog.local_overrides(root)
+        if overrides:  # Um projeto que troca uma skill integrada precisa ser visível ao abrir.
+            self.notice = 'Skills deste projeto no lugar das do CLI: ' + ', '.join(overrides) + ' · .centaur/skills'
         self.settings = None
         self.rename_target = None
         self.rename_text = ''
@@ -1174,7 +1178,7 @@ class Terminal:
                 tools.cancel_event = self.cancel_event
                 tools.receive_messages = lambda: self.agent_group.receive(chat['id'])
                 tools.acknowledge_messages = lambda ids: self.agent_group.acknowledge(chat['id'], ids)
-                tools.has_messages = lambda: bool(tools.receive_messages())
+                tools.has_messages = lambda: self.agent_group.steering(chat['id'])
             else:
                 tools = SubagentTools(base, self.client, chat['id'],
                                       lambda notice: self.events.put(('progress', notice)), self.max_subagent_tier,
@@ -1449,6 +1453,12 @@ class Terminal:
                          for line in display_lines(text, max(1, width - len(indent))))
         def append_markdown(text, style='text', indent=''):
             lines.extend(render_markdown(str(text), width, style, indent))
+        def append_report(report):
+            status = report.get('status')
+            label = 'Relatório recebido' if status == 'reported' else 'Subagente interrompido' if status == 'cancelled' else 'Subagente falhou'
+            append_text(label + ' · ' + str(report.get('title', '')), 'action' if status == 'reported' else 'warning')
+            body = str(report.get('report', ''))
+            append_markdown(body if self.show_details else body[:800] + ('… · Ctrl+O lê o relatório completo' if len(body) > 800 else ''), 'comment', '  ')
         current_chat = chat if chat is not None else self.agent_preview if self.browser and self.agent_preview else self.chat
         messages = list(current_chat['messages'])
         results = {m.get('tool_call_id'): m.get('content', '') for m in messages if m['role'] == 'tool'}
@@ -1457,16 +1467,14 @@ class Terminal:
             if message.get('agent_source'):
                 append_text('↳ Checagem de fim de turno' if message['agent_source'] == 'hook' else '↳ Agente ' + str(message['agent_source'])[:8],
                             'warning' if message['agent_source'] == 'hook' else 'action')
-                if message.get('agent_kind') == 'report':
-                    try:
-                        report = json.loads(content.split('\n', 1)[1])
-                        status = report.get('status')
-                        label = 'Relatório recebido' if status == 'reported' else 'Subagente interrompido' if status == 'cancelled' else 'Subagente falhou'
-                        append_text(label + ' · ' + report.get('title', ''), 'action' if status == 'reported' else 'warning')
-                        content = str(report.get('report', ''))
-                    except (ValueError, TypeError, IndexError, AttributeError):
-                        pass
-                append_markdown(content if self.show_details else content[:800] + ('… · Ctrl+O lê o relatório completo' if len(content) > 800 else ''), 'comment', '  ')
+                report = report_payload(content) if message.get('agent_kind') == 'report' else None
+                if report is not None:
+                    append_report(report)
+                else:
+                    if message.get('agent_kind') in ('message', 'guidance'):
+                        # O envelope é para o modelo; a pessoa lê só o recado.
+                        content = content.partition('>\n')[2].rpartition('\n</agent_message>')[0] or content
+                    append_markdown(content if self.show_details else content[:800] + ('… · Ctrl+O lê o relatório completo' if len(content) > 800 else ''), 'comment', '  ')
                 lines.append(TranscriptLine(''))
             elif message['role'] == 'user':
                 working = False
@@ -1513,8 +1521,19 @@ class Terminal:
                         lines.append(TranscriptLine(text, 'muted', spans))
             elif message['role'] == 'tool':
                 call = actions.get(message.get('tool_call_id'), {})
-                if call.get('function', {}).get('name') == 'report_progress':
+                name = call.get('function', {}).get('name')
+                if name == 'report_progress':
                     append_markdown(content, 'comment', '  ')
+                elif name in ('wait_agents', 'agent_status') and '"reports"' in content:
+                    # Relatório entregue no resultado da ferramenta: aparece como os demais.
+                    try:
+                        delivered = [item for item in json.loads(content).get('reports', []) if isinstance(item, dict)]
+                    except (ValueError, TypeError, AttributeError):
+                        delivered = []
+                    for report in delivered:
+                        append_text('↳ Agente ' + str(report.get('id', ''))[:8], 'action')
+                        append_report(report)
+                        lines.append(TranscriptLine(''))
                 elif self.show_details:
                     lines.append(TranscriptLine('↳ Ferramenta', 'action'))
                     append_text(content)

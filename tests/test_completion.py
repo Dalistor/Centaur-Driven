@@ -107,11 +107,16 @@ class CompletionTests(unittest.TestCase):
         self.assertIn('Guia adicional', tools.execute('read_skill', {'path': '@custom/references/guide.md', 'start_line': '1'}))
         self.assertIn('custom', project_prompt(self.root))
 
-    def test_same_name_keeps_centaur_and_additional_skills_separate(self):
-        self.put('.centaur/skills/run/SKILL.md', 'Meu run adicional')
+    def test_same_name_in_the_open_folder_replaces_the_centaur_skill_and_is_announced(self):
         tools = ProjectTools(self.root, lambda _: False)
+        packaged = tools.execute('read_skill', {'path': 'run/SKILL.md', 'start_line': '1'})
+        self.assertNotIn('do projeto', packaged.splitlines()[0])
+        self.put('.centaur/skills/run/SKILL.md', 'Meu run adicional')
         self.assertIn('Meu run adicional', tools.execute('read_skill', {'path': '@run/SKILL.md', 'start_line': '1'}))
-        self.assertNotIn('Meu run adicional', tools.execute('read_skill', {'path': 'run/SKILL.md', 'start_line': '1'}))
+        local = tools.execute('read_skill', {'path': 'run/SKILL.md', 'start_line': '1'})
+        self.assertIn('Meu run adicional', local)
+        self.assertIn('no lugar da skill do CLI', local.splitlines()[0])
+        self.assertIn('no lugar das do CLI: run', Terminal(self.root, 'test', ChatStore(self.root), None).notice)
 
     def test_subskills_are_not_suggested_and_nonmention_tokens_do_not_open_popup(self):
         completion = SkillCompletion(self.root)

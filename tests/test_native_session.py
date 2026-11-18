@@ -13,6 +13,7 @@ from datetime import date
 
 from centaur_cli import models, native_session
 from centaur_cli.agent import run_turn
+from centaur_cli.agent_runtime import report_text
 from centaur_cli.history import ChatStore
 from centaur_cli.interaction import TurnCancelled
 from centaur_cli.native_client import NativeClient
@@ -222,6 +223,28 @@ class NativeSessionTests(unittest.TestCase):
         self.assertEqual(log[1]['blocks'][1:], ['pare', 'e responda'])
         self.assertFalse((self.root / 'b.txt').exists())
         self.assertEqual(self.turn('fim', tools), '3|eco:fim')
+
+    def test_agent_report_during_a_tool_batch_rides_the_result_instead_of_interrupting_the_turn(self):
+        report = report_text({'id': 'c' * 32, 'title': 'Task 02', 'status': 'reported', 'report': 'CI pronto'})
+        pending = [{'id': 'r1', 'message': {'role': 'user', 'content': report, 'agent_source': 'c' * 32, 'agent_kind': 'report'}}]
+        ran = []
+        original = self.tools.execute
+        def execute(name, arguments):
+            ran.append(name)
+            return original(name, arguments)
+        self.tools.execute = execute
+        # O relatório fica disponível assim que a primeira ferramenta roda.
+        self.tools.receive_messages = lambda: list(pending) if ran else []
+        self.tools.acknowledge_messages = lambda identifiers: pending.clear()
+        self.tools.has_messages = lambda: False
+        answer = self.turn('leia o arquivo')
+        self.assertEqual((self.root / 'b.txt').read_text(), 'copiado')  # A segunda chamada do turno não foi descartada.
+        self.assertIn('<subagent_report', answer)
+        self.assertIn('NÃO é mensagem do usuário e nada foi interrompido', answer)
+        log = self.received()
+        self.assertEqual(len(log), 1)  # Nenhum turno novo do "usuário" nem nota de interrupção.
+        self.assertTrue(answer.endswith('Arquivo gravado. 1 linhas em b.txt.'))
+        self.assertEqual(self.turn('fim'), '2|eco:fim')
 
     def test_cli_that_dies_before_answering_falls_back_to_one_call_per_step(self):
         # A fixture recusa (código 9) a invocação sem MCP: é o caminho de uma chamada por etapa.

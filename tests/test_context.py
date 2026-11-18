@@ -684,6 +684,25 @@ class ContextTests(unittest.TestCase):
         self.chat['messages'].append({'role': 'tool', 'content': 'x' * 45000})
         self.assertTrue(auto_compaction_needed(self.chat, self.client, active_messages(self.chat), []))
 
+    def test_bar_keeps_the_provider_count_as_its_base_between_steps(self):
+        self.client.context_windows = {'main': 20000}
+        self.chat['messages'] = [{'role': 'user', 'content': 'x' * 6000} for _ in range(4)]
+        payload = active_messages(self.chat)
+        reply = ModelReply({'role': 'assistant', 'content': 'Done'}, 'served-elsewhere',
+                           {'prompt_tokens': 2000, 'completion_tokens': 100})
+        self.chat['messages'].append(reply)
+        record_context(self.chat, self.client, payload, [], reply)
+        measured = context_label(self.chat, self.client, 80)[0]
+        # O modelo servido não está no catálogo: o limite conhecido do modelo configurado continua valendo.
+        self.assertIn('% livre', measured)
+        self.chat['messages'].append({'role': 'tool', 'content': 'y' * 3000})
+        grown = context_label(self.chat, self.client, 80)[0]
+        # O registro feito antes da próxima chamada não volta para a estimativa por caracteres (~8 mil tokens).
+        record_context(self.chat, self.client, active_messages(self.chat), [])
+        self.assertTrue(self.chat['context_usage']['provider_count'])
+        self.assertEqual(self.chat['context_usage']['used'], 2100 + estimate_tokens({'role': 'tool', 'content': 'y' * 3000}) - 0)
+        self.assertEqual(context_label(self.chat, self.client, 80)[0], grown)
+
     def test_terminal_command_commits_only_valid_uncancelled_saved_metadata(self):
         terminal = Terminal(self.root, 'main', self.store, self.client)
         terminal.chat = self.chat

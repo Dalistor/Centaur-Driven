@@ -35,6 +35,12 @@ def additional_names(project_root):
         return []
 
 
+def local_overrides(project_root):
+    """Skills do projeto com o mesmo nome de uma do CLI: no projeto, valem as locais."""
+    packaged = set(names())
+    return [name for name in additional_names(project_root) if name in packaged]
+
+
 def dependency_root(project_root):
     candidates = [Path(project_root) / '.centaur/skills/clean-code',
                   Path.home() / '.agents/skills/clean-code',
@@ -44,14 +50,21 @@ def dependency_root(project_root):
 
 
 def read(path, start_line, project_root=None):
-    catalog = SKILL_ROOT
+    catalog, origin = SKILL_ROOT, ''
     relative = Path(path)
+    project = project_root or Path.cwd()
     if relative.parts and relative.parts[0].startswith('@'):
         name = relative.parts[0][1:]
-        if name not in additional_names(project_root or Path.cwd()):
+        if name not in additional_names(project):
             raise ValueError('Skill adicional não instalada em .centaur/skills.')
-        catalog = (additional_root(project_root or Path.cwd()) / name).resolve()
+        catalog = (additional_root(project) / name).resolve()
         relative = Path(*relative.parts[1:])
+    elif relative.parts and relative.parts[0] != 'clean-code' and relative.parts[0] in additional_names(project):
+        # A pasta aberta vem antes do pacote: a skill do projeto vale também sem o @.
+        name = relative.parts[0]
+        catalog = (additional_root(project) / name).resolve()
+        relative = Path(*relative.parts[1:])
+        origin = f' · do projeto (.centaur/skills/{name})' + (', no lugar da skill do CLI' if (SKILL_ROOT / name / 'SKILL.md').is_file() else '')
     elif relative.parts and relative.parts[0] == 'clean-code':
         catalog = dependency_root(project_root or Path.cwd())
         if catalog is None:
@@ -65,4 +78,4 @@ def read(path, start_line, project_root=None):
     lines = source.read_text(encoding='utf-8').splitlines()
     excerpt = lines[start - 1:start + 199]
     end = start + len(excerpt) - 1
-    return f'Skill: {path} | linhas {start}–{end} de {len(lines)}\n' + '\n'.join(excerpt)
+    return f'Skill: {path}{origin} | linhas {start}–{end} de {len(lines)}\n' + '\n'.join(excerpt)

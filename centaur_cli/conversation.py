@@ -88,6 +88,7 @@ def describe_activity(call, result=None):
         'agent_status': ('Consultando agentes', 'Consultou agentes', 'agent_id'),
         'send_agent_message': ('Enviando orientação', 'Orientação enviada', 'agent_id'),
         'wait_agents': ('Aguardando agentes', 'Consultou agentes', 'wait_seconds'),
+        'submit_report': ('Registrando relatório', 'Registrou relatório', 'summary'),
         'ask_user': ('Perguntando', 'Perguntou', 'question'),
         'computer_start': ('Iniciando tela', 'Observou tela', 'purpose'),
         'computer_action': ('Controlando desktop', 'Controlou desktop', 'action'),

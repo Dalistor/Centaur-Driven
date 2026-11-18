@@ -1,5 +1,23 @@
 # Changelog
 
+## Não lançado
+
+- Relatório de subagente não é mais confundido com mensagem do usuário: ele chega em um envelope
+  `<subagent_report>` marcado como aviso do harness, e mensagens entre agentes em `<agent_message>`.
+  Um relatório que chega durante um lote de ferramentas não cancela mais as chamadas restantes nem
+  interrompe o turno da sessão nativa do Claude ("Interrompida pelo usuário"); só mensagens do
+  usuário e orientações do coordenador redirecionam o trabalho.
+- `wait_agents` e `agent_status` devolvem os relatórios já prontos no próprio resultado (`reports`),
+  uma única vez, em vez de um turno separado.
+- Executores ganham `submit_report` (resumo, arquivos, verificações, pendências, bloqueios); o
+  coordenador recebe esses campos em `structured`, além do texto livre.
+- Barra de contexto estável: antes de cada chamada, a última contagem real do provedor continua
+  sendo a base e só o crescimento é estimado; um modelo servido ainda fora do catálogo usa o limite
+  do modelo configurado; a poda de resultados antigos passa a ser avisada.
+- Skills do projeto têm precedência: `read_skill` com `nome/SKILL.md` lê primeiro
+  `.centaur/skills/<nome>` da pasta aberta e só depois o pacote. O CLI avisa ao abrir quando uma
+  skill local substitui uma integrada, e o resultado da leitura indica a origem.
+
 ## 0.10.6 — 2026-11-17
 
 - Login perdido nos backends Codex e Claude: quando o CLI oficial desloga ou a credencial expira
