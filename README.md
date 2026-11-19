@@ -474,8 +474,11 @@ erro, troca de modelo ou interrupção reiniciam a sessão a partir do históric
 ociosas por cinco minutos são encerradas. `CENTAUR_NATIVE_SESSION=0`, ou um CLI sem as opções
 necessárias, volta ao modo de uma chamada por etapa. O backend Codex continua nesse modo.
 
-A 60% da janela de trabalho, resultados antigos e volumosos de ferramentas saem do contexto
-enviado (o histórico salvo permanece íntegro) antes de recorrer ao resumo por IA aos 80%.
+Resultados antigos e volumosos de ferramentas saem do contexto enviado (o histórico salvo permanece
+íntegro) antes de recorrer ao resumo por IA aos 80% da janela de trabalho. Essa poda reescreve
+mensagens antigas e por isso invalida o cache do provedor: com o cache frio (retomada de um chat, pausa
+de mais de 5 minutos, sessão nativa do Claude encerrada) ela começa a 40%; com o cache quente, espera
+até os 80%, logo antes do resumo.
 A janela de trabalho é a do modelo limitada a 150 mil tokens: como cada chamada reenvia todo
 o contexto ativo, encher uma janela de 400 mil ou 1 milhão multiplica o custo de cada passo.
 `CENTAUR_CONTEXT_BUDGET=300000 centaur .` muda o teto e `CENTAUR_CONTEXT_BUDGET=off` volta a
@@ -484,6 +487,10 @@ trabalho. Reler um arquivo ou skill cujo resultado idêntico ainda está no cont
 só um aviso, e `read_file` entrega 400 linhas por chamada (até 2000 com `limit`).
 `$credits` mostra o gasto do chat: chamadas, tokens de entrada com a parcela vinda do cache,
 tokens de saída e, no OpenRouter, o custo informado, somando os subagentes.
+
+O `AGENTS.md` da pasta aberta acompanha cada requisição de cada agente; por isso entra no contexto
+até 12 mil caracteres. Acima disso o modelo é avisado do corte e lê o restante sob demanda;
+`CENTAUR_AGENTS_CHARS=24000 centaur .` muda o limite. Um `AGENTS.md` curto é o que mais barateia cada etapa.
 
 ### Respostas extensas e recuperação
 
@@ -1395,7 +1402,7 @@ uma chamada ao provedor. Subagentes existentes continuam trabalhando.
 `delegate_task` inicia em segundo plano; `started` não significa sucesso. `agent_status`
 consulta a árvore, fase, tempo sem saída e comentários/ações públicos. `send_agent_message`
 envia orientação ao principal ou executor em execução, entregue entre etapas. `wait_agents`
-aguarda atualizações por até 300s sem inferência (padrão 120s) e retorna antes quando um executor conclui ou chega mensagem. Em revisões, `delegate_task` aceita `diff` (`base` e `paths`) e o harness anexa o diff do Git à task. Relatórios voltam ao pai imediato e ao
+aguarda atualizações por até 300s sem inferência (padrão 120s) e retorna antes quando um executor conclui ou chega mensagem. Em revisões, `delegate_task` aceita `diff` (`base` e `paths`) e o harness anexa o diff do Git à task. Com `mode: explore`, o executor é somente leitura, tem prompt curto e não carrega `AGENTS.md`: use-o para investigar, localizar código e revisar. Relatórios voltam ao pai imediato e ao
 principal; a sessão principal retoma para conferi-los, mesmo com outro chat aberto.
 Executores podem delegar, mas compartilham seis vagas simultâneas por principal, incluindo
 filhos e netos. Uma conclusão libera vaga; cancelar o principal cancela toda a árvore.

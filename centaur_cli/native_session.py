@@ -89,6 +89,14 @@ def close_all():
 atexit.register(close_all)
 
 
+def alive(client, owner):
+    """A live session for this chat keeps the provider cache warm; without one the next step reseeds anyway."""
+    with SESSIONS_LOCK:
+        now = time.monotonic()
+        return any(session.client is client and session.owner == owner and session.started and not session.closed
+                   and now - session.used <= IDLE_SECONDS for session in SESSIONS)
+
+
 def claim(client, key, conversation, owner=None):
     """Reserva a sessão ociosa cujo histórico é prefixo desta conversa; encerra as esquecidas."""
     prints = [fingerprint(public(message)) for message in conversation]

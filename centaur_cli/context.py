@@ -465,17 +465,38 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
     return state, before, after
 
 
-def prune_tool_results(chat, client, payload, definitions):
-    """Cheaper than a summary: at 60% of the window, hide bulky old tool results.
+CACHE_SECONDS = 300
+PRUNE_COLD, PRUNE_WARM = .4, .8
 
-    The boundary only moves in large steps, so the request prefix stays stable
-    between prunings and provider prompt caches keep hitting.
+
+def cache_warm(chat, client):
+    """Whether the provider still holds this conversation's prefix in its prompt cache.
+
+    A client that keeps the conversation itself (the native Claude session) answers directly;
+    otherwise the time since the last request is compared with the shortest provider TTL.
+    """
+    probe = getattr(client, 'cache_warm', None)
+    state = probe(chat.get('id')) if callable(probe) else None
+    if state is True or state is False:
+        return state
+    last = chat.get('last_request_at')
+    return type(last) in (int, float) and 0 <= time.time() - last < CACHE_SECONDS
+
+
+def prune_tool_results(chat, client, payload, definitions):
+    """Cheaper than a summary: hide bulky old tool results, when doing so costs nothing extra.
+
+    Pruning rewrites old messages, so the provider reprocesses the conversation without its
+    cache (and the native session restarts with the whole history). With a cold cache that
+    price is already being paid, so pruning starts early; with a warm one it waits until the
+    next step would be the AI summary. The boundary only moves in large steps.
     """
     if os.environ.get('CENTAUR_AUTOCOMPACT', '1').lower() in ('0', 'false', 'off'):
         return False
     usage = current_context_usage(chat, client)
     limit = working_window(client, usage.get('model') or chat['model'], chat['model'])
-    if not limit or context_used(chat, usage, payload, definitions) < limit * .6:
+    threshold = PRUNE_WARM if cache_warm(chat, client) else PRUNE_COLD
+    if not limit or context_used(chat, usage, payload, definitions) < limit * threshold:
         return False
     messages, state = chat['messages'], compaction_state(chat)
     start = max(state['through'] if state else 0, pruning_limit(chat))

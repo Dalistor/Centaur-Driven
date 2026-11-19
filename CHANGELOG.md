@@ -8,9 +8,25 @@
   ainda via: resultados de ferramenta já ocultos pela poda não são relidos por inteiro. O resumo
   sai em seções fixas (pedido, decisões, arquivos, erros, verificações, pendências, próximo passo).
   Requisição que estoura o prazo continua reduzindo o fragmento e retomando do rascunho.
-- Menos tokens em `$run`: a skill passa a pedir uma revisão independente por onda (não por task),
-  com modelo intermediário por padrão e modelo maior só em entrega de risco alto; a correção de um
-  achado é conferida pelo coordenador, e só volta a um revisor quando extensa ou de risco alto.
+- Menos tokens em `$run`: a revisão por subagente deixa de ser etapa padrão. O coordenador confere
+  cada onda pelo diff, pelo aceite e pelo comando de verificação; revisão independente só quando o
+  usuário ou a spec pedirem (uma por onda, modelo intermediário), e a correção de um achado é
+  conferida pelo coordenador. Nos chats medidos, revisões e suas correções somavam cerca de 60% dos
+  tokens de uma execução.
+- `AGENTS.md` entra no contexto até 12 mil caracteres (antes 24 mil, cortados sem aviso): ele é
+  reenviado em cada etapa de cada agente. Quando cortado, o modelo é avisado e lê o restante sob
+  demanda; `CENTAUR_AGENTS_CHARS` muda o limite.
+- Executores de `delegate_task` não leem mais `implement`/`tdd` por rotina: a task já traz modo,
+  aceite e verificação.
+- `delegate_task` aceita `mode: explore`, para investigar, localizar código ou revisar um diff: um
+  executor somente leitura (sem `write_file`/`edit_file`, sem delegação), com prompt de sistema
+  curto, sem `AGENTS.md` nem catálogo de skills no contexto, relatório final de até 400 palavras e,
+  sem modelo informado, Sonnet no Claude ou `cost_tier` `low` no OpenRouter. O prefixo fixo reenviado
+  a cada etapa cai para uma fração do de um executor comum.
+- A poda de resultados antigos respeita o cache do provedor: com o cache quente (sessão nativa do
+  Claude viva, ou última requisição há menos de 5 minutos) ela espera até 80% da janela, logo antes
+  do resumo por IA, em vez de invalidar o cache e reiniciar a sessão a 60%; com o cache frio, quando
+  o contexto já seria reprocessado de qualquer forma, começa a 40%.
 - `delegate_task` aceita `diff` (`base`, `paths`): o harness anexa o diff do Git à task de revisão,
   cortado em 60 mil caracteres, com a lista de arquivos novos ainda não rastreados.
 - `wait_agents` espera até 300 s (padrão 120 s, antes 30 s e 10 s); continua retornando assim que

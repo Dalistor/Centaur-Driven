@@ -109,7 +109,7 @@ class BackendTests(unittest.TestCase):
             with patch.object(client, 'model_catalog', return_value={'fixed': 'Main', 'fast': 'Simple tasks'}):
                 tools = SubagentTools(ProjectTools(self.root, lambda _: False), client, 'a' * 32, lambda _: None)
                 properties = next(tool['function']['parameters']['properties'] for tool in tools.definitions if tool['function']['name'] == 'delegate_task')
-                self.assertEqual(set(properties), {'title', 'task', 'model', 'files', 'diff'})
+                self.assertEqual(set(properties), {'title', 'task', 'model', 'mode', 'files', 'diff'})
                 self.assertEqual(properties['model']['enum'], ['fixed', 'fast'])
                 for field, value in (('model', 'provider/other'), ('cost_tier', 'low')):
                     output = tools.execute('delegate_task', {'title': 'Task', 'task': 'Contrato', field: value})

@@ -497,6 +497,10 @@ class NativeClient:
             text = text.replace(secret, '[CHAVE OCULTA]')
         return text
 
+    def cache_warm(self, owner):
+        """True/False when the persistent session decides it; None leaves it to the time since the last request."""
+        return native_session.alive(self, owner) if self.session_mode and owner else None
+
     def check_available(self):
         arguments = [self.command, 'exec', '--help'] if self.backend == 'codex' else [self.command, '--help']
         required = ('--model', '--ignore-user-config', '--ignore-rules', '--output-schema', '--output-last-message', '--json', '--ephemeral') if self.backend == 'codex' else (

@@ -26,6 +26,10 @@ DELEGATE_TASK = {
                               'description': 'low para tarefas simples, medium para implementação comum, high/xhigh/max para maior risco; respeite o máximo configurado'},
                 'model': {'type': 'string', 'default': 'openrouter/auto',
                           'description': 'Use openrouter/auto; modelo específico somente quando explicitamente definido pelo usuário ou pela task'},
+                'mode': {'type': 'string', 'enum': ['execute', 'explore'], 'default': 'execute',
+                         'description': 'explore para investigar, localizar código ou revisar um diff: executor somente leitura '
+                                        '(sem gravar arquivos nem delegar), com prompt curto e sem AGENTS.md no contexto, bem mais '
+                                        'barato por etapa. execute para tasks que alteram arquivos'},
                 'files': {'type': 'array', 'maxItems': 40, 'items': {'type': 'string', 'maxLength': 300},
                           'description': 'Posse de arquivos da task, como padrões glob relativos à raiz (src/api/**, tests/test_api.py). '
                                          'Quando informada, o harness recusa gravações do executor fora dela (exceto registros em .centaur/); '
@@ -42,6 +46,13 @@ DELEGATE_TASK = {
         },
     },
 }
+EXPLORE_TOOLS = frozenset(('read_file', 'list_files', 'glob', 'grep', 'read_skill', 'run_command', 'command_output'))
+EXPLORE_INSTRUCTIONS = ('\nVocê é executor de UMA task de leitura delegada pelo coordenador: investigue ou revise o que ela '
+                        'pede e nada além. Não edite arquivos; se a task exigir alteração, devolva isso como bloqueio. '
+                        'Ao terminar, chame submit_report uma vez (resumo, verificações executadas, pendências, bloqueios) e '
+                        'depois dê a resposta final em até 400 palavras: conclusões primeiro, cada achado com arquivo:linha '
+                        'e o cenário concreto, e o que não conseguiu verificar. Não cole trechos longos de código nem narre '
+                        'o caminho percorrido; seu relatório ainda será conferido.\n')
 DIFF_LIMIT = 60000
 DIFF_REF = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_./~^@{}-]{0,99}')
 
@@ -105,7 +116,7 @@ class RoutedClient:
 
 
 class SubagentTools:
-    def __init__(self, base, client, parent_id, emit, max_tier='high', *, registry=None, effort='default', speed='standard', group=None, background=False, executor=False):
+    def __init__(self, base, client, parent_id, emit, max_tier='high', *, registry=None, effort='default', speed='standard', group=None, background=False, executor=False, explore=False):
         while isinstance(client, RoutedClient):
             client = client.client
         if max_tier not in COST_TIERS:
@@ -137,7 +148,9 @@ class SubagentTools:
             del properties['cost_tier']
         # Só o executor de uma task delegada entrega relatório; o principal responde ao usuário.
         self.executor, self.report = executor, None
-        self.definitions = [*base.definitions, delegation, *copy.deepcopy(AGENT_TOOLS),
+        # Leitor: sem delegação nem coordenação, e com o prompt curto de agent.lean_prompt.
+        self.lean = explore
+        self.definitions = [*base.definitions, *([] if explore else [delegation, *copy.deepcopy(AGENT_TOOLS)]),
                             *([copy.deepcopy(SUBMIT_REPORT)] if executor else [])]
 
     def check_cancelled(self):
@@ -211,6 +224,8 @@ class SubagentTools:
         return json.dumps({'status': 'recorded'}, ensure_ascii=False)
 
     def execute(self, name, arguments):
+        if self.lean and name not in {entry['function']['name'] for entry in self.definitions}:
+            return 'Ferramenta indisponível em mode=explore: esta task é somente leitura.'
         if name not in ('delegate_task', 'agent_status', 'send_agent_message', 'wait_agents') and not (self.executor and name == 'submit_report'):
             return self.base.execute(name, arguments)
         try:
@@ -236,8 +251,16 @@ class SubagentTools:
         title, task = arguments['title'], arguments['task']
         if not self.routing and 'cost_tier' in arguments:
             raise ValueError('cost_tier é exclusivo de OpenRouter.')
-        tier = arguments.get('cost_tier', 'medium') if self.routing else None
-        model = arguments.get('model', 'openrouter/auto') if self.routing else arguments.get('model', self.client.fixed_model)
+        mode = arguments.get('mode', 'execute')
+        if mode not in ('execute', 'explore'):
+            raise ValueError('mode deve ser execute ou explore.')
+        explore = mode == 'explore'
+        # Leitura não pede o modelo do principal: sem escolha explícita, vai o nível mais barato que dá conta.
+        tier = arguments.get('cost_tier', 'low' if explore else 'medium') if self.routing else None
+        fallback = self.client.fixed_model if not self.routing else None
+        if explore and getattr(self.client, 'backend', None) == 'claude' and 'sonnet' in self.native_models:
+            fallback = 'sonnet'
+        model = arguments.get('model', 'openrouter/auto') if self.routing else arguments.get('model', fallback)
         if not isinstance(title, str) or not title.strip() or not isinstance(task, str) or not task.strip():
             raise ValueError('Informe título e contrato da task.')
         files = arguments.get('files')
@@ -259,7 +282,7 @@ class SubagentTools:
         store = ChatStore(self.root)
         store.directory = self.root / '.centaur' / 'agents' / self.parent_id
         chat = store.new(model, backend=getattr(self.client, 'backend', 'openrouter'))
-        chat.update({'title': title, 'parent_id': self.parent_id, 'cost_tier': tier,
+        chat.update({'title': title, 'parent_id': self.parent_id, 'cost_tier': tier, 'mode': mode,
                      'approval_mode': self.approval_mode,
                      'status': 'running', 'messages': [{'role': 'user', 'content': self.base.redact(task)}]})
         levels = getattr(self.client, 'model_efforts', {}).get(model)
@@ -274,7 +297,7 @@ class SubagentTools:
             raise
         if self.background:
             try:
-                thread = threading.Thread(target=self.run_child, args=(chat, store, title, task, tier, model, owned), daemon=True)
+                thread = threading.Thread(target=self.run_child, args=(chat, store, title, task, tier, model, owned, explore), daemon=True)
                 thread.start()
             except Exception:
                 chat['status'] = 'failed'
@@ -286,9 +309,9 @@ class SubagentTools:
             return json.dumps({'id': chat['id'], 'title': title, 'status': 'started',
                                'parent_id': self.parent_id, 'principal_id': self.group.principal_id,
                                'history': str(store.directory / (chat['id'] + '.json'))}, ensure_ascii=False)
-        return self.run_child(chat, store, title, task, tier, model, owned)
+        return self.run_child(chat, store, title, task, tier, model, owned, explore)
 
-    def run_child(self, chat, store, title, task, tier, model, owned=None):
+    def run_child(self, chat, store, title, task, tier, model, owned=None, explore=False):
         report, measured, structured = 'Executor encerrado antes de produzir relatório.', [], []
         def state(value):
             if self.registry:
@@ -314,6 +337,10 @@ class SubagentTools:
             tools.agent_approve, tools.agent_ask = self.approve_callback, self.ask_callback
             tools.executor = True  # A checagem de fim de turno é do principal, com o trabalho integrado.
             tools.owned = owned
+            if explore:
+                # Sem ferramentas de gravação no schema e, por garantia, sem posse de arquivo algum.
+                tools.definitions = [entry for entry in tools.definitions if entry['function']['name'] in EXPLORE_TOOLS]
+                tools.owned = [*(owned or []), []]
             self.base.turn_acted = True
             measured.append(tools)
             tools.before_change = getattr(self.base, 'before_change', None)
@@ -321,7 +348,9 @@ class SubagentTools:
                 tools.activity = lambda phase: self.registry.activity(chat['id'], phase)
                 tools.native_progress = lambda event: self.registry.native_event(chat['id'], event)
             instructions = ('\nVocê é executor de UMA task delegada. Não é o coordenador. '
-                            'Leia clean-code e a skill implement/tdd conforme o modo. '
+                            'Leia clean-code antes de escrever código. A task já traz modo, aceite e verificação: '
+                            'não leia implement/tdd nem outras skills por rotina, só quando a task mandar ou faltar '
+                            'uma regra que você precise; cada skill lida é reenviada em todas as etapas seguintes. '
                             'Siga graphify/references/testing.md: reutilize proteção existente; novos testes '
                             'só para falha concreta em ponto vital ainda sem proteção suficiente. '
                             'Não crie uma bateria própria nem duplique a cobertura de outra task. '
@@ -332,11 +361,13 @@ class SubagentTools:
                             'Não substitua critérios de aceite. Ao terminar, chame submit_report uma vez com resumo, '
                             'arquivos, verificações executadas, pendências e bloqueios; depois relate na resposta final '
                             'as evidências e os limites. Seu relatório ainda será conferido.\n')
+            if explore:
+                instructions = EXPLORE_INSTRUCTIONS
             try:
                 child_client = RoutedClient(self.client, chat['id'], tier) if self.routing else self.client
                 child_tools = SubagentTools(tools, child_client, chat['id'], self.emit, self.max_tier,
                                             registry=self.registry, effort=chat['effort'], speed=chat['speed'],
-                                            group=self.group, background=self.background, executor=True)
+                                            group=self.group, background=self.background, executor=True, explore=explore)
                 structured.append(child_tools)
                 run_turn(chat, child_client, child_tools, store,
                          lambda: self.emit(f'└─↳ Subagente: {title} · {chat.get("models_used", [model])[-1]}'),
@@ -358,7 +389,7 @@ class SubagentTools:
             models = list(dict.fromkeys(chat.get('models_used', [])))
             result = {'id': chat['id'], 'title': title, 'status': chat['status'],
                       'parent_id': self.parent_id, 'principal_id': self.group.principal_id,
-                      'requested_model': model, 'models_used': models, 'cost_tier': tier,
+                      'requested_model': model, 'models_used': models, 'cost_tier': tier, 'mode': chat.get('mode', 'execute'),
                       'history': str(store.directory / (chat['id'] + '.json')), 'report': report}
             if structured and structured[0].report:
                 # Campos declarados pelo executor; o texto livre continua em report.

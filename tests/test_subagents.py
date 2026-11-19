@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from centaur_cli import skill_catalog
 from centaur_cli.agent import project_prompt, run_turn
@@ -44,6 +44,42 @@ class SubagentTests(unittest.TestCase):
                 self.assertEqual(payload['plugins'][0]['id'], plugin)
             else:
                 self.assertNotIn('plugins', payload)
+
+    def test_explore_mode_is_read_only_with_a_short_prompt_and_no_project_instructions(self):
+        (self.root / 'AGENTS.md').write_text('REGRA-DO-PROJETO ' * 200, encoding='utf-8')
+        requests = []
+        class Client:
+            def complete(inner, model, messages, tools, **options):
+                requests.append((model, list(messages), tools, options))
+                return ModelReply({'role': 'assistant', 'content': 'Achado em app.py:3.'}, 'provider/fast')
+        base = ProjectTools(self.root, lambda _: True, ask_user=lambda question, options: 'x')
+        tools = SubagentTools(base, Client(), self.parent_id, lambda _: None)
+        result = json.loads(tools.execute('delegate_task', {'title': 'Onde fica X', 'task': 'Localize X.', 'mode': 'explore'}))
+        self.assertEqual((result['status'], result['mode'], result['cost_tier']), ('reported', 'explore', 'low'))
+        names = [tool['function']['name'] for tool in requests[0][2]]
+        self.assertEqual(sorted(names), ['command_output', 'glob', 'grep', 'list_files', 'read_file', 'read_skill',
+                                         'run_command', 'submit_report'])
+        system = requests[0][1][0]['content']
+        self.assertNotIn('REGRA-DO-PROJETO', system)
+        self.assertIn('AGENTS.md e não foram carregadas', system)
+        self.assertIn('até 400 palavras', system)
+        self.assertLess(len(system), len(project_prompt(self.root)) / 3)
+        # Uma task comum continua com o prompt completo e as ferramentas de gravação.
+        requests.clear()
+        tools.execute('delegate_task', {'title': 'Task', 'task': 'Trabalho'})
+        self.assertIn('REGRA-DO-PROJETO', requests[0][1][0]['content'])
+        self.assertIn('write_file', [tool['function']['name'] for tool in requests[0][2]])
+        self.assertIn('Falha ao delegar task', tools.execute('delegate_task', {'title': 'T', 'task': 'x', 'mode': 'write'}))
+
+    def test_explore_executor_cannot_write_or_delegate_even_if_it_asks(self):
+        base = ProjectTools(self.root, lambda _: True, approval_mode='never')
+        base.definitions = [entry for entry in base.definitions if entry['function']['name'] in ('read_file', 'grep')]
+        base.owned = [[]]
+        reader = SubagentTools(base, Mock(allows_model_routing=True), self.parent_id, lambda _: None, executor=True, explore=True)
+        for name, arguments in (('write_file', {'path': 'a.txt', 'content': 'x'}), ('delegate_task', {'title': 't', 'task': 'x'})):
+            self.assertIn('somente leitura', reader.execute(name, arguments))
+        self.assertFalse((self.root / 'a.txt').exists())
+        self.assertIn('fora dos arquivos de posse', base.execute('write_file', {'path': 'a.txt', 'content': 'x'}))
 
     def test_subagent_has_own_context_uses_tools_and_returns_actual_model_report(self):
         approvals, requests, progress = [], [], []

@@ -107,6 +107,16 @@ class CompletionTests(unittest.TestCase):
         self.assertIn('Guia adicional', tools.execute('read_skill', {'path': '@custom/references/guide.md', 'start_line': '1'}))
         self.assertIn('custom', project_prompt(self.root))
 
+    def test_long_agents_file_is_cut_with_a_pointer_to_the_rest(self):
+        (self.root / 'AGENTS.md').write_text('regra inicial\n' + 'x' * 20000 + '\nregra final', encoding='utf-8')
+        prompt = project_prompt(self.root)
+        self.assertIn('regra inicial', prompt)
+        self.assertNotIn('regra final', prompt)
+        self.assertIn('AGENTS.md cortado pelo harness: 12,000 de 20,026 caracteres', prompt)
+        with patch.dict('os.environ', {'CENTAUR_AGENTS_CHARS': '30000'}):
+            self.assertIn('regra final', project_prompt(self.root))
+            self.assertNotIn('cortado pelo harness', project_prompt(self.root))
+
     def test_same_name_in_the_open_folder_replaces_the_centaur_skill_and_is_announced(self):
         tools = ProjectTools(self.root, lambda _: False)
         packaged = tools.execute('read_skill', {'path': 'run/SKILL.md', 'start_line': '1'})

@@ -91,6 +91,30 @@ class AgentLoopTests(unittest.TestCase):
         # Sem novo volume, a fronteira não se move: o prefixo enviado continua igual para o cache.
         self.assertFalse(prune_tool_results(self.chat, client, active_messages(self.chat), []))
 
+    def test_pruning_waits_for_the_summary_threshold_while_the_provider_cache_is_warm(self):
+        import time
+        # ~36k tokens estimados numa janela de 50k: acima de 60%, abaixo de 80%.
+        self.chat['messages'] = self.long_history()
+        client = Mock(backend='openrouter', context_windows={'main': 50000})
+        self.chat['last_request_at'] = time.time()
+        self.assertFalse(prune_tool_results(self.chat, client, active_messages(self.chat), []))
+        self.assertNotIn('tool_pruning', self.chat)
+        self.chat['last_request_at'] = time.time() - 600  # O cache expirou: o prefixo será reprocessado de qualquer forma.
+        self.assertTrue(prune_tool_results(self.chat, client, active_messages(self.chat), []))
+        # A sessão nativa responde por si: viva mantém o cache, encerrada libera a poda.
+        self.chat.pop('tool_pruning')
+        self.chat['last_request_at'] = time.time() - 600
+        client.cache_warm = lambda owner: True
+        self.assertFalse(prune_tool_results(self.chat, client, active_messages(self.chat), []))
+        client.cache_warm = lambda owner: False
+        self.chat['last_request_at'] = time.time()
+        self.assertTrue(prune_tool_results(self.chat, client, active_messages(self.chat), []))
+        # Quente, mas já no limite do resumo: podar sai mais barato que resumir.
+        self.chat.pop('tool_pruning')
+        self.chat['messages'] = self.long_history(results=16)
+        client.cache_warm = lambda owner: True
+        self.assertTrue(prune_tool_results(self.chat, client, active_messages(self.chat), []))
+
     def test_large_windows_are_capped_by_the_context_budget(self):
         client = Mock(backend='openrouter', context_windows={'main': 1_000_000, 'small': 32_000, })
         self.assertEqual(working_window(client, 'main'), 150_000)
