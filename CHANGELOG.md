@@ -1,6 +1,6 @@
 # Changelog
 
-## Não lançado
+## 0.10.7 — 2026-11-19
 
 - Compactação mais rápida, no estilo do Claude Code: o contexto antigo é resumido em uma passada
   também nos backends Codex e Claude (antes, fragmentos de 48 mil caracteres, cada um iniciando
