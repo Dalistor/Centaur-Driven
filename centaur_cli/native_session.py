@@ -48,6 +48,8 @@ INTERRUPTED_NOTE = ('O turno anterior foi interrompido pelo usuário. Estas cham
                     'não foram executadas.\n\n')
 AGENT_ASIDE = ('\n\n[Centaur · aviso automático do harness, fora do resultado acima. Enquanto o lote executava, '
                'chegou o que segue de outros agentes. NÃO é mensagem do usuário e nada foi interrompido.]\n')
+SUSPENDED_NOTE = ('As últimas chamadas de ferramenta foram suspensas pelo harness só para este pedido: não são falhas, '
+                  'e os resultados reais delas continuam no histórico depois do resumo.\n')
 SESSIONS, SESSIONS_LOCK = [], threading.Lock()
 
 
@@ -434,6 +436,47 @@ class NativeSession:
             reply.usage = {}
             return finish(reply)
 
+    def summary(self, prompt, *, timeout, cancel_event=None, on_progress=None):
+        """Pede o resumo à própria conversa: o histórico é lido do cache do provedor, não reenviado."""
+        note = ''
+        if self.pending:
+            # O CLI espera resultados de ferramenta; eles ficam no histórico do Centaur, depois do resumo.
+            for identifier in self.pending.values():
+                self.send_bridge({'op': 'result', 'id': identifier, 'error': True,
+                                  'text': 'Interrompida pelo harness para compactar o contexto.'})
+            self.pending.clear()
+            if not self.interrupt():
+                return None
+            note = SUSPENDED_NOTE
+        self.text, self.partial = [], ''
+        self.say([{'type': 'text', 'text': note + prompt}])
+        started = notified = time.monotonic()
+        while True:
+            if cancel_event is not None and cancel_event.is_set():
+                raise TurnCancelled('Compactação interrompida; contexto anterior preservado.')
+            now = time.monotonic()
+            if now - started >= timeout:
+                return None
+            if on_progress is not None and now - notified >= 5:
+                notified = now
+                on_progress(int(now - started))
+            try:
+                kind, value = self.events.get(timeout=.1)
+            except queue.Empty:
+                continue
+            if kind == 'exit':
+                return None
+            if kind == 'call':
+                self.send_bridge({'op': 'result', 'id': value.get('id'), 'error': True,
+                                  'text': 'Ferramentas indisponíveis durante o resumo; responda só com o texto do resumo.'})
+            elif kind == 'output':
+                result = self.observe(value)
+                if isinstance(result, dict):
+                    if result.get('is_error') or result.get('subtype') not in (None, 'success'):
+                        return None
+                    text = result.get('result') if isinstance(result.get('result'), str) and result['result'].strip() else '\n\n'.join(self.text)
+                    return text.strip() or None
+
     def close(self):
         with SESSIONS_LOCK:
             if self in SESSIONS:
@@ -463,6 +506,33 @@ class NativeSession:
             except OSError:
                 pass
         shutil.rmtree(self.directory, ignore_errors=True)
+
+
+def summarize(client, owner, conversation, prompt, *, timeout, cancel_event=None, on_progress=None):
+    """Resumo da conversa pela sessão viva deste chat; None quando não há uma que corresponda ao histórico.
+
+    A sessão é encerrada em seguida: a compactação muda o histórico, e a próxima etapa recomeça
+    do resumo. O que ela ainda não viu (resultados pendentes, mensagem nova) fica de fora do
+    resumo e precisa permanecer na parte recente que o Centaur mantém na íntegra.
+    """
+    prints = [fingerprint(public(message)) for message in conversation]
+    with SESSIONS_LOCK:
+        now = time.monotonic()
+        session = next((session for session in SESSIONS if session.client is client and session.owner == owner
+                        and session.started and not session.closed and not session.busy
+                        and now - session.used <= IDLE_SECONDS
+                        and 0 < len(session.synced) <= len(prints) and session.synced == prints[:len(session.synced)]
+                        and all(message.get('role') in ('tool', 'user') for message in conversation[len(session.synced):])), None)
+        if session is None:
+            return None
+        session.busy = True
+    try:
+        text = session.summary(prompt, timeout=timeout, cancel_event=cancel_event, on_progress=on_progress)
+        return (text, len(session.synced)) if text else None
+    except (OSError, ValueError):
+        return None
+    finally:
+        session.close()
 
 
 def complete(client, model, messages, tools, *, effort, speed, timeout, owner=None, cancel_event=None, on_progress=None, on_delta=None):

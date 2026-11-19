@@ -8,6 +8,11 @@
   ainda via: resultados de ferramenta já ocultos pela poda não são relidos por inteiro. O resumo
   sai em seções fixas (pedido, decisões, arquivos, erros, verificações, pendências, próximo passo).
   Requisição que estoura o prazo continua reduzindo o fragmento e retomando do rascunho.
+- Compactação pelo cache no backend Claude: com a sessão nativa do chat viva, o resumo é pedido à
+  própria conversa, que lê o histórico do cache do provedor, em vez de um processo novo que o relê
+  inteiro sem cache. Chamadas de ferramenta em curso são suspensas e seus resultados seguem na parte
+  recente, mantida na íntegra. Sem sessão correspondente (chat retomado, anexos, Codex, OpenRouter),
+  vale o resumo em uma passada.
 - Menos tokens em `$run`: a revisão por subagente deixa de ser etapa padrão. O coordenador confere
   cada onda pelo diff, pelo aceite e pelo comando de verificação; revisão independente só quando o
   usuário ou a spec pedirem (uma por onda, modelo intermediário), e a correção de um achado é

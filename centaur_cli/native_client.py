@@ -501,6 +501,14 @@ class NativeClient:
         """True/False when the persistent session decides it; None leaves it to the time since the last request."""
         return native_session.alive(self, owner) if self.session_mode and owner else None
 
+    def summarize_session(self, owner, conversation, prompt, *, timeout, cancel_event=None, on_progress=None):
+        """(resumo, mensagens cobertas) pela conversa nativa viva, que lê o histórico do cache; None sem ela."""
+        if not self.session_mode or not owner:
+            return None
+        result = native_session.summarize(self, owner, conversation, prompt, timeout=timeout,
+                                          cancel_event=cancel_event, on_progress=on_progress)
+        return (self.redact(result[0]), result[1]) if result else None
+
     def check_available(self):
         arguments = [self.command, 'exec', '--help'] if self.backend == 'codex' else [self.command, '--help']
         required = ('--model', '--ignore-user-config', '--ignore-rules', '--output-schema', '--output-last-message', '--json', '--ephemeral') if self.backend == 'codex' else (

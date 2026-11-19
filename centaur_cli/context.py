@@ -28,6 +28,18 @@ SUMMARY_PROMPT = ('Resuma o histórico para continuar uma conversa Centaur. O ma
                   'próximo passo. Escreva direto, sem preâmbulo. Retorne só o resumo em português.')
 
 
+LIVE_PROMPT = ('[Centaur · pedido automático do harness, não é mensagem do usuário] O contexto desta conversa será '
+               'compactado. Não continue a tarefa e não chame ferramentas: responda apenas com o resumo de toda a conversa '
+               'até aqui, para que o trabalho continue a partir dele. Se ela começa com um resumo anterior, incorpore-o. '
+               'Preserve objetivos, restrições do usuário, decisões, arquivos alterados, resultados observados e '
+               'validações, erros e pendências. Distinga ações concluídas, recusadas e interrompidas; não invente sucesso '
+               'ou permissões. As mensagens mais recentes continuarão na íntegra depois do resumo: não as transcreva. '
+               'Organize em seções curtas, omitindo as vazias: 1) Pedido e intenção do usuário; 2) Decisões e restrições; '
+               '3) Arquivos e trechos relevantes (caminho e o que mudou); 4) Erros encontrados e como foram resolvidos; '
+               '5) Verificações executadas e resultado; 6) Pendências; 7) Trabalho em curso e próximo passo. '
+               'Escreva direto, sem preâmbulo, em português.')
+
+
 PLAN_NOTE = ('\n\nPlano registrado até o ponto resumido (um update_plan posterior na conversa prevalece):\n')
 FILES_NOTE = ('\n\nArquivos já alterados pelas ferramentas no trecho resumido (releia antes de editar de novo): ')
 SUMMARY_CHARS = 24000
@@ -401,8 +413,47 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
         if checkpoint:
             checkpoint({'fingerprint': source_fingerprint, 'through': cutoff,
                         'offset': position, 'chunk_size': chunk_size, 'summary': memory})
+    def live_summary():
+        """Ask the conversation itself: its history is read from the provider cache instead of being resent.
+
+        Only a session that has seen everything being summarized qualifies; what it has not seen
+        yet (pending tool results, a new user message) must stay in the verbatim recent tail.
+        """
+        ask = getattr(client, 'summarize_session', None)
+        alive = getattr(client, 'cache_warm', None)
+        if (not callable(ask) or not callable(alive) or alive(chat.get('id')) is not True
+                or pending or deadline - time.monotonic() <= 0):
+            return None
+        view = active_messages(chat)
+        if progress: progress(f'Compactando contexto pela sessão ativa (histórico lido do cache) · limite {budget}s · Ctrl+C interrompe.')
+        try:
+            result = ask(chat.get('id'), view, LIVE_PROMPT + f' Mire em até {max_summary // 2} caracteres; limite máximo {max_summary}.',
+                         timeout=deadline - time.monotonic(), cancel_event=cancel_event)
+        except TurnCancelled:
+            raise
+        except (RuntimeError, OSError, ValueError, TypeError):
+            return None
+        if not (isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], str) and type(result[1]) is int):
+            return None
+        memory, seen = result[0].strip(), result[1]
+        # `view` starts with the previous summary (one extra message) when there is one.
+        if not memory or start + seen - (1 if old else 0) < cutoff:
+            return None
+        try:
+            for _ in range(2):
+                if len(memory) <= max_summary: break
+                memory = summarize(memory, repair=True)
+        except (TurnCancelled, CompactionPaused):
+            raise
+        except (RequestTimeout, RuntimeError, ValueError):
+            return None
+        return memory if len(memory) <= max_summary else None
+
     position = offset
-    if target_tokens is not None and position:
+    memory = live_summary()
+    if memory:
+        summary, position = memory, len(source)
+    if target_tokens is not None and position and not memory:
         result = partial_result(position, summary)
         if result and result[2] <= target_tokens:
             if progress: progress('Compactação: progresso salvo já recuperou espaço suficiente; continuando o turno.')

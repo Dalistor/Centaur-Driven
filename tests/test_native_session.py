@@ -153,6 +153,37 @@ class NativeSessionTests(unittest.TestCase):
         self.assertEqual((self.client.context_windows['fixture'], self.client.context_windows['claude-fixture-9']), (123000, 123000))
         self.assertEqual(models.load_learned('claude')['fixture'], {'id': 'claude-fixture-9', 'context': 123000, 'output': 4000, 'seen': date.today().isoformat()})
 
+    def test_compaction_asks_the_live_session_instead_of_resending_the_history(self):
+        from centaur_cli.context import active_messages, compact_chat
+        self.turn('leia o arquivo')
+        self.turn('leia o arquivo de novo')
+        with patch.object(self.client, 'complete', side_effect=AssertionError('o histórico não deve ser reenviado')):
+            state, before, after = compact_chat(self.chat, self.client)
+        self.assertTrue(state['summary'].startswith('3|eco:[Centaur · pedido automático'))
+        self.assertEqual(state['through'], 6)
+        self.assertLess(after, before)
+        log = self.received()
+        self.assertEqual(len({entry['pid'] for entry in log}), 1)  # A mesma conversa nativa respondeu.
+        self.assertIn('responda apenas com o resumo', log[-1]['text'])
+        self.assertEqual(native_session.SESSIONS, [])  # O histórico mudou: a próxima etapa recomeça do resumo.
+        # Sem sessão que corresponda ao histórico, vale o caminho de sempre.
+        self.assertIsNone(self.client.summarize_session(self.chat['id'], active_messages(self.chat), 'x', timeout=5))
+
+    def test_live_summary_suspends_pending_tool_calls_and_ignores_a_session_that_diverged(self):
+        system = {'role': 'system', 'content': 'Você é Centaur'}
+        conversation = [{'role': 'user', 'content': 'leia o arquivo'}]
+        reply = self.client.complete('fixture', [system, *conversation], self.tools.definitions, session_id='dono')
+        conversation += [dict(reply), {'role': 'tool', 'tool_call_id': reply['tool_calls'][0]['id'], 'content': '1\talfa'}]
+        other = [{'role': 'user', 'content': 'outra conversa'}, *conversation[1:]]
+        self.assertIsNone(native_session.summarize(self.client, 'dono', other, 'RESUMA', timeout=10))
+        self.assertEqual(len(native_session.SESSIONS), 1)  # Sessão que não corresponde fica intacta.
+        text, seen = native_session.summarize(self.client, 'dono', conversation, 'RESUMA', timeout=10)
+        self.assertEqual(seen, 2)  # O resultado pendente não foi visto: fica na parte recente, na íntegra.
+        self.assertTrue(text.startswith('2|eco:As últimas chamadas'))
+        self.assertIn('RESUMA', self.received()[-1]['text'])
+        self.assertFalse((self.root / 'b.txt').exists())
+        self.assertEqual(native_session.SESSIONS, [])
+
     def test_diverged_history_restarts_the_session_with_the_saved_conversation(self):
         self.turn('primeira')
         self.chat['messages'][:] = [{'role': 'user', 'content': 'Resumo de mensagens anteriores: algo'}]
