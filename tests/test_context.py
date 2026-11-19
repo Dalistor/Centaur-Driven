@@ -245,7 +245,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(self.chat['messages'], original)
         self.assertTrue(all(call.args[2] == [] for call in self.client.complete.call_args_list))
 
-    def test_http_backend_summarizes_a_large_context_in_few_requests_and_native_keeps_fragments(self):
+    def test_large_context_is_summarized_in_few_requests_on_http_and_native_backends(self):
         self.client.context_windows = {'main': 200000}
         self.chat['messages'] = [{'role': 'user' if index % 2 == 0 else 'assistant',
                                  'content': f'Parte {index}: ' + 'contexto ' * 2000} for index in range(24)]
@@ -254,9 +254,30 @@ class ContextTests(unittest.TestCase):
             self.assertLessEqual(self.client.complete.call_count, 2)
             self.assertIn('limite máximo 24000', self.client.complete.call_args.args[1][0]['content'])
             self.client.complete.reset_mock()
+            # Cada fragmento a mais reescreve o resumo inteiro; no CLI nativo ainda inicia outro processo.
             self.client.backend = 'claude'
             compact_chat(self.chat, self.client)
-        self.assertGreater(self.client.complete.call_count, 3)
+        self.assertEqual(self.client.complete.call_count, 1)
+        self.assertIn('Trabalho em curso e próximo passo', self.client.complete.call_args.args[1][0]['content'])
+
+    def test_summary_reads_what_the_model_still_saw_not_tool_results_already_pruned(self):
+        self.client.context_windows = {'main': 200000}
+        self.chat['messages'] = [{'role': 'user', 'content': 'Pedido'}]
+        for index in range(6):
+            self.chat['messages'] += [
+                {'role': 'assistant', 'content': None, 'tool_calls': [{'id': f'c{index}', 'function': {'name': 'read_file', 'arguments': '{}'}}]},
+                {'role': 'tool', 'tool_call_id': f'c{index}', 'content': f'INICIO{index} ' + 'log ' * 5000 + f'FIM{index}'}]
+        self.chat['messages'] += [{'role': 'assistant', 'content': 'Feito'}] + [{'role': 'user', 'content': 'ok'} for _ in range(6)]
+        self.chat['tool_pruning'] = {'through': 9}  # Os quatro primeiros resultados já estavam ocultos do contexto.
+        state, before, after = compact_chat(self.chat, self.client)
+        material = json.loads(self.client.complete.call_args.args[1][1]['content'])['fragmento']
+        self.assertIn('INICIO0', material)
+        self.assertNotIn('FIM3', material)
+        self.assertIn('resultado antigo omitido', material)
+        self.assertIn('FIM4', material)  # O que ainda estava visível segue inteiro.
+        self.assertEqual(self.client.complete.call_count, 1)
+        self.assertIn('FIM3', json.dumps(self.chat['messages']))  # O histórico salvo não muda.
+        self.assertEqual(state['through'], len(self.chat['messages']) - 6)
 
     def test_summary_carries_the_plan_and_changed_files(self):
         def call(identifier, name, arguments, result):

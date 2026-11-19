@@ -538,7 +538,7 @@ Em conversas curtas, o comando informa que não há mensagens antigas elegíveis
 
 Digite `$compact` e pressione **Enter uma vez** para iniciar. Tab somente completa o
 comando. Durante a execução, o rodapé mostra o fragmento atual/total e eventuais revisões.
-O tamanho dos fragmentos considera a janela conhecida, com teto de 48 mil caracteres.
+O contexto antigo é resumido em uma passada sempre que cabe na janela conhecida (teto de 400 mil caracteres por requisição, em qualquer backend); resultados de ferramenta já ocultos pela poda entram no resumo como estavam visíveis, não por inteiro.
 Cada resumo pode usar o orçamento restante da compactação, limitado pelo timeout
 configurado no backend. Não há mais o teto de 90 segundos por fragmento. Se a chamada
 exceder seu prazo, o fragmento é reduzido pela metade e o progresso é preservado. O resumo usa effort `low` quando o catálogo

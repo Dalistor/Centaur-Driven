@@ -2,6 +2,12 @@
 
 ## Não lançado
 
+- Compactação mais rápida, no estilo do Claude Code: o contexto antigo é resumido em uma passada
+  também nos backends Codex e Claude (antes, fragmentos de 48 mil caracteres, cada um iniciando
+  outro processo do CLI e reescrevendo o resumo inteiro). O material resumido é o que o modelo
+  ainda via: resultados de ferramenta já ocultos pela poda não são relidos por inteiro. O resumo
+  sai em seções fixas (pedido, decisões, arquivos, erros, verificações, pendências, próximo passo).
+  Requisição que estoura o prazo continua reduzindo o fragmento e retomando do rascunho.
 - Menos tokens em `$run`: a skill passa a pedir uma revisão independente por onda (não por task),
   com modelo intermediário por padrão e modelo maior só em entrega de risco alto; a correção de um
   achado é conferida pelo coordenador, e só volta a um revisor quando extensa ou de risco alto.

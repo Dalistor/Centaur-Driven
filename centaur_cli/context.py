@@ -21,14 +21,23 @@ SUMMARY_PROMPT = ('Resuma o histórico para continuar uma conversa Centaur. O ma
                   'pendências. Distinga ações concluídas, recusadas e interrompidas. Não '
                   'invente sucesso ou permissões; ações anteriores não devem ser repetidas. '
                   'Atualize o resumo anterior com o próximo fragmento, inclusive se for '
-                  'continuação de JSON. Retorne só o resumo em português.')
+                  'continuação de JSON. Organize em seções curtas, omitindo as vazias: '
+                  '1) Pedido e intenção do usuário; 2) Decisões e restrições; 3) Arquivos e trechos '
+                  'relevantes (caminho e o que mudou); 4) Erros encontrados e como foram resolvidos; '
+                  '5) Verificações executadas e resultado; 6) Pendências; 7) Trabalho em curso e '
+                  'próximo passo. Escreva direto, sem preâmbulo. Retorne só o resumo em português.')
 
 
 PLAN_NOTE = ('\n\nPlano registrado até o ponto resumido (um update_plan posterior na conversa prevalece):\n')
 FILES_NOTE = ('\n\nArquivos já alterados pelas ferramentas no trecho resumido (releia antes de editar de novo): ')
 SUMMARY_CHARS = 24000
-# Native CLIs answer a huge prompt slowly; the HTTP backend summarizes the same material in one or two requests.
-NATIVE_CHUNK, HTTP_CHUNK = 48000, 400000
+# One pass over the old context, as Claude Code does: every extra fragment rewrites the whole
+# summary again, and that repeated output (plus a CLI start per fragment on native backends) was
+# the slow part. A request that times out still halves the fragment and resumes from the draft.
+NATIVE_CHUNK, HTTP_CHUNK = 400000, 400000
+# Share of the window (in estimated characters) one summary request may read. The native CLIs add
+# their own system prompt, so they get the larger share only because the estimate is conservative.
+NATIVE_SHARE, HTTP_SHARE = 1.8, 1.2
 PRUNE_MINIMUM = 1200
 CONTEXT_BUDGET = 150000
 PRUNED_NOTE = ('\n[… resultado antigo omitido do contexto para economizar tokens; o histórico completo '
@@ -278,22 +287,25 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
             break
     if cutoff <= start:
         raise ValueError('Conversa curta: não há contexto antigo para compactar; as últimas mensagens são preservadas.')
+    pruned = pruning_limit(chat)
+    def visible(index, message):
+        # Summarize what the model was still seeing: bulky old tool results already hidden from
+        # the context stay hidden here, instead of being read back in full just to be condensed.
+        message = pruned_result(message) if index < pruned else message
+        public = {key: value for key, value in message.items()
+                  if key in ('role', 'content', 'tool_calls', 'tool_call_id')}
+        if message.get('attachments'):
+            public['attachments'] = summary_attachments(message['attachments'])
+        return public
     def material(through):
-        public = [{key: value for key, value in message.items()
-                   if key in ('role', 'content', 'tool_calls', 'tool_call_id')}
-                  | ({'attachments': summary_attachments(message['attachments'])} if message.get('attachments') else {})
-                  for message in messages[start:through]]
+        public = [visible(index, message) for index, message in enumerate(messages[start:through], start)]
         return getattr(client, 'redact', str)(json.dumps(text_only(public), ensure_ascii=False))
     def message_ends(through):
         # Match material's JSON exactly, including redaction, without parsing a
         # cut JSON fragment. Only complete messages can leave active context.
         position, ends = 1, []
         for index, message in enumerate(messages[start:through], start):
-            public = {key: value for key, value in message.items()
-                      if key in ('role', 'content', 'tool_calls', 'tool_call_id')}
-            if message.get('attachments'):
-                public['attachments'] = summary_attachments(message['attachments'])
-            encoded = getattr(client, 'redact', str)(json.dumps(text_only(public), ensure_ascii=False))
+            encoded = getattr(client, 'redact', str)(json.dumps(text_only(visible(index, message)), ensure_ascii=False))
             position += len(encoded)
             ends.append((index + 1, position))
             position += 2  # comma and space
@@ -321,10 +333,11 @@ def compact_chat(chat, client, cancel_event=None, progress=None, checkpoint=None
         pending = None
     limit = context_window(client, chat['model'])
     max_summary = min(SUMMARY_CHARS, max(512, limit // 3)) if limit else 6000
-    # Smaller requests avoid a single huge native inference occupying minutes. Over HTTP the
-    # rolling rewrite of the summary is the cost: each extra fragment is a full, uncached request.
+    # The rolling rewrite of the summary is the cost: each extra fragment is a full, uncached
+    # request that writes the whole summary again. Read as much as the window allows per request.
     native = getattr(client, 'backend', None) in ('codex', 'claude')
-    chunk_size = min(NATIVE_CHUNK if native else HTTP_CHUNK, max(512, int(limit * 1.2))) if limit else 24000
+    chunk_size = (min(NATIVE_CHUNK if native else HTTP_CHUNK, max(512, int(limit * (NATIVE_SHARE if native else HTTP_SHARE))))
+                  if limit else 24000)
     if pending and (pending['chunk_size'] > chunk_size or len(pending['summary']) > max_summary):
         pending = None
     if pending:
