@@ -8,7 +8,7 @@ from unittest.mock import patch
 from zipfile import ZipFile, ZipInfo
 
 
-PATH = Path(__file__).resolve().parents[1] / 'skills/centaur-driven-skill/scripts/install.py'
+PATH = Path(__file__).resolve().parents[1] / 'skills/skill/scripts/install.py'
 SPEC = importlib.util.spec_from_file_location('additional_skill_installer', PATH)
 installer = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(installer)
@@ -37,14 +37,15 @@ class SkillInstallTests(unittest.TestCase):
         return installer.install(self.root, 'owner/repo', 'skills/example',
                                  fetch=lambda *_: payload if payload is not None else self.archive(), **options)
 
-    def test_complete_install_is_preserved_and_not_executed(self):
+    def test_complete_install_is_immediately_discoverable_and_not_executed(self):
         result = self.install()
         destination = self.root / '.centaur/skills/example'
         self.assertEqual((destination / 'assets/template.txt').read_text(), 'Modelo')
         self.assertEqual((destination / 'scripts/run.sh').read_text(), 'exit 99')
         self.assertFalse((self.root / '.centaur/skills/other').exists())
-        self.assertEqual(result['skill_md'], str(destination / 'SKILL.md'))
+        self.assertEqual(result['invoke'], '@example')
         self.assertEqual(len(result['archive_sha256']), 64)
+        self.assertEqual((destination / 'references/guide.md').read_text(), 'Guia completo')
 
     def test_existing_installation_is_preserved_without_downloading(self):
         self.install()

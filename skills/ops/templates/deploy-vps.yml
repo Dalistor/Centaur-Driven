@@ -1,0 +1,107 @@
+# Preparation template: choose the trigger and replace integrity commands for the project.
+# Copy the three bundled scripts into .centaur/deploy/ before enabling this workflow.
+# Actions are pinned to full commit SHAs; .github/dependabot.yml (github-actions) keeps them current.
+# Static sites only. Existing server must serve VPS_PATH/current; see SKILL.md for runtime services.
+name: Deploy VPS
+on:
+  workflow_dispatch:
+  # Add ONLY if the user chooses automatic deploy:
+  # push:
+  #   branches: [main]
+permissions: {}
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Tests and clean build
+        run: |
+          # Replace with actual dependency installation, tests and clean build commands.
+          # Must produce .centaur/deploy/build/site/ (only public static output).
+          echo 'Configure project integrity tests and clean build before enabling deploy' >&2
+          exit 1
+      - name: Seal tested artifact
+        env:
+          RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          bash .centaur/deploy/seal-static.sh .centaur/deploy/build/site .centaur/deploy/artifact
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release
+          path: .centaur/deploy/artifact/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+  publish:
+    needs: integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    permissions: {}  # Publishes over SSH; the repository token is not needed here.
+    env:
+      RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      VPS_HOST: ${{ vars.VPS_HOST }}
+      VPS_USER: ${{ vars.VPS_USER }}
+      VPS_PORT: ${{ vars.VPS_PORT || '22' }}
+      VPS_PATH: ${{ vars.VPS_PATH }}
+      HEALTH_URL: ${{ vars.HEALTH_URL }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release
+          path: .centaur/deploy/build
+      - name: Configure verified SSH identity
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          : "${VPS_SSH_KEY:?Missing production secret}" "${VPS_KNOWN_HOSTS:?Missing production secret}"
+          [[ "$VPS_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$VPS_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]]
+          [[ "$VPS_PORT" =~ ^[0-9]+$ && "$VPS_PORT" -ge 1 && "$VPS_PORT" -le 65535 ]]
+          [[ "$VPS_PATH" =~ ^/[a-zA-Z0-9_/-]+$ && "$VPS_PATH" != / ]]
+          [[ "$HEALTH_URL" =~ ^https?://[a-zA-Z0-9./:_-]+$ ]]
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/centaur-deploy
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/centaur-known-hosts
+          chmod 600 ~/.ssh/centaur-*
+          cat > ~/.ssh/centaur-config <<CONFIG
+          Host deploy-target
+            HostName $VPS_HOST
+            User $VPS_USER
+            Port $VPS_PORT
+            IdentityFile ~/.ssh/centaur-deploy
+            UserKnownHostsFile ~/.ssh/centaur-known-hosts
+            StrictHostKeyChecking yes
+            BatchMode yes
+            IdentitiesOnly yes
+            ConnectTimeout 15
+            ServerAliveInterval 15
+            ServerAliveCountMax 3
+          CONFIG
+      - name: Verify server prerequisites and isolated destination
+        run: |
+          set -euo pipefail
+          ssh -F ~/.ssh/centaur-config deploy-target "set -eu; command -v python3; command -v curl; command -v rsync; command -v flock; command -v sha256sum; test \"\$(readlink -f '$VPS_PATH')\" = '$VPS_PATH'; test -L '$VPS_PATH/current'; test -d '$VPS_PATH/current'; test ! -L '$VPS_PATH/releases'; mkdir -p '$VPS_PATH/releases'; mkdir '$VPS_PATH/releases/$RELEASE_ID'"
+      - name: Transfer only the validated artifact with bounded retries
+        run: |
+          bash .centaur/deploy/build/retry-transfer.sh rsync -az --delete \
+            -e 'ssh -F ~/.ssh/centaur-config' \
+            .centaur/deploy/build/ "deploy-target:$VPS_PATH/releases/$RELEASE_ID/"
+      - name: Check candidate, activate atomically and roll back on failure
+        run: |
+          ssh -F ~/.ssh/centaur-config deploy-target \
+            "cd '$VPS_PATH/releases/$RELEASE_ID' && sha256sum --check SHA256SUMS && bash '$VPS_PATH/releases/$RELEASE_ID/activate-static.sh' '$VPS_PATH' '$RELEASE_ID' '$HEALTH_URL'"
+      - name: Remove runner credentials
+        if: always()
+        run: rm -f ~/.ssh/centaur-deploy ~/.ssh/centaur-known-hosts ~/.ssh/centaur-config

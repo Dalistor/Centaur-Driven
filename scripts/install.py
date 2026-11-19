@@ -10,7 +10,9 @@ import tempfile
 import uuid
 
 OBSOLETE = 'centaur-driven-commitAndPush'
-SKILL_PREFIX = 'centaur-driven-'
+LEGACY_PREFIX = 'centaur-driven-'
+INTERNAL = '_internal'
+RETIRED = ('memory', 'centaur-driven-memory', 'deploy', 'centaur-driven-deploy')  # deploy virou ops
 
 
 def reject_symlink(path):
@@ -39,10 +41,8 @@ def source_skills(root):
     skills = {}
     for directory in sorted((root / 'skills').glob('*')):
         reject_symlink(directory)
-        if directory.name == OBSOLETE or not directory.is_dir():
+        if directory.name in (OBSOLETE, INTERNAL) or not directory.is_dir():
             continue
-        if not directory.name.startswith(SKILL_PREFIX):
-            raise ValueError(f'Skill fora do namespace Centaur: {directory.name}')
         if not (directory / 'SKILL.md').is_file():
             raise ValueError(f'Skill incompleta: {directory.name}')
         # Reject symlinks/special files before copying anything.
@@ -61,7 +61,18 @@ def clean_fingerprint(directory):
 
 
 def install(root, targets, apply=False):
-    skills = source_skills(root)
+    public_skills = source_skills(root)
+    skills = dict(public_skills)
+    internal = root / 'skills' / INTERNAL
+    reject_symlink(internal)
+    if internal.exists():
+        files = fingerprint(internal)
+        if any(Path(name).name.startswith('.env') or Path(name).name in ('id_rsa', 'id_ed25519') or Path(name).suffix in ('.pem', '.key', '.p12', '.pfx') for name in files):
+            raise ValueError('Possível credencial nas subskills internas')
+        for directory in internal.iterdir():
+            if directory.is_dir() and not (directory / 'SKILL.md').is_file():
+                raise ValueError(f'Subskill incompleta: {directory.name}')
+        skills[INTERNAL] = internal
     if not targets:
         raise ValueError('Informe pelo menos um --target explícito')
     targets = list(dict.fromkeys(Path(os.path.abspath(target)) for target in targets))
@@ -76,13 +87,14 @@ def install(root, targets, apply=False):
     for target in targets:
         if any(other != target and other in target.parents for other in targets):
             raise ValueError('Destinos aninhados não são suportados')
-    obsolete_names = [OBSOLETE]
+    obsolete_names = [LEGACY_PREFIX + name for name in public_skills] + [OBSOLETE, *RETIRED]
     names = [*skills, *obsolete_names]
     before = {(target, name): fingerprint(target / name) for target in targets for name in names}
     expected = {name: clean_fingerprint(path) for name, path in skills.items()}
     changed = [(target, name) for target in targets for name in names
                if before[target, name] != expected.get(name)]
-    result = {'targets': [str(t) for t in targets], 'install': list(skills),
+    result = {'targets': [str(t) for t in targets], 'install': list(public_skills),
+              'resources': [INTERNAL] if INTERNAL in skills else [],
               'remove': [str(t / name) for t in targets for name in obsolete_names
                          if before[t, name] is not None],
               'changed': [str(t / n) for t, n in changed], 'applied': apply, 'backup': None}

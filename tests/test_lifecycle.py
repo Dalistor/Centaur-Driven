@@ -1,5 +1,4 @@
 import copy
-import importlib.util
 import json
 import subprocess
 import sys
@@ -7,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from support import SCRIPTS, fixture, write
-from lifecycle import load_project, project_path, validate_use_case
+from lifecycle import load_project, validate_use_case
 
 
 class LifecycleTests(unittest.TestCase):
@@ -74,7 +73,6 @@ class LifecycleTests(unittest.TestCase):
         self.assertFalse(self.rule()['eligible'])
 
     def test_blocked_dependency_propagates_transitively(self):
-        from lifecycle import object_digest
         # Give each rule a separate source, so only the first rule's evidence ages.
         rules = []
         self.contract['rules'] = []
