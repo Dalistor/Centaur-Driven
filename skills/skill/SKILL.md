@@ -7,7 +7,7 @@ metadata:
 
 # skill
 
-Instale skills adicionais somente em `.centaur/skills/<nome>/` na raiz do projeto aberto. Preserve `SKILL.md`, referências, scripts, assets e demais arquivos da pasta selecionada. Skills Centaur continuam no pacote; instalar `@run` não substitui `$run`.
+Instale skills adicionais somente em `.centaur/skills/<nome>/` na raiz do projeto aberto. Preserve `SKILL.md`, referências, scripts, assets e demais arquivos da pasta selecionada. Skills Centaur continuam no pacote, mas a pasta aberta tem precedência: uma skill instalada com o mesmo nome de uma skill Centaur (por exemplo `run`) passa a valer neste projeto para `$run` e `@run`. Avise o usuário antes de instalar uma skill com nome igual ao de uma skill Centaur.
 
 ## Fluxo
 

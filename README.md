@@ -6,7 +6,7 @@ O humano define comportamento, limites e autonomia; a IA planeja e implementa de
 
 ## Instalação
 
-Requer Python 3.10+ para o instalador e os scripts das skills. Instale também a skill [clean-code](https://github.com/btseee/clean-code-skills), com suas referências, no diretório de skills de cada agente: `spec`, `run`, `tdd`, `implement`, `start-project` e `update` dependem dela. Graphify e ai-memory são opcionais.
+Requer Python 3.10+ para o instalador e os scripts das skills. Por rotina, as skills aplicam o resumo interno `_internal/essentials` (critérios de código, política de testes e uso do Graphify), instalado junto. Para arquitetura, concorrência ou projeto com `.clean/`, instale também a skill [clean-code](https://github.com/btseee/clean-code-skills), com suas referências, no diretório de skills de cada agente. Graphify e ai-memory são opcionais.
 
 | Agente | Diretório | Invocação |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ python3 scripts/install.py --target ~/.agents/skills --target ~/.claude/skills -
 
 Informe só os `--target` dos agentes que usa; cada diretório precisa existir. O instalador:
 
-- instala as skills com nomes curtos (`spec`, `run`, `check`...) e o recurso interno `_internal/memory`;
+- instala as skills com nomes curtos (`spec`, `run`, `check`...) e os recursos internos `_internal/memory` e `_internal/essentials`;
 - remove as pastas de versões anteriores com prefixo `centaur-driven-`, incluindo as aposentadas `deploy` (substituída por `ops`) e `memory` (agora interna);
 - salva backup do que substitui ou remove em `.centaur/backups/` e restaura tudo se algo falhar.
 
