@@ -11,7 +11,7 @@ As instruções do usuário e do projeto prevalecem. Abra cada referência quand
 
 ## Onde fica a dependência clean-code
 
-Carregue-a uma vez por conversa; depois disso abra apenas a referência que a etapa pedir. No Centaur CLI, leia `clean-code/SKILL.md` com `read_skill` e resolva as referências pelo mesmo prefixo (`clean-code/references/...`). Em outros agentes, ela fica na pasta de skills do próprio agente (`~/.agents/skills/`, `~/.codex/skills/` ou `~/.claude/skills/`) ou em `.centaur/skills/clean-code/` do projeto. A instalação está descrita no README do Centaur. Nunca simule a aplicação de uma dependência ausente.
+Por rotina, aplique o [resumo essencial](../../_internal/essentials/SKILL.md) (código, testes e contexto), lido uma vez por conversa; ele diz quando abrir a dependência completa e qual referência. A `clean-code` inteira fica no contexto e é reenviada a cada passo, por isso não a carregue sem um desses motivos. No Centaur CLI, leia `clean-code/SKILL.md` com `read_skill` e resolva as referências pelo mesmo prefixo (`clean-code/references/...`). Em outros agentes, ela fica na pasta de skills do próprio agente (`~/.agents/skills/`, `~/.codex/skills/` ou `~/.claude/skills/`) ou em `.centaur/skills/clean-code/` do projeto. A instalação está descrita no README do Centaur. Nunca simule a aplicação de uma dependência ausente.
 
 ## Conferir o que tem interface
 

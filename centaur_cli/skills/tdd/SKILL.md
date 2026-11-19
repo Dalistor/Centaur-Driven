@@ -2,7 +2,7 @@
 name: tdd
 description: Implementa uma mudança guiada por testes (red-green-refactor), com ciclos mínimos, reaproveitamento e manutenção dos testes existentes e registro no backend de memória configurado. Use para falhas concretas em pontos vitais ainda sem proteção suficiente, ou por pedido explícito.
 metadata:
-  version: 5.3.0
+  version: 5.3.1
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -15,7 +15,7 @@ As instruções do usuário e do projeto prevalecem. A tabela de [contratos comp
 
 ### Dependência clean-code — obrigatória
 
-Carregue `clean-code` antes de planejar ou escrever código; a [localização por agente](../graphify/references/shared.md) está nos contratos compartilhados. Se estiver ausente ou incompleta, informe a dependência faltante e não prossiga com o trabalho que depende dela.
+Aplique os [critérios essenciais](../_internal/essentials/SKILL.md), resumo de `clean-code` e da política de testes, antes de planejar ou escrever código: leia-os uma vez por conversa. Abra a `clean-code` completa só nos casos que o resumo lista; a [localização por agente](../graphify/references/shared.md) está nos contratos compartilhados. Se um desses casos ocorrer e ela estiver ausente ou incompleta, informe a dependência faltante e não prossiga com o trabalho que depende dela.
 
 Leia também `references/session-protocol.md` e `references/tests.md` da dependência. Aplique os critérios de responsabilidade, localização e dependências no GREEN e de clareza no REFACTOR. Preserve RED → GREEN → REFACTOR e a proporcionalidade dos critérios de aceite desta skill.
 

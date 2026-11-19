@@ -2,7 +2,7 @@
 name: implement
 description: Implementa mudanças pontuais e diretas sem TDD (estruturais, config, UI, ou projetos sem testes) - lê o contexto, tira dúvidas, aplica, valida e registra no backend de memória configurado. Use tdd para lacunas de proteção em pontos vitais; para demandas grandes use spec + run.
 metadata:
-  version: 5.3.1
+  version: 5.3.2
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -15,9 +15,9 @@ As instruções do usuário e do projeto prevalecem. A tabela de [contratos comp
 
 ### Dependência clean-code — obrigatória
 
-Carregue `clean-code` antes de planejar ou escrever código; a [localização por agente](../graphify/references/shared.md) está nos contratos compartilhados. Se estiver ausente ou incompleta, informe a dependência faltante e não prossiga com o trabalho que depende dela.
+Aplique os [critérios essenciais](../_internal/essentials/SKILL.md), resumo de `clean-code` e da política de testes, antes de planejar ou escrever código: leia-os uma vez por conversa. Abra a `clean-code` completa só nos casos que o resumo lista; a [localização por agente](../graphify/references/shared.md) está nos contratos compartilhados. Se um desses casos ocorrer e ela estiver ausente ou incompleta, informe a dependência faltante e não prossiga com o trabalho que depende dela.
 
-Leia também `references/session-protocol.md` da dependência antes de editar. Aplique seus critérios de localização, responsabilidade única, nomes, erros e revisão do diff nos Passos 6–8. O roteamento e a proporcionalidade de testes desta skill prevalecem: carregar `clean-code` não transforma o modo direto em TDD.
+Leia `references/session-protocol.md` da dependência só em projeto com `.clean/` ou trabalho que atravesse sessões. Aplique os critérios essenciais de localização, responsabilidade única, nomes, erros e revisão do diff nos Passos 6–8. O roteamento e a proporcionalidade de testes desta skill prevalecem: carregar `clean-code` não transforma o modo direto em TDD.
 
 Use `AGENTS.md` e `.centaur/` como contexto e registro; leia `.clean/` se existir, sem criá-lo nem atualizá-lo. Aplique a dependência só ao escopo pedido, sem auditoria ou limpeza geral, e reporte divergências com evidência.
 

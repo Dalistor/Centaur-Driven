@@ -5,6 +5,15 @@ from pathlib import Path
 SKILL_ROOT = Path(__file__).resolve().parent / 'skills'
 
 
+def essentials():
+    """Body of the short code/testing digest that executors receive instead of reading clean-code."""
+    try:
+        text = (SKILL_ROOT / '_internal' / 'essentials' / 'SKILL.md').read_text(encoding='utf-8')
+    except OSError:
+        return ''
+    return text.split('\n---\n', 1)[-1].strip()
+
+
 def names():
     return sorted(path.parent.name for path in SKILL_ROOT.glob('*/SKILL.md'))
 

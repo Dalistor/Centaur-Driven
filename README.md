@@ -768,6 +768,9 @@ Faixas de roteamento não garantem um teto monetário; os preços e limites da c
 o OpenRouter. Modelo específico só deve ser solicitado quando a task ou o usuário o exigir.
 `clean-code` e suas referências podem ser lidos pelo CLI a partir da instalação completa
 em `.centaur/skills/clean-code/` no projeto ou nos diretórios de skills do usuário.
+Por rotina, o agente aplica o resumo `_internal/essentials/SKILL.md` (critérios de código da
+`clean-code`, política de testes e uso do Graphify), que os executores já recebem nas instruções;
+a `clean-code` inteira é aberta só para arquitetura, concorrência, seus comandos ou projeto com `.clean/`.
 O autocomplete `@` lista somente skills adicionais da pasta `.centaur/skills/` do projeto.
 
 Limites desta versão: respostas completas, sem streaming; uma execução ativa por conversa;

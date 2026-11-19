@@ -8,6 +8,12 @@
   ainda via: resultados de ferramenta já ocultos pela poda não são relidos por inteiro. O resumo
   sai em seções fixas (pedido, decisões, arquivos, erros, verificações, pendências, próximo passo).
   Requisição que estoura o prazo continua reduzindo o fragmento e retomando do rascunho.
+- Resumo essencial no lugar da `clean-code` inteira: `_internal/essentials/SKILL.md` condensa os
+  critérios de código da `clean-code`, a política de testes e o uso do Graphify em ~4,7 mil
+  caracteres, e diz quando abrir a fonte completa. Executores de `delegate_task` o recebem nas
+  instruções e não leem mais `clean-code` (~12 mil caracteres por página) nem
+  `graphify/references/testing.md` por rotina; `implement`, `tdd`, `run` e `spec` passam a pedir o
+  resumo, com a `clean-code` completa só para arquitetura, concorrência, seus comandos ou `.clean/`.
 - Compactação pelo cache no backend Claude: com a sessão nativa do chat viva, o resumo é pedido à
   própria conversa, que lê o histórico do cache do provedor, em vez de um processo novo que o relê
   inteiro sem cache. Chamadas de ferramenta em curso são suspensas e seus resultados seguem na parte

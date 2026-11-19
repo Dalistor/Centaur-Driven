@@ -2,7 +2,7 @@
 name: graphify
 description: Consulta, inicializa ou atualiza Graphify sob demanda; cria mapas e perspectivas em .centaur/system. Não é pré-requisito das tarefas comuns.
 metadata:
-  version: 5.2.1
+  version: 5.2.2
   dependencies: graphify
   optional-dependencies: _internal/memory
 ---

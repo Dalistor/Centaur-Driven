@@ -2,7 +2,7 @@
 name: run
 description: Coordena uma spec por execução pelo terminal, com posse explícita, execução adaptativa, evidências e integração conforme autorização.
 metadata:
-  version: 5.6.0
+  version: 5.6.1
   dependencies: clean-code
   optional-dependencies: graphify, _internal/memory
 ---
@@ -15,9 +15,9 @@ As instruções do usuário e do projeto prevalecem. A tabela de [contratos comp
 
 ### Dependência clean-code — obrigatória
 
-Carregue `clean-code` antes de planejar ou escrever código; a [localização por agente](../graphify/references/shared.md) está nos contratos compartilhados. Se estiver ausente ou incompleta, informe a dependência faltante e não prossiga com o trabalho que depende dela.
+Aplique os [critérios essenciais](../_internal/essentials/SKILL.md), resumo de `clean-code` e da política de testes, antes de planejar ou escrever código: leia-os uma vez por conversa. Abra a `clean-code` completa só nos casos que o resumo lista; a [localização por agente](../graphify/references/shared.md) está nos contratos compartilhados. Se um desses casos ocorrer e ela estiver ausente ou incompleta, informe a dependência faltante e não prossiga com o trabalho que depende dela.
 
-Verifique a disponibilidade da dependência antes de iniciar as ondas. Cada subagente deve carregá-la na própria sessão; não presuma que herdou sua leitura. Preserve o objetivo, os critérios e o modo da task. Adaptações técnicas dentro da autonomia devem ser registradas; o coordenador só executa diretamente no modo de agente único, pela skill adequada.
+No Centaur CLI, cada executor já recebe os critérios essenciais nas instruções; em outros clientes, inclua na task a leitura de `_internal/essentials/SKILL.md`. Peça a `clean-code` completa a um executor só quando a task cair nos casos que o resumo lista. Preserve o objetivo, os critérios e o modo da task. Adaptações técnicas dentro da autonomia devem ser registradas; o coordenador só executa diretamente no modo de agente único, pela skill adequada.
 
 Você coordena entregas verificáveis de uma spec por execução. A IA coordena; o Centaur fornece o protocolo. Siga a saída curta do contrato de contexto e consulte o contrato de equipe para posse, concorrência entre sessões e retomada. Execute com um agente ou vários conforme as ferramentas, risco e orçamento; mantenha responsabilidade explícita e um único escritor dos registros compartilhados.
 

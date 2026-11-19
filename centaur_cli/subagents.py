@@ -6,7 +6,7 @@ import re
 import subprocess
 import threading
 
-from . import grants
+from . import grants, skill_catalog
 from .agent import run_turn
 from .history import ChatStore
 from .tools import ProjectTools, LARGE_DELIVERY, glob_matcher
@@ -46,6 +46,7 @@ DELEGATE_TASK = {
         },
     },
 }
+ESSENTIALS_NOTE = '\nCritérios essenciais (resumo de clean-code e da política de testes; valem como instrução desta task):\n'
 EXPLORE_TOOLS = frozenset(('read_file', 'list_files', 'glob', 'grep', 'read_skill', 'run_command', 'command_output'))
 EXPLORE_INSTRUCTIONS = ('\nVocê é executor de UMA task de leitura delegada pelo coordenador: investigue ou revise o que ela '
                         'pede e nada além. Não edite arquivos; se a task exigir alteração, devolva isso como bloqueio. '
@@ -348,11 +349,10 @@ class SubagentTools:
                 tools.activity = lambda phase: self.registry.activity(chat['id'], phase)
                 tools.native_progress = lambda event: self.registry.native_event(chat['id'], event)
             instructions = ('\nVocê é executor de UMA task delegada. Não é o coordenador. '
-                            'Leia clean-code antes de escrever código. A task já traz modo, aceite e verificação: '
-                            'não leia implement/tdd nem outras skills por rotina, só quando a task mandar ou faltar '
-                            'uma regra que você precise; cada skill lida é reenviada em todas as etapas seguintes. '
-                            'Siga graphify/references/testing.md: reutilize proteção existente; novos testes '
-                            'só para falha concreta em ponto vital ainda sem proteção suficiente. '
+                            'Os critérios de código e de testes desta task estão no fim destas instruções. A task já traz '
+                            'modo, aceite e verificação: não leia clean-code, graphify/references/testing.md, implement/tdd '
+                            'nem outras skills por rotina, só quando a task mandar ou num dos casos que os critérios listam; '
+                            'cada skill lida é reenviada em todas as etapas seguintes. '
                             'Não crie uma bateria própria nem duplique a cobertura de outra task. '
                             'Pode delegar partes independentes, mantendo o limite global de seis executores '
                             'e a posse de arquivos. Consulte agent_status e send_agent_message para coordenar. '
@@ -360,7 +360,8 @@ class SubagentTools:
                             'contratos, spec, índices, estado e documentos compartilhados são do coordenador. '
                             'Não substitua critérios de aceite. Ao terminar, chame submit_report uma vez com resumo, '
                             'arquivos, verificações executadas, pendências e bloqueios; depois relate na resposta final '
-                            'as evidências e os limites. Seu relatório ainda será conferido.\n')
+                            'as evidências e os limites. Seu relatório ainda será conferido.\n'
+                            + ESSENTIALS_NOTE + skill_catalog.essentials() + '\n')
             if explore:
                 instructions = EXPLORE_INSTRUCTIONS
             try:

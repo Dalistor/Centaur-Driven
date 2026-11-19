@@ -71,6 +71,27 @@ class SubagentTests(unittest.TestCase):
         self.assertIn('write_file', [tool['function']['name'] for tool in requests[0][2]])
         self.assertIn('Falha ao delegar task', tools.execute('delegate_task', {'title': 'T', 'task': 'x', 'mode': 'write'}))
 
+    def test_executor_receives_the_code_and_testing_essentials_instead_of_loading_clean_code(self):
+        requests = []
+        class Client:
+            def complete(inner, model, messages, tools, **options):
+                requests.append(messages[0]['content'])
+                return ModelReply({'role': 'assistant', 'content': 'Feito.'}, 'provider/model')
+        tools = SubagentTools(ProjectTools(self.root, lambda _: True), Client(), self.parent_id, lambda _: None)
+        tools.execute('delegate_task', {'title': 'Task', 'task': 'Trabalho'})
+        tools.execute('delegate_task', {'title': 'Leitura', 'task': 'Localize', 'mode': 'explore'})
+        executor, reader = requests
+        essentials = skill_catalog.essentials()
+        self.assertIn('Dependências apontam para dentro', essentials)
+        self.assertIn('Teste novo ou ampliado só com as três condições', essentials)
+        self.assertNotIn('visibility: internal', essentials)  # Só o corpo, sem o cabeçalho da skill.
+        self.assertLess(len(essentials), 6000)
+        self.assertIn(essentials, executor)
+        self.assertIn('não leia clean-code', executor)
+        self.assertNotIn('Dependências apontam para dentro', reader)  # Quem só lê não escreve código.
+        base = ProjectTools(self.root, lambda _: True)
+        self.assertIn('Quando abrir a fonte completa', base.execute('read_skill', {'path': '_internal/essentials/SKILL.md', 'start_line': '1'}))
+
     def test_explore_executor_cannot_write_or_delegate_even_if_it_asks(self):
         base = ProjectTools(self.root, lambda _: True, approval_mode='never')
         base.definitions = [entry for entry in base.definitions if entry['function']['name'] in ('read_file', 'grep')]
