@@ -131,7 +131,7 @@ jobs:
             python3 -c 'import json,os; x=json.load(open(os.environ["RUNNER_TEMP"]+"/tag.json"))["object"]; assert x["type"]=="commit" and x["sha"]==os.environ["GITHUB_SHA"], "Version tag already points to another commit; bump the version."'
           fi
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            printf 'Centaur CLI %s\n\nPython 3.10+; Linux/macOS. See README for backends, installation and usage.\n\nPyPI publishing runs separately; consult its job before assuming pip install centaur-cli is available.\n' "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+            printf 'Centaur CLI %s\n\nPython 3.10+; Linux/macOS. See README for backends and usage.\n\nInstall or update: curl -fsSL https://raw.githubusercontent.com/Dalistor/Centaur-Driven/main/install.sh | sh\n' "$VERSION" > "$RUNNER_TEMP/release-notes.md"
             gh release create "$tag" --target "$GITHUB_SHA" --title "Centaur CLI $VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
           for file in dist/* SHA256SUMS; do
@@ -143,19 +143,3 @@ jobs:
               gh release upload "$tag" "$file"
             fi
           done
-
-  pypi:
-    needs: [build, release]
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/project/centaur-cli/
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: centaur-cli-${{ needs.build.outputs.version }}-${{ github.sha }}
-      - name: Publish to PyPI using the configured Trusted Publisher
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1

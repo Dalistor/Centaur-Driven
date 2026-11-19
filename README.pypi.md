@@ -13,22 +13,14 @@ precisam de seus próprios executáveis e login.
 Para disponibilizar `centaur` globalmente, em um ambiente isolado:
 
 ```bash
-pipx install centaur-cli
+curl -fsSL https://raw.githubusercontent.com/Dalistor/Centaur-Driven/main/install.sh | sh
 centaur --version
 centaur /caminho/do/projeto
 ```
 
-Também pode instalar com pip em um ambiente Python que permita instalações:
-
-```bash
-python3 -m pip install centaur-cli
-centaur .
-```
-
-Em distribuições com Python gerenciado pelo sistema, use pipx ou um virtualenv.
-Não é necessário usar sudo nem alterar o Python do sistema.
-
-Para atualizar: `pipx upgrade centaur-cli`, ou `python3 -m pip install --upgrade centaur-cli`.
+O script baixa o wheel da release mais recente do GitHub, confere o checksum e o instala com
+uv ou pipx, sem sudo nem alterações no Python do sistema. Para atualizar, execute-o de novo.
+O wheel de cada release também pode ser instalado diretamente com pipx ou pip.
 
 ## Backends
 
@@ -60,7 +52,7 @@ Mensagens e arquivos consultados pelo agente são enviados ao provedor.
 ## Anexos e capturas
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.7'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.8'
 ```
 
 Ctrl+V cola imagem/texto/arquivos; arrastar ou colar caminhos insere marcadores atômicos

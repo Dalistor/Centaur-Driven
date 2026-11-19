@@ -3,33 +3,11 @@
 O pacote público se chama `centaur-cli` e instala o comando `centaur`. Requer Python 3.10+
 e Linux/macOS com curses. A versão tem uma única fonte: `centaur_cli.__version__`.
 
-## Configuração inicial no PyPI
+## Canal de distribuição
 
-A publicação usa Trusted Publishing (OIDC), sem guardar um token no repositório.
-Antes da primeira publicação, o proprietário deve cadastrar um **pending publisher** em
-[PyPI → Publishing](https://pypi.org/manage/account/publishing/):
-
-| Campo | Valor |
-| --- | --- |
-| PyPI project name | `centaur-cli` |
-| GitHub owner | `Dalistor` |
-| GitHub repository | `Centaur-Driven` |
-| Workflow filename | `publish-cli.yml` |
-| Environment name | `pypi` |
-
-Se o projeto já existir sob sua conta, configure os mesmos campos nos publishers do projeto.
-Um pending publisher não reserva o nome. O projeto é criado na primeira publicação aceita.
-Não envie credenciais por chat nem adicione tokens ao código.
-
-Depois de cadastrar, abra a execução de
-[Publish Centaur CLI](https://github.com/Dalistor/Centaur-Driven/actions/workflows/publish-cli.yml)
-e selecione **Re-run failed jobs** se o job `pypi` falhou por ausência do publisher.
-Os jobs de build e release continuam úteis mesmo quando a autorização do PyPI falta.
-Verifique o sucesso do job e a página [centaur-cli no PyPI](https://pypi.org/project/centaur-cli/)
-antes de anunciar `pip install centaur-cli`.
-
-Referências: [criar um projeto via OIDC](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
-e [usar um publisher](https://docs.pypi.org/trusted-publishers/using-a-publisher/).
+A distribuição é a release do GitHub: cada versão publica wheel, código-fonte e `SHA256SUMS`
+sob a tag `cli-v<versão>`. O `install.sh` da raiz baixa o wheel da release mais recente,
+confere o checksum e instala com uv ou pipx. O pacote não é publicado no PyPI.
 
 ## Gerar uma nova versão
 
@@ -40,9 +18,9 @@ e [usar um publisher](https://docs.pypi.org/trusted-publishers/using-a-publisher
 
 O workflow testa Python 3.10 e 3.13 no Linux e 3.13 no macOS; gera wheel e sdist;
 valida o README e todos os recursos; instala o wheel em um ambiente limpo; publica uma
-release com tag `cli-v<versão>`, pacotes e SHA256SUMS; depois publica os mesmos pacotes no PyPI.
+release com tag `cli-v<versão>`, pacotes e SHA256SUMS.
 A tag de uma versão publicada não pode apontar para outro commit. Para alterar um pacote
-já publicado, gere uma nova versão. Não sobrescreva releases ou arquivos do PyPI.
+já publicado, gere uma nova versão. Não sobrescreva releases.
 
 Os testes de deploy estático rodam apenas no Linux, por exigirem utilitários GNU e flock.
 
@@ -68,11 +46,10 @@ fora da árvore de código. Os testes não chamam modelos pagos.
 
 ## Instalar e atualizar
 
-Depois da publicação no PyPI:
+Depois da release:
 
 ```bash
-pipx install centaur-cli
-pipx upgrade centaur-cli
+curl -fsSL https://raw.githubusercontent.com/Dalistor/Centaur-Driven/main/install.sh | sh
 centaur --version
 ```
 

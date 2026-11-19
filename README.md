@@ -34,20 +34,31 @@ A seleção/cópia usa os recursos do emulador. Ctrl+C continua interrompendo o 
 
 ### Instalação da versão publicada
 
-A versão desta entrega é `0.10.7`. O workflow publica wheel, código-fonte e checksums na
-[release `cli-v0.10.7`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.7).
-Com essa release disponível, instale o comando globalmente para seu usuário usando pipx:
+Instale ou atualize com um comando (Linux e macOS; requer `curl` e [uv](https://docs.astral.sh/uv/) ou
+[pipx](https://pipx.pypa.io)):
 
 ```bash
-pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.7/centaur_cli-0.10.7-py3-none-any.whl
+curl -fsSL https://raw.githubusercontent.com/Dalistor/Centaur-Driven/main/install.sh | sh
+centaur /caminho/do/projeto
+```
+
+O script baixa o wheel da release mais recente, confere o `SHA256SUMS` e instala em um ambiente
+isolado, sem sudo. `CENTAUR_VERSION=0.10.8` fixa a versão, `CENTAUR_EXTRAS=attachments,computer`
+inclui os extras e `CENTAUR_INSTALLER=pipx` escolhe o instalador. Executar de novo atualiza.
+
+A versão desta entrega é `0.10.8`. O workflow publica wheel, código-fonte e checksums na
+[release `cli-v0.10.8`](https://github.com/Dalistor/Centaur-Driven/releases/tag/cli-v0.10.8).
+Para instalar o wheel manualmente com pipx:
+
+```bash
+pipx install https://github.com/Dalistor/Centaur-Driven/releases/download/cli-v0.10.8/centaur_cli-0.10.8-py3-none-any.whl
 centaur --version
 centaur /caminho/do/projeto
 ```
 
 O mesmo wheel pode ser instalado com `python3 -m pip install URL_DO_WHEEL` em um ambiente
 Python que permita instalação. Se seu sistema gerencia o Python, use pipx ou um virtualenv.
-Depois da configuração inicial do PyPI e da publicação bem-sucedida, também será possível
-usar `pipx install centaur-cli` ou `python3 -m pip install centaur-cli`.
+O pacote não é publicado no PyPI: a release do GitHub é o canal de distribuição.
 Veja [publicação e novas versões](docs/publishing.md) e o [changelog](CHANGELOG.md).
 
 ### Instalação diretamente pelo GitHub
@@ -59,11 +70,7 @@ pipx install 'git+https://github.com/Dalistor/Centaur-Driven.git@main'
 centaur .
 ```
 
-Para atualizar essa instalação:
-
-```bash
-pipx upgrade centaur-cli
-```
+Para atualizar qualquer instalação, execute o script de instalação de novo.
 
 Se o comando `centaur` não aparecer, execute `pipx ensurepath` e reabra o terminal.
 
@@ -799,7 +806,7 @@ funcionam nas tasks delegadas e não dependem do modo de permissões.
 Instale a release com o extra visual, ou atualize a instalação por Git:
 
 ```bash
-pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.7'
+pipx install --force 'centaur-cli[attachments] @ git+https://github.com/Dalistor/Centaur-Driven.git@cli-v0.10.8'
 # Se o Centaur já estiver atualizado e só faltarem as dependências:
 pipx inject centaur-cli Pillow mss
 ```
@@ -899,8 +906,8 @@ e funciona em Wayland ou sem monitor; os comandos seguem o modo de permissões. 
 
 ### Computer use com captura contínua
 
-Instale as dependências opcionais na instalação global. Enquanto a publicação PyPI não
-estiver configurada, use o Git:
+Instale as dependências opcionais na instalação global (`CENTAUR_EXTRAS=computer` no script de
+instalação) ou, para a branch `main`, pelo Git:
 
 ```bash
 pipx install --force 'centaur-cli[computer] @ git+https://github.com/Dalistor/Centaur-Driven.git@main'
@@ -1393,7 +1400,7 @@ de testes existentes. Veja a [política completa](centaur_cli/skills/graphify/re
 
 Esta entrega reúne orientação durante execução, coordenação recursiva, anexos no
 compositor e refinamentos de computer use. Consulte a execução de publicação para
-confirmar a disponibilidade dos pacotes no GitHub e PyPI.
+confirmar a disponibilidade dos pacotes na release do GitHub.
 
 Enter durante uma execução envia uma orientação em fila privada por chat. O agente a
 lê ao concluir a chamada ao modelo, ferramenta ou compactação atual. Chamadas ainda não

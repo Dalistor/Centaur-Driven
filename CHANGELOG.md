@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.8 — 2026-11-19
+
+- Instalação em um comando: `curl -fsSL https://raw.githubusercontent.com/Dalistor/Centaur-Driven/main/install.sh | sh`
+  baixa o wheel da release mais recente, confere o `SHA256SUMS` e instala com uv ou pipx, sem sudo.
+  `CENTAUR_VERSION`, `CENTAUR_EXTRAS` e `CENTAUR_INSTALLER` ajustam versão, extras e instalador;
+  executar de novo atualiza.
+- A release do GitHub passa a ser o único canal de distribuição: o job de publicação no PyPI, que
+  nunca chegou a publicar, saiu do workflow.
+
 ## 0.10.7 — 2026-11-19
 
 - Compactação mais rápida, no estilo do Claude Code: o contexto antigo é resumido em uma passada
